@@ -1,5 +1,5 @@
 /**
- * Sigil Registry — DOT-282
+ * Sigil Registry
  *
  * A sigil is a structured prefix that triggers special resolution in the
  * orchestrator's input pipeline. This module provides parsing, registration,

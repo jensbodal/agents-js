@@ -38,7 +38,7 @@ describe("runReadinessGates", () => {
     );
   });
 
-  test("Matrix and agent-msg gates are deferred (D follow-on)", async () => {
+  test("Matrix and agent-msg gates are deferred (tool pending)", async () => {
     const report = await runReadinessGates({
       workspaceRoot: FIXTURE_WS,
       hubRoot: FIXTURE_HUB,
@@ -51,23 +51,23 @@ describe("runReadinessGates", () => {
     expect(agentMsg?.detail).toContain("searchAgentMsg");
   });
 
-  test("hub-vault gate passes when fixture has matching content", async () => {
+  test("workspace-doc gate passes when fixture has matching content", async () => {
     const report = await runReadinessGates({
       workspaceRoot: FIXTURE_WS,
       hubRoot: FIXTURE_HUB,
       probeQuery: "time estimates review",
     });
-    const hub = report.results.find((r) => r.id === "hub-vault-source");
+    const hub = report.results.find((r) => r.id === "workspace-doc-source");
     expect(hub?.outcome).toBe("pass");
     expect(hub?.detail).toContain("/");
   });
 
-  test("self-hosting gate passes — searchDocs at top of findTools result", async () => {
+  test("doc-search gate passes — searchDocs at top of findTools result", async () => {
     const report = await runReadinessGates({
       workspaceRoot: FIXTURE_WS,
       hubRoot: FIXTURE_HUB,
     });
-    const sh = report.results.find((r) => r.id === "find-tools-self-hosting");
+    const sh = report.results.find((r) => r.id === "find-tools-doc-search");
     expect(sh?.outcome).toBe("pass");
   });
 
@@ -94,11 +94,9 @@ describe("runReadinessGates", () => {
  * `stale-source-confidence` gate uses a regex with word-boundary anchors:
  *   STALE_SOURCE_MARKER = /\bstale\b|\bdeprecated\b|\bsupersed/i
  *
- * The Phase 2 sweep originally swapped this for three `String.includes`
- * calls, which silently broadened false-positive surface (matching
+ * A prior implementation used three `String.includes` calls, which silently
+ * broadened false-positive surface (matching
  * "stalemate", "undeprecated", "asuperseded", "deprecation", etc.). The
- * follow-up commit `3b60ef1` restored the regex with named-const + comment.
- *
  * These tests pin the boundary behavior so a future "simplify" sweep
  * cannot re-broaden it without explicit signal. Each test builds a temp
  * hub vault with controlled markdown content, so the assertion explains

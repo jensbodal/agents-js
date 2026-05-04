@@ -12,8 +12,8 @@ function useFrozenLockfile(argv: string[]): boolean {
 async function installDependencies(argv: string[]): Promise<void> {
   const frozenLockfile = useFrozenLockfile(argv);
   // Use `bun install --frozen-lockfile` (validates, fails on drift) instead
-  // of `bun ci` (deletes node_modules first; observed to fail on the
-  // proxmox runners with no diagnostic logs available — see V13 CI cluster).
+  // of `bun ci` (deletes node_modules first and has produced opaque runner
+  // failures).
   // Both are documented as equivalent in bun 1.x, but `bun install
   // --frozen-lockfile` matches what the pre-push hook uses, so we get one
   // consistent install behavior across local + CI surfaces.

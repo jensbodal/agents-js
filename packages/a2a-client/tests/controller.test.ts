@@ -451,7 +451,7 @@ describe("A2AClientController", () => {
   });
 });
 
-describe("A2AClientController.cancelTask (WP1)", () => {
+describe("A2AClientController.cancelTask", () => {
   test("rejects when no target is connected", async () => {
     const transport = new RecordingTransport();
     const controller = new A2AClientController({

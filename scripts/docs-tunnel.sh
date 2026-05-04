@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 
-DOMAIN=${DOCS_TUNNEL_DOMAIN:-agents-js.bodal.dev}
+DOMAIN=${DOCS_TUNNEL_DOMAIN:-localhost}
 PORT=${DOCS_TUNNEL_PORT:-5173}
 CONFIG_PATH="$REPO_ROOT/.cloudflared-${DOMAIN}.yaml"
 USER_CONFIG_PATH="$HOME/.cloudflared/config.yaml"
@@ -25,10 +25,10 @@ Usage:
   ./scripts/docs-tunnel.sh tunnel
 
 Environment:
-  DOCS_TUNNEL_DOMAIN   Public docs hostname (default: agents-js.bodal.dev)
+  DOCS_TUNNEL_DOMAIN   Docs hostname (default: localhost)
   DOCS_TUNNEL_PORT     Local VitePress port (default: 5173)
+  DOCS_CF_ACCESS_TEAM  Optional Cloudflare Access team name for generated configs
   DOCS_CF_ACCESS_AUD   Optional override for the Cloudflare Access audience
-  DOCS_TUNNEL_ALLOW_PRODUCTION_TUNNEL=1  Explicitly allow a local connector on the production hostname
 EOF
 }
 
@@ -152,6 +152,11 @@ write_config() {
   local tunnel_id=$1
   local credentials_file
 
+  if [[ -z "${DOCS_CF_ACCESS_TEAM:-}" ]]; then
+    echo "Set DOCS_CF_ACCESS_TEAM before generating a Cloudflare Access tunnel config." >&2
+    exit 1
+  fi
+
   credentials_file="$HOME/.cloudflared/${tunnel_id}.json"
   if [[ ! -f "$credentials_file" ]]; then
     echo "Missing Cloudflare credentials file: $credentials_file" >&2
@@ -168,7 +173,7 @@ ingress:
     originRequest:
       access:
         required: true
-        teamName: "bodal"
+        teamName: "$DOCS_CF_ACCESS_TEAM"
         audTag:
           - "$EFFECTIVE_ACCESS_AUD"
   - service: http_status:404
@@ -431,12 +436,6 @@ serve_docs() {
 }
 
 run_tunnel() {
-  if [[ "$DOMAIN" == "agents-js.bodal.dev" && "${DOCS_TUNNEL_ALLOW_PRODUCTION_TUNNEL:-}" != "1" ]]; then
-    echo "Refusing to attach a local cloudflared connector to production hostname $DOMAIN by default." >&2
-    echo "Production docs are expected to run through the Portainer cloudflared sidecar." >&2
-    echo "Set DOCS_TUNNEL_ALLOW_PRODUCTION_TUNNEL=1 only for an intentional local override." >&2
-    exit 1
-  fi
   local config_path
   config_path=$(setup_config)
   echo "Running Cloudflare tunnel for $DOMAIN on local port $PORT..." >&2

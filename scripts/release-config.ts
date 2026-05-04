@@ -1,15 +1,7 @@
 export const EXPECTED_PUBLISH_ACCESS = "restricted";
 export const PUBLISH_SCOPE = "@agents-js";
 
-/**
- * Env var that selects the target npm registry for `@agents-js/*` publishes.
- *
- * Historically the registry was hardcoded to an internal Nexus URL. That leaked
- * a Tailscale hostname into every package.json + this config file, which is
- * incompatible with OSS publication. The registry is now supplied by the
- * publisher (CI secret, developer shell, or local `.npmrc` under an allowlist
- * that is not committed) and verified at preflight/publish time.
- */
+/** Env var that selects the target npm registry for `@agents-js/*` publishes. */
 export const PUBLISH_REGISTRY_ENV = "AGENTS_JS_PUBLISH_REGISTRY";
 
 /**

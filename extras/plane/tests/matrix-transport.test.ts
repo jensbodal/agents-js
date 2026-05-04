@@ -57,7 +57,7 @@ describe("Matrix transport", () => {
       },
     );
 
-    expect(await notifier("Plane issue Done: DOT-301 Example")).toBe(true);
+    expect(await notifier("Plane issue Done: ISSUE-301 Example")).toBe(true);
     expect(calls).toEqual([
       {
         command: "/opt/bun",
@@ -69,7 +69,7 @@ describe("Matrix transport", () => {
           "--room",
           "alerts",
           "--plain",
-          "Plane issue Done: DOT-301 Example",
+          "Plane issue Done: ISSUE-301 Example",
         ],
         options: { onError: "throw", timeoutMs: 10_000 },
       },

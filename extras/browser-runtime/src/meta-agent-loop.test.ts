@@ -89,7 +89,7 @@ describe("createMetaAgentLoop", () => {
     expect(events.some((e: any) => e.params?.kind === "error")).toBe(true);
   });
 
-  // ─── M6 cancel plumbing (DOT-308) ─────────────────────────────────────────
+  // ─── Cancel plumbing ─────────────────────────────────────────────────────
 
   it("cancel mid-streamAnswer emits {kind:'cancelled'} and suppresses answer.done", async () => {
     // Verify: (a) cancel during streamAnswer causes the loop to break the

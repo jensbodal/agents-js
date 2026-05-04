@@ -67,10 +67,9 @@ export interface AguiEventBridgeOptions {
  * notification (`tool.invoked`) faithfully maps to three AG-UI events
  * (start + args + end). Collapsing to one would lose protocol fidelity.
  *
- * TODO(agui-cancel-shape): see DOT-311 — AG-UI v0.0.52 has no first-class
- * "cancelled" run status. `RunFinishedEvent` carries no status field. We map
- * `cancelled` to `RunErrorEvent` with `code: "cancelled"` as the closest
- * semantic. Revisit once AG-UI publishes a cancellation primitive.
+ * AG-UI v0.0.52 has no first-class "cancelled" run status.
+ * `RunFinishedEvent` carries no status field. We map `cancelled` to
+ * `RunErrorEvent` with `code: "cancelled"` as the closest semantic.
  */
 export function createAguiEventBridge(
   options: AguiEventBridgeOptions,
@@ -114,8 +113,8 @@ export function createAguiEventBridge(
       }
 
       case "clarify": {
-        // TODO(agui-clarify-shape): see DOT-311 — AG-UI has no first-class
-        // "clarify" event; we render as a single-shot assistant text message.
+        // AG-UI has no first-class "clarify" event; render as a single-shot
+        // assistant text message.
         // If a future spec bump adds a clarify primitive, swap here.
         const messageId = idFactory();
         const prompt = (params.prompt as string | undefined) ?? "";

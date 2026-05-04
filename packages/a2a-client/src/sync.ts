@@ -1,5 +1,5 @@
 /**
- * Phase 2 cross-gateway registry sync primitives.
+ * Cross-gateway registry sync primitives.
  *
  * Pull-model peer sync: a local gateway fetches another gateway's
  * `/.well-known/agents-js-registry.json`, filters out records that
@@ -13,10 +13,8 @@
  * prevents A→B→A fan-back loops and the load-multiplication that
  * would otherwise result from multi-hop gossip.
  *
- * No authentication: Phase 2 is trust-based within the tailnet. Auth
- * layers in during Phase 3 or when Agent Zero's A2A auth primitive
- * (DOT-280) lands, whichever comes first. See the task scope-out
- * section and the record-shape spec's "Known limitations" block.
+ * No authentication: sync assumes callers run gateways on a trusted private
+ * network. Add authentication before exposing the sync endpoint publicly.
  *
  * Placement rationale (see node.ts for autoRegister alongside this):
  * node.ts already carried three concerns (shared-registry resolution,
@@ -304,12 +302,8 @@ function resolveMergeBranch(
   }
 
   // --- Branch 3: cross-gateway conflict on `name`. --------------------
-  // Same name surfaced on two different gateways. Phase 2 spec locks
-  // preferred_gateway_id as the explicit tiebreaker; last-writer-wins
-  // is the fallback.
-  //
-  // Subtlety the spec's task description doesn't fully pin down:
-  //   - If only one side has preferred_gateway_id set → use it.
+  // Same name surfaced on two different gateways. preferred_gateway_id is
+  // the explicit tiebreaker; last-writer-wins is the fallback.
   //   - If both sides have it AND agree → use it.
   //   - If both sides have it AND disagree → operator misconfiguration;
   //     fall through to last-writer-wins (deterministic, no silent

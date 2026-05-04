@@ -56,17 +56,15 @@ export interface HostA2AExecutorOptions {
    */
   dispatchWorkspacePath?: string;
   /**
-   * Per-lane controller factory (Phase 2). When supplied, each distinct
-   * `contextId` gets its own freshly-spawned `GatewayHostController` (and
-   * underlying ACP process) — independent lanes make forward progress in
-   * parallel instead of serializing against the primary controller.
+   * Per-lane controller factory. When supplied, each distinct `contextId`
+   * gets its own freshly-spawned `GatewayHostController` and underlying ACP
+   * process, so independent lanes make forward progress in parallel instead
+   * of serializing against the primary controller.
    *
    * When omitted, all lanes reuse the primary controller passed to the
-   * constructor (Phase 1 semantics); concurrent different-contextId prompts
+   * constructor; concurrent different-contextId prompts
    * then still serialize at the shared controller, but they no longer
    * cross-publish each other's `PromptOutcome`s across event buses.
-   *
-   * See `docs/architecture/event-routing-per-contextid-plan.md` §3c.ii.
    */
   controllerFactory?: (contextId: string) => Promise<GatewayHostController>;
   /**
@@ -104,15 +102,11 @@ interface ActiveTask {
  * concurrent different-contextId requests no longer republish each other's
  * `PromptOutcome` across event buses.
  *
- * Phase 2: each lane owns a dedicated controller when the executor is
- * constructed with a `controllerFactory` — independent contextIds run
- * against independent ACP processes and make forward progress in parallel.
- * When the factory is absent, every lane reuses the primary controller
- * (Phase 1 semantics retained for unit tests that pass a stub controller).
+ * Each lane owns a dedicated controller when the executor is constructed
+ * with a `controllerFactory`; otherwise every lane reuses the primary
+ * controller.
  * The lane's `ownsController` flag tracks which mode the lane is in so
  * teardown knows whether to call `destroy()`.
- *
- * See `docs/architecture/event-routing-per-contextid-plan.md` §3c.ii.
  */
 interface SessionLane {
   contextId: string;
@@ -349,8 +343,8 @@ export class HostA2AExecutor implements InitializableExecutor {
       // cancel that races an in-flight prompt resolve leaves the original
       // task's event stream open and the A2A client never sees completion.
       // cancelTask() calls `finished()` on its OWN eventBus (the cancel-RPC
-      // one), not this one — so it cannot be relied on for the original
-      // task's terminal signal. See backlog `cancel-race-eventbus-finish`.
+      // one), not this one, so it cannot be relied on for the original
+      // task's terminal signal.
       eventBus.finished();
       this.activeTasks.delete(context.taskId);
       this.taskToLane.delete(context.taskId);
@@ -361,7 +355,7 @@ export class HostA2AExecutor implements InitializableExecutor {
    * Resolve the `SessionLane` for `context.contextId`, creating it if
    * necessary. Publishes a terminal failure on the caller's eventBus and
    * returns `null` when:
-   *   - the controllerFactory throws (Phase 2 lane spawn failure), or
+   *   - the controllerFactory throws while spawning a lane controller, or
    *   - the lane's controller is `closed` (unrecoverable).
    *
    * Touches `lane.lastActivityMs` on success so the idle-sweep doesn't
@@ -487,7 +481,7 @@ export class HostA2AExecutor implements InitializableExecutor {
    * it directly — different contextIds then make forward progress against
    * independent ACP processes in parallel. When no factory is present, every
    * lane points at the primary controller and the executor serializes them
-   * on `controllerBusy` (Phase 1 semantics).
+   * on `controllerBusy`.
    */
   private async getOrCreateLane(contextId: string): Promise<SessionLane> {
     const existing = this.lanes.get(contextId);
@@ -825,11 +819,11 @@ export class HostA2AExecutor implements InitializableExecutor {
   }
 
   /**
-   * Phase 1 of dispatchAcp: bring an ephemeral controller online — resolve
-   * the runtime, build a slim StartConfig, start the process, pin
-   * permission mode to `"yolo"` (so dispatched targets run un-gated), and
-   * allocate a session. Throws on any failure; the caller's outer
-   * try/finally is responsible for disposing the controller in that case.
+   * Bring an ephemeral controller online: resolve the runtime, build a slim
+   * StartConfig, start the process, pin permission mode to `"yolo"` (so
+   * dispatched targets run un-gated), and allocate a session. Throws on any
+   * failure; the caller's outer try/finally is responsible for disposing the
+   * controller in that case.
    */
   private async spawnEphemeralController(
     dispatchController: ACPSessionController,
@@ -841,16 +835,16 @@ export class HostA2AExecutor implements InitializableExecutor {
 
     await dispatchController.start(startConfig);
     // `"yolo"` skips permission-rule evaluation so dispatched targets run
-    // un-gated. Documented pinning decision (synthesis §4).
+    // un-gated.
     await dispatchController.setPermissionMode("yolo");
     await dispatchController.newSession();
   }
 
   /**
-   * Phase 2 of dispatchAcp: subscribe to the controller, drive the prompt to
-   * completion, and return the captured text + messageId. The subscription
-   * is wired up in a try/finally so a thrown `sendPrompt` always detaches
-   * the listener before propagating.
+   * Subscribe to the controller, drive the prompt to completion, and return
+   * the captured text + messageId. The subscription is wired up in a
+   * try/finally so a thrown `sendPrompt` always detaches the listener before
+   * propagating.
    */
   private async runEphemeralPrompt(
     dispatchController: ACPSessionController,
@@ -869,15 +863,7 @@ export class HostA2AExecutor implements InitializableExecutor {
   }
 
   /**
-   * Phase 3 of dispatchAcp: best-effort controller teardown.
-   *
-   * Kept as a named helper (rather than inlining the five lines into
-   * dispatchAcp's finally block) for symmetry with Phase 1
-   * (`spawnEphemeralController`) and Phase 2 (`runEphemeralPrompt`),
-   * which are both named methods so the dispatchAcp body and its JSDoc
-   * can reference each phase uniformly. Inlining only Phase 3 would
-   * make the "spawn → run → dispose" structure asymmetric and harder
-   * for a future reader to follow.
+   * Best-effort controller teardown.
    *
    * `destroy()` may throw on controllers that never successfully started —
    * we've already published a terminal task by the time this runs, so we

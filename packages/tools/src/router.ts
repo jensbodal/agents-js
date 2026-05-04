@@ -27,7 +27,6 @@ const MEMORY_SIGNALS = [
   "agent",
   "session",
   "sessions",
-  "jens",
   "decision",
   "decided",
 ];
@@ -44,9 +43,6 @@ const DOCS_SIGNALS = [
   "readme",
   "guide",
   "plan",
-  "hub",
-  "vault",
-  "adr",
   "architecture",
 ];
 

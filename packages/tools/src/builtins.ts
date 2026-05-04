@@ -2,7 +2,7 @@
  * Built-in tool definitions for the default registry.
  *
  * The three primitives (two memory + one subagent) are registered into the
- * default registry by {@link registerBuiltins}. This is the self-hosting
+ * default registry by {@link registerBuiltins}. This is the core
  * proof — calling `findTools("search memories")` after `registerBuiltins()`
  * returns the searchMemories tool and `findTools("spawn a subagent")`
  * returns the SpawnAgent tool rather than only external tools that
@@ -32,7 +32,7 @@ export const searchMemoriesTool: ToolDefinition = {
 
 export const searchDocsTool: ToolDefinition = {
   name: "searchDocs",
-  description: "Search markdown docs across the hub vault for a query string",
+  description: "Search markdown docs across the document root for a query string",
   keywords: ["doc", "docs", "hub", "vault", "search", "file", "plan", "spec"],
   invoke: async (input) => {
     const { query, hubRoot } = input as { query: string; hubRoot: string };

@@ -191,7 +191,7 @@ class AuthRequiredTransport implements A2ATransport {
   }
 }
 
-describe("auth_required metadata + action API (WP6)", () => {
+describe("auth_required metadata + action API", () => {
   test("auth-required task state populates typed activeAuth metadata with link + description", () => {
     // Locks the contract that the SDK plumbs the optional `link` and
     // `description` fields from ACP AuthMethod variants into the typed
@@ -325,7 +325,7 @@ describe("auth_required metadata + action API (WP6)", () => {
   });
 
   test("auth-failed state is distinguishable from auth-required waiting state", () => {
-    // Brief WP6 compatibility: auth-required must not be collapsed into a
+    // Compatibility: auth-required must not be collapsed into a
     // generic error unless the task is actually failed. Here we drive the
     // session through auth-required → failed and assert the state shape
     // post-transition makes this distinguishable for UI clients.
@@ -422,7 +422,7 @@ describe("auth_required metadata + action API (WP6)", () => {
   });
 
   test("retry/resume after auth uses original contextId (streaming path preserves resumableTaskId)", async () => {
-    // Locks the WP5 provider fix carries over to auth-required: streaming
+    // Locks that provider behavior carries over to auth-required: streaming
     // input/auth-required tasks preserve resumableTaskId because
     // `message.completed` is now gated by `isTerminalTaskState`.
     const transport = new AuthRequiredTransport();

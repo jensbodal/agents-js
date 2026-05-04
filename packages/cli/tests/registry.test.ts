@@ -136,8 +136,7 @@ describe("runRegistryCommand", () => {
 
   test("add strips zero-width-space from the agent name", () => {
     // A ZWSP-prefixed name would otherwise persist a key the gateway's
-    // normalized session-controller view can never look up. See
-    // docs/architecture/opencode-zwsp-tracking.md for the upstream context.
+    // normalized session-controller view can never look up.
     const code = runRegistryCommand(["add", "\u200bsisyphus", "http://s.test"]);
     expect(code).toBe(0);
     const registry = readRegistry();

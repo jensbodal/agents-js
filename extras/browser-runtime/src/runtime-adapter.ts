@@ -40,9 +40,9 @@ export interface RuntimeAdapter {
  * when running the playground in CI / SSR where WebGPU is unavailable.
  *
  * The `agents-js-gateway` runtime id is reserved for a future remote-runtime
- * adapter (M5+, DOT-307); it validates against the manifest schema but does
- * NOT have an adapter implementation yet. The manifest editor surfaces this
- * as a disabled "coming soon" option.
+ * adapter; it validates against the manifest schema but does NOT have an
+ * adapter implementation yet. The manifest editor surfaces this as a disabled
+ * "coming soon" option.
  */
 export function createMockRuntimeAdapter(): RuntimeAdapter {
   return {

@@ -5,7 +5,7 @@ import { type AguiBaseEventOptionals, pickAguiBaseOptionals } from "./base.ts";
  * Input shape emitted by agents-js for reasoning lifecycle signals.
  *
  * AG-UI's `REASONING_START` / `REASONING_END` require a `messageId`. agents-js
- * historically has omitted it for reasoning blocks, so the adapters accept an
+ * may omit it for reasoning blocks, so the adapters accept an
  * optional id and fall back to a generated one.
  */
 export interface AgentsJsReasoningInput extends AguiBaseEventOptionals {

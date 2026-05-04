@@ -41,11 +41,7 @@ export interface ACPAgentEntry {
 /** A single entry from the registry config file (discriminated on `kind`). */
 export type AgentEntry = A2AAgentEntry | ACPAgentEntry;
 
-/**
- * Full v2 on-disk record shape. Written by Phase 1 auto-registration and
- * preserved by Phase 2 cross-gateway sync without schema rewrite. See
- * `.agents/omd-orchestrator/registry-record-shape-spec-2026-04-23.md`.
- */
+/** Full v2 on-disk record shape. */
 export interface AgentRegistryRecord {
   name: string;
   agent_id: string;
@@ -63,7 +59,7 @@ export interface AgentRegistryRecord {
   last_synced_at?: string;
   protocol_version?: string;
   card_cache_refreshed_at?: string;
-  /** Reserved for Phase 2 sync conflict resolution. Unset in Phase 1. */
+  /** Reserved for sync conflict resolution. */
   preferred_gateway_id?: string;
   expires_at?: string;
   health_check_url?: string;

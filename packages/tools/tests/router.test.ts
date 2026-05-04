@@ -26,12 +26,12 @@ describe("routeFetchContext", () => {
 
   test("routes memory-biased queries to prefer-memories", () => {
     expect(routeFetchContext("what was the prior decision we remembered")).toBe("prefer-memories");
-    expect(routeFetchContext("what rule did jens set last session")).toBe("prefer-memories");
+    expect(routeFetchContext("what rule was set last session")).toBe("prefer-memories");
   });
 
   test("routes docs-biased queries to prefer-docs", () => {
     expect(routeFetchContext("how to configure the gateway per the spec")).toBe("prefer-docs");
-    expect(routeFetchContext("architecture guide from the hub vault")).toBe("prefer-docs");
+    expect(routeFetchContext("architecture guide from the docs root")).toBe("prefer-docs");
   });
 
   test("defaults to both when signals tie or are absent", () => {

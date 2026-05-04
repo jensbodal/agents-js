@@ -126,7 +126,7 @@ Tracked outputs include package `dist/` entrypoints, the compiled CLI binary, an
 
 All publishable package `package.json` files ship on one beta train. Patch increments ship as work lands.
 
-Everything documented in this site is in the release claim. Bugs get fixed in the next patch. There is no per-package tier ceremony (no Stable / RC / Preview / Experimental labels). The single status is **beta**.
+Everything documented in this site is in the release claim. Bugs get fixed in the next patch. There are no per-package tier labels (Stable / RC / Preview / Experimental). The single status is **beta**.
 
 The publication gate: a patch should not ship with an unacknowledged regression in the declared beta workflow. See [Beta Contract](/beta-contract) for the canonical contract definition and [Package Map](/primitives#package-map) for the per-package list.
 
@@ -157,16 +157,9 @@ If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, 
 
 ### Docs Publication Contract
 
-- Public docs: `https://agents-js.bodal.dev/`
-- Deployment automation: the active CI provider builds and publishes the docs image.
-- Image: supplied by the active CI provider's registry configuration.
-- Deploy target: existing Portainer stack `agents-js-docs` from `deploy/docs.compose.yaml`
-- Build packaging contract: the `main` docs image packages the validated `docs/.vitepress/dist` artifact from the workflow rather than rerunning the docs build inside the image job
-- Required mirrored secrets/config: `REGISTRY_USERNAME`, `REGISTRY_TOKEN`, `CLOUDFLARED_TOKEN`, `PORTAINER_API_KEY`, `PORTAINER_URL`, `PORTAINER_ENDPOINT_ID`, `WEBHOOK_URL_BUILDS`, `WEBHOOK_SECRET_BUILDS`
-- Production ownership: the docs stack carries both the HTTP server and the cloudflared sidecar for `agents-js.bodal.dev`
-- Current deploy flag: `PORTAINER_INSECURE_TLS=1` is still required in automation until the runner trust chain is wired to the private Portainer certificate
-- Local tunnel doctor expectation: repo-local config should match the discovered JWT `aud`; a user-level `~/.cloudflared/config.yaml` using `policy_id` should warn rather than block local docs work
-- Validation branch boundary: docs validation runs on the configured integration branches; docs image push and Portainer redeploy remain `main`-only
+The repository builds static docs with VitePress. Deployment topology is
+operator-owned: CI systems, registries, tunnels, reverse proxies, and container
+orchestration are configured outside the package contract.
 
 ### Consumption Guidance
 
@@ -174,7 +167,7 @@ If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, 
 |--------|-------------|-----|
 | `file:` links | Active co-development with a sibling checkout | `"@agents-js/acp": "file:../../agents-js/packages/acp"` |
 | `bun pack` tarball | Smoke testing from an isolated consumer | `bun pack` in the package dir, then `bun add ./agents-js-acp-0.2.0.tgz` |
-| Nexus registry | Internal publish on Tailscale | `npm publish --tag beta` through `scripts/publish-all.ts` |
+| npm-compatible registry | Package publication | `npm publish --tag beta` through `scripts/publish-all.ts` |
 
 **Known limitation:** direct local-directory installs can still fail when a package depends on other unpublished `@agents-js/*` packages. Use `file:` links for co-development or packed tarballs plus `overrides` for isolated smoke installs.
 
@@ -192,8 +185,6 @@ Every publishable package is expected to clear:
 These are the working expectations, not gates that promote a package between tiers.
 
 
-## Release ceremony
-
-The full release runbook lives in repo-internal context (`/.agents/omd-orchestrator/runbooks/agents-js-release.md`). It covers Phase 1–4 of cutting a beta patch — version bumps, publishing to the internal Nexus registry, tagging, and docs deploy. It is operator-facing, not contributor-facing, and is not on the docs site.
+## Release statement
 
 The user-facing release statement is the [Beta Contract](/beta-contract).

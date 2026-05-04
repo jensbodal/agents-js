@@ -35,11 +35,11 @@ function target(overrides: {
   };
 }
 
-describe("groupDiscoveredTargets (WP8)", () => {
+describe("groupDiscoveredTargets", () => {
   test("default behavior groups by name with original order preserved", () => {
     const groups = groupDiscoveredTargets([
       target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201" }),
-      target({ name: "tpm-dot-mana", url: "http://127.0.0.1:9203" }),
+      target({ name: "tpm-example-mana", url: "http://127.0.0.1:9203" }),
       target({ name: "tpm-agents-js", url: "http://127.0.0.1:9301" }),
     ]);
 
@@ -48,13 +48,11 @@ describe("groupDiscoveredTargets (WP8)", () => {
     expect(groups[0]?.preferred.record.url).toBe("http://127.0.0.1:9201");
     expect(groups[0]?.alternates).toHaveLength(1);
     expect(groups[0]?.alternates[0]?.record.url).toBe("http://127.0.0.1:9301");
-    expect(groups[1]?.name).toBe("tpm-dot-mana");
+    expect(groups[1]?.name).toBe("tpm-example-mana");
     expect(groups[1]?.alternates).toHaveLength(0);
   });
 
   test("preferGateway promotes gateway entries over registry duplicates", () => {
-    // Brief scenario 1: "Gateway target can be preferred over registry
-    // duplicates."
     const groups = groupDiscoveredTargets(
       [
         target({
@@ -91,11 +89,9 @@ describe("groupDiscoveredTargets (WP8)", () => {
   });
 
   test("hideOffline excludes offline targets from output", () => {
-    // Brief scenario 2 (variant): "Offline targets can be hidden from
-    // default view but retained for advanced view."
     const targets: DiscoveredTarget[] = [
       target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201", reachability: "online" }),
-      target({ name: "tpm-dot-mana", url: "http://127.0.0.1:9203", reachability: "offline" }),
+      target({ name: "tpm-example-mana", url: "http://127.0.0.1:9203", reachability: "offline" }),
       target({ name: "tpm-skills-js", url: "http://127.0.0.1:9204", reachability: "unknown" }),
     ];
 
@@ -107,7 +103,7 @@ describe("groupDiscoveredTargets (WP8)", () => {
     // brief: "Do not remove raw discovery data."
     const visible = groupDiscoveredTargets(targets);
     expect(visible).toHaveLength(3);
-    expect(visible.map((g) => g.name)).toContain("tpm-dot-mana");
+    expect(visible.map((g) => g.name)).toContain("tpm-example-mana");
   });
 
   test("demoteOffline keeps offline visible but pushes them to alternates", () => {
@@ -134,16 +130,12 @@ describe("groupDiscoveredTargets (WP8)", () => {
     expect(groups[0]?.preferred.record.url).toBe("http://127.0.0.1:9301");
     expect(groups[0]?.alternates).toHaveLength(1);
     expect(groups[0]?.alternates[0]?.reachability).toBe("offline");
-    // Brief scenario 3: "Grouping preserves host:port, source, protocol,
-    // capabilities, and error reason."
     expect(groups[0]?.alternates[0]?.errorReason).toBe("ECONNREFUSED");
     expect(groups[0]?.alternates[0]?.record.source).toBe("manual");
     expect(groups[0]?.alternates[0]?.record.kind).toBe("a2a");
   });
 
   test("same-name targets on different ports remain distinguishable in alternates", () => {
-    // Brief scenario 4: "Same-name targets on different ports remain
-    // distinguishable."
     const groups = groupDiscoveredTargets([
       target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201" }),
       target({ name: "tpm-agents-js", url: "http://127.0.0.1:9301" }),

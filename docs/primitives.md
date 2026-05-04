@@ -77,7 +77,7 @@ detailed responsibilities of each layer follow below.
 
 ## Package Map
 
-> All publishable packages ship on the same beta train. Bugs are bugs — they get fixed in the next patch. There is no separate tier ceremony per package. See [Beta Contract](/beta-contract) for the canonical statement of what beta means.
+> All publishable packages ship on the same beta train. Bugs are bugs — they get fixed in the next patch. There is no separate tier split per package. See [Beta Contract](/beta-contract) for the canonical statement of what beta means.
 
 | Layer | Package | What it does |
 |-------|---------|--------------|
@@ -189,9 +189,8 @@ packages above it.
 - **`spawnAgent(subtask, options?)`** — a **subagent dispatch** that hands a
   bounded subtask off to a fresh ACP session under the configured harness,
   waits for the terminal summary, and returns it with tool-level provenance.
-  v1 supports bounded mode against the trial-agent harness; detached-mode
-  + additional harnesses land in follow-on commits. See
-  [ADR 0003](./adrs/0003-spawn-agent.md) for the design.
+  The current implementation supports bounded mode against the trial-agent
+  harness.
 
 Every source returned by `fetchContext` carries the same five-field
 provenance schema:
@@ -204,20 +203,17 @@ provenance schema:
 | `retrieved_at` | ISO 8601 — when this query read it |
 | `confidence` | `responsible` (canonical) vs `supporting` (corroborating) |
 
-The first commit ships two memory primitives — `searchMemories` (reads
-`.agents/<name>/*.md`) and `searchDocs` (grep-based hub-vault search) —
-and auto-registers both as tools in the default registry. Calling
-`findTools("search the hub for X")` returns `searchDocs` without any
-additional wiring; this is the self-hosting proof. Follow-up primitives
-(`searchRoomHistory`, `searchAgentMsg`, `searchWeb`, `searchCognee`) land
-in iterative commits per the first-cycle plan.
+`searchMemories` reads `.agents/<name>/*.md`; `searchDocs` performs a
+grep-based search over the configured docs root. Both auto-register as tools
+in the default registry. Calling `findTools("search docs for X")` returns
+`searchDocs` without additional wiring.
 
 ### Usage
 
 ```ts
 import { fetchContext, findTools, spawnAgent } from "@agents-js/tools";
 
-const ctx = await fetchContext("what rule did Jens set about commits?", {
+const ctx = await fetchContext("what rule was recorded about commits?", {
   workspaceRoot: process.cwd(),
 });
 for (const snippet of ctx.snippets) {
@@ -225,15 +221,12 @@ for (const snippet of ctx.snippets) {
   if (src) console.log(snippet.text, "←", src.source_ref, src.confidence);
 }
 
-const tools = await findTools("search the hub for ACP schema notes");
+const tools = await findTools("search docs for ACP schema notes");
 for (const tool of tools) console.log(tool.name, tool.description);
 
-const result = await spawnAgent("summarize the hub's ACP schema notes", {
+const result = await spawnAgent("summarize the ACP schema notes", {
   hints: { harness: "trial" },
   timeout_ms: 30_000,
 });
 console.log(result.status, result.summary, result.sources);
 ```
-
-See [ADR 0002](./adrs/0002-fetch-context-and-tool-discovery.md) for the
-architecture rationale and the deferred-primitive roadmap.

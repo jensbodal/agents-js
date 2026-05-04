@@ -333,7 +333,7 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
     case "stream.last_event":
     case "stream.idle":
     case "stream.closed":
-      // Pure diagnostic lifecycle events. Per AGENT-AJS.md WP4:
+      // Pure diagnostic lifecycle events. For lifecycle consumers:
       // "Lifecycle events should not create transcript entries" and
       // "Debug/lifecycle events should not be confused with protocol task
       // events" — the reducer leaves session state untouched; consumers

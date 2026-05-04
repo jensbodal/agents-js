@@ -34,9 +34,9 @@ describe("classifyPromptIntent", () => {
   });
 
   test("recognises 'what do you know about <query>'", () => {
-    expect(classifyPromptIntent("what do you know about merge ceremony")).toEqual({
+    expect(classifyPromptIntent("what do you know about release process")).toEqual({
       kind: "fetch-context",
-      query: "merge ceremony",
+      query: "release process",
     });
   });
 

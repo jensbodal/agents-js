@@ -199,7 +199,7 @@ async function main(): Promise<void> {
   const cloudflaredToken = requireEnv("CLOUDFLARED_TOKEN");
   const docsImage = requireEnv("DOCS_IMAGE");
 
-  const portainerUrl = process.env.PORTAINER_URL?.trim() || "https://docker.tail019e7.ts.net:9443";
+  const portainerUrl = requireEnv("PORTAINER_URL");
   const insecureTls = parseBooleanFlag(process.env.PORTAINER_INSECURE_TLS);
   const stackName = process.env.PORTAINER_STACK_NAME?.trim() || "agents-js-docs";
   const stackFilePath = path.resolve(
@@ -207,7 +207,7 @@ async function main(): Promise<void> {
     process.env.DOCS_STACK_FILE ?? "deploy/docs.compose.yaml",
   );
 
-  const docsHostname = process.env.DOCS_HOSTNAME?.trim() || "agents-js.bodal.dev";
+  const docsHostname = process.env.DOCS_HOSTNAME?.trim() || "localhost";
   const docsPublishedPort = process.env.DOCS_PUBLISHED_PORT?.trim() || "5180";
   const docsBindAddress = process.env.DOCS_BIND_ADDRESS?.trim() || "127.0.0.1";
   const docsContainerName = process.env.DOCS_CONTAINER_NAME?.trim() || "agents-js-docs";

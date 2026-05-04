@@ -52,9 +52,9 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<void> {
   // script-local files).
   await ensureGitHooksPath();
   // Forward install-only args to install-deps so callers can pass
-  // --frozen-lockfile / --ci and get a strict-lockfile-required install. Per
-  // Jens's 2026-04-27 directive, lockfile sync is enforced — CI passes --ci so
-  // a stale lock fails the build instead of silently regenerating.
+  // --frozen-lockfile / --ci and get a strict-lockfile-required install. CI
+  // passes --ci so a stale lock fails the build instead of silently
+  // regenerating.
   await runForeground(["bun", "scripts/install-deps.ts", ...args.installArgs]);
   await runForeground(["bun", "scripts/doctor.ts", ...args.doctorArgs]);
   await runForeground(["bun", "scripts/build.ts"]);

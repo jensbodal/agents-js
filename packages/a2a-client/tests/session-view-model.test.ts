@@ -9,7 +9,7 @@ function withState(overrides: Partial<A2ASessionState>): A2ASessionState {
   };
 }
 
-describe("describeSessionStatus (WP7)", () => {
+describe("describeSessionStatus", () => {
   test("idle/connected (no taskState) → info severity, ready label, no busy flag", () => {
     expect(describeSessionStatus(withState({ status: "idle" }))).toMatchObject({
       label: "Idle",
@@ -145,7 +145,7 @@ describe("describeSessionStatus (WP7)", () => {
     expect(vm.secondaryAction?.kind).toBe("reset");
   });
 
-  test("taskState takes priority over status (the bug WP7 corrects)", () => {
+  test("taskState takes priority over status (the view-model bug this test covers)", () => {
     // Streaming input-required leaves status === "connected" but
     // taskState === "input-required". The view-model MUST surface the
     // protocol-level state, not the lower-resolution status.

@@ -1,7 +1,5 @@
 /**
- * Programmatic encoding of the seven D readiness gates from the first-cycle
- * plan (`hub/agents-js/plans/first-week-plan-2026-04-21-final.md`,
- * "Readiness gates" section under D — @agents-js/tools).
+ * Programmatic readiness checks for the trial-agent ACP harness.
  *
  * Each gate maps to a single async assertion. Gates either:
  *
@@ -9,11 +7,9 @@
  * - FAIL — the assertion was checked and the primitives returned an
  *   incorrect / unexpected shape; the trial agent surfaces this loudly so
  *   regressions in the underlying package can't slip through.
- * - DEFER — the assertion depends on a primitive D's first commit explicitly
- *   left for a follow-on (`searchRoomHistory` against Matrix, `searchAgentMsg`
- *   against the agent-msg DB). Per the task spec, deferred gates assert that
- *   the gap is signaled clearly rather than masked by silent empty results;
- *   they auto-tighten when the missing primitives land.
+ * - DEFER — the assertion depends on an unwired primitive. Deferred gates
+ *   assert that the gap is signaled clearly rather than masked by silent
+ *   empty results; they auto-tighten when the missing primitives land.
  *
  * The gate list is structured (`RD_GATE_IDS` is a const tuple) so the
  * integration test can assert by id rather than by ordinal index.
@@ -28,10 +24,10 @@ import { defaultRegistry, fetchContext, findTools } from "@agents-js/tools";
  */
 export const RD_GATE_IDS = [
   "matrix-source-or-deferred",
-  "hub-vault-source",
+  "workspace-doc-source",
   "agent-msg-source-or-deferred",
   "stale-source-confidence",
-  "find-tools-self-hosting",
+  "find-tools-doc-search",
   "find-tools-narrow-result",
   "fetch-context-three-line-ergonomics",
 ] as const;
@@ -66,8 +62,7 @@ export interface GateReport {
 
 /**
  * Options for {@link runReadinessGates}. Defaults to running against the
- * caller's own workspace + the canonical hub root, which is the right
- * behavior when a human runs `/gates` interactively. Tests pass fixture
+ * caller's own workspace and configured document root. Tests pass fixture
  * roots so the gate behavior is reproducible.
  */
 export interface GateRunOptions {
@@ -75,8 +70,8 @@ export interface GateRunOptions {
   hubRoot: string;
   /** Free-text query used by gates 1, 2, 3 to probe the primitives. */
   probeQuery?: string;
-  /** Tool query for gate 5 (self-hosting proof). */
-  selfHostingQuery?: string;
+  /** Tool query for gate 5 (doc-search proof). */
+  docSearchQuery?: string;
   /** Tool query for gate 6 (narrow-result proof). */
   narrowResultQuery?: string;
   /** Test seam for deterministic timestamps. */
@@ -84,7 +79,7 @@ export interface GateRunOptions {
 }
 
 const DEFAULT_PROBE_QUERY = "memory rule about time estimates";
-const DEFAULT_SELF_HOSTING_QUERY = "search hub for X";
+const DEFAULT_DOC_SEARCH_QUERY = "search docs for X";
 const DEFAULT_NARROW_QUERY = "memory recall about prior decisions";
 
 // Word-boundary-anchored markers for the stale-source-confidence gate.
@@ -133,11 +128,11 @@ export async function runReadinessGates(options: GateRunOptions): Promise<GateRe
 const GATE_TITLES: Record<GateId, string> = {
   "matrix-source-or-deferred":
     "fetchContext returns Matrix source_ref OR signals not-yet-implemented",
-  "hub-vault-source": "fetchContext returns absolute path for hub-vault matches",
+  "workspace-doc-source": "fetchContext returns absolute path for workspace-doc matches",
   "agent-msg-source-or-deferred":
     "fetchContext returns agent-msg ref OR signals not-yet-implemented",
   "stale-source-confidence": 'Stale sources are labeled confidence="supporting", not "responsible"',
-  "find-tools-self-hosting": 'findTools("search hub for X") returns searchDocs (self-hosting)',
+  "find-tools-doc-search": 'findTools("search docs for X") returns searchDocs',
   "find-tools-narrow-result": "findTools returns 1-3 tools, not the whole registry",
   "fetch-context-three-line-ergonomics":
     "fetchContext callable in three lines without further setup",
@@ -172,20 +167,19 @@ const GATES: Record<GateId, GateFn> = {
       };
     }
     // No Matrix source surfaced. The trial agent treats this as DEFERRED
-    // rather than PASS or FAIL because D's first commit deliberately left
-    // searchRoomHistory unwired. The gate auto-tightens once a Matrix
-    // primitive lands and starts populating result.sources.
+    // rather than PASS or FAIL until a Matrix primitive starts populating
+    // result.sources.
     return {
       id,
       title: GATE_TITLES[id],
       outcome: "deferred",
       detail:
-        "No source_type='matrix' in fetchContext result. searchRoomHistory not yet wired in @agents-js/tools (D follow-on). Gate will tighten to PASS-required once the primitive lands.",
+        "No source_type='matrix' in fetchContext result. searchRoomHistory not yet wired in @agents-js/tools (tool pending). Gate will tighten to PASS-required once the primitive lands.",
     };
   },
 
-  "hub-vault-source": async (opts) => {
-    const id: GateId = "hub-vault-source";
+  "workspace-doc-source": async (opts) => {
+    const id: GateId = "workspace-doc-source";
     const result = await fetchContext(opts.probeQuery ?? DEFAULT_PROBE_QUERY, {
       workspaceRoot: opts.workspaceRoot,
       hubRoot: opts.hubRoot,
@@ -253,18 +247,17 @@ const GATES: Record<GateId, GateFn> = {
       title: GATE_TITLES[id],
       outcome: "deferred",
       detail:
-        "No source_type='agent-msg' in fetchContext result. searchAgentMsg not yet wired in @agents-js/tools (D follow-on). Gate will tighten to PASS-required once the primitive lands.",
+        "No source_type='agent-msg' in fetchContext result. searchAgentMsg not yet wired in @agents-js/tools (tool pending). Gate will tighten to PASS-required once the primitive lands.",
     };
   },
 
   "stale-source-confidence": async (opts) => {
     const id: GateId = "stale-source-confidence";
     // The current fetchContext implementation marks every source as
-    // confidence="responsible" (search-memories.ts + search-docs.ts). The
-    // staleness-vs-responsibility distinction lives in the spec but D's
-    // first commit hasn't wired the staleness signal yet. Until it does,
-    // verify the invariant the *other* direction: nothing returns the
-    // word "stale" while still being labeled "responsible".
+    // confidence="responsible" (search-memories.ts + search-docs.ts). Until
+    // staleness signals are wired, verify the invariant the other direction:
+    // nothing returns the word "stale" while still being labeled
+    // "responsible".
     const result = await fetchContext(opts.probeQuery ?? DEFAULT_PROBE_QUERY, {
       workspaceRoot: opts.workspaceRoot,
       hubRoot: opts.hubRoot,
@@ -295,16 +288,16 @@ const GATES: Record<GateId, GateFn> = {
     };
   },
 
-  "find-tools-self-hosting": async (opts) => {
-    const id: GateId = "find-tools-self-hosting";
-    const tools = await findTools(opts.selfHostingQuery ?? DEFAULT_SELF_HOSTING_QUERY);
+  "find-tools-doc-search": async (opts) => {
+    const id: GateId = "find-tools-doc-search";
+    const tools = await findTools(opts.docSearchQuery ?? DEFAULT_DOC_SEARCH_QUERY);
     const top = tools[0];
     if (top?.name === "searchDocs") {
       return {
         id,
         title: GATE_TITLES[id],
         outcome: "pass",
-        detail: `findTools("${opts.selfHostingQuery ?? DEFAULT_SELF_HOSTING_QUERY}") returned searchDocs as top match (self-hosting proof).`,
+        detail: `findTools("${opts.docSearchQuery ?? DEFAULT_DOC_SEARCH_QUERY}") returned searchDocs as top match (doc-search proof).`,
       };
     }
     const names = tools.map((t) => t.name).join(", ") || "(none)";
@@ -362,7 +355,7 @@ const GATES: Record<GateId, GateFn> = {
     // subprocess where process.cwd() is the spawn cwd (not necessarily the
     // workspace root); the import + single call shape is what the gate
     // really cares about.
-    const ctx = await fetchContext("Jens's rule on time estimates", {
+    const ctx = await fetchContext("recorded rule on time estimates", {
       workspaceRoot: opts.workspaceRoot,
       hubRoot: opts.hubRoot,
       now: opts.now,

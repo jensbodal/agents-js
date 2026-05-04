@@ -1,17 +1,12 @@
 /**
  * Tool-call-trace emission for `@agents-js/tools`.
  *
- * Implements v0.1 of the trace schema documented at
- * `hub/agents-js/research/tool-call-trace-schema-2026-04-21.md`.
- *
  * Two layers:
  *
  * 1. **Sinks** — pluggable destinations for persisted records. Ships three
  *    built-in sinks (JSONL file, in-memory for tests, no-op) and a
  *    `TraceSink` interface so consumers can plug in an HTTP forwarder, a
- *    database writer, etc. without changing emitter code. Storage location
- *    is deliberately deferred per schema §6 "decision deferred until a
- *    second consumer proves the location."
+ *    database writer, etc. without changing emitter code.
  *
  * 2. **Emitter + wrap helper** — `TraceEmitter` wraps a `TraceSink` with
  *    the schema-level invariants (schema_version, event_id generation,

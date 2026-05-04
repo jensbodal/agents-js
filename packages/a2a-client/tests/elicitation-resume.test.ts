@@ -220,7 +220,7 @@ class ElicitationResumeTransport implements A2ATransport {
   }
 }
 
-describe("input_required interaction model (WP5)", () => {
+describe("input_required interaction model", () => {
   test("input_required state exposes active prompt/details via session reducer", () => {
     // Locks the contract that an agent emitting a `task.status.updated` with
     // state="input-required" and ACP elicitation metadata produces a session
@@ -276,7 +276,7 @@ describe("input_required interaction model (WP5)", () => {
   });
 
   test("malformed elicitation metadata degrades gracefully (no throw, activeElicitation undefined)", () => {
-    // Compatibility expectation from WP5 brief: clients should never have to
+    // Compatibility expectation: clients should never have to
     // parse low-level metadata keys, and bad metadata must not crash the
     // reducer or pollute activeElicitation.
     const initial = createInitialSessionState();
@@ -551,8 +551,8 @@ describe("input_required interaction model (WP5)", () => {
     // field is intentionally less granular — when the stream emits agent text,
     // `message.completed` fires and flips `status` to "connected". UI clients
     // discriminate input-required from completed via `taskState` +
-    // `activeElicitation`, NOT via `status` alone. WP7's view-model helper
-    // covers reconciling these axes; WP5 just locks the existing contract.
+    // `activeElicitation`, NOT via `status` alone. The view-model helper
+    // covers reconciling these axes; this test locks the existing contract.
     expect(afterPrompt.taskState).toBe("input-required");
     expect(afterPrompt.resumableTaskId).toBe("task-1");
     expect(afterPrompt.contextId).toBe("ctx-1");

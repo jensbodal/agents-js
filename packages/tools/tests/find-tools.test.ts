@@ -24,13 +24,13 @@ afterAll(() => {
 });
 
 describe("findTools default registry", () => {
-  test("returns searchDocs for hub-search-intent queries (self-hosting proof)", async () => {
+  test("returns searchDocs for hub-search-intent queries (document-search proof)", async () => {
     const hits = await findTools("search hub for ACP schema notes");
     const names = hits.map((t) => t.name);
     expect(names).toContain("searchDocs");
   });
 
-  test("returns searchMemories for memory-intent queries (self-hosting proof)", async () => {
+  test("returns searchMemories for memory-intent queries (document-search proof)", async () => {
     const hits = await findTools("search agent memories for prior rules");
     const names = hits.map((t) => t.name);
     expect(names).toContain("searchMemories");

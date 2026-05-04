@@ -3,7 +3,7 @@
  *
  * The default registry (`defaultRegistry`) is populated at module load with
  * the two memory primitives (searchMemories, searchDocs) exposed as tools —
- * the self-hosting proof referenced in the plan doc. Consumers who want
+ * the document-search proof referenced in the plan doc. Consumers who want
  * isolation (tests, specific-agent scopes) should create their own via
  * {@link createRegistry} and pass it through `findTools` options.
  */

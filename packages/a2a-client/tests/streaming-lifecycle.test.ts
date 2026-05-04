@@ -58,7 +58,7 @@ class DelayedStreamingTransport {
   }
 }
 
-describe("Streaming lifecycle events (WP4)", () => {
+describe("Streaming lifecycle events", () => {
   test("streaming send emits request.sent → stream.opened → first_event → last_event → closed in order", async () => {
     const transport = createStreamingMockTransport([
       {

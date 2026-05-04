@@ -3,7 +3,7 @@
  *
  * Lifted out of `bin/trial-agent.ts` so the agent can be embedded in test
  * harnesses (or any other host that owns its own `AgentSideConnection`)
- * with explicit control over the hub-vault root rather than relying on
+ * with explicit control over the document root root rather than relying on
  * the binary's env-var + default fallback chain.
  *
  * The bin script is a thin wrapper: it parses CLI flags + env vars,
@@ -32,7 +32,7 @@ export const TRIAL_AGENT_NAME = "trial-agent";
 export const TRIAL_AGENT_VERSION = "0.2.0-beta-3";
 
 /**
- * Default hub-vault root used when no override is supplied. Mirrors the
+ * Default document root root used when no override is supplied. Mirrors the
  * default baked into the `searchDocs` / `fetchContext` primitives in
  * `@agents-js/tools`. Exported so callers and tests can reference the
  * same canonical value rather than re-deriving it.

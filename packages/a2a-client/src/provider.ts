@@ -190,8 +190,6 @@ function isTerminalEvent(event: Task): boolean {
  * anonymous messages. When the previous text is a prefix of the current
  * text, the delta is just the new tail; otherwise (rare: agent reset or
  * full replacement) we emit the full current text so consumers can resync.
- *
- * Factory-style rename of the Phase 4 plan's `accumulateDelta`.
  */
 function createDeltaAccumulator(): (messageId: string | undefined, currentText: string) => string {
   const previousTextByMessageId = new Map<string, string>();
@@ -222,8 +220,6 @@ function createDeltaAccumulator(): (messageId: string | undefined, currentText: 
  * The returned closure does not emit anything itself; it forwards the timeout
  * to the caller's `onIdle` callback so the caller can build the
  * `stream.idle` payload with whatever context fields it has at fire time.
- *
- * Factory-style rename of the Phase 4 plan's `IdleTimer`.
  */
 function createIdleTimer(options: { idleMs: number; onIdle: () => void }): IdleTimerHandle {
   const { idleMs, onIdle } = options;

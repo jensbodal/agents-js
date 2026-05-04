@@ -6,7 +6,7 @@ import type { HostEnvPolicyInput } from "../env-policy.ts";
  * `ACPProcessOptions` from `@agents-js/acp` with fields that only
  * `createHostACPProcess` (in this package) interprets.
  *
- * `workspaceFlag` lived on `ACPProcessOptions` historically but was
+ * `workspaceFlag` lived on `ACPProcessOptions` was
  * only ever read by `createHostACPProcess`, which is a layer inversion.
  * Moving it here restores the layering: low-level spawn helpers in
  * `@agents-js/acp` don't need to know about workspace propagation, and

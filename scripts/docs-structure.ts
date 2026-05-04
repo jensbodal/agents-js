@@ -3,7 +3,8 @@
  *
  * Enforces:
  *  - Exactly 10 `.md` files at `docs/*.md` (hand-authored pages)
- *  - No stray `.md` files in subdirectories except `docs/api/` and `docs/adrs/`
+ *  - No stray `.md` files in subdirectories except generated API docs and
+ *    developer reference pages.
  */
 
 // TODO(docs-structure-stale): EXPECTED_PAGES below is drifted — current top
@@ -32,7 +33,7 @@ const EXPECTED_PAGES = [
   "roadmap-and-non-goals.md",
 ] as const;
 
-const EXCLUDED_NAMESPACES = ["api", "adrs"];
+const EXCLUDED_NAMESPACES = ["api", "develop"];
 
 function fail(msg: string): never {
   console.error(`✗ docs-structure: ${msg}`);

@@ -727,9 +727,8 @@ const middleware = createA2AMentionMiddleware({
   User A does not see Bob's step-by-step reasoning, only the final text. A
   follow-up release may lift this.
 - **Per-contextId session lanes, single upstream agent.** `apps/internal-gateway`
-  now routes concurrent prompts by `contextId` into independent `SessionLane`s
-  (see `docs/architecture/event-routing-per-contextid-plan.md`). Each lane has
-  its own in-flight bookkeeping and can optionally own a dedicated ACP
+  routes concurrent prompts by `contextId` into independent `SessionLane`s.
+  Each lane has its own in-flight bookkeeping and can optionally own a dedicated ACP
   controller via the `controllerFactory` hook — distinct contextIds run in
   parallel. One gateway instance still fronts a single upstream agent process,
   so multi-agent or multi-tenant topologies still require separate gateways,

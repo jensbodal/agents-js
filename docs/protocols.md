@@ -1014,9 +1014,7 @@ and does not render a TUI surface; it is deliberately a transport hop.
 
 #### Obsidian (deferred)
 
-Obsidian plugin integration is a deferred follow-up. It lives in the separate
-`obsidian-acp-plugin` repo and will be picked up in its own orchestrator session; this page
-will be updated when it lands.
+Obsidian plugin integration is not part of the current package surface.
 
 ### Known Limitations
 

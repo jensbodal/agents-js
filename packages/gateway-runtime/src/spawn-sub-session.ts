@@ -1,17 +1,16 @@
 /**
  * `spawnSubSession` — gateway-layer subagent-dispatch primitive.
  *
- * Bottom-of-the-stack for the SpawnAgent tool (see
- * `hub/agents-js/cognee-claude/spawn-agent-design-2026-04-22.md`). This
- * function owns the "spin up a subagent ACP process, hand it a subtask,
- * wait for the terminal summary, clean up" mechanics. The tool-facing
- * wrapper in `@agents-js/tools` wraps it with provenance tagging,
- * `TraceEmitter` parent/root threading, and per-agent redaction.
+ * Bottom-of-the-stack for the SpawnAgent tool. This function owns the
+ * "spin up a subagent ACP process, hand it a subtask, wait for the terminal
+ * summary, clean up" mechanics. The tool-facing wrapper in `@agents-js/tools`
+ * wraps it with provenance tagging, `TraceEmitter` parent/root threading, and
+ * per-agent redaction.
  *
- * v1 scope (minimal viable, per orchestrator review):
+ * Current scope:
  *
  * - **Bounded mode only.** Detached mode + polling handle ships in a
- *   follow-on commit.
+ *   follow-on change.
  * - **Trial-agent harness only.** The in-repo isolation agent is the
  *   only harness registered as supported; explicit requests for any
  *   other harness return `status: "harness_unavailable"` without silent
@@ -19,8 +18,8 @@
  *   silently running somewhere else would be lying about where the
  *   work ran.
  * - **No worktree isolation.** `hints.worktree_isolation` is accepted
- *   in the shape but currently ignored; v1 subagents share the parent's
- *   working copy. Opt-in worktree creation is a follow-on.
+ *   in the shape but currently ignored; subagents share the parent's
+ *   working copy.
  * - **No cross-host spawning.** Subagent always runs on the same host
  *   as the parent.
  * - **Model hint ignored.** Harness-specific `hints.model` is accepted

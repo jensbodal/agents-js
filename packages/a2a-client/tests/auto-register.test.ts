@@ -198,7 +198,7 @@ describe("autoRegister", () => {
   test("defaults actor_type to 'machine' and emits protocol_version when provided", async () => {
     const record = await autoRegister({
       configPath,
-      name: "omd-orchestrator",
+      name: "review-agent",
       kind: "a2a",
       url: "http://malar.test:8080/a2a",
       gatewayId: "mac",
@@ -208,7 +208,7 @@ describe("autoRegister", () => {
     expect(record.protocol_version).toBe("0.2.1");
   });
 
-  test("leaves preferred_gateway_id unset in Phase 1", async () => {
+  test("leaves preferred_gateway_id unset by default", async () => {
     const record = await autoRegister({
       configPath,
       name: "a",

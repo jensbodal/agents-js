@@ -172,8 +172,7 @@
   automation: manual
   notes: |
     a2ui-demo.ts has no co-located test; browser-smoke exercises it via
-    scripts/browser-smoke.ts. Confirmed hands-on by the user during the
-    2026-04-15 ceremony.
+    scripts/browser-smoke.ts.
   given:
     - web-ui loaded against a gateway configured with an A2UI agent
   when:

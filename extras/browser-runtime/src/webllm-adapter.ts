@@ -113,12 +113,12 @@ export interface CreateWebLLMAdapterOptions {
  * and `model.engine.interruptGenerate`; the worker handle is left to the
  * caller to manage.
  *
- * Cancel plumbing (M6, DOT-308): both methods accept an optional
- * `AbortSignal`. `streamAnswer` checks `signal.aborted` before each yield
- * and breaks out within one microtask tick. Both methods register a
- * one-shot abort listener that calls `engine.interruptGenerate()` so the
- * underlying WebLLM worker stops doing real work — without this, the model
- * would keep producing tokens that the consumer immediately discards.
+ * Both methods accept an optional `AbortSignal`. `streamAnswer` checks
+ * `signal.aborted` before each yield and breaks out within one microtask tick.
+ * Both methods register a one-shot abort listener that calls
+ * `engine.interruptGenerate()` so the underlying WebLLM worker stops doing
+ * real work; without this, the model would keep producing tokens that the
+ * consumer immediately discards.
  *
  * Configurable surface: `options.decideSystemPrompt` overrides the default
  * decide-action system prompt. The options bag is reserved for future

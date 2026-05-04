@@ -12,13 +12,13 @@ describe("deploy-docs-stack helpers", () => {
     const secureArgs = buildPortainerCurlArgs({
       apiKey: "token",
       path: "/api/stacks",
-      portainerUrl: "https://docker.tail019e7.ts.net:9443",
+      portainerUrl: "https://portainer.example.invalid",
     });
     const insecureArgs = buildPortainerCurlArgs({
       apiKey: "token",
       insecureTls: true,
       path: "/api/stacks",
-      portainerUrl: "https://docker.tail019e7.ts.net:9443",
+      portainerUrl: "https://portainer.example.invalid",
     });
 
     expect(secureArgs).not.toContain("-k");
@@ -36,7 +36,7 @@ describe("deploy-docs-stack helpers", () => {
     const container = findContainerByName(
       [
         {
-          Image: "gitea.tail019e7.ts.net/jensbodal/agents-js/docs:latest",
+          Image: "registry.example.invalid/agents-js/docs:latest",
           Names: ["/agents-js-docs"],
           State: "running",
         },
@@ -73,12 +73,12 @@ describe("deploy-docs-stack helpers", () => {
         [
           { name: "CLOUDFLARED_TOKEN", value: "new-token" },
           { name: "DOCS_IMAGE", value: "new" },
-          { name: "DOCS_HOSTNAME", value: "agents-js.bodal.dev" },
+          { name: "DOCS_HOSTNAME", value: "docs.example.invalid" },
         ],
       ),
     ).toEqual([
       { name: "CLOUDFLARED_TOKEN", value: "new-token" },
-      { name: "DOCS_HOSTNAME", value: "agents-js.bodal.dev" },
+      { name: "DOCS_HOSTNAME", value: "docs.example.invalid" },
       { name: "DOCS_IMAGE", value: "new" },
       { name: "UNRELATED", value: "keep-me" },
     ]);

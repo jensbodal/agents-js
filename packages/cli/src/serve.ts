@@ -369,7 +369,7 @@ export async function runServeCommand(
     additionalFetch: syncEndpointHandler,
   });
 
-  // Phase 1 + 2: auto-register this gateway and start periodic peer sync.
+  // Auto-register this gateway and start periodic peer sync.
   const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
     ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
     : undefined;

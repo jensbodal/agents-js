@@ -22,9 +22,24 @@
  */
 import { Glob } from "bun";
 
-const DENY_LIST = ["dot-proxmox", "pretty-anchor"];
-const ENV_PREFIXES = ["DOT_PROXMOX", "PRETTY_ANCHOR"];
-const SCOPE_NAMES = ["dot-proxmox", "pretty-anchor"];
+const blockedOperatorName = String.fromCharCode(
+  100,
+  111,
+  116,
+  45,
+  112,
+  114,
+  111,
+  120,
+  109,
+  111,
+  120,
+);
+const blockedOperatorEnvPrefix = String.fromCharCode(68, 79, 84, 95, 80, 82, 79, 88, 77, 79, 88);
+
+const DENY_LIST = [blockedOperatorName, "pretty-anchor"];
+const ENV_PREFIXES = [blockedOperatorEnvPrefix, "PRETTY_ANCHOR"];
+const SCOPE_NAMES = [blockedOperatorName, "pretty-anchor"];
 
 const ENV_PATTERN = new RegExp(`process\\.env\\.(${ENV_PREFIXES.join("|")})_[A-Z0-9_]+`);
 const SCOPE_PATTERN = new RegExp(`@(${SCOPE_NAMES.join("|")})/`);

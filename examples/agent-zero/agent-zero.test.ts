@@ -44,7 +44,7 @@ describe("agentZeroAdapter", () => {
       expect(header).toBe("Bearer my-secret");
     });
 
-    test("returns null when no token is provided (DOT-280 stub)", () => {
+    test("returns null when no token is provided", () => {
       const adapter = agentZeroAdapter({ externalUrl: "https://az.example.com" });
       const header = adapter.authHeader?.({ externalUrl: "https://az.example.com", probeUrl: "" });
       expect(header).toBeNull();

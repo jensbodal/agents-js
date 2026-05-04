@@ -413,7 +413,7 @@ const gatewayRuntimeRegistry = {
     id: "trial",
     displayName: "Trial Agent",
     description:
-      "In-repo ACP agent that exercises @agents-js/tools primitives over the real ACP wire. Used for the D isolation test (omd-orchestrator backlog #52). Not for production use — registered only to validate that fetchContext / findTools / readiness-gate assertions work end-to-end through an actual ACP session. The `trial-agent` binary is provided by the in-repo @agents-js/trial-agent package; bun symlinks it into node_modules/.bin during workspace install. Authentication: none — every primitive operates on local fs only.",
+      "In-repo ACP agent that exercises @agents-js/tools primitives over the real ACP wire. Not for production use — registered only to validate that fetchContext / findTools / readiness-gate assertions work end-to-end through an actual ACP session. The `trial-agent` binary is provided by the in-repo @agents-js/trial-agent package; bun symlinks it into node_modules/.bin during workspace install. Authentication: none — every primitive operates on local fs only.",
     command: "trial-agent",
     install: {
       owner: "agents-js",
@@ -471,11 +471,9 @@ export const GATEWAY_RUNTIME_REGISTRY: Readonly<
  *   CLIs (e.g. the `claude-agent-acp` binary found at `~/local/bun/bin/`).
  * - `${HOME}/.local/bin` — mise main bin shim (and general user-local fallback).
  * - `${HOME}/.local/share/mise/shims` — mise per-tool shims. Covers codex,
- *   gemini, and any other mise-managed npm/github tool. This is the entry
- *   that plugs the gap Jens hit: if the gateway is launched from Dock /
- *   Spotlight / an IDE child shell, the inherited `PATH` typically omits
- *   mise shims, and `Bun.which("codex-acp")` / `Bun.which("gemini")` returns
- *   null even though the binaries are installed.
+ *   gemini, and any other mise-managed npm/github tool. GUI-launched shells
+ *   often inherit a shorter `PATH`, so including this path keeps runtime
+ *   resolution consistent across terminal and desktop launch paths.
  */
 // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional placeholder resolved at runtime
 export const HOME_PLACEHOLDER = "${HOME}";

@@ -2,7 +2,7 @@
  * Shared types for `@agents-js/tools`.
  *
  * The provenance schema here is the canonical Source shape for every
- * downstream primitive and tool. See the first-cycle plan for rationale.
+ * downstream primitive and tool.
  */
 
 /**

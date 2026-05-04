@@ -48,8 +48,8 @@ export interface GatewayTestServerOptions {
    * so distinct A2A `contextId`s each get their own freshly-spawned
    * `ACPSessionController` (true parallel execution). Mirrors how
    * `apps/internal-gateway/main.ts` wires the factory in production.
-   * Defaults to `false` — most tests still exercise the shared-controller
-   * (Phase 1) code path.
+   * Defaults to `false` so most tests still exercise the shared-controller
+   * code path.
    */
   enablePerLaneControllers?: boolean;
 }

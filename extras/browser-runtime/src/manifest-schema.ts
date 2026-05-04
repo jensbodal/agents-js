@@ -15,7 +15,7 @@ import addFormats from "ajv-formats";
  *   - `agents-js-gateway` — Remote runtime hosted by `apps/internal-gateway`.
  *                           Schema-valid but has NO adapter yet — the manifest
  *                           editor disables this option in the form. Reserved
- *                           for a future milestone (M5+); see DOT-307.
+ *                           for a future adapter implementation.
  */
 export type RuntimeId = "mock" | "local-wasm-worker" | "agents-js-gateway";
 export type PermissionsPolicy = "explicit" | "plan" | "yolo";

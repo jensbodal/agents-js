@@ -2,7 +2,7 @@
 /**
  * scripts/publish-all.ts
  *
- * Publish every `@agents-js/*` package to the configured Nexus registry in
+ * Publish every `@agents-js/*` package to the configured npm registry in
  * dependency order. Defaults to `--dry-run` so it cannot accidentally publish
  * during testing — pass `--no-dry-run` to actually run `npm publish`.
  *
@@ -145,7 +145,7 @@ function parseCliArgs(argv: string[]): CliOptions {
  * a `-` suffix in the semver spec). This helper avoids a hard-coded policy
  * while still matching the conventional identifiers the repo uses.
  *
- * **Registry caveat:** Sonatype Nexus does NOT persist npm dist-tags.
+ * **Registry caveat:** Some npm-compatible registries do not persist npm dist-tags.
  * `npm view <pkg> dist-tags.beta` returns `none` even after
  * `npm publish --tag beta` succeeds. Consumers must pin exact versions
  * (for example, `"0.2.0-beta-N"`) rather than rely on floating tag resolution.

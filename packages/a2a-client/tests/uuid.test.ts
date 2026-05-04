@@ -1,7 +1,7 @@
 /**
  * Tests for the `randomUuid` helper. The fallback-path test deliberately
  * shadows `globalThis.crypto.randomUUID` so it exercises the code a
- * Tailscale-HTTP browser would hit. Without this, the existing test
+ * non-localhost HTTP browser would hit. Without this, the existing test
  * suite runs in Node where `randomUUID` is always present, and the
  * fallback regression would be invisible until the next deploy hits
  * a non-localhost origin.

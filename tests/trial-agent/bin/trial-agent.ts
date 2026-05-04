@@ -89,12 +89,12 @@ function printHelp(): void {
       "",
       "Usage:",
       "  trial-agent                       Start the ACP adapter over stdin/stdout (NDJSON).",
-      "  trial-agent --hub-root <path>     Override the hub-vault root used by fetchContext.",
+      "  trial-agent --hub-root <path>     Override the document root root used by fetchContext.",
       "  trial-agent --help                Print this message.",
       "  trial-agent --version             Print adapter version.",
       "",
       "Environment:",
-      "  TRIAL_AGENT_HUB_ROOT     Override the hub-vault root used by fetchContext.",
+      "  TRIAL_AGENT_HUB_ROOT     Override the document root root used by fetchContext.",
       "                           The --hub-root CLI flag takes precedence when both are set.",
       "  TRIAL_AGENT_WORKSPACE    Override the workspace root (otherwise NewSessionRequest.cwd or process.cwd()).",
       "",
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   }
 
   // Bootstrap the @agents-js/tools default registry with the three
-  // self-hosting primitives (searchMemories, searchDocs, SpawnAgent).
+  // core primitives (searchMemories, searchDocs, SpawnAgent).
   // This is the explicit replacement for the prior implicit side-effect
   // registration on tools/index.ts module load.
   registerBuiltins();

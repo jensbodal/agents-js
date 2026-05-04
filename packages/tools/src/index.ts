@@ -15,12 +15,7 @@
  *   in-memory registry and returns 1–3 matching tools. The registry is
  *   populated by {@link registerBuiltins} with the two memory primitives
  *   themselves, so `findTools("search hub for X")` returns {@link searchDocs}
- *   — the self-hosting proof referenced in the first-cycle plan.
- *
- * See the first-cycle plan at
- * `hub/agents-js/plans/first-week-plan-2026-04-21-final.md` for the design
- * brief and the readiness-gate rollout plan, and ADR 0002 for the
- * architecture decision record.
+ *   without injecting the entire tool registry into a prompt.
  */
 
 export {

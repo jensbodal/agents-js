@@ -82,7 +82,7 @@ describe("gateway executor — concurrent request handling", () => {
     expect(Number((match as RegExpMatchArray)[1])).toBe(1);
   }, 10000);
 
-  test("concurrent different contextIds run in parallel with per-lane controllers (Phase 2)", async () => {
+  test("concurrent different contextIds run in parallel with per-lane controllers", async () => {
     // Phase-2 regression guard: with a per-contextId controller factory
     // wired in, two distinct contextIds each get their own ACPSessionController
     // and their `__SLEEP_MS__` prompts overlap in wall-clock time. Serializing
@@ -151,14 +151,13 @@ describe("gateway executor — concurrent request handling", () => {
     }
   }, 15000);
 
-  test("concurrent different contextIds receive distinct responses (Phase 1)", async () => {
+  test("concurrent different contextIds receive distinct responses", async () => {
     // Regression guard for the per-contextId lane refactor
-    // (`docs/architecture/event-routing-per-contextid-plan.md` §5a). Prior
-    // behavior under the executor-wide `inFlightPrompt` single-slot mutex:
-    // two genuinely independent contextIds hitting the executor concurrently
-    // would collapse onto one owner's PromptOutcome, and the joiner's
-    // response stream would carry the owner's text. The lane refactor gives
-    // each contextId its own `inFlightPrompt` slot; distinct contextIds now
+    // that replaced the executor-wide `inFlightPrompt` single-slot mutex.
+    // Previously, two independent contextIds hitting the executor concurrently
+    // could collapse onto one owner's PromptOutcome, and the joiner's response
+    // stream would carry the owner's text. Each contextId now gets its own
+    // `inFlightPrompt` slot; distinct contextIds now
     // resolve independently and receive their own echoed payloads back.
     const ctxA = `ctx-A-${crypto.randomUUID()}`;
     const ctxB = `ctx-B-${crypto.randomUUID()}`;

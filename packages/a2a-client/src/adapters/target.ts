@@ -48,7 +48,7 @@ export interface TargetAdapter {
    * Optional hook that returns an Authorization header value for the probe
    * request. Return null to omit the header.
    *
-   * Stub for DOT-280 derived-token flow — concrete implementations land later.
+   * Optional hook for callers that need authenticated probes.
    */
   authHeader?(ctx: AdaptTargetContext): string | null;
 

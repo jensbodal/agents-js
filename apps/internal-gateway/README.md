@@ -68,7 +68,7 @@ See the docs pages for the CLI, client, examples, runtime matrix, streaming stat
 
 ## Plane Webhook Receiver
 
-The gateway exposes a narrow Plane webhook receiver for internal coordination:
+The gateway exposes an optional Plane webhook receiver:
 
 ```text
 POST /webhooks/plane
@@ -90,7 +90,7 @@ Environment contract:
 | `PLANE_WEBHOOK_SECRET` | unset | Direct webhook secret override. Prefer gopass in local deployments. |
 | `PLANE_WEBHOOK_SECRET_GOPASS_PATH` | `services/plane/webhook_secret` | gopass path used when direct secret is not set. |
 | `PLANE_WEBHOOK_NOTIFY_ENABLED` | disabled | Set to `1`, `true`, `on`, or `yes` to enable Matrix sends. |
-| `PLANE_WEBHOOK_MATRIX_AGENT` | `dot-proxmox` | Matrix identity used by the notification command. |
-| `PLANE_WEBHOOK_MATRIX_ROOM` | `cognee` | Matrix room alias or room id for notifications. |
+| `PLANE_WEBHOOK_MATRIX_AGENT` | unset | Matrix identity used by the notification command. |
+| `PLANE_WEBHOOK_MATRIX_ROOM` | unset | Matrix room alias or room id for notifications. |
 | `PLANE_WEBHOOK_MATRIX_CLIENT` | unset | Matrix CLI script path. Required when Matrix sends are enabled. |
 | `PLANE_WEBHOOK_BUN` | first `bun` on `PATH` | Bun executable used for the Matrix CLI. |

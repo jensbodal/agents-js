@@ -4,20 +4,18 @@
  * This package exists to validate that the {@link fetchContext} +
  * {@link findTools} primitives in `@agents-js/tools` work end-to-end through
  * an actual ACP wire (stdio, NDJSON, ACP v1) before any production agent is
- * given access to them. Per the first-cycle plan it is intentionally Option B
- * (a real subprocess agent) rather than an in-process unit-test harness — a
- * unit harness would mask protocol-layer mismatches that this package is
- * explicitly designed to catch.
+ * given access to them. It uses a real subprocess agent rather than an
+ * in-process unit-test harness so protocol-layer mismatches are visible.
  *
  * Two drive paths share the same code:
  *
  * 1. Interactive — `bun run @agents-js/cli acp --harness trial` spawns the
  *    `trial-agent` binary; the orchestrator can send arbitrary prompts and
  *    observe the responses ACP-side.
- * 2. Programmatic — {@link runReadinessGates} executes the seven D readiness
- *    gates from the first-cycle plan as assertions and returns a structured
- *    pass/fail report; the integration test in `tests/integration.test.ts`
- *    drives this path through a real spawned subprocess.
+ * 2. Programmatic — {@link runReadinessGates} executes readiness assertions
+ *    and returns a structured pass/fail report; the integration test in
+ *    `tests/integration.test.ts` drives this path through a real spawned
+ *    subprocess.
  *
  * Public exports are kept narrow on purpose: callers either run the binary
  * (most users) or import {@link createPromptHandler} / {@link runReadinessGates}

@@ -17,7 +17,7 @@ describe("docs-consistency", () => {
     const issues = collectProviderHostReferenceIssues([
       {
         path: "docs/index.md",
-        content: "Source: https://github.com/jensbodal/agents-js/tree/main/packages/cli",
+        content: "Source: https://github.com/example/agents-js/tree/main/packages/cli",
       },
       {
         path: ".github/workflows/ci.yml",
@@ -26,7 +26,7 @@ describe("docs-consistency", () => {
     ]);
 
     expect(issues).toEqual([
-      "docs/index.md: contains provider-host source URL: https://github.com/jensbodal/agents-js/tree/main/packages/cli",
+      "docs/index.md: contains provider-host source URL: https://github.com/example/agents-js/tree/main/packages/cli",
     ]);
   });
 
@@ -49,12 +49,11 @@ describe("docs-consistency", () => {
   });
 
   /**
-   * WHAT: Pin that consistency checks reference current documentation paths
-   * rather than removed historical pages.
+   * WHAT: Pin that consistency checks do not reference retired documentation paths.
    * WHY: A stale docs/contribute.md expectation caused the consistency script to
    * fail before it could report real semantic drift.
    */
-  test("rejects removed documentation paths in docs consistency expectations", () => {
+  test("rejects retired documentation paths in docs consistency expectations", () => {
     const issues = collectRemovedDocPathIssues([
       {
         path: "README.md",
@@ -63,15 +62,15 @@ describe("docs-consistency", () => {
     ]);
 
     expect(issues).toEqual([
-      "README.md: references removed documentation path: docs/protocol-alignment.md",
+      "README.md: references retired documentation path: docs/protocol-alignment.md",
     ]);
   });
 
   /**
-   * WHAT: Pin that optional local-operator files are checked when present but
-   * do not make docs consistency fail on clean worktrees where they are absent.
-   * WHY: The `.factory` operator notes are local workspace context, not tracked
-   * repo content; requiring them made `bun run check` depend on untracked files.
+   * WHAT: Pin that optional operator files are checked when present but do not
+   * make docs consistency fail on clean worktrees where they are absent.
+   * WHY: Optional operator notes are outside tracked repo content; requiring
+   * them would make `bun run check` depend on untracked files.
    */
   test("skips optional expectations when the file is absent", async () => {
     const issues = await collectFileExpectationIssues(

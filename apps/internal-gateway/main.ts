@@ -110,8 +110,8 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
   const httpPort = server.port ?? opts.resolvedPort;
 
-  // Phase 1 + 2: auto-register this gateway and start periodic peer sync.
-  // Port is now known, so we can construct the base URL for autoRegister.
+  // Auto-register this gateway and start periodic peer sync. Port is now
+  // known, so we can construct the base URL for autoRegister.
   const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
     ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
     : undefined;

@@ -11,11 +11,11 @@ describe("Plane webhook endpoint", () => {
       action: "update",
       data: {
         id: "issue-1",
-        identifier: "DOT",
+        identifier: "ISSUE",
         sequence_id: 301,
         name: "Plane webhook bridge",
         state_detail: { name: "Done" },
-        project_detail: { identifier: "DOT" },
+        project_detail: { identifier: "ISSUE" },
       },
     });
 
@@ -38,7 +38,7 @@ describe("Plane webhook endpoint", () => {
     expect(response?.status).toBe(200);
     expect(await response?.json()).toMatchObject({ ok: true, notified: true });
     expect(notifications).toEqual([
-      "Plane issue Done: DOT-301 Plane webhook bridge (delivery delivery-123)",
+      "Plane issue Done: ISSUE-301 Plane webhook bridge (delivery delivery-123)",
     ]);
     expect(JSON.stringify(logs)).toContain("plane_webhook_issue_done");
   });
@@ -90,7 +90,7 @@ describe("Plane webhook endpoint", () => {
       event: "issue",
       action: "update",
       data: {
-        identifier: "DOT",
+        identifier: "ISSUE",
         sequence_id: 301,
         name: "Plane webhook bridge",
         state_detail: { name: "Done" },
@@ -128,7 +128,7 @@ describe("Plane webhook endpoint", () => {
       action: "update",
       data: {
         id: "issue-2",
-        identifier: "DOT",
+        identifier: "ISSUE",
         sequence_id: 302,
         name: "Not done yet",
         state_detail: { name: "In Progress" },

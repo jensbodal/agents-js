@@ -16,7 +16,7 @@
  * dep-graph-gen.ts and test-counts.ts first.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,10 @@ const REPO_ROOT = resolve(HERE, "..");
 const GRAPH = resolve(REPO_ROOT, "docs/public/graph.json");
 const TEST_COUNTS = resolve(REPO_ROOT, "output/test-counts.json");
 const STATUS = resolve(REPO_ROOT, "scripts/dashboard-status.json");
+const LOCAL_REFERENCE_TRACKING = resolve(
+  REPO_ROOT,
+  "plans/local-environment-reference-tracking.json",
+);
 const OUT = resolve(REPO_ROOT, "output/agents-js-dashboard.html");
 
 const BASELINE_REF = "d505044";
@@ -54,6 +58,19 @@ interface TestCounts {
 
 interface DashboardStatus {
   packages: Record<string, { status: StatusKey; notes: string }>;
+}
+
+interface LocalReferenceTrackingRow {
+  file: string;
+  total: number;
+  counts: Record<string, number>;
+}
+
+interface LocalReferenceTracking {
+  generatedAt?: string;
+  scope?: string;
+  terms: string[];
+  rows: LocalReferenceTrackingRow[];
 }
 
 function classifyScope(dir: string): "core" | "extras" | "test" | "app" {
@@ -149,6 +166,37 @@ function readPackageDescription(dir: string): string {
   }
 }
 
+function readLocalReferenceTracking(): LocalReferenceTracking | null {
+  if (!existsSync(LOCAL_REFERENCE_TRACKING)) return null;
+
+  const raw = JSON.parse(
+    readFileSync(LOCAL_REFERENCE_TRACKING, "utf8"),
+  ) as Partial<LocalReferenceTracking>;
+  const rows = Array.isArray(raw.rows)
+    ? raw.rows.filter(
+        (row): row is LocalReferenceTrackingRow =>
+          typeof row?.file === "string" &&
+          typeof row.total === "number" &&
+          row.counts !== null &&
+          typeof row.counts === "object",
+      )
+    : [];
+
+  if (rows.length === 0) return null;
+
+  const terms =
+    Array.isArray(raw.terms) && raw.terms.every((term) => typeof term === "string")
+      ? raw.terms
+      : [...new Set(rows.flatMap((row) => Object.keys(row.counts)))].sort();
+
+  return {
+    generatedAt: typeof raw.generatedAt === "string" ? raw.generatedAt : undefined,
+    scope: typeof raw.scope === "string" ? raw.scope : undefined,
+    terms,
+    rows: rows.toSorted((a, b) => b.total - a.total || a.file.localeCompare(b.file)),
+  };
+}
+
 function renderRow(
   pkg: GraphPkg,
   testCounts: TestCounts["packages"][string] | undefined,
@@ -172,11 +220,62 @@ function renderRow(
       </tr>`;
 }
 
+function renderLocalReferenceTracking(tracking: LocalReferenceTracking | null): string {
+  if (!tracking) return "";
+
+  const totalMatches = tracking.rows.reduce((sum, row) => sum + row.total, 0);
+  const termHeaders = tracking.terms
+    .map((term) => `<th class="local-num">${escapeHtml(term)}</th>`)
+    .join("");
+  const rows = tracking.rows
+    .map((row) => {
+      const termCells = tracking.terms
+        .map((term) => `<td class="local-num">${row.counts[term] ?? 0}</td>`)
+        .join("");
+      return `
+      <tr>
+        <td class="local-file"><code>${escapeHtml(row.file)}</code></td>
+        <td class="local-num local-total">${row.total}</td>
+        ${termCells}
+      </tr>`;
+    })
+    .join("");
+
+  return `
+<section class="local-reference">
+  <div class="section-head">
+    <div>
+      <h2>Local Reference Cleanup</h2>
+      <div class="section-desc">Local-only document scan for environment-specific references, sorted by total hits.</div>
+    </div>
+    <div class="section-metrics">
+      <span><strong>${tracking.rows.length}</strong> files</span>
+      <span><strong>${totalMatches}</strong> hits</span>
+    </div>
+  </div>
+  <div class="section-meta">
+    <span><strong>Generated:</strong> ${escapeHtml(tracking.generatedAt ?? "unknown")}</span>
+    <span><strong>Scope:</strong> ${escapeHtml(tracking.scope ?? "document-like files")}</span>
+    <span><strong>Source:</strong> <code>plans/local-environment-reference-tracking.json</code></span>
+  </div>
+  <table class="local-ref-table">
+    <thead><tr>
+      <th>File</th>
+      <th class="local-num">Total</th>
+      ${termHeaders}
+    </tr></thead>
+    <tbody>${rows}
+    </tbody>
+  </table>
+</section>`;
+}
+
 function renderDashboard(
   layers: string[][],
   packages: Map<string, GraphPkg>,
   testCounts: TestCounts,
   status: DashboardStatus,
+  localReferenceTracking: LocalReferenceTracking | null,
 ): string {
   const allPackages = [...packages.values()];
   const counts = {
@@ -219,6 +318,10 @@ function renderDashboard(
 </div>`;
     })
     .join("");
+  const localReferenceHtml = renderLocalReferenceTracking(localReferenceTracking);
+  const sourceText = `scripts/dashboard-status.json + docs/public/graph.json + output/test-counts.json${
+    localReferenceTracking ? " + plans/local-environment-reference-tracking.json" : ""
+  }`;
 
   return `<!doctype html>
 <html lang="en">
@@ -276,6 +379,21 @@ function renderDashboard(
   .scope-tag.core { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
   .scope-tag.extras { background: rgba(210, 153, 34, 0.15); color: var(--warn); border: 1px solid rgba(210, 153, 34, 0.3); }
   .scope-tag.test { background: rgba(139, 148, 158, 0.15); color: var(--muted); border: 1px solid rgba(139, 148, 158, 0.3); }
+  .local-reference { margin-bottom: 32px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  .section-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 8px; }
+  .section-head h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--warn); text-transform: uppercase; letter-spacing: 0.08em; }
+  .section-desc, .section-meta { color: var(--muted); font-size: 12px; }
+  .section-meta { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
+  .section-meta strong, .section-metrics strong { color: var(--text); font-weight: 600; }
+  .section-metrics { display: flex; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .local-ref-table { width: 100%; min-width: 960px; border-collapse: collapse; }
+  .local-ref-table th { text-align: left; background: var(--panel-2); padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); }
+  .local-ref-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 12px; }
+  .local-ref-table tr:last-child td { border-bottom: 0; }
+  .local-ref-table tr:hover td { background: var(--panel-2); }
+  .local-ref-table .local-file code { background: transparent; padding: 0; }
+  .local-ref-table .local-num { text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  .local-ref-table .local-total { color: var(--warn); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -286,7 +404,7 @@ function renderDashboard(
     <span><strong>Generated:</strong> ${new Date().toISOString()}</span>
     <span><strong>main HEAD:</strong> ${currentHeadShort()}</span>
     <span><strong>Commits since ${BASELINE_REF}:</strong> ${commitsSince(BASELINE_REF)}</span>
-    <span><strong>Source:</strong> scripts/dashboard-status.json + docs/public/graph.json + output/test-counts.json</span>
+    <span><strong>Source:</strong> ${escapeHtml(sourceText)}</span>
   </div>
 </header>
 
@@ -309,6 +427,7 @@ function renderDashboard(
   <div class="cell"><div class="num">${counts.validated}</div><div class="lbl">Validated</div></div>
   <div class="cell"><div class="num">${counts.pending}</div><div class="lbl">Pending / validating</div></div>
 </div>
+${localReferenceHtml}
 ${layerHtml}
 
 </main>
@@ -328,13 +447,14 @@ async function main() {
   const graph = JSON.parse(readFileSync(GRAPH, "utf8")) as { packages: GraphPkg[] };
   const testCounts = JSON.parse(readFileSync(TEST_COUNTS, "utf8")) as TestCounts;
   const status = JSON.parse(readFileSync(STATUS, "utf8")) as DashboardStatus;
+  const localReferenceTracking = readLocalReferenceTracking();
 
   // Filter to dashboard scope: packages/, extras/, tests/trial-agent (not apps/).
   const inScope = graph.packages.filter((p) => !p.dir.startsWith("apps/"));
   const byName = new Map(inScope.map((p) => [p.name, p]));
 
   const layers = topoLayers(inScope);
-  const out = renderDashboard(layers, byName, testCounts, status);
+  const out = renderDashboard(layers, byName, testCounts, status, localReferenceTracking);
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, out);

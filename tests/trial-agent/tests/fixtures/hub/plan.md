@@ -1,6 +1,6 @@
 # Test hub plan fixture
 
-This file is the hub-vault counterpart to the workspace memory file under
+This file is the document root counterpart to the workspace memory file under
 `.agents/test-agent/notes.md`. The probe query "memory rule about time
 estimates" should surface a snippet from this file via searchDocs and a
 matching snippet from notes.md via searchMemories — both with absolute

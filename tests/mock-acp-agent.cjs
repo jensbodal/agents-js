@@ -192,9 +192,8 @@ function handlePrompt(request) {
   }
 
   // Diagnostic probe: hold the prompt open for <ms> before replying with
-  // the echoed tag. Used by the Phase-2 parallelism regression test
-  // (`docs/architecture/event-routing-per-contextid-plan.md` §5b) to
-  // assert wall-clock overlap between two distinct-contextId prompts.
+  // the echoed tag. Used by the parallelism regression test to assert
+  // wall-clock overlap between two distinct-contextId prompts.
   // Counts as a real turn.
   const sleepMatch = promptText.match(/^__SLEEP_MS__:(\d+):(.*)$/);
   if (sleepMatch) {

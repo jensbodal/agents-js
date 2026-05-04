@@ -3,7 +3,7 @@
  *
  * The factory is the programmatic seam that lets test harnesses (and any
  * other host owning its own `AgentSideConnection`) embed the trial-agent
- * with explicit control over the hub-vault root, rather than relying on
+ * with explicit control over the document root root, rather than relying on
  * the bin's CLI-flag/env-var/default fallback chain.
  *
  * These tests exercise the factory directly with a stub connection — no

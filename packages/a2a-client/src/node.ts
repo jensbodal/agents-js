@@ -106,8 +106,8 @@ export interface RegistrySyncHandle {
 }
 
 /**
- * Wire Phase 1 auto-registration and Phase 2 peer-sync into a gateway startup
- * path. Returns immediately — auto-registration is fire-and-forget.
+ * Wire auto-registration and peer-sync into a gateway startup path. Returns
+ * immediately — auto-registration is fire-and-forget.
  *
  * @example
  * ```ts
@@ -126,7 +126,7 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
   const localGatewayId = options.gatewayId ?? hostname();
   const intervalMs = options.intervalMs ?? DEFAULT_SYNC_INTERVAL_MS;
 
-  // Phase 1: fire-and-forget auto-registration.
+  // Fire-and-forget auto-registration.
   void autoRegister({
     name: options.name,
     kind: "a2a",
@@ -147,13 +147,13 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
       );
     });
 
-  // Phase 2: sync endpoint handler (inbound pull from peers).
+  // Sync endpoint handler for inbound pull requests from peers.
   const syncHandler = createSyncEndpointHandler({
     configPath,
     logger: options.logger?.debug ? { debug: options.logger.debug } : undefined,
   });
 
-  // Phase 2: periodic peer-sync (outbound pull to known peers).
+  // Periodic peer-sync for outbound pulls to known peers.
   let intervalHandle: ReturnType<typeof setInterval> | undefined;
 
   if (intervalMs > 0) {

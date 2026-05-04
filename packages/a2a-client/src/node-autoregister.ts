@@ -154,7 +154,7 @@ export async function readAgentRegistryRecords(
 
 /**
  * Build the on-disk JSON payload from a record map, preserving v2 shape.
- * Exported so the Phase 2 sync module can write the merged state using the
+ * Exported so the sync module can write the merged state using the
  * same serializer autoRegister uses — one source of truth for the wire format.
  */
 export function serializeRecords(records: Record<string, AgentRegistryRecord>): RegistryFileV2 {
@@ -209,7 +209,7 @@ export interface AutoRegisterOptionsBase {
   description?: string;
   /** When the cached AgentCard fields were last refreshed. ISO-8601 UTC. */
   cardCacheRefreshedAt?: string;
-  /** Availability-probe URL for future Phase 2 liveness checks. */
+  /** Availability-probe URL for liveness checks. */
   healthCheckUrl?: string;
   /** Override the registered_at timestamp. Defaults to `new Date().toISOString()`. */
   registeredAt?: string;

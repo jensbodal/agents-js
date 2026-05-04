@@ -6,25 +6,20 @@
  * parent-child threading, self-spawn depth enforcement, and the tool
  * registry shape used by {@link findTools}.
  *
- * See `hub/agents-js/cognee-claude/spawn-agent-design-2026-04-22.md`
- * for the full design rationale. v1 scope matches the gateway layer's
- * v1 — bounded mode only, trial-agent harness only, explicit-harness
- * fail-closed — plus the tool-layer additions below.
+ * The current scope is bounded mode, trial-agent harness only, and
+ * explicit-harness fail-closed behavior.
  *
  * Tool-layer additions on top of the gateway primitive:
  *
  * - **Provenance.** Every completed spawn yields a single {@link Source}
  *   carrying the harness + session_id via the `tool://spawn-agent/...`
- *   URI scheme (current shipped SourceType `"tool"`; migration to a
- *   substrate-neutral `"subagent"` shape follows when the types.ts
- *   rewrite lands per the design doc's "Provenance shape" note).
+ *   URI scheme.
  * - **Parent/root trace threading.** When the caller supplies a
  *   {@link TraceEmitter}, the spawn call is recorded as a single
  *   `SpawnAgent` tool-call-trace. The emitted record's `event_id`
  *   becomes the composition root for any nested traces the subagent
- *   produces. Subagents that do not emit tool-call-traces themselves
- *   (trial-agent in v1) do not produce child records; the parent
- *   record stands alone.
+ *   produces. Subagents that do not emit tool-call-traces themselves do not
+ *   produce child records; the parent record stands alone.
  * - **Self-spawn depth limit.** Callers pass `depth` (0-indexed) and
  *   optionally `maxDepth` (default 1). When `depth >= maxDepth` the
  *   call fails closed with status `"depth_limit_exceeded"` — prevents

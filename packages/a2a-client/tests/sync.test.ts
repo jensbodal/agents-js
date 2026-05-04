@@ -15,11 +15,9 @@ import {
 import type { AgentRegistryRecord } from "../src/registry.ts";
 
 /**
- * Phase 2 sync merge-matrix coverage.
+ * Sync merge-matrix coverage.
  *
- * Six branches required by the task description (each test body states
- * the WHY so a reviewer sees the conflict-resolution rationale without
- * re-deriving from spec):
+ * Six branches are covered:
  *   1. first-sync (add path)
  *   2. re-sync no-op (same gateway, same registered_at)
  *   3. peer-updated (same gateway, peer registered_at newer)

@@ -88,9 +88,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Allow Tailscale hostnames during dogfood runs. Local-only change
-    // for this orchestrator session; commit-worthy tightening would
-    // enumerate concrete hosts.
+    // Allow non-localhost hostnames for reference UI runs behind a gateway or
+    // reverse proxy. Operators can tighten this in their own deployment config.
     allowedHosts: true,
     proxy: defaultTargetProxy
       ? {

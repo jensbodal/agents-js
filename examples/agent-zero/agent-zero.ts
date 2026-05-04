@@ -17,7 +17,7 @@ export interface AgentZeroAdapterOptions {
   /**
    * Optional Bearer token for authenticating probe requests.
    * When provided, the Authorization header is set to "Bearer <token>".
-   * When omitted, authHeader returns null (DOT-280 will land the real flow).
+   * When omitted, authHeader returns null.
    */
   token?: string;
 }
@@ -46,8 +46,7 @@ const AGENT_ZERO_DEFAULT_PROTOCOL_VERSION = "0.3.0";
  * - Normalizes the raw card shape to A2A-compatible AgentCard
  * - Provides authHeader hook (returns "Bearer <token>" or null)
  *
- * The authHeader slot is deliberately stubbed — DOT-280 lands the full
- * derived-token flow. Pass `token` for simple static bearer auth.
+ * Pass `token` for simple static bearer auth.
  */
 export function agentZeroAdapter(options: AgentZeroAdapterOptions): TargetAdapter {
   const { token } = options;

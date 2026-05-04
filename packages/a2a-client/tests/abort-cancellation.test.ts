@@ -66,7 +66,7 @@ class StreamingTaskMockTransport {
   }
 }
 
-describe("AbortSignal propagation (WP2)", () => {
+describe("AbortSignal propagation", () => {
   test("already-aborted signal short-circuits sendTurn before transport call", async () => {
     const transport = createStreamingMockTransport([]);
     const provider = new A2AClientProvider(transport as unknown as A2ATransport);
@@ -203,7 +203,7 @@ describe("AbortSignal propagation (WP2)", () => {
   });
 });
 
-describe("Structured cancellation events (WP3)", () => {
+describe("Structured cancellation events", () => {
   test("controller.cancelTask emits cancellation.requested + cancellation.succeeded on success", async () => {
     const transport = new StreamingTaskMockTransport();
     const provider = new A2AClientProvider(transport as unknown as A2ATransport);

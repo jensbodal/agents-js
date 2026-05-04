@@ -169,7 +169,7 @@ describe("createWebLLMAdapter", () => {
     expect(userContent).toContain("Prior tool calls");
   });
 
-  // ─── M6 cancel plumbing (DOT-308) ─────────────────────────────────────────
+  // ─── Cancel plumbing ─────────────────────────────────────────────────────
 
   it("streamAnswer stops yielding within one tick of signal abort (1000-chunk fake)", async () => {
     // The wall-clock contract is "≤300ms cancel". The unit-level contract

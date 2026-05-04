@@ -15,7 +15,7 @@ describe("fetchContext", () => {
     mkdirSync(join(workspaceRoot, ".agents", "planner"), { recursive: true });
     writeFileSync(
       join(workspaceRoot, ".agents", "planner", "memory.md"),
-      "remembered rule: Jens prefers explicit acknowledgement before commits\n",
+      "remembered rule: ask before committing changes\n",
     );
 
     writeFileSync(

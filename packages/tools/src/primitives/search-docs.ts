@@ -1,13 +1,8 @@
 /**
- * searchDocs — grep-based search across the hub vault.
+ * searchDocs — grep-based search across a caller-provided docs root.
  *
- * "Hub vault" = the canonical docs root at
- * `/Users/jensbodal/workspace/syncthing/lifestone_ios/hub/`. Tests point
- * `hubRoot` at a fixture directory instead; no path is hardcoded inside
- * the primitive.
- *
- * We walk the tree, read every `*.md` file, score per-line, and return
- * the top-N matching snippets with full provenance.
+ * We walk the tree, read every `*.md` file, score per-line, and return the
+ * top-N matching snippets with full provenance.
  */
 
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -82,7 +77,7 @@ function extractBestSnippet(text: string, query: string): { text: string; score:
 }
 
 /**
- * Grep-style search across markdown files under the given hub-vault root,
+ * Grep-style search across markdown files under the given document root root,
  * returning the best-matching line range from each file.
  *
  * Skips `node_modules`, `.git`, `.obsidian`, `.trash`, `dist`, `out`, and

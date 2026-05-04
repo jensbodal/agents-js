@@ -3,8 +3,7 @@
  *
  * Browsers only expose `crypto.randomUUID()` in secure contexts
  * (HTTPS origins or `localhost` / `127.0.0.1`). Serving the
- * reference web-ui over plain HTTP on a non-localhost hostname —
- * e.g. a Tailscale-exposed dev server — lands callers in an
+ * reference web-ui over plain HTTP on a non-localhost hostname lands callers in an
  * insecure context where `crypto.randomUUID` is `undefined`, and
  * any consumer of `@agents-js/a2a-client` that calls it throws on
  * construction, producing an empty-page failure mode.

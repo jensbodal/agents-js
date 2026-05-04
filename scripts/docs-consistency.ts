@@ -56,7 +56,6 @@ const docsDeployCommand = "PORTAINER_INSECURE_TLS=1 bun scripts/deploy-docs-stac
 const staleDocsDeployStrings = [
   "GITEA_REGISTRY_",
   "dot_mcp_gitea_token",
-  "dot-mcp-release",
   "one-time manual Portainer stack bootstrap",
   "create the `agents-js-docs` stack once",
   "If this is the first docs deployment on an environment",
@@ -74,9 +73,8 @@ export const REMOVED_DOC_PATHS = [
 ] as const;
 
 const providerHostSourcePatterns: readonly RegExp[] = [
-  /https:\/\/gitea\.tail019e7\.ts\.net\/jensbodal\/agents-js\b[^\s)\]}"]*/g,
-  /git\+https:\/\/gitea\.tail019e7\.ts\.net\/jensbodal\/agents-js\.git/g,
-  /https:\/\/github\.com\/jensbodal\/agents-js\b[^\s)\]}"]*/g,
+  /https:\/\/(?:gitea|github)\.[^/\s]+\/[^/\s]+\/agents-js\b[^\s)\]}"]*/g,
+  /git\+https:\/\/(?:gitea|github)\.[^/\s]+\/[^/\s]+\/agents-js\.git/g,
 ];
 
 const providerAuthorityPatterns: readonly RegExp[] = [
@@ -301,9 +299,9 @@ export function collectGraphPackageIssues(
 export function collectRemovedDocPathIssues(files: readonly TextFile[]): string[] {
   const errors: string[] = [];
   for (const file of files) {
-    for (const removedPath of REMOVED_DOC_PATHS) {
-      if (file.content.includes(removedPath)) {
-        errors.push(`${file.path}: references removed documentation path: ${removedPath}`);
+    for (const retiredPath of REMOVED_DOC_PATHS) {
+      if (file.content.includes(retiredPath)) {
+        errors.push(`${file.path}: references retired documentation path: ${retiredPath}`);
       }
     }
   }
@@ -458,7 +456,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "## Tooling",
         "## Release Posture",
         "### Docs Publication Contract",
-        "## Release ceremony",
+        "### Release Operator Contract",
       ],
     },
     {
@@ -487,7 +485,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
       contains: ["# API Reference"],
       forbids: ["# @agents-js/root"],
     },
-    // docs/tooling.md removed: consolidated into new docs pages (contribute.md, surfaces.md, etc.)
     {
       path: "docs/getting-started.md",
       contains: [
@@ -499,11 +496,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "## Contributor quickstart",
       ],
     },
-    // docs/browser-uat.md removed: consolidated into docs/surfaces.md
-    // docs/cli.md removed: CLI docs consolidated into surfaces/contribute pages
-    // docs/browser-uat-checklist.md removed: content consolidated into surfaces.md
-    // docs/release-posture.md removed: content consolidated into docs/develop/contribute.md and surfaces
-    // docs/release-checklist.md removed: content consolidated into docs/develop/contribute.md
     {
       path: ".factory/services.yaml",
       optional: true,
@@ -590,7 +582,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
     }
   };
   scanPackageRefs(indexMd, "docs/index.md");
-  // acp-host.md references removed: harness-guide.md now holds ACP Host embedding guidance
   try {
     scanPackageRefs(await readText("docs/harness-guide.md", root), "docs/harness-guide.md");
   } catch {

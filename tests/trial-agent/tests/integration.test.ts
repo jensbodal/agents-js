@@ -140,7 +140,7 @@ describe("trial-agent over real ACP wire", () => {
     });
   }, 20000);
 
-  test("findTools prompt returns searchDocs as top match (self-hosting proof)", async () => {
+  test("findTools prompt returns searchDocs as top match (document-search proof)", async () => {
     await withTrialAgent(async ({ connection, notifications }, sessionId) => {
       await connection.prompt({
         sessionId,
@@ -162,21 +162,20 @@ describe("trial-agent over real ACP wire", () => {
       expect(text).toContain("Readiness gates");
       // All seven gate ids should appear in the report.
       expect(text).toContain("matrix-source-or-deferred");
-      expect(text).toContain("hub-vault-source");
+      expect(text).toContain("workspace-doc-source");
       expect(text).toContain("agent-msg-source-or-deferred");
       expect(text).toContain("stale-source-confidence");
-      expect(text).toContain("find-tools-self-hosting");
+      expect(text).toContain("find-tools-doc-search");
       expect(text).toContain("find-tools-narrow-result");
       expect(text).toContain("fetch-context-three-line-ergonomics");
-      // Matrix + agent-msg gates must be DEFER (not silent empty PASS) per
-      // the task spec — D's first commit explicitly leaves those primitives
-      // unwired.
+      // Matrix + agent-msg gates must be DEFER, not silent empty PASS, until
+      // those primitives are wired.
       expect(text).toMatch(/\[DEFER\] matrix-source-or-deferred/);
       expect(text).toMatch(/\[DEFER\] agent-msg-source-or-deferred/);
       // The other five gates must PASS.
-      expect(text).toMatch(/\[PASS\] hub-vault-source/);
+      expect(text).toMatch(/\[PASS\] workspace-doc-source/);
       expect(text).toMatch(/\[PASS\] stale-source-confidence/);
-      expect(text).toMatch(/\[PASS\] find-tools-self-hosting/);
+      expect(text).toMatch(/\[PASS\] find-tools-doc-search/);
       expect(text).toMatch(/\[PASS\] find-tools-narrow-result/);
       expect(text).toMatch(/\[PASS\] fetch-context-three-line-ergonomics/);
     });

@@ -25,9 +25,6 @@ import { isWithinWorkspace } from "@agents-js/policy";
  *   },
  * });
  * ```
- *
- * See `docs/architecture/acp-host-agnostic-client-contract.md` for the
- * north-star "host kit" framing this split serves.
  */
 export interface DirectoryPolicy {
   /**

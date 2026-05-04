@@ -245,12 +245,12 @@ describe("AcpMessage._renderMarkdown (fenced code blocks, streaming-tolerant)", 
     // Before the fix this rendered via the inline tokenizer and surfaced raw
     // backtick + slash. After the fix it renders as a code block whose body
     // grows as more deltas arrive.
-    const midStream = "My working directory is:\n```\n/Users/jensbodal/workspace";
+    const midStream = "My working directory is:\n```\n/workspace/example";
     const result = render.call(AcpMessage.prototype as never, midStream);
     const blocks = codeBlockLangAndCode(result);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.lang).toBe("");
-    expect(blocks[0]?.code).toBe("/Users/jensbodal/workspace");
+    expect(blocks[0]?.code).toBe("/workspace/example");
   });
 
   test("unclosed fence with language hint renders as code block with language", () => {

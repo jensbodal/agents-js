@@ -16,7 +16,7 @@ That's the whole shape. The rest of this page expands each clause.
 
 ## All packages ship as beta
 
-Every publishable `@agents-js/*` package ships under one beta status. There is **no** per-package tier ceremony — no Stable / RC / Preview / Experimental classifications, no internal-vs-external split, no Nexus-vs-public split.
+Every publishable `@agents-js/*` package ships under one beta status. There is **no** per-package tier split — no Stable / RC / Preview / Experimental classifications, no internal-vs-external split, no private-vs-public split.
 
 If a package is in the [Package Map](/primitives#package-map), it is beta. If it builds and we publish it, it is beta. If it has rough edges, those rough edges are documented on the relevant page under "Known limitations" — they do not promote the package to a different tier.
 
@@ -67,7 +67,9 @@ Practically:
 
 ## Trust posture — local operator first
 
-The default trust posture is **local operator on a trusted network** — typically a Tailscale tailnet or a single-machine setup. That is the surface the docs and gates assume.
+The default trust posture is **local operator on a trusted private network**.
+The gateway can run wherever the operator chooses, but the current beta surface
+does not claim public-network hardening by default.
 
 Auth hardening for public-network operation (bearer tokens, mTLS, registry validation, redaction policy beyond the existing scope) is **not** in the current beta claim. It is explicitly deferred until the local-operator browser surface, fixture proof, and registry hardening land first. The Agent Registry trusted-network banner on [Surfaces → Agent Registry](/surfaces#agent-registry) is the cite for this posture.
 
