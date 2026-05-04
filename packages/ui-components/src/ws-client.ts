@@ -168,6 +168,18 @@ export class HostWSClient {
     this._send({ type: "set_model", modelId });
   }
 
+  /**
+   * Forward a user-driven A2UI surface event back to the gateway. The
+   * gateway invokes `controller.sendSurfaceEvent(surfaceId, { action,
+   * payload })`, which emits the event into the ACP session stream so
+   * agents and observers see the user's interaction. Use this from the
+   * `A2uiBridge` sink — without it, browser clicks are silently
+   * dropped.
+   */
+  sendSurfaceEvent(surfaceId: string, actionName: string, payload: unknown): void {
+    this._send({ type: "surface_event", surfaceId, actionName, payload });
+  }
+
   setUrl(url: string): void {
     if (url === this.url) {
       return;

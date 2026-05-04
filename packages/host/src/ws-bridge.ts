@@ -69,7 +69,21 @@ export type WSClientMessage =
   | { type: "set_model"; modelId: ModelId }
   | { type: "set_permission_mode"; mode: PermissionMode }
   | { type: "request_state" }
-  | { type: "cancel" };
+  | { type: "cancel" }
+  /**
+   * Browser → server back-channel for A2UI surface interactions
+   * (button clicks, form submits, etc.). The bridge forwards the
+   * payload to `controller.sendSurfaceEvent`, which emits it onto
+   * the ACP session event stream so observers (and ultimately the
+   * agent, when it subscribes back) see the user action.
+   *
+   * `actionName` is part of the wire so a single sink can route
+   * different events without parsing the opaque payload. The
+   * gateway-side `surface_event` ACPSessionEvent carries
+   * `{ surfaceId, event: { action, payload } }` so the existing
+   * translator / broadcaster surface stays unchanged.
+   */
+  | { type: "surface_event"; surfaceId: string; actionName: string; payload: unknown };
 
 export interface RuntimeSwapResult {
   runtime: RuntimeSnapshotInfo;
@@ -424,6 +438,15 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
             }
             case "cancel":
               await controller.cancel();
+              break;
+            case "surface_event":
+              // Wrap the actionName + payload into the shape ACP
+              // surface_event observers expect. The agent receives
+              // this through its A2UI bridge subscription.
+              controller.sendSurfaceEvent(msg.surfaceId, {
+                action: msg.actionName,
+                payload: msg.payload,
+              });
               break;
             default:
               console.warn("[Gateway WS] Unknown message type:", (msg as { type: string }).type);

@@ -92,16 +92,30 @@ a2uiMount.style.cssText =
 app.appendChild(a2uiMount);
 
 // Inbound A2UI lifecycle messages reach `applyInbound` via the WS bridge
-// (`onA2uiMessage` below). The surface_event back-channel is still a gap
-// — user events are logged and dropped until the WS bridge grows a
-// matching client-to-server frame.
+// (`onA2uiMessage` below). User-driven surface events flow back via
+// `hostClient.sendSurfaceEvent`, which the gateway forwards to
+// `controller.sendSurfaceEvent` so the agent / observers see the
+// interaction. We also keep a console mirror so operator developers
+// can spot interactions in the devtools log.
+//
 // Construct bridge without a host so its stable `onEvent` forwarder
 // can be passed into the host constructor below; `attachHost`
-// completes the cycle.
+// completes the cycle. The `hostClient` is constructed further down
+// in the file but the bridge sink reads it lazily, so the late
+// initialization order is fine.
+let _hostClient: { sendSurfaceEvent(s: string, a: string, p: unknown): void } | null = null;
 const a2uiBridge = new A2uiBridge({
   sink: {
     sendSurfaceEvent(surfaceId, actionName, payload) {
       console.log("[web-ui] a2ui surface event:", { surfaceId, actionName, payload });
+      if (_hostClient !== null) {
+        _hostClient.sendSurfaceEvent(surfaceId, actionName, payload);
+      } else {
+        console.warn("[web-ui] a2ui surface event dropped: host bridge not yet connected", {
+          surfaceId,
+          actionName,
+        });
+      }
     },
   },
 });
@@ -168,6 +182,8 @@ const hostClient = launchConfig.hostBridgeUrl
       },
     })
   : null;
+// Make hostClient visible to the A2UI bridge sink defined above.
+_hostClient = hostClient;
 
 const hostView = chatApp as unknown as ChatAppHostState;
 let pendingModelSelection: string | null = savedPrefs?.modelId || null;

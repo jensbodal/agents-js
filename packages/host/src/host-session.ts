@@ -107,6 +107,7 @@ export type GatewayHostController = Pick<
   | "resolvePermission"
   | "resolveWriteGate"
   | "sendPrompt"
+  | "sendSurfaceEvent"
   | "setLastError"
   | "setModel"
   | "setPermissionMode"
@@ -187,6 +188,10 @@ class StableHostSessionController implements GatewayHostController {
 
   sendPrompt(content: Parameters<ACPSessionController["sendPrompt"]>[0]): Promise<void> {
     return this.activeController.sendPrompt(content);
+  }
+
+  sendSurfaceEvent(surfaceId: string, event: unknown): void {
+    this.activeController.sendSurfaceEvent(surfaceId, event);
   }
 
   destroy(): void {
@@ -621,13 +626,12 @@ export async function switchHostSessionRuntime(config: {
  * — `HostA2AExecutor` handles that on lane eviction / executor shutdown.
  *
  * Passes the same `runtime`, `workspacePath`, file adapters, permission
- * engine/store, and permission mode as the primary host session, so the
- * spawned controller shares identical policy and authentication surface.
- * Surface adapters are NOT shared by default — per-lane controllers fall
- * through to the primary host session's surface broadcaster only if the
- * caller threads one in explicitly. Today the surface-broadcaster lives on
- * the primary controller only (plan §6b, option (a)); the lane-spawned
- * controllers do not fan out surface messages to WS/AG-UI clients.
+ * engine/store, permission mode, and (when supplied) surface adapter as
+ * the primary host session, so the spawned controller shares identical
+ * policy, authentication, and surface-broadcast surface. Callers who
+ * own a shared `surfaceAdapter` SHOULD pass it here so A2UI surfaces
+ * emitted by lane-backed turns reach connected browser clients —
+ * dropping the adapter silently loses those messages.
  */
 export async function createStandaloneHostController(config: {
   runtime: ResolvedGatewayRuntime;

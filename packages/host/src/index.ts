@@ -17,6 +17,15 @@ export {
   type RunSessionResult,
   runAguiSession,
 } from "./agui-run-session.ts";
+export {
+  type AuditEmitter,
+  type AuditEvent,
+  type AuditEventInput,
+  type AuditLogger,
+  type CorrelationId,
+  createAuditEmitter,
+  newCorrelationId,
+} from "./audit.ts";
 export { HostA2AExecutor, type HostA2AExecutorOptions } from "./host-executor.ts";
 export {
   createHostSession,

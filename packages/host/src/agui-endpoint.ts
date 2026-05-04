@@ -22,6 +22,8 @@ import { EventType } from "@agents-js/agui-types";
 import { validateRunAgentInput } from "@agents-js/validation";
 import { AguiRunBusyError, AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { enqueueAguiEvent, runAguiSession } from "./agui-run-session.ts";
+import type { AuditEmitter } from "./audit.ts";
+import { newCorrelationId } from "./audit.ts";
 import type { GatewayHostController } from "./host-session.ts";
 
 const SSE_RESPONSE_HEADERS: Record<string, string> = {
@@ -48,6 +50,14 @@ export interface AguiEndpointOptions {
    * future per-thread coordinator registry).
    */
   coordinator?: AguiRunCoordinator;
+  /**
+   * Optional audit emitter. When provided, the endpoint records
+   * lifecycle events (start, finish, error, disconnect-cancel) with a
+   * correlation ID stable across the run. Audit records carry only
+   * structural metadata — never prompt bodies, env values, or the
+   * server-supplied error message verbatim.
+   */
+  audit?: AuditEmitter;
 }
 
 /**
@@ -122,6 +132,9 @@ export function createAguiFetchHandler(
     }
     const threadId = input.threadId ?? crypto.randomUUID();
     const runId = crypto.randomUUID();
+    const correlationId = newCorrelationId();
+    const audit = options.audit;
+    const startedAtMs = Date.now();
 
     // Acquire the run slot BEFORE opening the SSE stream so a busy
     // response is a plain JSON 409 rather than an SSE error frame.
@@ -165,6 +178,12 @@ export function createAguiFetchHandler(
           threadId,
           runId,
         });
+        audit?.record({
+          kind: "agui-run-started",
+          correlationId,
+          runId,
+          threadId,
+        });
 
         try {
           const result = await runAguiSession({
@@ -188,10 +207,43 @@ export function createAguiFetchHandler(
               message: "run ended without terminal event",
             });
           }
+
+          if (result.finished) {
+            audit?.record({
+              kind: "agui-run-finished",
+              correlationId,
+              runId,
+              threadId,
+              ...(result.stopReason ? { stopReason: result.stopReason } : {}),
+              durationMs: Date.now() - startedAtMs,
+            });
+          } else if (result.errorMessage === "run canceled by disconnect") {
+            audit?.record({
+              kind: "agui-run-disconnect-cancel",
+              correlationId,
+              runId,
+              threadId,
+            });
+          } else {
+            audit?.record({
+              kind: "agui-run-error",
+              correlationId,
+              runId,
+              threadId,
+              errorCategory: "run-session-non-terminal",
+            });
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           logger.error("[Gateway/AG-UI] Run session threw", { error: message });
           emit({ type: EventType.RUN_ERROR, message });
+          audit?.record({
+            kind: "agui-run-error",
+            correlationId,
+            runId,
+            threadId,
+            errorCategory: "run-session-threw",
+          });
         } finally {
           lease.release();
           try {

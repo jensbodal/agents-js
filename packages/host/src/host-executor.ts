@@ -39,6 +39,7 @@ import {
   resolveAcpAgentEntryToRuntime,
 } from "@agents-js/gateway-runtime";
 import { type AgentRegistryMap, loadRegistryFromDisk } from "./agent-registry.ts";
+import { type AuditEmitter, newCorrelationId } from "./audit.ts";
 import type { GatewayHostController } from "./host-session.ts";
 import { buildHostRuntimeEnvPolicy } from "./runtime-env-policy.ts";
 import { resolveHostWorkspaceFlag } from "./runtime-workspace-flag.ts";
@@ -75,6 +76,13 @@ export interface HostA2AExecutorOptions {
    * number to disable eviction entirely. See plan §6a.
    */
   laneIdleTimeoutMs?: number;
+  /**
+   * Optional audit emitter. When provided, the executor records
+   * lifecycle events for A2A tasks and `@@dispatch` invocations with
+   * correlation IDs. Records carry only structural metadata — never
+   * the user prompt, env values, or tool payloads.
+   */
+  audit?: AuditEmitter;
 }
 
 /** Default 30-minute idle timeout before a per-lane controller is torn down. */
@@ -94,6 +102,10 @@ interface ActiveTask {
   textBuffer: string | null;
   agentMessageId?: string;
   cancelled?: boolean;
+  /** Stable correlation token for audit / cross-surface tracing. */
+  correlationId: string;
+  /** Wall-clock timestamp at task creation (ms since epoch). */
+  startedAtMs: number;
 }
 
 /**
@@ -213,6 +225,7 @@ export class HostA2AExecutor implements InitializableExecutor {
     | ((contextId: string) => Promise<GatewayHostController>)
     | null;
   private readonly laneIdleTimeoutMs: number;
+  private readonly audit: AuditEmitter | null;
   private laneSweepTimer: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
 
@@ -225,6 +238,7 @@ export class HostA2AExecutor implements InitializableExecutor {
     this.dispatchWorkspacePath = options?.dispatchWorkspacePath ?? process.cwd();
     this.controllerFactory = options?.controllerFactory ?? null;
     this.laneIdleTimeoutMs = options?.laneIdleTimeoutMs ?? DEFAULT_LANE_IDLE_TIMEOUT_MS;
+    this.audit = options?.audit ?? null;
 
     // The idle-sweep only matters when lanes own their controllers. In
     // shared-controller mode there is nothing to tear down, so skip the timer.
@@ -295,14 +309,23 @@ export class HostA2AExecutor implements InitializableExecutor {
     if (!ready) return;
 
     // Register the active task
+    const correlationId = newCorrelationId();
     const task: ActiveTask = {
       taskId: context.taskId,
       contextId: context.contextId,
       eventBus,
       textBuffer: null,
+      correlationId,
+      startedAtMs: Date.now(),
     };
     this.activeTasks.set(context.taskId, task);
     this.taskToLane.set(context.taskId, lane);
+    this.audit?.record({
+      kind: "a2a-task-started",
+      correlationId,
+      taskId: context.taskId,
+      contextId: context.contextId,
+    });
 
     // Every call publishes submitted+working on its own eventBus so the A2A
     // client sees a complete lifecycle, even when it joins an in-flight prompt.
@@ -316,10 +339,12 @@ export class HostA2AExecutor implements InitializableExecutor {
     });
     this.publishStatusUpdate(task, { state: "working", final: false });
 
+    let terminalState: "completed" | "failed" | "canceled" = "completed";
     try {
       const outcome = await this.trackPromptOwnership(lane, task, userText, normalizedUserMessage);
 
       if (task.cancelled) {
+        terminalState = "canceled";
         this.publishTerminalTask(task, outcome.normalizedUserMessage, {
           state: "canceled",
           text: "",
@@ -327,6 +352,7 @@ export class HostA2AExecutor implements InitializableExecutor {
         return;
       }
 
+      terminalState = outcome.state === "completed" ? "completed" : "failed";
       this.publishTerminalTask(task, outcome.normalizedUserMessage, {
         state: outcome.state,
         text: outcome.text,
@@ -334,6 +360,7 @@ export class HostA2AExecutor implements InitializableExecutor {
       });
     } catch (error) {
       if (task.cancelled) {
+        terminalState = "canceled";
         this.publishTerminalTask(task, normalizedUserMessage, {
           state: "canceled",
           text: "",
@@ -342,6 +369,7 @@ export class HostA2AExecutor implements InitializableExecutor {
       }
       const message = formatRequestError(error);
       console.error("[Gateway] HostA2AExecutor: task failed", { error: message });
+      terminalState = "failed";
       this.publishTerminalTask(task, normalizedUserMessage, {
         state: "failed",
         text: message,
@@ -355,6 +383,13 @@ export class HostA2AExecutor implements InitializableExecutor {
       // one), not this one, so it cannot be relied on for the original
       // task's terminal signal.
       eventBus.finished();
+      this.audit?.record({
+        kind: "a2a-task-finished",
+        correlationId,
+        taskId: context.taskId,
+        contextId: context.contextId,
+        state: terminalState,
+      });
       this.activeTasks.delete(context.taskId);
       this.taskToLane.delete(context.taskId);
     }
@@ -785,8 +820,19 @@ export class HostA2AExecutor implements InitializableExecutor {
   ): Promise<void> {
     const { agentName, payload } = directive;
     const dispatchController = new ACPSessionController();
+    const correlationId = newCorrelationId();
+    const startedAtMs = Date.now();
     this.dispatchedTaskIds.set(context.taskId, context.contextId);
+    this.audit?.record({
+      kind: "dispatch-started",
+      correlationId,
+      agentName,
+      harness: entry.harness,
+      kindVariant: "acp",
+      taskId: context.taskId,
+    });
 
+    let dispatchState: "completed" | "failed" = "completed";
     try {
       await this.spawnEphemeralController(dispatchController, entry);
 
@@ -806,6 +852,7 @@ export class HostA2AExecutor implements InitializableExecutor {
           ...(messageId ? { messageId } : {}),
           metadata: {
             "agents-js.cancelable": false,
+            "agents-js.correlationId": correlationId,
             "agents-js.dispatch": {
               agentName,
               harness: entry.harness,
@@ -816,6 +863,7 @@ export class HostA2AExecutor implements InitializableExecutor {
         }),
       );
     } catch (error) {
+      dispatchState = "failed";
       const message = formatRequestError(error);
       console.error("[Gateway] HostA2AExecutor: @@dispatch (acp) failed", {
         agentName,
@@ -826,10 +874,23 @@ export class HostA2AExecutor implements InitializableExecutor {
         buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
           state: "failed",
           text: `Dispatch to "${agentName}" (harness "${entry.harness}") failed: ${message}`,
-          metadata: { "agents-js.cancelable": false },
+          metadata: {
+            "agents-js.cancelable": false,
+            "agents-js.correlationId": correlationId,
+          },
         }),
       );
     } finally {
+      this.audit?.record({
+        kind: "dispatch-finished",
+        correlationId,
+        agentName,
+        harness: entry.harness,
+        kindVariant: "acp",
+        taskId: context.taskId,
+        state: dispatchState,
+        durationMs: Date.now() - startedAtMs,
+      });
       this.dispatchedTaskIds.delete(context.taskId);
       this.disposeEphemeralController(dispatchController);
       eventBus.finished();

@@ -12,6 +12,7 @@ import {
   applyEnvRuntimeProfile,
   buildRuntimeProfileConfigEnv,
   createAguiFetchHandler,
+  createAuditEmitter,
   createGatewaySurfaceBroadcaster,
   createHostSession,
   createStandaloneHostController,
@@ -63,6 +64,7 @@ interface SetupServerOptions {
   runtime: ResolvedGatewayRuntime;
   session: HostSession;
   controllerFactory: (contextId: string) => Promise<GatewayHostController>;
+  audit: ReturnType<typeof createAuditEmitter>;
 }
 
 export function buildAvailableRuntimeInfos(
@@ -83,13 +85,17 @@ export function buildAvailableRuntimeInfos(
 async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   const executor = new HostA2AExecutor(opts.session.controller, {
     controllerFactory: opts.controllerFactory,
+    audit: opts.audit,
   });
 
   // Create and start the A2A server. Mount the native AG-UI endpoint
   // and the registry sync endpoint on the same port via the additionalFetch
   // hook so discovery + CORS stay centralized.
   const gatewayCard = buildAgentCard(opts.runtime.agentCard);
-  const aguiHandler = createAguiFetchHandler({ controller: opts.session.controller });
+  const aguiHandler = createAguiFetchHandler({
+    controller: opts.session.controller,
+    audit: opts.audit,
+  });
   const planeWebhookHandler = createPlaneWebhookFetchHandler();
   // The sync endpoint handler reads the registry file on each request — no
   // port dependency — so it is safe to create before server.start().
@@ -336,9 +342,11 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
 
   // The A2A executor spawns a dedicated controller per A2A `contextId` via
   // this factory so genuinely independent conversations run in parallel
-  // instead of serializing against the primary controller. The primary is
-  // still attached by the WS bridge + AG-UI endpoint for surface-event
-  // broadcasting (see plan §6b, option (a)).
+  // instead of serializing against the primary controller. We share the
+  // same surface broadcaster across primary + lane controllers so A2UI
+  // surfaces emitted from a lane-backed turn still reach connected
+  // browser clients — without this, lane-driven surfaces were silently
+  // dropped on the gateway side.
   const controllerFactory = async (contextId: string) => {
     console.log("[Gateway] Spawning lane controller", {
       contextId,
@@ -352,8 +360,15 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
       permissionEngine: session.permissionEngine,
       permissionStore: session.permissionStore,
       fileAdapters: createNodeFileAdapters(cliArgs.workspace),
+      surfaceAdapter: surfaceBroadcaster,
     });
   };
+
+  // Internal correlation/audit surface — records lifecycle events for
+  // AG-UI runs, A2A tasks, and @@dispatch with stable correlation IDs.
+  // The emitter is in-process (ring buffer + console.log) and carries
+  // structural metadata only; raw user content never lands here.
+  const audit = createAuditEmitter();
 
   const { server, gatewayCard, executor, registrySync, httpPort } = await setupServer({
     cliArgs,
@@ -361,6 +376,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     runtime: selectedRuntime,
     session,
     controllerFactory,
+    audit,
   });
 
   const wsBridge = setupWsBridge({
