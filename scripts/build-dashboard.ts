@@ -33,7 +33,7 @@ const OUT = resolve(REPO_ROOT, "output/agents-js-dashboard.html");
 
 const BASELINE_REF = "d505044";
 
-type StatusKey = "pending" | "validating" | "validated" | "refactored" | "blocked" | "deferred";
+type StatusKey = "pending" | "validating" | "validated" | "refactored" | "blocked";
 
 interface GraphPkg {
   name: string;
@@ -336,7 +336,7 @@ function renderDashboard(
     --good: #3fb950; --warn: #d29922; --bad: #f85149; --info: #79c0ff;
     --line: #30363d;
     --pending: #6e7681; --validating: #d29922; --validated: #3fb950;
-    --refactored: #79c0ff; --blocked: #f85149; --deferred: #8b949e;
+    --refactored: #79c0ff; --blocked: #f85149;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -372,7 +372,6 @@ function renderDashboard(
   .badge.validated { background: var(--validated); color: #1c2128; }
   .badge.refactored { background: var(--refactored); color: #1c2128; }
   .badge.blocked { background: var(--blocked); }
-  .badge.deferred { background: var(--deferred); }
   footer { padding: 24px 32px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); margin-top: 32px; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 3px; }
   .scope-tag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
@@ -416,7 +415,6 @@ function renderDashboard(
   <span class="badge validated">validated</span>
   <span class="badge refactored">refactored</span>
   <span class="badge blocked">blocked</span>
-  <span class="badge deferred">deferred</span>
 </div>
 
 <div class="summary-row">
@@ -433,7 +431,7 @@ ${layerHtml}
 </main>
 
 <footer>
-  <div>Status workflow: <strong>pending</strong> → <strong>validating</strong> → (<strong>refactored</strong> if tests changed) → <strong>validated</strong>. <strong>blocked</strong> if a real defect is uncovered. <strong>deferred</strong> if the package is out of scope for the current pass.</div>
+  <div>Status workflow: <strong>pending</strong> → <strong>validating</strong> → (<strong>refactored</strong> if tests changed) → <strong>validated</strong>. <strong>blocked</strong> if a real defect is uncovered.</div>
   <div style="margin-top: 6px;">Approach per package: read README + JSDoc + index exports → audit tests against stated purpose → keep / refactor / remove / add → run focused suite → mark status in <code>scripts/dashboard-status.json</code> → re-run <code>bun run dashboard</code>.</div>
   <div style="margin-top: 6px;">Generators: <code>scripts/dep-graph-gen.ts</code>, <code>scripts/test-counts.ts</code>, <code>scripts/build-dashboard.ts</code>.</div>
 </footer>

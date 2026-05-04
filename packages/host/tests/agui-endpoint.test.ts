@@ -91,6 +91,30 @@ describe("createAguiFetchHandler — routing", () => {
     expect(body.error).toBe("Invalid RunAgentInput");
     expect(Array.isArray(body.issues)).toBe(true);
   });
+
+  test("400 when the latest user message is non-text content", async () => {
+    const fake = createFakeController();
+    const handler = createAguiFetchHandler({ controller: fake.controller });
+    const input = buildRunAgentInput("text");
+    input.messages = [
+      {
+        id: "msg-image",
+        role: "user",
+        content: [{ type: "image", url: "data:image/png;base64,abc" }],
+      } as never,
+    ];
+    const req = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const response = await handler(req);
+    expect(response?.status).toBe(400);
+    const body = (await response?.json()) as { error: string; message: string };
+    expect(body.error).toBe("Unsupported user message content");
+    expect(body.message).toBe("POST /agent accepts text user messages only.");
+    expect(fake.sendPromptCalls()).toBe(0);
+  });
 });
 
 describe("createAguiFetchHandler — happy path streaming", () => {

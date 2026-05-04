@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ContentBlock } from "@agentclientprotocol/sdk";
+import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "../src/middleware.ts";
 import type { AgentTargetInput } from "../src/types.ts";
 import { createMockTarget, createMockTransport } from "./mock-a2a-transport.ts";
@@ -132,6 +133,29 @@ describe("createA2AMentionMiddleware", () => {
 
     expect(result).toBeUndefined();
     expect(unknown).toEqual(["missing"]);
+  });
+
+  test("audits unknown and blocked mentions without prompt text", async () => {
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const middleware = createA2AMentionMiddleware({
+      agents: {
+        blocked: { url: "http://localhost:3000" },
+      },
+      transport: createMockTransport({}),
+      audit,
+      allowDispatch({ agentName }) {
+        return agentName !== "blocked";
+      },
+    });
+
+    const result = await middleware([textBlock("@missing and @blocked hello")], "session-1");
+
+    expect(result).toBeUndefined();
+    const events = audit.recent();
+    expect(events.some((event) => event.kind === "mention-dispatch-blocked")).toBe(true);
+    expect(events.some((event) => event.kind === "mention-dispatch-unknown")).toBe(true);
+    expect(JSON.stringify(events)).not.toContain("hello");
+    expect(JSON.stringify(events)).not.toContain("promptText");
   });
 
   test("allows injected resolver functions", async () => {
@@ -337,6 +361,38 @@ describe("createA2AMentionMiddleware", () => {
     expect(errors).toHaveLength(1);
     const responseBlock = result?.[0] as AnnotatedTextBlock;
     expect(responseBlock.text).toContain("working response");
+  });
+
+  test("audits mention dispatch success and failure structurally", async () => {
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const transport = createMockTransport({
+      "http://localhost:3000": "working response",
+    });
+    const originalResolveTarget = transport.resolveTarget.bind(transport);
+    transport.resolveTarget = async (input: AgentTargetInput) => {
+      if (input.url === "http://localhost:4000") {
+        throw new Error("Connection refused");
+      }
+      return originalResolveTarget(input);
+    };
+
+    const middleware = createA2AMentionMiddleware({
+      agents: {
+        "failing-agent": { url: "http://localhost:4000" },
+        "working-agent": { url: "http://localhost:3000" },
+      },
+      transport,
+      audit,
+    });
+
+    await middleware([textBlock("@failing-agent and @working-agent help")], "session-1");
+
+    const events = audit.recent();
+    expect(events.filter((event) => event.kind === "mention-dispatch-started")).toHaveLength(2);
+    expect(events.some((event) => event.kind === "mention-dispatch-succeeded")).toBe(true);
+    expect(events.some((event) => event.kind === "mention-dispatch-failed")).toBe(true);
+    expect(JSON.stringify(events)).not.toContain("help");
+    expect(JSON.stringify(events)).not.toContain("Connection refused");
   });
 
   test("fires onDispatchStart before sendTurn resolves, onDispatchSuccess after", async () => {

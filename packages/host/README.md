@@ -37,8 +37,6 @@ bun add @agents-js/host
 - **`buildRuntimeProfileConfigEnv`**
 - **`getEnvRuntimeProfileName`**
 - **`applyEnvRuntimeProfile`**
-- **`newCorrelationId`** — Generate a fresh correlation id. Re-exported so callers don't have to know about `crypto`.
-- **`createAuditEmitter`** — Build a fresh audit emitter. - `logger` defaults to `console`. The emitter writes one structured log line per record so operators with no debug endpoint still see the trail. - `bufferSize` controls...
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`formatAguiSseFrame`**
 - **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
@@ -63,7 +61,6 @@ bun add @agents-js/host
 - **`HostSessionConfig`**
 - **`HostSession`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
-- **`AuditEmitter`** — Public emitter handle.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 
@@ -76,11 +73,11 @@ bun add @agents-js/host
 - **`WSServerMessage`** — Server-to-client messages
 - **`WSClientMessage`** — Client-to-server messages
 - **`GatewayHostController`**
-- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
-- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata — IDs, names, counts, durations — never user content. The union covers only surfaces the gateway *actually emits* today: AG...
-- **`_AuditEventNoSensitivePayload`**
-- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
-- **`AuditEventInput`** — Input shape accepted by {AuditEmitter.record}. The plain `Omit<AuditEvent, "at">` does NOT distribute over the discriminated union (TS treats Omit on a union as a single type, which collapses the v...
+- **`AuditEmitter`**
+- **`AuditEvent`**
+- **`AuditEventInput`**
+- **`AuditLogger`**
+- **`CorrelationId`**
 
 ### Constants
 
@@ -91,6 +88,9 @@ bun add @agents-js/host
 - **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
 - **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
 - **`CURATED_RUNTIME_IDS`**
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
+- **`createAuditEmitter`**
+- **`newCorrelationId`**
 - **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime regardless of harness. **Empty by design.** Earlier revisions forwarded `ANTHROPIC_API_KEY` and `MATRIX_ACCESS_TOKEN` to every runtime as a conve...
 
 ### Exports

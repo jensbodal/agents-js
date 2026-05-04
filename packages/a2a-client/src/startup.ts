@@ -20,6 +20,7 @@
  */
 
 import { hostname } from "node:os";
+import type { AuditEmitter } from "@agents-js/a2a/audit";
 import {
   autoRegister,
   readAgentRegistryRecords,
@@ -59,6 +60,8 @@ export interface StartRegistrySyncOptions {
   logger?: StartupLogger;
   /** Override the local gateway identifier. Defaults to `os.hostname()`. */
   gatewayId?: string;
+  /** Optional structural audit emitter for registry sync events. */
+  audit?: AuditEmitter;
 }
 
 /** Handle returned by {@link startRegistrySync}. */
@@ -119,6 +122,7 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
   const syncHandler = createSyncEndpointHandler({
     configPath,
     logger: options.logger?.debug ? { debug: options.logger.debug } : undefined,
+    audit: options.audit,
   });
 
   // Periodic peer-sync for outbound pulls to known peers.
@@ -157,6 +161,7 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
             peerUrl,
             configPath,
             localGatewayId,
+            audit: options.audit,
           });
           if (summary.added.length > 0 || summary.updated.length > 0) {
             logger.log(

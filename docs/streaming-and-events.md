@@ -252,9 +252,9 @@ governed by the target executor — the gateway forwards what the target emits.
 |---|---|---|
 | Same-context serialization | `lane.inFlightPrompt` | `host-executor.ts` `getOrCreateLane()` + `runPrompt()` |
 | Cross-context parallelism | Number of distinct `contextId`s | Lane map size; lane idle sweep evicts stale entries |
-| AG-UI parallelism | None today | Shared `controller` in `agui-endpoint.ts` |
+| AG-UI parallelism | Single active run | `AguiRunCoordinator` rejects overlapping `/agent` runs with HTTP 409 before SSE opens |
 | Mention dispatch | Caller-blocking | `middleware.ts` `sendTurn(..., { stream: false, blocking: true })` |
-| Cancellation | Currently anchored on task-level cancel + ACP session cancel; client-disconnect cancellation is NOT yet enforced end-to-end (gap — see `docs/streaming-and-events.md` deliberate-limits) | A2A executor + ACP host adapter |
+| Cancellation | Task-level cancel + ACP session cancel; AG-UI disconnect calls controller cancel and emits a terminal run error | A2A executor + ACP host adapter + AG-UI run session |
 
 ## What this page does NOT cover
 

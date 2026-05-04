@@ -28,9 +28,9 @@
  *
  * The broadcaster does NOT replay previously-sent messages to new WS
  * clients. A reconnecting browser sees empty surface state until the
- * next agent update. Full replay is deliberately deferred — it would
- * require retaining every message for the session lifetime and
- * coordinating with surface teardown.
+ * next agent update. Full replay is outside this broadcaster's
+ * contract because it would require retaining every message for the
+ * session lifetime and coordinating with surface teardown.
  */
 
 import type { HostSurfaceAdapter } from "@agents-js/a2ui-host/acp-host";

@@ -6,7 +6,7 @@ import { type AuditEventInput, createAuditEmitter, newCorrelationId } from "../s
  *
  *   1. Functional — record/recent/reset behave like a bounded ring buffer.
  *   2. No-content — the union has no variant carrying a `prompt`, `env`,
- *      `args`, or `payload` key. We check this both via TypeScript at
+ *      `args`, `command`, or `payload` key. We check this both via TypeScript at
  *      compile time (the `_NoSensitivePayload` guard inside the module)
  *      AND via a runtime sweep here so a future variant addition is
  *      caught even if the type-level check is somehow bypassed.
@@ -130,7 +130,7 @@ describe("AuditEvent — sensitive payload prohibition", () => {
    * at build time; this test catches it if anyone bypasses TS (e.g.
    * via `as any` somewhere).
    */
-  test("no variant emits records carrying prompt/env/args/payload keys", () => {
+  test("no variant emits records carrying prompt/env/args/command/payload keys", () => {
     const emitter = createAuditEmitter({ logger: SILENT_LOGGER });
     const correlationId = "c-fixture";
 
@@ -170,11 +170,69 @@ describe("AuditEvent — sensitive payload prohibition", () => {
         taskId: "T",
         state: "completed",
       },
+      {
+        kind: "registry-sync-served",
+        correlationId,
+        path: "/.well-known/agents-js-registry.json",
+        recordCount: 1,
+        totalRecordCount: 2,
+      },
+      {
+        kind: "registry-sync-fetched",
+        correlationId,
+        peerUrl: "http://peer.test",
+        recordCount: 1,
+      },
+      {
+        kind: "registry-sync-merged",
+        correlationId,
+        peerUrl: "http://peer.test",
+        addedCount: 1,
+        updatedCount: 0,
+        unchangedCount: 0,
+        skippedLoopCount: 0,
+        conflictCount: 0,
+      },
+      {
+        kind: "mention-dispatch-started",
+        correlationId,
+        agentName: "peer",
+        sessionId: "s",
+      },
+      {
+        kind: "mention-dispatch-succeeded",
+        correlationId,
+        agentName: "peer",
+        agentUrl: "http://peer.test",
+        sessionId: "s",
+        durationMs: 1,
+      },
+      {
+        kind: "mention-dispatch-failed",
+        correlationId,
+        agentName: "peer",
+        sessionId: "s",
+        errorCategory: "Error",
+        durationMs: 1,
+      },
+      {
+        kind: "mention-dispatch-unknown",
+        correlationId,
+        agentName: "missing",
+        sessionId: "s",
+      },
+      {
+        kind: "mention-dispatch-blocked",
+        correlationId,
+        agentName: "blocked",
+        sessionId: "s",
+        reason: "policy",
+      },
     ];
 
     for (const event of fixtures) emitter.record(event);
 
-    const FORBIDDEN = ["prompt", "env", "args", "payload"];
+    const FORBIDDEN = ["prompt", "env", "args", "command", "payload"];
     for (const recorded of emitter.recent()) {
       for (const key of FORBIDDEN) {
         expect(Object.hasOwn(recorded, key)).toBe(false);

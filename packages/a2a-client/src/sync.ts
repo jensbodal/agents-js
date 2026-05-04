@@ -35,7 +35,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { dirname } from "node:path";
-import { HTTP_STATUS } from "@agents-js/a2a";
+import { type AuditEmitter, type CorrelationId, newCorrelationId } from "@agents-js/a2a/audit";
 import {
   validateWireAgentRegistryRecord,
   type WireAgentRegistryRecord,
@@ -64,6 +64,7 @@ export interface AgentsJsRegistrySyncPayload {
 
 /** Default peer-fetch timeout — matches AgentRegistry.cardFetchTimeoutMs. */
 const DEFAULT_SYNC_FETCH_TIMEOUT_MS = 10_000;
+const HTTP_OK = 200;
 
 /** Logger shape — compatible with `console` and the gateway's A2ALogger subset we use. */
 export interface SyncLogger {
@@ -80,6 +81,10 @@ export interface FetchPeerRecordsOptions {
   fetchImpl?: typeof fetch;
   /** Request timeout in ms. Defaults to 10 000. */
   timeoutMs?: number;
+  /** Optional audit emitter for structural peer-sync records. */
+  audit?: AuditEmitter;
+  /** Correlation id shared by fetch + merge records for one sync action. */
+  correlationId?: CorrelationId;
 }
 
 /** Thrown when a peer's sync endpoint is unreachable, non-200, or returns an invalid payload. */
@@ -169,6 +174,12 @@ export async function fetchPeerRecords(
     const rec = parseWireRecord(raw);
     if (rec !== null) out.push(rec);
   }
+  options.audit?.record({
+    kind: "registry-sync-fetched",
+    correlationId: options.correlationId ?? newCorrelationId(),
+    peerUrl: url,
+    recordCount: out.length,
+  });
   return out;
 }
 
@@ -269,7 +280,7 @@ function resolveMergeBranch(
         },
       };
     }
-    // No field changes, but bump last_synced_at so stale-detection later
+    // No field changes, but bump last_synced_at so stale-detection code
     // can distinguish "haven't talked in a while" from "haven't changed".
     const next: AgentRegistryRecord = { ...local, last_synced_at: now };
     return {
@@ -472,8 +483,9 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
   const configPath = options.configPath ?? resolveSharedAgentRegistryPath();
   const localGatewayId = options.localGatewayId ?? hostname();
   const now = (options.now ?? (() => new Date()))().toISOString();
+  const correlationId = options.correlationId ?? newCorrelationId();
 
-  const peerRecords = await fetchPeerRecords(options);
+  const peerRecords = await fetchPeerRecords({ ...options, correlationId });
   const localRecords = await readAgentRegistryRecords({ configPath });
 
   const { merged, actions } = mergeRecords(localRecords, peerRecords, {
@@ -485,7 +497,19 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, `${JSON.stringify(serializeRecords(merged), null, 2)}\n`);
 
-  return summarize(options.peerUrl, actions, peerRecords.length);
+  const summary = summarize(options.peerUrl, actions, peerRecords.length);
+  options.audit?.record({
+    kind: "registry-sync-merged",
+    correlationId,
+    peerUrl: options.peerUrl,
+    addedCount: summary.added.length,
+    updatedCount: summary.updated.length,
+    unchangedCount: summary.unchanged.length,
+    skippedLoopCount: summary.skippedLoops.length,
+    conflictCount: summary.conflicts.length,
+  });
+
+  return summary;
 }
 
 /**
@@ -529,6 +553,8 @@ export interface SyncEndpointHandlerOptions {
   path?: string;
   /** Emit debug logs. Matches the shape used by {@link syncFromPeer}. */
   logger?: SyncLogger;
+  /** Optional audit emitter for structural served-payload records. */
+  audit?: AuditEmitter;
 }
 
 /**
@@ -552,13 +578,20 @@ export function createSyncEndpointHandler(
 
     const records = await readAgentRegistryRecords({ configPath: options.configPath });
     const payload = buildSyncPayload(records);
+    options.audit?.record({
+      kind: "registry-sync-served",
+      correlationId: newCorrelationId(),
+      path,
+      recordCount: payload.records.length,
+      totalRecordCount: records.length,
+    });
     options.logger?.debug("[a2a-client] served sync endpoint", {
       path,
       served: payload.records.length,
       total: records.length,
     });
     return new Response(JSON.stringify(payload), {
-      status: HTTP_STATUS.OK,
+      status: HTTP_OK,
       headers: { "Content-Type": "application/json" },
     });
   };

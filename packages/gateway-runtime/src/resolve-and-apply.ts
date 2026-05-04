@@ -17,17 +17,13 @@
  *     the same command. Callers express the desired behavior via
  *     `onMissingProfile: "skip" | "throw"`.
  *
- * Latent design tension (tracked, not yet resolved): this path mutates
- * `process.env` because `resolveRuntimeArgs` in @agents-js/gateway-runtime
- * accepts env implicitly (reads `process.env` inside the hook contract)
- * rather than taking it as an argument. The lower-level programmatic gateway
- * API threads env through explicitly. Converging on the explicit shape would
- * eliminate the apply/restore dance but requires touching every registered
- * `resolveArgs` hook signature at once, so it's deferred to a dedicated pass
- * (not a cross-review cleanup). For now: the mutation is bounded by
- * try/finally, the env keys touched are a known AJS_* allowlist, and
- * concurrent invocations within one process are not supported (which is true
- * for CLI entry points anyway).
+ * This path mutates `process.env` because `resolveRuntimeArgs` in
+ * @agents-js/gateway-runtime accepts env implicitly (reads `process.env`
+ * inside the hook contract) rather than taking it as an argument. The
+ * lower-level programmatic gateway API threads env through explicitly.
+ * For CLI entry points the mutation is bounded by try/finally, the env keys
+ * touched are a known AJS_* allowlist, and concurrent invocations within one
+ * process are not supported.
  */
 
 import { applyRuntimeEnvOverrides, type RuntimeEnvOverrides } from "./runtime-env-overrides.ts";

@@ -107,6 +107,17 @@ export function createAguiFetchHandler(
       );
     }
 
+    const rawTextContract = inspectRawLastUserContent(rawBody);
+    if (rawTextContract === "non-text") {
+      return new Response(
+        JSON.stringify({
+          error: "Unsupported user message content",
+          message: "POST /agent accepts text user messages only.",
+        }),
+        { status: HTTP_STATUS.BAD_REQUEST, headers: JSON_HEADERS },
+      );
+    }
+
     const validation = validateRunAgentInput(rawBody);
     if (!validation.valid) {
       return new Response(
@@ -119,22 +130,22 @@ export function createAguiFetchHandler(
     }
 
     const input: RunAgentInput = validation.value;
-    const promptText = extractLastUserText(input);
-    if (promptText.length === 0) {
+    const userText = extractLastUserText(input);
+    if (!userText.ok) {
       return new Response(
         JSON.stringify({
-          error: "No user message",
-          message:
-            "RunAgentInput.messages must contain at least one user-role message with text content.",
+          error: userText.error,
+          message: userText.message,
         }),
         { status: HTTP_STATUS.BAD_REQUEST, headers: JSON_HEADERS },
       );
     }
+    const promptText = userText.text;
     // Honor the AG-UI client-supplied identity. `RunAgentInputSchema`
     // requires both fields to be non-empty strings (validated above by
     // `validateRunAgentInput`), so a missing or blank value here is
-    // already a 400 — the fallbacks are belt-and-suspenders for any
-    // future schema relaxation.
+    // already a 400; the fallbacks protect callers if the schema
+    // contract is relaxed.
     const threadId =
       typeof input.threadId === "string" && input.threadId.length > 0
         ? input.threadId
@@ -293,21 +304,46 @@ export function createAguiFetchHandler(
   };
 }
 
+function inspectRawLastUserContent(input: unknown): "text" | "non-text" | "absent" {
+  if (typeof input !== "object" || input === null) return "absent";
+  const messages = (input as { messages?: unknown }).messages;
+  if (!Array.isArray(messages)) return "absent";
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index] as { role?: unknown; content?: unknown } | undefined;
+    if (!message || message.role !== "user") continue;
+    return typeof message.content === "string" ? "text" : "non-text";
+  }
+  return "absent";
+}
+
 /**
- * Pull the last user-authored text from the input messages. Mirrors
- * how `HostA2AExecutor` treats A2A messages: the endpoint only needs the plain
- * user prompt for the ACP turn. Multimodal AG-UI content is not wired
- * through this endpoint yet.
+ * Pull the last user-authored text from the input messages. The current
+ * `/agent` contract is text-only, so non-string user content fails closed
+ * with a 400 instead of being silently ignored.
  */
-function extractLastUserText(input: RunAgentInput): string {
+function extractLastUserText(
+  input: RunAgentInput,
+): { ok: true; text: string } | { ok: false; error: string; message: string } {
   const messages = Array.isArray(input.messages) ? input.messages : [];
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index] as { role?: string; content?: unknown } | undefined;
     if (!message || message.role !== "user") continue;
     const content = message.content;
     if (typeof content === "string" && content.length > 0) {
-      return content;
+      return { ok: true, text: content };
+    }
+    if (typeof content !== "string") {
+      return {
+        ok: false,
+        error: "Unsupported user message content",
+        message: "POST /agent accepts text user messages only.",
+      };
     }
   }
-  return "";
+  return {
+    ok: false,
+    error: "No user message",
+    message:
+      "RunAgentInput.messages must contain at least one user-role message with text content.",
+  };
 }

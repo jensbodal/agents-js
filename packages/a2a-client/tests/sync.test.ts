@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createAuditEmitter } from "@agents-js/a2a/audit";
 import {
   autoRegister,
   buildSyncPayload,
@@ -523,6 +524,7 @@ describe("fetchPeerRecords", () => {
 
 describe("syncFromPeer (end-to-end pipeline)", () => {
   test("first-sync writes peer records to local registry with source=sync", async () => {
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
     const peerUrl = "http://peerA.test:8080";
     const wirePayload = {
       version: 2,
@@ -534,6 +536,7 @@ describe("syncFromPeer (end-to-end pipeline)", () => {
       localGatewayId: "localM",
       now: () => new Date("2026-04-23T15:00:00.000Z"),
       fetchImpl: createSyncMockFetch(peerUrl, wirePayload),
+      audit,
     });
     expect(summary.added).toEqual(["alpha"]);
     expect(summary.peerRecordsReceived).toBe(1);
@@ -542,6 +545,13 @@ describe("syncFromPeer (end-to-end pipeline)", () => {
     expect(onDisk).toHaveLength(1);
     expect(onDisk[0]?.source).toBe("sync");
     expect(onDisk[0]?.last_synced_at).toBe("2026-04-23T15:00:00.000Z");
+    expect(audit.recent().map((event) => event.kind)).toEqual([
+      "registry-sync-fetched",
+      "registry-sync-merged",
+    ]);
+    const serializedAudit = JSON.stringify(audit.recent());
+    expect(serializedAudit).not.toContain("command");
+    expect(serializedAudit).not.toContain("env");
   });
 
   test("preserves locally-authored records when merging peer records", async () => {
@@ -607,6 +617,7 @@ describe("syncFromPeer (end-to-end pipeline)", () => {
 
 describe("createSyncEndpointHandler (HTTP surface)", () => {
   test("GET /.well-known/agents-js-registry.json returns payload filtered to source != sync", async () => {
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
     await autoRegister({
       configPath,
       name: "own",
@@ -630,7 +641,7 @@ describe("createSyncEndpointHandler (HTTP surface)", () => {
     };
     await writeFile(configPath, JSON.stringify({ version: 2, agents: merged }, null, 2));
 
-    const handler = createSyncEndpointHandler({ configPath });
+    const handler = createSyncEndpointHandler({ configPath, audit });
     const res = await handler(new Request("http://localhost/.well-known/agents-js-registry.json"));
     expect(res).not.toBeNull();
     if (!res) throw new Error("res null");
@@ -639,6 +650,10 @@ describe("createSyncEndpointHandler (HTTP surface)", () => {
     expect(body.version).toBe(2);
     const names = body.records.map((r) => r.name).sort();
     expect(names).toEqual(["own"]); // "received" filtered out (source=sync)
+    const served = audit.recent()[0];
+    expect(served?.kind).toBe("registry-sync-served");
+    expect((served as { recordCount?: number }).recordCount).toBe(1);
+    expect((served as { totalRecordCount?: number }).totalRecordCount).toBe(2);
   });
 
   test("non-matching path returns null (falls through to host fetch handler)", async () => {

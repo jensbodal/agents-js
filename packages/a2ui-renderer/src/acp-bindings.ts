@@ -57,7 +57,7 @@ interface AnyAcpProps {
 /**
  * Best-effort unwrap of an A2UI dynamic value. The renderer is intentionally
  * pure (no data-model wiring); binding paths render as empty so
- * the host can drive them through Lit properties later.
+ * the host can drive them through Lit properties.
  */
 function unwrapString(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -67,7 +67,7 @@ function unwrapString(value: unknown): string {
     const v = value as { path?: string; value?: unknown };
     if (typeof v.value === "string") return v.value;
     if (typeof v.value === "number" || typeof v.value === "boolean") return String(v.value);
-    // Binding paths render as empty; host wires them in via Lit properties later.
+    // Binding paths render as empty; host wires them in via Lit properties.
     if (typeof v.path === "string") return "";
   }
   return "";

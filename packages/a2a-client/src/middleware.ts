@@ -1,4 +1,5 @@
 import type { ContentBlock } from "@agentclientprotocol/sdk";
+import { type AuditEmitter, newCorrelationId } from "@agents-js/a2a/audit";
 import { parseAgentMentions, parseDispatchDirective } from "./mention-parser.ts";
 import { A2AClientProvider } from "./provider.ts";
 import { collectTextParts, extractLatestAgentText, extractMessageText } from "./session.ts";
@@ -77,6 +78,8 @@ export interface CreateA2AMentionMiddlewareOptions {
    */
   onDispatchError?(params: A2AMentionDispatchError): Promise<void> | void;
   buildResponseBlock?(params: A2AMentionResponseBlockOptions): ContentBlock | undefined;
+  /** Optional structural audit emitter. Prompt text is never recorded. */
+  audit?: AuditEmitter;
 }
 
 /**
@@ -300,6 +303,13 @@ export function createA2AMentionMiddleware(
 
       const allowed = await options.allowDispatch?.(dispatchOptions);
       if (allowed === false) {
+        options.audit?.record({
+          kind: "mention-dispatch-blocked",
+          correlationId: newCorrelationId(),
+          agentName,
+          ...(sessionId ? { sessionId } : {}),
+          reason: "policy",
+        });
         continue;
       }
       dispatchableNames.push(agentName);
@@ -311,45 +321,81 @@ export function createA2AMentionMiddleware(
 
     const results = await Promise.allSettled(
       dispatchableNames.map(async (agentName) => {
-        const resolvedTarget = await resolveAgentTarget(agentName);
-        if (!resolvedTarget) {
-          options.onUnknownAgent?.({
+        const correlationId = newCorrelationId();
+        const startedAtMs = Date.now();
+        options.audit?.record({
+          kind: "mention-dispatch-started",
+          correlationId,
+          agentName,
+          ...(sessionId ? { sessionId } : {}),
+        });
+
+        try {
+          const resolvedTarget = await resolveAgentTarget(agentName);
+          if (!resolvedTarget) {
+            options.audit?.record({
+              kind: "mention-dispatch-unknown",
+              correlationId,
+              agentName,
+              ...(sessionId ? { sessionId } : {}),
+            });
+            options.onUnknownAgent?.({
+              agentName,
+              promptText,
+              sessionId,
+            });
+            return null;
+          }
+
+          const target = isResolvedAgentTarget(resolvedTarget)
+            ? resolvedTarget
+            : await provider.connect(resolvedTarget);
+
+          await options.onDispatchStart?.({
             agentName,
             promptText,
             sessionId,
           });
-          return null;
+
+          const result = await provider.sendTurn(target, promptText, {
+            contextId: sessionId ?? undefined,
+            stream: false,
+            blocking: true,
+          });
+
+          await options.onDispatchSuccess?.({
+            agentName,
+            agentUrl: target.baseUrl,
+            promptText,
+            sessionId,
+            result,
+          });
+
+          options.audit?.record({
+            kind: "mention-dispatch-succeeded",
+            correlationId,
+            agentName,
+            agentUrl: target.baseUrl,
+            ...(sessionId ? { sessionId } : {}),
+            durationMs: Date.now() - startedAtMs,
+          });
+
+          return {
+            agentName,
+            agentUrl: target.baseUrl,
+            text: extractA2AResponseText(result),
+          };
+        } catch (error) {
+          options.audit?.record({
+            kind: "mention-dispatch-failed",
+            correlationId,
+            agentName,
+            ...(sessionId ? { sessionId } : {}),
+            errorCategory: error instanceof Error ? error.name : "unknown",
+            durationMs: Date.now() - startedAtMs,
+          });
+          throw error;
         }
-
-        const target = isResolvedAgentTarget(resolvedTarget)
-          ? resolvedTarget
-          : await provider.connect(resolvedTarget);
-
-        await options.onDispatchStart?.({
-          agentName,
-          promptText,
-          sessionId,
-        });
-
-        const result = await provider.sendTurn(target, promptText, {
-          contextId: sessionId ?? undefined,
-          stream: false,
-          blocking: true,
-        });
-
-        await options.onDispatchSuccess?.({
-          agentName,
-          agentUrl: target.baseUrl,
-          promptText,
-          sessionId,
-          result,
-        });
-
-        return {
-          agentName,
-          agentUrl: target.baseUrl,
-          text: extractA2AResponseText(result),
-        };
       }),
     );
 

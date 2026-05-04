@@ -53,10 +53,9 @@ export function buildDemoMessages(): readonly A2uiMessage[] {
 
 /**
  * Run the scripted CreateSurface / UpdateComponents / UpdateDataModel
- * sequence against the supplied bridge. The final DeleteSurface is
- * deferred so the surface stays mounted for the operator to inspect
- * in the browser. Callers who want a full round-trip (create ->
- * delete) should call {@link teardownDemo} afterwards.
+ * sequence against the supplied bridge. The demo leaves the surface
+ * mounted for browser inspection. Call {@link teardownDemo} when the
+ * inspection run should remove it.
  */
 export function runDemo(bridge: A2uiBridge): void {
   for (const msg of buildDemoMessages()) {

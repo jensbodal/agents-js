@@ -430,6 +430,49 @@ interface SourceCheck {
   validate(contents: string): string | null;
 }
 
+const releaseGapLanguagePattern =
+  /\b(deferred|follow-up|not yet|not wired|future feature|planned|later)\b/i;
+
+const RELEASE_GAP_LANGUAGE_SCAN_PATHS = [
+  "apps/web-ui/src/a2ui-demo.ts",
+  "apps/web-ui/src/main.ts",
+  "docs/architecture.md",
+  "docs/beta-contract.md",
+  "docs/develop/playground-smoke.md",
+  "docs/observability.md",
+  "docs/protocols.md",
+  "docs/streaming-and-events.md",
+  "docs/surfaces.md",
+  "packages/a2a-client/src/sync.ts",
+  "packages/a2ui-renderer/src/acp-bindings.ts",
+  "packages/gateway-runtime/src/resolve-and-apply.ts",
+  "packages/host/src/agui-endpoint.ts",
+  "packages/host/src/agui-run-coordinator.ts",
+  "packages/host/src/host-executor.ts",
+  "packages/host/src/surface-broadcaster.ts",
+  "packages/tools/src/trace.ts",
+  "scripts/build-dashboard.ts",
+  "scripts/check-docs-playground.ts",
+  "scripts/dashboard-status.json",
+] as const;
+
+async function collectReleaseGapLanguageIssues(rootDir: string): Promise<string[]> {
+  const issues: string[] = [];
+  for (const relPath of RELEASE_GAP_LANGUAGE_SCAN_PATHS) {
+    const contents = await readFile(path.join(rootDir, relPath), "utf8");
+    const lines = contents.split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      const match = releaseGapLanguagePattern.exec(line);
+      if (match) {
+        issues.push(
+          `release-readiness [no release-gap wording]: ${relPath}:${index + 1} contains "${match[0]}"`,
+        );
+      }
+    }
+  }
+  return issues;
+}
+
 export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
   {
     name: "no global baseline secret keys",
@@ -557,22 +600,114 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     },
   },
   {
-    name: "AuditEvent does not claim coverage it lacks",
-    filePath: "packages/host/src/audit.ts",
+    name: "AG-UI endpoint rejects non-text user content",
+    filePath: "packages/host/src/agui-endpoint.ts",
     validate: (contents) => {
-      // Variants that exist in the type but are never emitted give
-      // operators a false sense of coverage. Until the registry-sync
-      // and @mention paths actually emit audit records, the union
-      // must NOT mention them. (Re-add when emission lands.)
-      for (const phantom of [
+      if (!/Unsupported user message content/.test(contents)) {
+        return "agui-endpoint.ts must reject non-text user message content with a clear 400";
+      }
+      if (!/POST \/agent accepts text user messages only/.test(contents)) {
+        return "agui-endpoint.ts must state the text-only /agent contract in the rejection body";
+      }
+      return null;
+    },
+  },
+  {
+    name: "audit union includes emitted registry and mention events",
+    filePath: "packages/a2a/src/audit.ts",
+    validate: (contents) => {
+      for (const variant of [
         '"registry-sync-served"',
         '"registry-sync-fetched"',
         '"registry-sync-merged"',
-        '"mention-dispatched"',
+        '"mention-dispatch-started"',
+        '"mention-dispatch-succeeded"',
+        '"mention-dispatch-failed"',
+        '"mention-dispatch-unknown"',
+        '"mention-dispatch-blocked"',
       ]) {
-        if (contents.includes(phantom)) {
-          return `audit.ts has a ${phantom} variant but no source emits it — narrow the type or wire the emission`;
+        if (!contents.includes(variant)) {
+          return `audit.ts must declare ${variant} because source emits that structural audit event`;
         }
+      }
+      return null;
+    },
+  },
+  {
+    name: "registry sync emits served fetched and merged audit records",
+    filePath: "packages/a2a-client/src/sync.ts",
+    validate: (contents) => {
+      for (const variant of [
+        '"registry-sync-served"',
+        '"registry-sync-fetched"',
+        '"registry-sync-merged"',
+      ]) {
+        if (!contents.includes(variant)) {
+          return `sync.ts must emit ${variant} audit records`;
+        }
+      }
+      return null;
+    },
+  },
+  {
+    name: "@mention middleware emits structural audit records",
+    filePath: "packages/a2a-client/src/middleware.ts",
+    validate: (contents) => {
+      for (const variant of [
+        '"mention-dispatch-started"',
+        '"mention-dispatch-succeeded"',
+        '"mention-dispatch-failed"',
+        '"mention-dispatch-unknown"',
+        '"mention-dispatch-blocked"',
+      ]) {
+        if (!contents.includes(variant)) {
+          return `middleware.ts must emit ${variant} audit records`;
+        }
+      }
+      if (/promptText[^,}]*[,}]\s*[^)]*audit|audit[^)]*promptText/s.test(contents)) {
+        return "middleware.ts audit records must not include promptText";
+      }
+      return null;
+    },
+  },
+  {
+    name: "a2a audit primitives are exported through browser-safe subpath",
+    filePath: "packages/a2a/package.json",
+    validate: (contents) => {
+      if (!/"\.\/audit":\s*\{/.test(contents)) {
+        return 'packages/a2a/package.json must export the "./audit" subpath';
+      }
+      if (!/"bun":\s*"\/?\.\/src\/audit\.ts"/.test(contents)) {
+        return 'the "./audit" export must point Bun at ./src/audit.ts';
+      }
+      if (!/src\/index\.ts src\/audit\.ts/.test(contents)) {
+        return "packages/a2a build script must emit dist/audit.* for package consumers";
+      }
+      return null;
+    },
+  },
+  {
+    name: "a2a-client imports audit without top-level a2a barrel",
+    filePath: "packages/a2a-client/src/sync.ts",
+    validate: (contents) => {
+      if (/from\s+"@agents-js\/a2a"/.test(contents)) {
+        return "sync.ts must not import the top-level @agents-js/a2a barrel into the browser-facing a2a-client bundle";
+      }
+      if (!/from\s+"@agents-js\/a2a\/audit"/.test(contents)) {
+        return "sync.ts must import audit primitives from @agents-js/a2a/audit";
+      }
+      return null;
+    },
+  },
+  {
+    name: "a2a-client mention middleware imports audit without top-level a2a barrel",
+    filePath: "packages/a2a-client/src/middleware.ts",
+    validate: (contents) => {
+      if (/from\s+"@agents-js\/a2a"/.test(contents)) {
+        return "middleware.ts must not import the top-level @agents-js/a2a barrel into the browser-facing a2a-client bundle";
+      }
+      if (!/from\s+"@agents-js\/a2a\/audit"/.test(contents)) {
+        return "middleware.ts must import audit primitives from @agents-js/a2a/audit";
       }
       return null;
     },
@@ -704,18 +839,54 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
   },
   {
     name: "audit module forbids sensitive payload keys",
-    filePath: "packages/host/src/audit.ts",
+    filePath: "packages/a2a/src/audit.ts",
     validate: (contents) => {
       if (!/_NoSensitivePayload/.test(contents)) {
         return "audit.ts must include the _NoSensitivePayload type-system guard";
       }
-      // The set must reference all four forbidden keys. Order does not
+      // The set must reference every forbidden key. Order does not
       // matter; we just check each appears within the type alias.
-      const slice = contents.slice(contents.indexOf("_NoSensitivePayload"));
-      for (const key of ["prompt", "env", "args", "payload"]) {
-        if (!new RegExp(`"${key}"`).test(slice)) {
+      for (const key of ["prompt", "env", "args", "command", "payload"]) {
+        if (!new RegExp(`"${key}"`).test(contents)) {
           return `audit.ts _NoSensitivePayload must list "${key}" as a forbidden key`;
         }
+      }
+      return null;
+    },
+  },
+  {
+    name: "dashboard status vocabulary has no deferred state",
+    filePath: "scripts/build-dashboard.ts",
+    validate: (contents) => {
+      if (/\bdeferred\b/.test(contents)) {
+        return "build-dashboard.ts must not expose a deferred dashboard status";
+      }
+      return null;
+    },
+  },
+  {
+    name: "dashboard status data has no deferred package statuses",
+    filePath: "scripts/dashboard-status.json",
+    validate: (contents) => {
+      if (/\bdeferred\b/.test(contents)) {
+        return "dashboard-status.json must use pending or blocked instead of deferred";
+      }
+      return null;
+    },
+  },
+  {
+    name: "README drift check is wired into bun run check",
+    filePath: "package.json",
+    validate: (contents) => {
+      if (
+        !/"docs:readmes:check":\s*"bun scripts\/generate-package-readmes\.ts --check"/.test(
+          contents,
+        )
+      ) {
+        return "package.json must define docs:readmes:check";
+      }
+      if (!/"check":\s*"[^"]*bun run docs:readmes:check/.test(contents)) {
+        return "package.json check script must run docs:readmes:check";
       }
       return null;
     },
@@ -742,6 +913,7 @@ export async function auditReleaseReadinessDefaults(rootDir: string): Promise<st
       issues.push(`release-readiness [${check.name}]: ${issue}`);
     }
   }
+  issues.push(...(await collectReleaseGapLanguageIssues(rootDir)));
   return issues;
 }
 

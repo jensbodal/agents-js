@@ -4,7 +4,7 @@ title: Playground Smoke
 
 # Playground smoke
 
-The CI smoke (`bun run docs:smoke`) is build-time only. It asserts the page is wired correctly but does not launch a browser. A full real-browser smoke is a deferred follow-up modeled on `scripts/browser-smoke.ts`.
+The CI smoke (`bun run docs:smoke`) is build-time only. It asserts the page is wired correctly but does not launch a browser. Browser coverage lives in `scripts/browser-smoke.ts` and the browser smoke package scripts.
 
 To verify locally:
 
@@ -20,4 +20,4 @@ Open the URL VitePress prints, navigate to `/playground`, and confirm:
 3. On a non-WebGPU browser (e.g., Firefox without flags): the unsupported message is visible.
 4. Clicking "Activate" downloads the model (visible progress text), then the chat input becomes interactive.
 
-Until the deferred Playwright smoke lands, treat this manual run as the v1 verification of the local model path.
+Treat this manual run as the verification path for the local model page.

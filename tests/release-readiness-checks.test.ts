@@ -34,10 +34,21 @@ const MUTATIONS: Record<string, string> = {
   "AG-UI run coordinator module exists": `// no exports`,
   "AG-UI disconnect cancels controller": `// onAbort does nothing`,
   "AG-UI endpoint honors RunAgentInput.runId": `const runId = crypto.randomUUID();`,
+  "AG-UI endpoint rejects non-text user content": `return jsonResponse({ error: "No user message" }, { status: 400 });`,
   "A2UI back-channel reaches the WS bridge": `console.log("[web-ui] a2ui surface event:", { surfaceId });`,
   "WS bridge accepts surface_event frame": `case "cancel": await controller.cancel(); break;`,
-  "audit module forbids sensitive payload keys": `export type AuditEvent = { kind: "x"; prompt: string };`,
-  "AuditEvent does not claim coverage it lacks": `export type AuditEvent = { kind: "registry-sync-served"; correlationId: string; at: string; recordCount: number };`,
+  "audit module forbids sensitive payload keys": `type _NoSensitivePayload<T> = T; type ForbiddenKey = "prompt" | "env" | "args" | "payload";`,
+  "audit union includes emitted registry and mention events": `export type AuditEvent = { kind: "agui-run-started"; correlationId: string; at: string; runId: string; threadId: string };`,
+  "registry sync emits served fetched and merged audit records": `export function syncFromPeer() { return buildSyncPayload([]); }`,
+  "@mention middleware emits structural audit records": `export function createA2AMentionMiddleware() { return async () => undefined; }`,
+  "a2a audit primitives are exported through browser-safe subpath": `{"exports":{".":{"bun":"./src/index.ts"}},"scripts":{"build":"bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean"}}`,
+  "a2a-client imports audit without top-level a2a barrel": `import { HTTP_STATUS } from "@agents-js/a2a";`,
+  "a2a-client mention middleware imports audit without top-level a2a barrel": `import { newCorrelationId } from "@agents-js/a2a";`,
+  "peer-sync wire is schema-driven (no hand-rolled allowlist)": `const SYNC_WIRE_ALLOWED_FIELDS = ["name"]; function projectAllowedFields() {}`,
+  "wire schema is A2A-only and rejects ACP launch fields": `export const WireAgentRegistryRecordSchema = z.object({ kind: z.string(), command: z.string() }).passthrough();`,
+  "dashboard status vocabulary has no deferred state": `type StatusKey = "green" | "warn" | "blocked" | "pending" | "deferred";`,
+  "dashboard status data has no deferred package statuses": `{"packages":{"@agents-js/example":{"status":"deferred"}}}`,
+  "README drift check is wired into bun run check": `{"scripts":{"docs:readmes":"bun scripts/generate-package-readmes.ts","check":"bun run typecheck"}}`,
 };
 
 describe("release-readiness source guards", () => {

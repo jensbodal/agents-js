@@ -32,6 +32,8 @@ bun add @agents-js/a2a
 - **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
 - **`isACPAuthRequiredError`**
 - **`withAuthRetry`** — Retry an async operation when it fails with an ACP auth_required error. - The operation to attempt - Called on auth errors; returns true if auth was handled and retry should proceed - Maximum numbe...
+- **`newCorrelationId`** — Generate a fresh correlation id.
+- **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
 - **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
 - **`buildACPA2ATaskMetadata`**
 - **`buildACPA2AContinuationMetadata`**
@@ -49,6 +51,7 @@ bun add @agents-js/a2a
 - **`A2ALogger`**
 - **`DiscoveredResource`**
 - **`DiscoveredPrompt`**
+- **`AuditEmitter`** — Public emitter handle.
 - **`ACPA2ATaskMetadata`**
 - **`ACPA2AContinuationMetadata`**
 - **`UniversalA2AServerOptions`**
@@ -70,12 +73,17 @@ bun add @agents-js/a2a
 - **`GatewayAgentCapabilities`**
 - **`GatewayAgentCard`**
 - **`GatewayCardInput`**
+- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
+- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
+- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`AuditEventInput`**
 
 ### Constants
 
 - **`DEFAULT_MAX_TEXT_BUFFER_SIZE`** — Default maximum text buffer size in bytes (256 KB).
 - **`HTTP_STATUS`** — Centralized HTTP status code constants for any module in the monorepo that constructs a `Response` object. **Inclusion policy**: this list is intentionally narrow — only codes the monorepo actually...
 - **`CURRENT_A2A_PROTOCOL_VERSION`**
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
 - **`DEFAULT_MAX_REQUEST_BODY_SIZE`** — Default maximum request body size in bytes (4 MB).
 
 ### Exports

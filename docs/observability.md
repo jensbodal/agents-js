@@ -80,7 +80,7 @@ import { SpanLogTransport, configureLogging } from "@agents-js/acp-host";
 const spanTransport = new SpanLogTransport(100);
 configureLogging({ transports: [spanTransport] });
 
-// Later: retrieve spans
+// Retrieve spans
 const active = spanTransport.getActiveSpans();
 const completed = spanTransport.getCompletedSpans();
 ```
@@ -259,14 +259,14 @@ serialized writes), `createMemorySink` (tests), and
 
 The reference browser UI (`apps/web-ui`) includes a debug panel that visualizes the `logStore` stream. It renders `LogEntry` entries filtered by category and level. See [Browser Guide](/surfaces) for setup instructions.
 
-## Roadmap
+## Telemetry Scope
 
-Planned telemetry improvements (not yet implemented):
-
-- **`TelemetryAdapter` port** — a pluggable interface for emitting structured events, modeled after `LogTransport` but with richer context (trace IDs, span links, metric counters). Will coexist with the existing `Logger`/`logStore` system.
-- **Correlation-ID propagation** — propagate request and session IDs through A2A metadata (`_meta`) and ACP session methods so multi-agent traces can be correlated end-to-end.
-- **OpenTelemetry adapter** — an optional `@agents-js/telemetry` leaf package that bridges `LogEntry` and `ACPSessionEvent` to OTel spans and logs. Recommended but not required.
-- **Event persistence** — JSONL via `createJsonlFileSink` lands today as part of tool-call-trace v0.1. SQLite-backed sinks and broader session-replay coverage are still planned.
+Current telemetry includes logger transports, browser debug records, tool-call trace sinks,
+correlation IDs on gateway control-plane events, and structural audit events for AG-UI,
+A2A tasks, registry sync, @mention dispatch, and @@dispatch. JSONL persistence via
+`createJsonlFileSink` is the durable sink shipped with tool-call-trace v0.1. Hosts that
+need OpenTelemetry, SQLite persistence, or session replay own that integration above the
+package primitives.
 
 ## Non-goals
 

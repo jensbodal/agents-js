@@ -194,8 +194,8 @@ export class HostA2AExecutor implements InitializableExecutor {
   private taskToLane = new Map<string, SessionLane>();
   /**
    * ContextIds whose lane controllers are currently being constructed
-   * via `controllerFactory(contextId)` but have not yet been inserted
-   * into `lanes`. Closes a TOCTOU window: a runtime switch attempted
+   * via `controllerFactory(contextId)` and are pending insertion into
+   * `lanes`. Closes a TOCTOU window: a runtime switch attempted
    * between `await controllerFactory(...)` and `this.lanes.set(...)`
    * would otherwise see `activeLaneCount: 0` and proceed, even though
    * a fresh controller bound to the outgoing runtime was about to be

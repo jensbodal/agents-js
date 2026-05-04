@@ -6,6 +6,7 @@ import {
   type ServeACPOverA2AOptions,
   serveACPOverA2A,
 } from "@agents-js/a2a";
+import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
 import {
   AgentRegistry,
@@ -174,6 +175,7 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
 async function detectA2AMentionHooks(
   output: Pick<NodeJS.WriteStream, "write">,
   registryPath: string,
+  audit: ReturnType<typeof createAuditEmitter>,
 ): Promise<ExecutorHooks | undefined> {
   const registry = new AgentRegistry({ configPath: registryPath });
   let agents: Awaited<ReturnType<AgentRegistry["list"]>>;
@@ -195,6 +197,7 @@ async function detectA2AMentionHooks(
 
   const beforePrompt = createA2AMentionMiddleware({
     registry,
+    audit,
     onUnknownAgent({ agentName }) {
       output.write(`[agents-js] @${agentName} mention ignored — agent not found in registry\n`);
     },
@@ -391,7 +394,14 @@ export async function runServeCommand(
     onMissingProfile: "throw",
   });
   const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
-  const hooks = await detectA2AMentionHooks(output, registryPath);
+  const audit = createAuditEmitter({
+    logger: {
+      log(message, meta) {
+        output.write(`${message} ${JSON.stringify(meta)}\n`);
+      },
+    },
+  });
+  const hooks = await detectA2AMentionHooks(output, registryPath, audit);
   const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
   const env = dependencies.env ?? process.env;
   const registrySyncEnabled = shouldEnableRegistrySync(args, env);
@@ -400,7 +410,7 @@ export async function runServeCommand(
   // Local auto-registration still runs unconditionally below so the
   // gateway is discoverable on the local machine.
   const syncEndpointHandler = registrySyncEnabled
-    ? createSyncEndpointHandler({ configPath: registryPath })
+    ? createSyncEndpointHandler({ configPath: registryPath, audit })
     : undefined;
 
   // Compose the spawn-env whitelist: standard inherited keys (PATH,
@@ -434,6 +444,7 @@ export async function runServeCommand(
       url: localUrl,
       configPath: registryPath,
       intervalMs: syncIntervalMs,
+      audit,
     });
     output.write("[agents-js] Registry sync enabled (A2A-only peer payload)\n");
   } else {

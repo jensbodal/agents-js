@@ -11,8 +11,8 @@
  *     references the custom element placeholder (ClientOnly emits the slot
  *     content as a server-side hydration anchor).
  *
- * This does NOT launch a browser. Real-browser smoke is tracked as a deferred
- * follow-up modeled on scripts/browser-smoke.ts.
+ * This does NOT launch a browser. Real-browser coverage lives in
+ * scripts/browser-smoke.ts and the browser smoke package scripts.
  *
  * Wiring: this script is included in `bun run check`. Corpus build is
  * triggered lazily here (not as a separate check-chain step) so a clean

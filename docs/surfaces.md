@@ -258,7 +258,7 @@ These checks are grounded in the current UI and are suitable for human review.
 |---|---|---|
 | X1 | Invalid or unreachable connect target stays in the connect dialog with Connect disabled until controller-driven inspection succeeds | Screenshot |
 | X2 | Controller-level failures after the dialog phase surface in the top-of-page error banner | Observation |
-| X3 | A later successful action clears or replaces the prior top-of-page error state as expected | Observation |
+| X3 | A subsequent successful action clears or replaces the prior top-of-page error state as expected | Observation |
 
 #### Runtime-Dependent Checks
 
@@ -295,7 +295,7 @@ These are not current pass/fail browser checks:
 
 - The first-pass prompt `What is the last message I sent?` is useful as a runtime smoke check, but
   it is not a pure browser-shell assertion.
-- Elicitation and auth dismissal depend on follow-up controller/runtime state, so the UI should not
+- Elicitation and auth dismissal depend on controller/runtime state after dismissal, so the UI should not
   promise immediate disappearance independent of backend behavior.
 - `bun run dev` uses the checked-in internal gateway runtime, which currently resolves to
   `opencode`; `bun run dev --runtime <id>` overrides that startup runtime for the integrated dev
@@ -724,8 +724,8 @@ const middleware = createA2AMentionMiddleware({
   lifecycle hooks (see above), but Bob's step-by-step reasoning is not streamed
   to User A.
 - **Non-streaming.** The `stream: false` flag in the middleware is load-bearing.
-  User A does not see Bob's step-by-step reasoning, only the final text. A
-  follow-up release may lift this.
+  User A does not see Bob's step-by-step reasoning, only the final text.
+  Streaming delegated reasoning is not part of the beta @mention contract.
 - **Per-contextId session lanes, single upstream agent.** `apps/internal-gateway`
   routes concurrent prompts by `contextId` into independent `SessionLane`s.
   Each lane has its own in-flight bookkeeping and can optionally own a dedicated ACP

@@ -29,9 +29,9 @@ A known limitation is a documented gap in the current implementation. Examples t
 - AG-UI run resumption across reconnects (see [Streaming and Events → Deliberate limits](/streaming-and-events#deliberate-limits))
 - A2UI user → agent back-channel contract (currently namespaced `CUSTOM` event; see [Streaming and Events → Deliberate limits](/streaming-and-events#deliberate-limits) and [Protocols → A2UI](/protocols#a2ui))
 - Agent Registry trusted-network posture (no auth, no schema validation, no ACL — see banner on [Surfaces → Agent Registry](/surfaces#agent-registry))
-- Third-party A2A interop (not yet broadly tested)
+- Third-party A2A interop is validated only through repo-owned fixtures unless a third-party pairing is explicitly listed on the relevant protocol page.
 
-These are real gaps. They ship in beta. They get fixed in subsequent beta patches. They are not feature-tier downgrades.
+These are real limits. They ship in beta as part of the contract. They are not feature-tier downgrades.
 
 The rule for a known limitation:
 
@@ -71,7 +71,7 @@ The default trust posture is **local operator on a trusted private network**.
 The gateway can run wherever the operator chooses, but the current beta surface
 does not claim public-network hardening by default.
 
-Auth hardening for public-network operation (bearer tokens, mTLS, registry validation, redaction policy beyond the existing scope) is **not** in the current beta claim. It is explicitly deferred until the local-operator browser surface, fixture proof, and registry hardening land first. The Agent Registry trusted-network banner on [Surfaces → Agent Registry](/surfaces#agent-registry) is the cite for this posture.
+Public-network operation (bearer tokens, mTLS, registry ACLs, and broader redaction policy) is outside the current beta claim. Do not expose a gateway or registry sync endpoint beyond a trusted local/private network unless the embedding host supplies its own network and auth controls. The Agent Registry trusted-network banner on [Surfaces → Agent Registry](/surfaces#agent-registry) is the cite for this posture.
 
 The embedder seam (`@agents-js/a2ui-host/acp-host`'s `HostSurfaceAdapter`, `acp-host` policy + storage adapters, and the host contract on the [Harness Guide](/harness-guide)) is a first-class contract today. It hardens through local-operator proof surface before being broadly marketed as an embedder SDK.
 

@@ -19,7 +19,7 @@ host-owned extensions begin.
 | **A2A** | Remote/browser/CLI protocol | Implemented and validated | ACP-specific metadata is carried in namespaced metadata keys rather than changing the A2A base envelope |
 | **MCP** | Tool/context interoperability surface | Passed through and schema-compatible | `agents-js` carries MCP server config through ACP session setup but is not a standalone MCP server/client framework |
 | **AG-UI** | Event vocabulary, client workflow semantics, and native transport | Implemented server + client — see [AG-UI](#ag-ui) | Namespaced `CUSTOM` events (`agents-js.*`) carry repo-specific concepts without breaking AG-UI consumers |
-| **A2UI** | Agent-authored surface lifecycle over the ACP host adapter seam | Compliant host adapter + renderer plus browser (`apps/web-ui`) and pi-extension host integrations; Obsidian is a separate-repo follow-up — see [A2UI](#a2ui) | User → agent back-channel rides a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event until the upstream spec lands a contract |
+| **A2UI** | Agent-authored surface lifecycle over the ACP host adapter seam | Compliant host adapter + renderer plus browser (`apps/web-ui`) and pi-extension host integrations — see [A2UI](#a2ui) | User → agent back-channel rides a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event until the upstream spec lands a contract |
 | **Runtime manifests** | Repo-defined validation surface | Implemented and validated | Runtime-specific validators register on top of the generic manifest contract |
 
 A2UI scope: compliant host adapter in `@agents-js/acp-host` plus a renderer in
@@ -421,7 +421,7 @@ the SDK/server layer, but the turn/task methods above are the core user-facing b
 
 Streaming is task-backed rather than raw ACP chunk forwarding. The bridge emits JSON-RPC envelopes
 that wrap A2A task events, and the client stack can either consume them live or resume an in-flight
-task later.
+task through `tasks/resubscribe`.
 
 In practice this means:
 
@@ -799,19 +799,17 @@ expected-but-not-yet-shipped capabilities are intentionally out of scope:
 
 - **Single in-flight prompt per gateway process.** The reference gateway backs AG-UI
   requests with a shared `HostSession` singleton. Issuing a second `POST /agent` while an
-  earlier run is still streaming will either queue behind it or be rejected, depending on
-  gateway configuration. Multi-tenant deployments should run one gateway process per
-  concurrent run for now.
+  earlier run is still streaming is rejected with HTTP 409 before the SSE stream opens.
+  Multi-tenant deployments should run one gateway process per concurrent run.
 - **No AG-UI resume.** The spec does not currently define a resume/reattach operation for
   runs. agents-js does not ship one either. A disconnected client must start a new run.
   The existing A2A `tasks/resubscribe` path is unchanged, but it is an A2A feature, not an
   AG-UI one.
-- **No per-thread multi-session isolation yet.** `threadId` is echoed correctly on every
+- **No per-thread multi-session isolation.** `threadId` is echoed correctly on every
   run, but the gateway does not maintain per-thread state across runs — each `POST /agent`
   is an independent session from the gateway's point of view.
 - **A2UI surface lifecycle is not part of AG-UI.** Dynamic agent-authored UI surfaces remain
-  host-owned and are not transported over AG-UI events. A2UI surface lifecycle is a later
-  wave.
+  host-owned and are not transported over AG-UI events.
 
 ### Repo Evidence
 
@@ -834,8 +832,7 @@ the resulting component trees onto the existing `acp-*` Lit primitives.
 
 The current implementation wires that surface lifecycle into the shipped hosts: `apps/web-ui` is the browser
 reference renderer and `extras/pi-extension` forwards surface events through its existing
-`onProgress` callback. The Obsidian plugin is a deferred follow-up tracked in the
-`obsidian-acp-plugin` repo.
+`onProgress` callback.
 
 This section is the compliance reference. The earlier posture — "component-vocabulary alignment
 only, no surface transport" — no longer describes the shipped state. The `@agents-js/ui-components`
@@ -1012,25 +1009,25 @@ callback as `{ type: "a2ui", ... }`. Downstream consumers — Pi plugins and oth
 embedders — own rendering. The extension itself does not import `@agents-js/a2ui-renderer`
 and does not render a TUI surface; it is deliberately a transport hop.
 
-#### Obsidian (deferred)
+#### Obsidian
 
-Obsidian plugin integration is not part of the current package surface.
+Obsidian plugin integration is not part of the `agents-js` package surface.
 
 ### Known Limitations
 
-This is a compliant implementation of the A2UI surface lifecycle. Several
-expected-but-not-yet-shipped capabilities are intentionally out of scope:
+This is a compliant implementation of the A2UI surface lifecycle. These
+capabilities are outside the beta contract:
 
 - **Opaque back-channel.** A2UI v0.9 does not standardize a user → agent event format.
   agents-js carries events through the `agents-js.a2ui.surface_event` namespace without
   claiming cross-vendor interop on the return path. Treat the back-channel as
   implementation-defined until the upstream spec lands a contract.
 - **ACP catalog only.** The bundled `@agents-js/a2ui-renderer` resolves the ACP catalog
-  exclusively. The A2UI basic catalog and custom catalogs are deferred. Surfaces that
-  reference an unsupported catalog ID are rejected at validation time.
+  exclusively. Surfaces that reference an unsupported catalog ID are rejected at
+  validation time.
 - **Single surface per session.** The current baseline assumes one active surface per ACP
   session. Multi-surface composition — including surface stacking, overlays, and
-  independent lifecycles in one session — is a later wave.
+  independent lifecycles in one session — is outside the beta contract.
 
 ### Related Packages
 

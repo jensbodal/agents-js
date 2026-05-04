@@ -62,7 +62,7 @@ bun add @agents-js/a2a-client
 - **`fetchPeerRecords`** — GET the peer gateway's sync endpoint and return the records it serves. Throws {PeerSyncError} on network failure, non-2xx, or malformed payload.
 - **`mergeRecords`** — Pure-function merge surface — exported for white-box tests of the matrix.
 - **`syncFromPeer`** — Pull-sync from a single peer. Fetches the peer's sync endpoint, drops self-originated records, merges the rest into the local registry, and writes the result to disk. Returns a {SyncSummary} descri...
-- **`buildSyncPayload`** — Produce the wire payload this gateway would serve at its sync endpoint. Three filters apply: 1. `source !== "sync"` — loop prevention on the send side; we never re-serve records we received from a ...
+- **`buildSyncPayload`** — Produce the wire payload this gateway would serve at its sync endpoint. Three filters apply, in order: 1. `source !== "sync"` — loop prevention on the send side; we never re-serve records we receiv...
 - **`createSyncEndpointHandler`** — Build a `(req: Request) => Promise<Response | null>` compatible with `UniversalA2AServerOptions.additionalFetch`. The gateway wires this into its existing fetch hook so the sync endpoint lives on t...
 
 ### Interfaces
@@ -155,7 +155,7 @@ bun add @agents-js/a2a-client
 - **`ACPAgentEntry`** — A registry entry describing a locally spawnable ACP harness.
 - **`AgentRegistryOptions`** — Options for constructing an {AgentRegistry}.
 - **`A2AClientControllerOptions`**
-- **`AgentsJsRegistrySyncPayload`** — Wire-format payload served by the sync endpoint and consumed by peers.
+- **`AgentsJsRegistrySyncPayload`** — Wire-format payload served by the sync endpoint and consumed by peers. Records are typed as the wire shape — `kind="acp"` and the operator- controlled launch fields (`command`, `args`, `env`, `work...
 - **`FetchPeerRecordsOptions`** — Options for {fetchPeerRecords}.
 - **`SyncSummary`** — Summary returned by {syncFromPeer}. Each record surfaces in exactly one array + one action.
 - **`SyncFromPeerOptions`** — Options for {syncFromPeer}.

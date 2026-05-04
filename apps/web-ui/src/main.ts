@@ -111,7 +111,7 @@ const a2uiBridge = new A2uiBridge({
       if (_hostClient !== null) {
         _hostClient.sendSurfaceEvent(surfaceId, actionName, payload);
       } else {
-        console.warn("[web-ui] a2ui surface event dropped: host bridge not yet connected", {
+        console.warn("[web-ui] a2ui surface event dropped: host bridge unavailable", {
           surfaceId,
           actionName,
         });

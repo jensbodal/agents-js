@@ -140,7 +140,9 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // the operator opted in via --registry-sync / AGENTS_JS_REGISTRY_SYNC.
   // Local autoRegister still runs below so the gateway is discoverable
   // on the local machine without exposing the well-known endpoint.
-  const syncEndpointHandler = opts.cliArgs.registrySync ? createSyncEndpointHandler() : null;
+  const syncEndpointHandler = opts.cliArgs.registrySync
+    ? createSyncEndpointHandler({ audit: opts.audit })
+    : null;
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
@@ -167,6 +169,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
       name: localName,
       url: localUrl,
       intervalMs: syncIntervalMs,
+      audit: opts.audit,
     });
     console.log("[Gateway] Registry sync enabled (A2A-only peer payload)");
   } else {
@@ -267,7 +270,7 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
       // Reject the switch if any operator-driven work is in flight.
       // Allowing a switch through here would either cut off an
       // in-flight ACP turn mid-stream OR leave a lane controller
-      // bound to the old runtime silently handling follow-up work.
+      // bound to the outgoing runtime silently handling subsequent work.
       // Both outcomes are footguns; the operator gets a clear
       // "busy" error and can retry once their run finishes.
       const blocking = describeRuntimeSwitchBlockingActivity({

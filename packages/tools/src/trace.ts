@@ -29,8 +29,8 @@
  * - Top-level tool calls only; composition chains (parent_event_id /
  *   root_event_id threading across nested invokes) require explicit
  *   context plumbing. Emitter accepts parent context as an option so
- *   callers building compositions can set it manually; automatic
- *   threading is deferred until a real composition harness lands.
+ *   callers building compositions can set it manually. Automatic
+ *   threading is outside this package's v0.1 contract.
  * - Sync (best-effort) error handling: a sink failure is logged to
  *   stderr but does not fail the tool invocation. Observability must
  *   not break the agent.

@@ -16,7 +16,7 @@ process. Pan, zoom, or click a node for details.
 
 - **Dashed groups** are layers — conceptual containers, not deployable
   units. Each layer's box lists its responsibilities (what it owns) and
-  examples (what implementations exist or are planned).
+  examples (what implementations exist).
 - **Solid arrows** are protocol edges. Their labels name the wire
   protocol (`A2A over HTTP / Matrix / WS / in-process`,
   `ACP stdio / WS`).

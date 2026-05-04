@@ -1,13 +1,11 @@
 /**
  * In-process AG-UI run coordinator.
  *
- * For restricted-beta AG-UI is the primary browser/operator run surface
- * but does not yet have per-thread lane isolation (see
- * `release-readiness-agui-primary-plan.md` §31). The coordinator
- * enforces single-active-run behavior against the shared primary
- * controller: a second `POST /agent` while a run is in flight is
- * rejected with a clear busy response instead of being multiplexed
- * onto the same controller.
+ * For restricted-beta AG-UI is the primary browser/operator run
+ * surface. The current contract is single-active-run behavior against
+ * the shared primary controller: a second `POST /agent` while a run is
+ * in flight is rejected with a clear busy response before the SSE
+ * stream opens.
  *
  * Why this is a separate module: the AG-UI endpoint (HTTP routing,
  * SSE framing) and the AG-UI run session (subscription + translation)
@@ -17,8 +15,7 @@
  * without standing up an HTTP server.
  *
  * The coordinator is intentionally scoped to a *single* gateway host
- * controller. If we ever ship per-thread AG-UI lanes, each lane will
- * own its own coordinator instance.
+ * controller.
  */
 
 /**

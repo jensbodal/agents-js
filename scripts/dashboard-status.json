@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-package validation status for output/agents-js-dashboard.html. Hand-authored. Status enum: pending | validating | tests-audited | live-validated | refactored | blocked | deferred. tests-audited = tests reviewed against the package's contract and pass; live-validated = also exercised on a real path by a live probe. The dashboard generator (scripts/build-dashboard.ts) reads this file plus docs/public/graph.json plus output/test-counts.json. Test counts and dep edges are auto-derived; only status + notes are authored here.",
+  "_comment": "Per-package validation status for output/agents-js-dashboard.html. Hand-authored. Status enum: pending | validating | tests-audited | live-validated | refactored | blocked. tests-audited = tests reviewed against the package's contract and pass; live-validated = also exercised on a real path by a live probe. The dashboard generator (scripts/build-dashboard.ts) reads this file plus docs/public/graph.json plus output/test-counts.json. Test counts and dep edges are auto-derived; only status + notes are authored here.",
   "_release_readiness_scope": "The dashboard models per-package test posture and dependency topology. It does NOT model app/operator-surface release readiness — AG-UI primary run path, registry sync default-off, workspace trust gate, dispatch cancelability metadata, A2UI back-channel, and correlation/audit are all gated by `bun run release:preflight` (scripts/release-preflight.ts auditReleaseReadinessDefaults). Treat a green dashboard + a green preflight + the e2e/browser smoke suites as the trio for restricted-beta readiness; this dashboard alone is necessary but not sufficient.",
   "packages": {
     "@agents-js/policy": {
@@ -39,8 +39,8 @@
       "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 411 tests across 25 files. Heavy existing coverage. env-policy.test.ts already pins D3's generic injection (defaults, secret-key merging, integration with buildMinimalEnv). Added browser.test.ts (2 cases) — narrow-surface guard matching the policy/browser.test.ts pattern; prevents accidental Node-only re-export into the browser-safe entry."
     },
     "@agents-js/browser-runtime": {
-      "status": "deferred",
-      "notes": "Extras package; private. Defer until extras-validation pass."
+      "status": "pending",
+      "notes": "Private browser runtime package. Not part of the publishable beta package set; dashboard keeps it visible until its package tests are audited."
     },
     "@agents-js/a2a-client": {
       "status": "live-validated",
@@ -83,8 +83,8 @@
       "notes": "ACP initialize handshake probe. Uses runAcpWrapperBinary."
     },
     "@agents-js/pi-extension": {
-      "status": "deferred",
-      "notes": "Extras package."
+      "status": "pending",
+      "notes": "Extras package with a manifest-declared extension build artifact. Dashboard keeps it visible until its package tests are audited."
     },
     "@agents-js/plane": {
       "status": "tests-audited",

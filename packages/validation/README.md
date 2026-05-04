@@ -49,6 +49,7 @@ bun add @agents-js/validation
 - **`zodIssuesToValidationIssues`** — Zod-version-agnostic conversion of a `ZodError` to the canonical {ValidationIssue} shape. Accepts errors from either Zod v3 or v4 without triggering structural-type incompatibility, because we only...
 - **`toValidationIssues`** — Use {zodIssuesToValidationIssues} — it accepts both Zod v3 and v4 errors via duck-typing. Kept as an alias for callers that want the v4-typed signature.
 - **`zodObjectWithMode`**
+- **`validateWireAgentRegistryRecord`** — Validate an arbitrary `unknown` against the wire schema and return a canonical {ValidationResult}. Mirrors the result shape used by `validateAguiEvent` / `validateA2uiMessage` so consumers get a un...
 - **`validateA2ARequest`**
 - **`validateA2AResponse`**
 - **`validateAgentCard`**
@@ -85,6 +86,7 @@ bun add @agents-js/validation
 - **`SurfaceTree`** — A surface component tree — the `components` array of an `updateComponents` message.
 - **`ValidationMode`**
 - **`RuntimeManifestValidator`**
+- **`WireAgentRegistryRecord`** — Inferred TypeScript shape of a parsed wire record.
 
 ### Constants
 
@@ -98,6 +100,7 @@ bun add @agents-js/validation
 - **`ACP_METHOD_WHITELIST`**
 - **`BASIC_CATALOG_ID`** — Stable id for the built-in basic catalog (used when no catalog is supplied).
 - **`VALIDATION_MODES`**
+- **`WireAgentRegistryRecordSchema`** — Wire schema for an A2A registry record served or accepted across the peer-sync wire (`GET /.well-known/agents-js-registry.json` and `POST` of the same payload). Peer sync is **A2A-only**: `kind` is...
 - **`a2aValidationSchemas`**
 
 ### Exports

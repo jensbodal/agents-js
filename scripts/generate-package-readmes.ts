@@ -1,7 +1,7 @@
 /**
  * Generate per-package README.md from package.json metadata and JSDoc comments.
  *
- * Usage: bun scripts/generate-package-readmes.ts
+ * Usage: bun scripts/generate-package-readmes.ts [--check]
  *
  * - Skips packages with `"private": true`
  * - Skips any existing README that contains the hand-maintained sentinel
@@ -358,6 +358,8 @@ const pkgDirs = readdirSync(PACKAGES_DIR, { withFileTypes: true })
 
 let generated = 0;
 let skipped = 0;
+let stale = 0;
+const checkOnly = process.argv.includes("--check");
 
 for (const dirName of pkgDirs) {
   const pkgDir = join(PACKAGES_DIR, dirName);
@@ -417,10 +419,26 @@ for (const dirName of pkgDirs) {
   const readmeNote = existsSync(readmeNotePath) ? readFileSync(readmeNotePath, "utf-8") : null;
 
   const readme = generateReadme(pkg, uniqueExports, readmeNote);
+  if (checkOnly) {
+    const current = existsSync(readmePath) ? readFileSync(readmePath, "utf-8") : "";
+    if (current !== readme) {
+      console.error(`✗ ${pkg.name}: README is stale; run bun run docs:readmes`);
+      stale++;
+    } else {
+      console.log(`✓ ${pkg.name}: README current (${uniqueExports.length} exports)`);
+    }
+    continue;
+  }
+
   writeFileSync(readmePath, readme, "utf-8");
 
   console.log(`✅ ${pkg.name}: README generated (${uniqueExports.length} exports)`);
   generated++;
+}
+
+if (checkOnly && stale > 0) {
+  console.error(`\n${stale} package README(s) are stale.`);
+  process.exit(1);
 }
 
 console.log(`\nDone. ${generated} READMEs generated, ${skipped} packages skipped.`);

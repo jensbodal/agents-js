@@ -115,7 +115,7 @@ bun add @agents-js/ui-components
 - **`BrowserLaunchConfig`**
 - **`ResolveBrowserLaunchConfigOptions`**
 - **`ChatAppDerivedState`**
-- **`HostWSClientOptions`** — Optional behaviour hooks for {HostWSClient}. All fields are optional so existing `new HostWSClient(url)` call sites keep working unchanged. Adding a hook here is additive — callers that omit it see...
+- **`HostWSClientOptions`** — Optional behaviour hooks for {HostWSClient}. All fields are optional so existing `new HostWSClient(url)` call sites keep working unchanged. Omitting a hook leaves the corresponding surface inert.
 - **`PromptHistoryPersistence`** — A framework-agnostic prompt history store that provides up-arrow input recall. Extracted from an earlier host prompt-history state machine and generalized here. No DOM or Lit dependencies — pure Ty...
 - **`PromptHistoryStoreOptions`**
 - **`HistoryNavResult`**

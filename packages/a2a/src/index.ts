@@ -1,3 +1,13 @@
+export {
+  _AUDIT_EVENT_NO_SENSITIVE_PAYLOAD,
+  type AuditEmitter,
+  type AuditEvent,
+  type AuditEventInput,
+  type AuditLogger,
+  type CorrelationId,
+  createAuditEmitter,
+  newCorrelationId,
+} from "./audit.ts";
 export { buildAgentCard, mapCapabilities } from "./discovery.ts";
 export {
   ACPtoA2AExecutor,
