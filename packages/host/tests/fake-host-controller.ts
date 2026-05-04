@@ -5,7 +5,7 @@ import type { GatewayHostController } from "../src/host-session.ts";
 /** The `Pick<>` surface the AG-UI endpoint actually consumes. */
 export type ControllerSurface = Pick<
   GatewayHostController,
-  "subscribe" | "sendPrompt" | "getState" | "newSession"
+  "cancel" | "subscribe" | "sendPrompt" | "getState" | "newSession"
 >;
 
 export interface FakeHostController {
@@ -14,6 +14,8 @@ export interface FakeHostController {
   emit(event: ACPSessionEvent): void;
   /** Count of sendPrompt invocations. */
   sendPromptCalls: () => number;
+  /** Count of cancel invocations. */
+  cancelCalls: () => number;
   /** Replace the handler invoked when a prompt arrives. */
   setOnSendPrompt(handler: (prompt: unknown) => void | Promise<void>): void;
 }
@@ -33,6 +35,7 @@ export function createFakeHostController(initial?: Partial<ACPSessionState>): Fa
     ...initial,
   };
   let sendPromptCount = 0;
+  let cancelCount = 0;
   let onSendPrompt: (prompt: unknown) => void | Promise<void> = () => {};
 
   const controller: ControllerSurface = {
@@ -53,6 +56,9 @@ export function createFakeHostController(initial?: Partial<ACPSessionState>): Fa
       state.sessionId = "session-new";
       return "session-new";
     },
+    async cancel() {
+      cancelCount += 1;
+    },
   };
 
   return {
@@ -63,6 +69,7 @@ export function createFakeHostController(initial?: Partial<ACPSessionState>): Fa
       }
     },
     sendPromptCalls: () => sendPromptCount,
+    cancelCalls: () => cancelCount,
     setOnSendPrompt(handler) {
       onSendPrompt = handler;
     },

@@ -57,7 +57,10 @@ export function enqueueAguiEvent(
 }
 
 export interface RunSessionOptions {
-  controller: Pick<GatewayHostController, "subscribe" | "sendPrompt" | "getState" | "newSession">;
+  controller: Pick<
+    GatewayHostController,
+    "cancel" | "subscribe" | "sendPrompt" | "getState" | "newSession"
+  >;
   threadId: string;
   runId: string;
   /** Prompt text to forward to the ACP controller. */
@@ -140,15 +143,29 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
     }
   });
 
-  // Wire the client disconnect → abort the ACP turn. We do NOT call
-  // `controller.cancel()` ourselves unconditionally — the ACP host may
-  // already be done, or the caller may have other policies. The caller
-  // should pass `req.signal`, which lets us react to client disconnect.
+  // Wire the client disconnect → cancel the ACP turn. AG-UI is the
+  // primary browser run surface; closing the SSE stream means the
+  // operator no longer wants the run to continue, so we cancel the
+  // controller turn and emit a terminal RUN_ERROR to any still-
+  // connected observer (programmatic readers can call reader.cancel()
+  // without dropping the underlying HTTP connection — they will see
+  // the error frame on whatever they wired up).
+  //
+  // The cancel is best-effort: the controller may already be idle,
+  // and we swallow throwing cancel implementations because the run
+  // is unwinding regardless.
   const onAbort = () => {
     if (terminal) return;
-    finalize({
-      finished: false,
-      errorMessage: "client disconnected",
+    const message = "run canceled by disconnect";
+    emit({
+      type: EventType.RUN_ERROR,
+      message,
+    });
+    finalize({ finished: false, errorMessage: message });
+    void Promise.resolve(controller.cancel?.()).catch((err: unknown) => {
+      logger.warn("[Gateway/AG-UI] controller.cancel() during disconnect threw", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
   };
   abortSignal?.addEventListener("abort", onAbort, { once: true });

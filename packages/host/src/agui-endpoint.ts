@@ -20,6 +20,7 @@ import { HTTP_STATUS } from "@agents-js/a2a";
 import type { RunAgentInput } from "@agents-js/agui-types";
 import { EventType } from "@agents-js/agui-types";
 import { validateRunAgentInput } from "@agents-js/validation";
+import { AguiRunBusyError, AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { enqueueAguiEvent, runAguiSession } from "./agui-run-session.ts";
 import type { GatewayHostController } from "./host-session.ts";
 
@@ -33,10 +34,20 @@ const SSE_RESPONSE_HEADERS: Record<string, string> = {
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export interface AguiEndpointOptions {
-  controller: Pick<GatewayHostController, "subscribe" | "sendPrompt" | "getState" | "newSession">;
+  controller: Pick<
+    GatewayHostController,
+    "cancel" | "subscribe" | "sendPrompt" | "getState" | "newSession"
+  >;
   /** Request path that triggers this handler. Defaults to `/agent`. */
   path?: string;
   logger?: Pick<Console, "warn" | "error" | "log">;
+  /**
+   * Run coordinator enforcing single-active-run behavior. Defaults to
+   * a fresh in-process coordinator — pass an explicit instance when
+   * the gateway needs to share the gate with other surfaces (e.g. a
+   * future per-thread coordinator registry).
+   */
+  coordinator?: AguiRunCoordinator;
 }
 
 /**
@@ -50,6 +61,7 @@ export function createAguiFetchHandler(
 ): (req: Request) => Promise<Response | null> {
   const path = options.path ?? "/agent";
   const logger = options.logger ?? console;
+  const coordinator = options.coordinator ?? new AguiRunCoordinator();
 
   return async (req: Request): Promise<Response | null> => {
     const url = new URL(req.url);
@@ -111,6 +123,29 @@ export function createAguiFetchHandler(
     const threadId = input.threadId ?? crypto.randomUUID();
     const runId = crypto.randomUUID();
 
+    // Acquire the run slot BEFORE opening the SSE stream so a busy
+    // response is a plain JSON 409 rather than an SSE error frame.
+    // AG-UI is the primary browser run surface for restricted-beta;
+    // overlapping runs against the shared primary controller would
+    // ambiguously multiplex onto the same ACP session, so we reject
+    // the second one with a clear signal.
+    let lease: ReturnType<AguiRunCoordinator["acquire"]>;
+    try {
+      lease = coordinator.acquire(runId);
+    } catch (err) {
+      if (err instanceof AguiRunBusyError) {
+        return new Response(
+          JSON.stringify({
+            error: "Busy",
+            message: "another AG-UI run is active on this gateway; retry shortly",
+            activeRunId: err.activeRunId,
+          }),
+          { status: HTTP_STATUS.CONFLICT, headers: JSON_HEADERS },
+        );
+      }
+      throw err;
+    }
+
     // Combine HTTP disconnect (req.signal) with a locally-owned abort source
     // so programmatic `reader.cancel()` on the stream also unwinds the
     // run-session without leaking the event subscription.
@@ -158,6 +193,7 @@ export function createAguiFetchHandler(
           logger.error("[Gateway/AG-UI] Run session threw", { error: message });
           emit({ type: EventType.RUN_ERROR, message });
         } finally {
+          lease.release();
           try {
             streamController.close();
           } catch {
@@ -169,8 +205,15 @@ export function createAguiFetchHandler(
         // Triggered either by HTTP disconnect (covered by req.signal) or
         // a programmatic reader.cancel() (which does NOT propagate to
         // req.signal). Aborting the local controller ensures the
-        // run-session unwinds its subscription in both paths.
+        // run-session unwinds its subscription in both paths and that
+        // the run-session calls controller.cancel() on the active
+        // ACP turn (see agui-run-session.ts).
         localAbort.abort();
+        // The lease is also released by the start() finally block;
+        // calling release here too is safe (idempotent) and ensures
+        // the slot is freed even if start() never observes the abort
+        // (e.g. the SSE stream was canceled before start() ran).
+        lease.release();
       },
     });
 

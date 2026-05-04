@@ -6,6 +6,11 @@ export {
 export { type AgentRegistryMap, loadRegistryFromDisk } from "./agent-registry.ts";
 export { type AguiEndpointOptions, createAguiFetchHandler } from "./agui-endpoint.ts";
 export {
+  AguiRunBusyError,
+  AguiRunCoordinator,
+  type AguiRunLease,
+} from "./agui-run-coordinator.ts";
+export {
   enqueueAguiEvent,
   formatAguiSseFrame,
   type RunSessionOptions,

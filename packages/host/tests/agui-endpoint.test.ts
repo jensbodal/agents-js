@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ACPSessionEvent } from "@agents-js/acp-host";
 import { EventType } from "@agents-js/agui-types";
 import { createAguiFetchHandler } from "../src/agui-endpoint.ts";
+import { AguiRunCoordinator } from "../src/agui-run-coordinator.ts";
 import { buildRunAgentInput, createFakeHostController } from "./fake-host-controller.ts";
 
 /**
@@ -254,6 +255,129 @@ describe("createAguiFetchHandler — surface events", () => {
 
     // Stream still completes normally after the surface event.
     expect(frames.at(-1)?.type).toBe(EventType.RUN_FINISHED);
+  });
+});
+
+describe("createAguiFetchHandler — single-active-run gate", () => {
+  test("second concurrent run returns 409 Conflict before opening SSE", async () => {
+    const fake = createFakeController();
+    // Hold the first run open until we say go.
+    let releaseFirst: () => void = () => {};
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    fake.setOnSendPrompt(async () => {
+      await firstHeld;
+      fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
+    });
+
+    const coordinator = new AguiRunCoordinator();
+    const handler = createAguiFetchHandler({ controller: fake.controller, coordinator });
+
+    const firstReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("first", { runId: "run-A" })),
+    });
+    const firstResponsePromise = handler(firstReq);
+
+    // Yield once so the endpoint enters its acquire path. The fake
+    // sendPrompt above blocks on `firstHeld`, so the coordinator stays
+    // busy until we release it below.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const secondReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("second", { runId: "run-B" })),
+    });
+    const secondResponse = await handler(secondReq);
+
+    expect(secondResponse?.status).toBe(409);
+    expect(secondResponse?.headers.get("content-type")).toBe("application/json");
+    const body = (await secondResponse?.json()) as {
+      error: string;
+      message: string;
+      activeRunId: string;
+    };
+    expect(body.error).toBe("Busy");
+    expect(typeof body.activeRunId).toBe("string");
+    expect(body.activeRunId.length).toBeGreaterThan(0);
+
+    // Let the first run finish so the test cleans up.
+    releaseFirst();
+    const firstResponse = await firstResponsePromise;
+    await readSseFrames(firstResponse as Response);
+  });
+
+  test("a run that completes releases the slot for the next run", async () => {
+    const fake = createFakeController();
+    fake.setOnSendPrompt(async () => {
+      fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
+    });
+
+    const coordinator = new AguiRunCoordinator();
+    const handler = createAguiFetchHandler({ controller: fake.controller, coordinator });
+
+    for (let i = 0; i < 3; i += 1) {
+      const req = new Request("http://local/agent", {
+        method: "POST",
+        headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+        body: JSON.stringify(buildRunAgentInput(`hi-${i}`)),
+      });
+      const response = await handler(req);
+      expect(response?.status).toBe(200);
+      const frames = await readSseFrames(response as Response);
+      expect((frames.at(-1) as { type: string } | undefined)?.type).toBe(EventType.RUN_FINISHED);
+    }
+
+    // After all runs finish, the coordinator must be idle.
+    expect(coordinator.isActive).toBe(false);
+  });
+});
+
+describe("createAguiFetchHandler — disconnect cancels controller", () => {
+  test("client disconnect calls controller.cancel() and emits a terminal RUN_ERROR", async () => {
+    const fake = createFakeController();
+    // Hold the run open: never emit turn_completed until aborted.
+    let abortObserved = false;
+    fake.setOnSendPrompt(async () => {
+      // Wait a long time — the test will abort the request before
+      // sendPrompt resolves naturally.
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      if (!abortObserved) {
+        fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
+      }
+    });
+
+    const handler = createAguiFetchHandler({ controller: fake.controller });
+    const ac = new AbortController();
+    const req = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("hold")),
+      signal: ac.signal,
+    });
+    const response = await handler(req);
+    expect(response?.status).toBe(200);
+
+    // Read the first frame (RUN_STARTED) so we know the stream opened,
+    // then cancel the reader to simulate the client closing the SSE.
+    const reader = (response as Response).body?.getReader();
+    if (!reader) throw new Error("expected SSE body reader");
+    const decoder = new TextDecoder();
+    const { value: firstChunk } = await reader.read();
+    const firstText = decoder.decode(firstChunk);
+    expect(firstText).toContain(EventType.RUN_STARTED);
+
+    abortObserved = true;
+    await reader.cancel(); // triggers the stream's cancel() handler
+
+    // controller.cancel() must have been called as a result of the
+    // disconnect — the AG-UI primary surface contract.
+    // Give the abort handler a tick to run.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(fake.cancelCalls()).toBeGreaterThanOrEqual(1);
   });
 });
 

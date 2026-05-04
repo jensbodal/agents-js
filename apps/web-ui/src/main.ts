@@ -7,6 +7,7 @@ import type {
   WriteGateLike,
 } from "@agents-js/ui-components";
 import { AcpChatApp } from "@agents-js/ui-components";
+import { wrapControllerForAgUiRuns } from "./agui-run-client.ts";
 import "@agents-js/ui-components";
 import {
   createPermissionResolution,
@@ -56,7 +57,26 @@ function clearSessionHash(): void {
   history.replaceState(null, "", window.location.pathname + window.location.search);
 }
 
-const controller = new A2AClientController();
+const baseController = new A2AClientController();
+
+// AG-UI is the primary run path for restricted-beta. The page query
+// `?run=a2a` is a compatibility/diagnostic escape hatch that keeps the
+// legacy A2A `sendTurn` for operators who need to compare the two
+// transports side-by-side.
+const useAguiRuns = params.get("run") !== "a2a";
+const controller = useAguiRuns
+  ? wrapControllerForAgUiRuns(baseController, {
+      // The controller's resolved target URL is the source of truth at
+      // run time; this fallback covers the brief window before the
+      // first connect resolves.
+      fallbackBaseUrl: "",
+    })
+  : baseController;
+if (!useAguiRuns) {
+  console.log("[web-ui] Run path: A2A (compat mode via ?run=a2a)");
+} else {
+  console.log("[web-ui] Run path: AG-UI (POST /agent SSE)");
+}
 
 const chatApp = new AcpChatApp();
 chatApp.controller = controller;
