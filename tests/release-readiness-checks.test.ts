@@ -25,13 +25,19 @@ const MUTATIONS: Record<string, string> = {
   "no global baseline secret keys": `export const BASELINE_AGENT_SECRET_ENV_KEYS: readonly string[] = Object.freeze(["ANTHROPIC_API_KEY"]);`,
   "--registry-sync flag exists": `export function someOther() {}`,
   "registry sync gate respects only literal 'true'": `if (env.AGENTS_JS_REGISTRY_SYNC) return true;`,
+  "internal gateway registry sync is gated by --registry-sync": `let registrySync = true; // always on, no flag`,
+  "internal gateway does NOT call startRegistrySync unconditionally": `const registrySync = startRegistrySync({ name: "x", url: "y" });`,
   "--trust-workspace flag exists": `if (arg === "--something-else") { /* ... */ }`,
   "@@dispatch does not hard-code yolo and publishes cancelable=false": `await dispatchController.setPermissionMode("yolo");`,
+  "ACP @@dispatch is non-interactive (cancels on permission/write-gate/elicitation)": `case "permission_requested": sink.eventBus.publish(buildStatusUpdate({ state: "failed" })); break;`,
+  "runtime switch rejects active work": `setRuntime: async (id) => { await session.switchRuntime({ runtime, defaultModel }); }`,
   "AG-UI run coordinator module exists": `// no exports`,
   "AG-UI disconnect cancels controller": `// onAbort does nothing`,
+  "AG-UI endpoint honors RunAgentInput.runId": `const runId = crypto.randomUUID();`,
   "A2UI back-channel reaches the WS bridge": `console.log("[web-ui] a2ui surface event:", { surfaceId });`,
   "WS bridge accepts surface_event frame": `case "cancel": await controller.cancel(); break;`,
   "audit module forbids sensitive payload keys": `export type AuditEvent = { kind: "x"; prompt: string };`,
+  "AuditEvent does not claim coverage it lacks": `export type AuditEvent = { kind: "registry-sync-served"; correlationId: string; at: string; recordCount: number };`,
 };
 
 describe("release-readiness source guards", () => {

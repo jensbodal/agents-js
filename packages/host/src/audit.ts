@@ -42,6 +42,18 @@ interface BaseAuditEvent {
 /**
  * Closed set of audit-event variants. Each carries only structural
  * metadata — IDs, names, counts, durations — never user content.
+ *
+ * The union covers only surfaces the gateway *actually emits* today:
+ * AG-UI run lifecycle, A2A task lifecycle, and ACP `@@dispatch`.
+ *
+ * Registry peer sync and ACP `@mention` audit variants were considered
+ * but deferred — both surfaces live behind the published
+ * `@agents-js/cli` (`packages/cli/src/serve.ts`) which does not depend
+ * on `@agents-js/host`. Adding that dependency just to surface those
+ * records would invert the current package layering. When those
+ * surfaces grow a real audit emitter (or move into the host package),
+ * extend this union — do not let the type imply coverage that the
+ * source does not provide.
  */
 export type AuditEvent =
   // -- AG-UI run lifecycle ---------------------------------------------
@@ -80,34 +92,6 @@ export type AuditEvent =
       taskId: string;
       contextId: string;
       state: "completed" | "failed" | "canceled";
-    })
-  // -- Registry peer sync ----------------------------------------------
-  | (BaseAuditEvent & {
-      kind: "registry-sync-served";
-      /** Number of records returned to the peer. */
-      recordCount: number;
-    })
-  | (BaseAuditEvent & {
-      kind: "registry-sync-fetched";
-      peerUrl: string;
-      /** Number of records the peer returned. */
-      recordCount: number;
-    })
-  | (BaseAuditEvent & {
-      kind: "registry-sync-merged";
-      peerUrl: string;
-      added: number;
-      updated: number;
-      unchanged: number;
-      skippedLoops: number;
-      conflicts: number;
-    })
-  // -- ACP @mention dispatch -------------------------------------------
-  | (BaseAuditEvent & {
-      kind: "mention-dispatched";
-      agentName: string;
-      /** Whether the agent was found in the registry. */
-      resolved: boolean;
     })
   // -- ACP @@dispatch --------------------------------------------------
   | (BaseAuditEvent & {

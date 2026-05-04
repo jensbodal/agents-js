@@ -145,3 +145,4 @@ export type {
   TargetInspectionStatus,
   TranscriptEntry,
 } from "./types.ts";
+export { randomUuid } from "./uuid.ts";

@@ -258,6 +258,68 @@ describe("createAguiFetchHandler — surface events", () => {
   });
 });
 
+describe("createAguiFetchHandler — run identity", () => {
+  test("preserves the client-supplied runId on RUN_STARTED and RUN_FINISHED", async () => {
+    const fake = createFakeController();
+    fake.setOnSendPrompt(async () => {
+      fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
+    });
+    const handler = createAguiFetchHandler({ controller: fake.controller });
+    const req = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("hi", { runId: "client-run-42" })),
+    });
+    const response = await handler(req);
+    expect(response?.status).toBe(200);
+    const frames = (await readSseFrames(response as Response)) as Array<{
+      type: string;
+      runId?: string;
+    }>;
+    const started = frames.find((f) => f.type === EventType.RUN_STARTED);
+    const finished = frames.find((f) => f.type === EventType.RUN_FINISHED);
+    expect(started?.runId).toBe("client-run-42");
+    expect(finished?.runId).toBe("client-run-42");
+  });
+
+  test("uses the client-supplied runId in the busy response when a second run collides", async () => {
+    const fake = createFakeController();
+    let releaseFirst: () => void = () => {};
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    fake.setOnSendPrompt(async () => {
+      await firstHeld;
+      fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
+    });
+
+    const coordinator = new AguiRunCoordinator();
+    const handler = createAguiFetchHandler({ controller: fake.controller, coordinator });
+
+    const firstReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("first", { runId: "client-run-A" })),
+    });
+    const firstResponsePromise = handler(firstReq);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const secondReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("second", { runId: "client-run-B" })),
+    });
+    const secondResponse = await handler(secondReq);
+
+    const body = (await secondResponse?.json()) as { activeRunId: string };
+    expect(body.activeRunId).toBe("client-run-A");
+
+    releaseFirst();
+    const firstResponse = await firstResponsePromise;
+    await readSseFrames(firstResponse as Response);
+  });
+});
+
 describe("createAguiFetchHandler — single-active-run gate", () => {
   test("second concurrent run returns 409 Conflict before opening SSE", async () => {
     const fake = createFakeController();

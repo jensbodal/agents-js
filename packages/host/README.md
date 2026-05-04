@@ -15,6 +15,8 @@ bun add @agents-js/host
 ### Classes
 
 - **`HostA2AExecutor`** — Bridges A2A execution requests to an ACPSessionController. Unlike ACPtoA2AExecutor which manages raw ACP streams, this executor delegates all lifecycle management to the controller and focuses on t...
+- **`AguiRunBusyError`** — Thrown by {AguiRunCoordinator.acquire} when a run is already active. Endpoint code maps this to HTTP 409 (Conflict) before opening the SSE stream.
+- **`AguiRunCoordinator`** — Single-active-run coordinator for the shared primary controller. Concurrency model: AG-UI run-session work runs in the JavaScript event loop (no shared-memory concurrency to worry about), so the "i...
 
 ### Functions
 
@@ -23,6 +25,7 @@ bun add @agents-js/host
 - **`createGatewaySurfaceBroadcaster`**
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createGatewayTestServer`** — Construct a running gateway test server bound to the given ACP command. This assembles the same three layers as the production gateway: 1. `ACPSessionController` with Node file adapters + empty per...
+- **`subscribeDispatchController`** — Subscribe to an ephemeral dispatch controller and translate relevant `ACPSessionEvent`s into A2A `working` status updates on a caller-provided event bus. Closure-scoped: owns its own text buffer + ...
 - **`createTranslatorState`**
 - **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
 - **`fetchRuntimeModels`**
@@ -35,7 +38,9 @@ bun add @agents-js/host
 - **`buildRuntimeProfileConfigEnv`**
 - **`getEnvRuntimeProfileName`**
 - **`applyEnvRuntimeProfile`**
-- **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host: baseline secrets plus the per-harness `authEnvKeys` declared on the resolved runtime. The host has the harness identity in scope here, so it own...
+- **`newCorrelationId`** — Generate a fresh correlation id. Re-exported so callers don't have to know about `crypto`.
+- **`createAuditEmitter`** — Build a fresh audit emitter. - `logger` defaults to `console`. The emitter writes one structured log line per record so operators with no debug endpoint still see the trail. - `bufferSize` controls...
+- **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`formatAguiSseFrame`**
 - **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
 - **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
@@ -58,6 +63,8 @@ bun add @agents-js/host
 - **`RuntimeBridgeSnapshot`**
 - **`HostSessionConfig`**
 - **`HostSession`**
+- **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`AuditEmitter`** — Public emitter handle.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 
@@ -70,6 +77,11 @@ bun add @agents-js/host
 - **`WSServerMessage`** — Server-to-client messages
 - **`WSClientMessage`** — Client-to-server messages
 - **`GatewayHostController`**
+- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
+- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata — IDs, names, counts, durations — never user content. The union covers only surfaces the gateway *actually emits* today: AG...
+- **`_AuditEventNoSensitivePayload`**
+- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`AuditEventInput`** — Input shape accepted by {AuditEmitter.record}. The plain `Omit<AuditEvent, "at">` does NOT distribute over the discriminated union (TS treats Omit on a union as a single type, which collapses the v...
 
 ### Constants
 
@@ -80,7 +92,7 @@ bun add @agents-js/host
 - **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
 - **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
 - **`CURATED_RUNTIME_IDS`**
-- **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime, regardless of which harness is selected. These cover shared infra (`MATRIX_ACCESS_TOKEN`) and the Anthropic default (`ANTHROPIC_API_KEY`) that s...
+- **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime regardless of harness. **Empty by design.** Earlier revisions forwarded `ANTHROPIC_API_KEY` and `MATRIX_ACCESS_TOKEN` to every runtime as a conve...
 
 ### Exports
 

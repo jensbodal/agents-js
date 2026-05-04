@@ -466,6 +466,118 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     },
   },
   {
+    name: "internal gateway registry sync is gated by --registry-sync",
+    filePath: "apps/internal-gateway/cli-args.ts",
+    validate: (contents) => {
+      if (!/"--registry-sync"/.test(contents)) {
+        return "internal-gateway/cli-args.ts must declare --registry-sync";
+      }
+      if (!/AGENTS_JS_REGISTRY_SYNC\s*===\s*"true"/.test(contents)) {
+        return 'internal-gateway/cli-args.ts must compare AGENTS_JS_REGISTRY_SYNC === "true"';
+      }
+      if (!/registrySync:\s*boolean/.test(contents)) {
+        return "GatewayCliArgs must expose a registrySync boolean field";
+      }
+      return null;
+    },
+  },
+  {
+    name: "internal gateway does NOT call startRegistrySync unconditionally",
+    filePath: "apps/internal-gateway/main.ts",
+    validate: (contents) => {
+      // Both call sites must be gated on cliArgs.registrySync. Without
+      // the gate, the well-known sync endpoint is mounted on every
+      // gateway startup and the periodic peer fetcher runs even
+      // though sync is meant to be opt-in.
+      if (!/opts\.cliArgs\.registrySync\s*\?\s*createSyncEndpointHandler/.test(contents)) {
+        return "main.ts must gate createSyncEndpointHandler() on opts.cliArgs.registrySync";
+      }
+      if (!/if\s*\(opts\.cliArgs\.registrySync\)/.test(contents)) {
+        return "main.ts must gate startRegistrySync() inside an `if (opts.cliArgs.registrySync)` block";
+      }
+      // When sync is disabled, autoRegister must still run so the
+      // local machine still discovers the gateway. The opt-out path
+      // must not collapse to "no registration at all".
+      if (!/void\s+autoRegister\(/.test(contents)) {
+        return "main.ts must call autoRegister() in the registry-sync-disabled branch";
+      }
+      return null;
+    },
+  },
+  {
+    name: "ACP @@dispatch is non-interactive (cancels on permission/write-gate/elicitation)",
+    filePath: "packages/host/src/host-executor.ts",
+    validate: (contents) => {
+      // The subscription helper must call cancel on each of the three
+      // event kinds. The literal `cancelDispatchController` name plus
+      // its three call sites is the cheapest way to verify this
+      // without parsing the AST.
+      if (!/cancelDispatchController/.test(contents)) {
+        return "host-executor.ts must define cancelDispatchController and invoke it on permission/write-gate/elicitation events";
+      }
+      const occurrences = contents.match(/cancelDispatchController\(\)/g) ?? [];
+      if (occurrences.length < 3) {
+        return `host-executor.ts must invoke cancelDispatchController() on all three non-interactive events; found ${occurrences.length}`;
+      }
+      return null;
+    },
+  },
+  {
+    name: "runtime switch rejects active work",
+    filePath: "apps/internal-gateway/main.ts",
+    validate: (contents) => {
+      if (!/describeRuntimeSwitchBlockingActivity/.test(contents)) {
+        return "main.ts must use describeRuntimeSwitchBlockingActivity to gate runtime switches";
+      }
+      if (!/Runtime switch rejected:/.test(contents)) {
+        return 'main.ts must throw an explicit "Runtime switch rejected:" error when blocking activity exists';
+      }
+      if (!/destroyIdleLanes\(\)/.test(contents)) {
+        return "main.ts must call executor.destroyIdleLanes() after a successful runtime switch";
+      }
+      return null;
+    },
+  },
+  {
+    name: "AG-UI endpoint honors RunAgentInput.runId",
+    filePath: "packages/host/src/agui-endpoint.ts",
+    validate: (contents) => {
+      // The endpoint must check input.runId before falling back to a
+      // server-generated UUID. Catching this requires looking for the
+      // ternary that selects between input.runId and crypto.randomUUID()
+      // — not just the bare crypto.randomUUID() call (the threadId
+      // fallback uses one too).
+      if (!/input\.runId/.test(contents)) {
+        return "agui-endpoint.ts must read input.runId from the validated RunAgentInput";
+      }
+      if (!/typeof input\.runId === "string"/.test(contents)) {
+        return "agui-endpoint.ts must guard input.runId with a typeof check before using it";
+      }
+      return null;
+    },
+  },
+  {
+    name: "AuditEvent does not claim coverage it lacks",
+    filePath: "packages/host/src/audit.ts",
+    validate: (contents) => {
+      // Variants that exist in the type but are never emitted give
+      // operators a false sense of coverage. Until the registry-sync
+      // and @mention paths actually emit audit records, the union
+      // must NOT mention them. (Re-add when emission lands.)
+      for (const phantom of [
+        '"registry-sync-served"',
+        '"registry-sync-fetched"',
+        '"registry-sync-merged"',
+        '"mention-dispatched"',
+      ]) {
+        if (contents.includes(phantom)) {
+          return `audit.ts has a ${phantom} variant but no source emits it — narrow the type or wire the emission`;
+        }
+      }
+      return null;
+    },
+  },
+  {
     name: "--trust-workspace flag exists",
     filePath: "apps/internal-gateway/cli-args.ts",
     validate: (contents) => {

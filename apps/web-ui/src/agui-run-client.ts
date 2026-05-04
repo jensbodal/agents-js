@@ -13,6 +13,7 @@
  * A2A `sendTurn` path. This is a diagnostic escape hatch — the
  * default for new operators is AG-UI.
  */
+import { randomUuid } from "@agents-js/a2a-client";
 import { type BaseEvent, EventType, type RunAgentInput } from "@agents-js/agui-types";
 
 /** The minimum surface this module needs from the controller. */
@@ -67,9 +68,9 @@ export async function runTurnViaAgUi(options: RunTurnViaAgUiOptions): Promise<vo
 
   const input: RunAgentInput = {
     threadId,
-    runId: crypto.randomUUID(),
+    runId: randomUuid(),
     state: {},
-    messages: [{ id: crypto.randomUUID(), role: "user", content: text }],
+    messages: [{ id: randomUuid(), role: "user", content: text }],
     tools: [],
     context: [],
     forwardedProps: {},
@@ -165,7 +166,7 @@ export function wrapControllerForAgUiRuns<T extends ControllerSurface>(
 ): T & { legacyA2ASendTurn: T["sendTurn"] } {
   const fallbackBaseUrl = options.fallbackBaseUrl;
   const logger = options.logger ?? console;
-  const threadId = crypto.randomUUID();
+  const threadId = randomUuid();
   const original = controller.sendTurn.bind(controller);
 
   // We mutate the same instance so existing references (chatApp.controller,

@@ -81,6 +81,7 @@ bun add @agents-js/tools
 - **`UNHANDLED`** — Sentinel constant. Resolvers should `return UNHANDLED` rather than constructing `{ status: "unhandled" }` inline — it is more readable and the reference equality makes test assertions straightforward.
 - **`builtinCommandResolver`** — Built-in `!command` resolver. Always returns `UNHANDLED`. Hosts MUST register their own `"bang"` resolver that calls through `-js/policy`'s `validateTerminalRequest` before executing any shell comm...
 - **`SPAWN_AGENT_DEFAULT_MAX_DEPTH`** — Default self-spawn depth cap. Configurable per-call.
+- **`DEFAULT_FETCH_CONTEXT_HUB_ROOT`**
 - **`searchMemoriesTool`**
 - **`searchDocsTool`**
 - **`spawnAgentTool`**

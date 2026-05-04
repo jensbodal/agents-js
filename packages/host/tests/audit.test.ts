@@ -59,9 +59,10 @@ describe("createAuditEmitter — functional", () => {
   test("reset clears the buffer", () => {
     const emitter = createAuditEmitter({ logger: SILENT_LOGGER });
     emitter.record({
-      kind: "registry-sync-served",
+      kind: "a2a-task-started",
       correlationId: "c-x",
-      recordCount: 4,
+      taskId: "T",
+      contextId: "C",
     });
     emitter.reset();
     expect(emitter.recent()).toHaveLength(0);
@@ -106,9 +107,10 @@ describe("createAuditEmitter — correlation propagation", () => {
 
     // Unrelated event with a different correlationId should NOT come back.
     emitter.record({
-      kind: "registry-sync-served",
+      kind: "a2a-task-started",
       correlationId: newCorrelationId(),
-      recordCount: 0,
+      taskId: "unrelated-task",
+      contextId: "unrelated-ctx",
     });
 
     const trace = emitter.recent().filter((e) => e.correlationId === correlationId);
@@ -151,19 +153,6 @@ describe("AuditEvent — sensitive payload prohibition", () => {
         contextId: "C",
         state: "completed",
       },
-      { kind: "registry-sync-served", correlationId, recordCount: 1 },
-      { kind: "registry-sync-fetched", correlationId, peerUrl: "http://p", recordCount: 0 },
-      {
-        kind: "registry-sync-merged",
-        correlationId,
-        peerUrl: "http://p",
-        added: 0,
-        updated: 0,
-        unchanged: 0,
-        skippedLoops: 0,
-        conflicts: 0,
-      },
-      { kind: "mention-dispatched", correlationId, agentName: "a", resolved: true },
       {
         kind: "dispatch-started",
         correlationId,

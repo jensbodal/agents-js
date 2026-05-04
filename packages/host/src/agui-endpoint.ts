@@ -130,8 +130,17 @@ export function createAguiFetchHandler(
         { status: HTTP_STATUS.BAD_REQUEST, headers: JSON_HEADERS },
       );
     }
-    const threadId = input.threadId ?? crypto.randomUUID();
-    const runId = crypto.randomUUID();
+    // Honor the AG-UI client-supplied identity. `RunAgentInputSchema`
+    // requires both fields to be non-empty strings (validated above by
+    // `validateRunAgentInput`), so a missing or blank value here is
+    // already a 400 — the fallbacks are belt-and-suspenders for any
+    // future schema relaxation.
+    const threadId =
+      typeof input.threadId === "string" && input.threadId.length > 0
+        ? input.threadId
+        : crypto.randomUUID();
+    const runId =
+      typeof input.runId === "string" && input.runId.length > 0 ? input.runId : crypto.randomUUID();
     const correlationId = newCorrelationId();
     const audit = options.audit;
     const startedAtMs = Date.now();
