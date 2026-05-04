@@ -351,6 +351,34 @@ describe("buildSyncPayload (send-side loop prevention)", () => {
   });
 });
 
+describe("buildSyncPayload (schema-driven projection)", () => {
+  test("strips ACP launch fields if they ended up on an A2A in-memory record", () => {
+    // The kind=acp filter is necessary but not sufficient — a future
+    // code path (or a corrupted in-memory state) could attach
+    // `command`/`args`/`env`/`workspaceFlag` to an A2A record. The
+    // wire schema's `.strip()` mode is the load-bearing guarantee
+    // that those fields cannot reach the served payload.
+    const smuggled = {
+      ...rec({ name: "smuggled-a2a", gateway_id: "localM", url: "http://s.test" }),
+      command: "/bin/leaked",
+      args: ["--exfiltrate"],
+      env: { SECRET: "x" },
+      workspaceFlag: "--cwd",
+    } as unknown as AgentRegistryRecord;
+    const payload = buildSyncPayload([smuggled]);
+    expect(payload.records).toHaveLength(1);
+    const served = payload.records[0] as Record<string, unknown> | undefined;
+    expect(served?.name).toBe("smuggled-a2a");
+    expect(served?.command).toBeUndefined();
+    expect(served?.args).toBeUndefined();
+    expect(served?.env).toBeUndefined();
+    expect(served?.workspaceFlag).toBeUndefined();
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("/bin/leaked");
+    expect(serialized).not.toContain("SECRET");
+  });
+});
+
 describe("buildSyncPayload (A2A-only restriction)", () => {
   test("filters out kind=acp records so launch fields cannot leak", () => {
     const records: AgentRegistryRecord[] = [

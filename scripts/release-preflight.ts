@@ -578,6 +578,59 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     },
   },
   {
+    name: "peer-sync wire is schema-driven (no hand-rolled allowlist)",
+    filePath: "packages/a2a-client/src/sync.ts",
+    validate: (contents) => {
+      // The wire schema in @agents-js/validation owns *both* sides of
+      // the wire contract: inbound parseWireRecord and outbound
+      // buildSyncPayload. A regression that re-introduces the
+      // hand-rolled `SYNC_WIRE_ALLOWED_FIELDS` array would mean we
+      // are encoding the same truth twice — drift between the two
+      // encodings is exactly what previously let ACP launch fields
+      // leak through `kind="a2a"` records.
+      if (!/WireAgentRegistryRecordSchema/.test(contents)) {
+        return "sync.ts must consume WireAgentRegistryRecordSchema from @agents-js/validation";
+      }
+      if (!/validateWireAgentRegistryRecord/.test(contents)) {
+        return "sync.ts must use validateWireAgentRegistryRecord for inbound parsing";
+      }
+      if (/SYNC_WIRE_ALLOWED_FIELDS/.test(contents)) {
+        return "sync.ts contains SYNC_WIRE_ALLOWED_FIELDS — the schema-driven projection has regressed to a hand-rolled allowlist";
+      }
+      if (/projectAllowedFields/.test(contents)) {
+        return "sync.ts contains projectAllowedFields — outbound projection must run through WireAgentRegistryRecordSchema";
+      }
+      return null;
+    },
+  },
+  {
+    name: "wire schema is A2A-only and rejects ACP launch fields",
+    filePath: "packages/validation/src/registry.ts",
+    validate: (contents) => {
+      // Pin the load-bearing properties of the schema declaration
+      // itself. A future edit that bumps `kind` to a union or moves
+      // off `.strip()` (to `.passthrough()` for example) would
+      // silently corrupt the security contract; preflight catches it
+      // at the source.
+      if (!/z\.literal\("a2a"\)/.test(contents)) {
+        return 'registry.ts wire schema must lock kind to z.literal("a2a")';
+      }
+      if (!/\.strip\(\)/.test(contents)) {
+        return "registry.ts wire schema must use .strip() so unknown fields are dropped";
+      }
+      for (const forbidden of ["command", "args", "env", "workspaceFlag"]) {
+        // The forbidden field names must NOT appear as `<name>:` keys
+        // in the schema declaration. We allow them in prose comments
+        // (e.g., the file header explains why they are excluded).
+        const re = new RegExp(`^\\s+${forbidden}:`, "m");
+        if (re.test(contents)) {
+          return `registry.ts wire schema declares "${forbidden}" — ACP launch fields must never appear on the wire`;
+        }
+      }
+      return null;
+    },
+  },
+  {
     name: "--trust-workspace flag exists",
     filePath: "apps/internal-gateway/cli-args.ts",
     validate: (contents) => {

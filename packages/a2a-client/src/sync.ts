@@ -37,6 +37,10 @@ import { hostname } from "node:os";
 import { dirname } from "node:path";
 import { HTTP_STATUS } from "@agents-js/a2a";
 import {
+  validateWireAgentRegistryRecord,
+  WireAgentRegistryRecordSchema,
+} from "@agents-js/validation";
+import {
   readAgentRegistryRecords,
   resolveSharedAgentRegistryPath,
   serializeRecords,
@@ -90,66 +94,15 @@ function normalizeSyncEndpointUrl(peerUrl: string, path: string): string {
 
 /**
  * Narrow an arbitrary `unknown` into an `AgentRegistryRecord` or return null.
- * Peer sync is A2A-only — kind="acp" wire records are rejected, and ACP
- * launch fields (`command`, `args`, `env`, `workspaceFlag`) are never
- * read from peer payloads even if a malicious peer were to attach them
- * to an A2A record.
- *
- * TODO(zod-migration): replace this hand-rolled validator with a zod
- * schema. The repo already centralizes runtime validation in
- * `@agents-js/validation` (see `validateRunAgentInput`,
- * `validateAguiEvent`, `validateA2uiMessage`, the ACP request/response
- * validators), and a zod discriminated union on `kind` would cover
- * everything we do here:
- *   - per-field type narrowing (currently a chain of `typeof` checks),
- *   - opt-in field reads (currently manual `if (typeof r.x === ...)`),
- *   - the A2A-only restriction (currently `if (r.kind !== "a2a")`),
- *   - the projectAllowedFields whitelist below — derive it from a
- *     separate `WireAgentRegistryRecordSchema` that picks the safe
- *     subset of `AgentRegistryRecordSchema`.
- *
- * Deferred because `AgentRegistryRecord` is also the on-disk
- * persistence schema; migrating the type-IS-the-schema relationship
- * across registry.ts + node-autoregister.ts is a focused refactor
- * that should not be folded into a security/release-readiness fix.
- * When this lands, drop `SYNC_WIRE_ALLOWED_FIELDS` /
- * `projectAllowedFields` and use the wire schema's `.parse()` output
- * directly — schema and projection collapse into one declarative
- * shape.
+ * Peer sync is A2A-only — `kind="acp"` records are rejected and ACP launch
+ * fields (`command`, `args`, `env`, `workspaceFlag`) cannot be smuggled
+ * because the wire schema does not declare them; `.strip()`-mode parsing
+ * silently drops any unknown key on a peer-supplied record.
  */
 function parseWireRecord(raw: unknown): AgentRegistryRecord | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const r = raw as Record<string, unknown>;
-  if (typeof r.name !== "string" || r.name.length === 0) return null;
-  if (typeof r.agent_id !== "string" || r.agent_id.length === 0) return null;
-  if (r.kind !== "a2a") return null;
-  if (typeof r.gateway_id !== "string" || r.gateway_id.length === 0) return null;
-  if (r.source !== "auto-reg" && r.source !== "manual" && r.source !== "sync") return null;
-  if (typeof r.registered_at !== "string" || r.registered_at.length === 0) return null;
-
-  const rec: AgentRegistryRecord = {
-    name: r.name,
-    agent_id: r.agent_id,
-    kind: r.kind,
-    gateway_id: r.gateway_id,
-    source: r.source,
-    registered_at: r.registered_at,
-  };
-  if (r.actor_type === "human" || r.actor_type === "machine") rec.actor_type = r.actor_type;
-  if (typeof r.url === "string") rec.url = r.url;
-  if (typeof r.harness === "string") rec.harness = r.harness;
-  if (typeof r.last_synced_at === "string") rec.last_synced_at = r.last_synced_at;
-  if (typeof r.protocol_version === "string") rec.protocol_version = r.protocol_version;
-  if (typeof r.card_cache_refreshed_at === "string") {
-    rec.card_cache_refreshed_at = r.card_cache_refreshed_at;
-  }
-  if (typeof r.preferred_gateway_id === "string") {
-    rec.preferred_gateway_id = r.preferred_gateway_id;
-  }
-  if (typeof r.expires_at === "string") rec.expires_at = r.expires_at;
-  if (typeof r.health_check_url === "string") rec.health_check_url = r.health_check_url;
-  if (typeof r.description === "string") rec.description = r.description;
-  return rec;
+  const result = validateWireAgentRegistryRecord(raw);
+  if (!result.valid) return null;
+  return result.value satisfies AgentRegistryRecord;
 }
 
 /**
@@ -531,72 +484,36 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
 }
 
 /**
- * Allowlist of fields that may appear on a wire record. Any field NOT
- * in this set is stripped before serving — even from `kind="a2a"`
- * records — so a future code path that accidentally attaches launch
- * material (`command` / `args` / `env` / `workspaceFlag`) to an A2A
- * record cannot leak it through the sync endpoint. The reviewer
- * flagged this as P2: filtering by kind is necessary but not
- * sufficient; a true whitelist is the safe shape.
- */
-const SYNC_WIRE_ALLOWED_FIELDS: readonly (keyof AgentRegistryRecord)[] = Object.freeze([
-  "name",
-  "agent_id",
-  "kind",
-  "gateway_id",
-  "source",
-  "registered_at",
-  "actor_type",
-  "url",
-  "harness",
-  "last_synced_at",
-  "protocol_version",
-  "card_cache_refreshed_at",
-  "preferred_gateway_id",
-  "expires_at",
-  "health_check_url",
-  "description",
-]);
-
-function projectAllowedFields(record: AgentRegistryRecord): AgentRegistryRecord {
-  const projected: Record<string, unknown> = {};
-  // Cast the record through `unknown` to a string-indexed view so the
-  // dynamic key loop typechecks; the allowlist guarantees we only
-  // read fields that exist on AgentRegistryRecord.
-  const indexed = record as unknown as Record<string, unknown>;
-  for (const key of SYNC_WIRE_ALLOWED_FIELDS) {
-    const value = indexed[key];
-    if (value !== undefined) {
-      projected[key] = value;
-    }
-  }
-  // The projected object is structurally valid (allowlist is a subset
-  // of AgentRegistryRecord keys with their original value types) but
-  // tsc can't infer that from the dynamic loop.
-  return projected as unknown as AgentRegistryRecord;
-}
-
-/**
  * Produce the wire payload this gateway would serve at its sync endpoint.
  *
- * Three filters apply:
+ * Three filters apply, in order:
  *
  * 1. `source !== "sync"` — loop prevention on the send side; we never
  *    re-serve records we received from a peer.
- * 2. `kind === "a2a"` — peer sync is A2A-only. ACP records do not
- *    traverse the wire at all.
- * 3. **Field whitelist** — for every surviving A2A record, project
- *    onto {@link SYNC_WIRE_ALLOWED_FIELDS}. Operator-controlled launch
- *    material (`command`, `args`, `env`, `workspaceFlag`) is dropped
- *    even if it somehow ended up on an A2A record in memory.
+ * 2. `kind === "a2a"` — peer sync is A2A-only.
+ * 3. **Schema projection** — for every surviving A2A record, parse
+ *    through `WireAgentRegistryRecordSchema`. The schema's `.strip()`
+ *    mode drops any field it does not declare, so operator-controlled
+ *    launch material (`command`, `args`, `env`, `workspaceFlag`) is
+ *    removed even if it somehow ended up on an A2A record in memory.
+ *    The schema is the single source of truth for which fields may
+ *    cross the wire — there is no separate allowlist to keep in sync.
+ *
+ * Records that fail schema validation (e.g. a corrupted in-memory
+ * record with an empty required field) are dropped silently rather
+ * than throwing — a malformed local entry must not take down the
+ * served payload for the rest of the registry.
  */
 export function buildSyncPayload(records: AgentRegistryRecord[]): AgentsJsRegistrySyncPayload {
-  return {
-    version: 2,
-    records: records
-      .filter((r) => r.source !== "sync" && r.kind === "a2a")
-      .map(projectAllowedFields),
-  };
+  const wireRecords: AgentRegistryRecord[] = [];
+  for (const r of records) {
+    if (r.source === "sync" || r.kind !== "a2a") continue;
+    const parsed = WireAgentRegistryRecordSchema.safeParse(r);
+    if (parsed.success) {
+      wireRecords.push(parsed.data satisfies AgentRegistryRecord);
+    }
+  }
+  return { version: 2, records: wireRecords };
 }
 
 /** Options for {@link createSyncEndpointHandler}. */

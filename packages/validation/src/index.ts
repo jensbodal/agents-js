@@ -63,6 +63,11 @@ export {
   type ValidationMode,
   type ValidationOptions,
 } from "./modes.ts";
+export {
+  validateWireAgentRegistryRecord,
+  type WireAgentRegistryRecord,
+  WireAgentRegistryRecordSchema,
+} from "./registry.ts";
 export type { ValidationResult } from "./result.ts";
 export {
   type RuntimeManifestValidator,
