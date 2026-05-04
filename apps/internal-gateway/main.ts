@@ -1,5 +1,9 @@
 import { buildAgentCard, buildAgentCardBaseUrl, UniversalA2AServer } from "@agents-js/a2a";
-import { createSyncEndpointHandler, startRegistrySync } from "@agents-js/a2a-client/node";
+import {
+  autoRegister,
+  createSyncEndpointHandler,
+  startRegistrySync,
+} from "@agents-js/a2a-client/node";
 import { createNodeFileAdapters } from "@agents-js/acp-host";
 import {
   detectInstalledGatewayRuntimes,
@@ -9,6 +13,7 @@ import {
   resolveGatewayRuntimeSelection,
 } from "@agents-js/gateway-runtime";
 import {
+  AguiRunCoordinator,
   applyEnvRuntimeProfile,
   buildRuntimeProfileConfigEnv,
   createAguiFetchHandler,
@@ -54,7 +59,7 @@ interface ServerSetup {
   server: Awaited<ReturnType<UniversalA2AServer["start"]>>;
   gatewayCard: ReturnType<typeof buildAgentCard>;
   executor: HostA2AExecutor;
-  registrySync: ReturnType<typeof startRegistrySync>;
+  registrySync: { stop: () => void };
   httpPort: number;
 }
 
@@ -65,6 +70,7 @@ interface SetupServerOptions {
   session: HostSession;
   controllerFactory: (contextId: string) => Promise<GatewayHostController>;
   audit: ReturnType<typeof createAuditEmitter>;
+  aguiCoordinator: AguiRunCoordinator;
 }
 
 export function buildAvailableRuntimeInfos(
@@ -82,6 +88,37 @@ export function buildAvailableRuntimeInfos(
   });
 }
 
+/**
+ * Compose the gateway's `additionalFetch` chain. Order matters:
+ * plane-webhook handlers run first (they self-route on path), AG-UI is
+ * the primary browser run surface, and the registry sync endpoint —
+ * when enabled — runs last so it never shadows AG-UI's `/agent` route.
+ *
+ * `syncEndpointHandler` is `null` when registry sync is disabled (the
+ * default). In that case the well-known sync URL falls through to the
+ * server's own routing and returns 404; the cross-gateway endpoint is
+ * not mounted at all.
+ *
+ * Exported for unit testing — exercising this directly is much cheaper
+ * than spinning up a real A2A server.
+ */
+export function composeAdditionalFetch(handlers: {
+  planeWebhookHandler: (req: Request) => Promise<Response | null>;
+  aguiHandler: (req: Request) => Promise<Response | null>;
+  syncEndpointHandler: ((req: Request) => Promise<Response | null>) | null;
+}): (req: Request) => Promise<Response | null> {
+  return async (req: Request): Promise<Response | null> => {
+    const planeWebhookResponse = await handlers.planeWebhookHandler(req);
+    if (planeWebhookResponse !== null) return planeWebhookResponse;
+    const aguiResponse = await handlers.aguiHandler(req);
+    if (aguiResponse !== null) return aguiResponse;
+    if (handlers.syncEndpointHandler !== null) {
+      return handlers.syncEndpointHandler(req);
+    }
+    return null;
+  };
+}
+
 async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   const executor = new HostA2AExecutor(opts.session.controller, {
     controllerFactory: opts.controllerFactory,
@@ -89,25 +126,27 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
 
   // Create and start the A2A server. Mount the native AG-UI endpoint
-  // and the registry sync endpoint on the same port via the additionalFetch
-  // hook so discovery + CORS stay centralized.
+  // and (when registry sync is enabled) the registry sync endpoint on
+  // the same port via the additionalFetch hook so discovery + CORS
+  // stay centralized.
   const gatewayCard = buildAgentCard(opts.runtime.agentCard);
   const aguiHandler = createAguiFetchHandler({
     controller: opts.session.controller,
     audit: opts.audit,
+    coordinator: opts.aguiCoordinator,
   });
   const planeWebhookHandler = createPlaneWebhookFetchHandler();
-  // The sync endpoint handler reads the registry file on each request — no
-  // port dependency — so it is safe to create before server.start().
-  const syncEndpointHandler = createSyncEndpointHandler();
+  // Default-off: do NOT mount the cross-gateway sync endpoint unless
+  // the operator opted in via --registry-sync / AGENTS_JS_REGISTRY_SYNC.
+  // Local autoRegister still runs below so the gateway is discoverable
+  // on the local machine without exposing the well-known endpoint.
+  const syncEndpointHandler = opts.cliArgs.registrySync ? createSyncEndpointHandler() : null;
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
-    additionalFetch: async (req: Request): Promise<Response | null> => {
-      const planeWebhookResponse = await planeWebhookHandler(req);
-      if (planeWebhookResponse !== null) return planeWebhookResponse;
-      const aguiResponse = await aguiHandler(req);
-      if (aguiResponse !== null) return aguiResponse;
-      return syncEndpointHandler(req);
-    },
+    additionalFetch: composeAdditionalFetch({
+      planeWebhookHandler,
+      aguiHandler,
+      syncEndpointHandler,
+    }),
   });
   const server = await a2aServer.start({
     hostname: opts.cliArgs.hostname,
@@ -116,16 +155,39 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
   const httpPort = server.port ?? opts.resolvedPort;
 
-  // Auto-register this gateway and start periodic peer sync. Port is now
-  // known, so we can construct the base URL for autoRegister.
-  const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
-    ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
-    : undefined;
-  const registrySync = startRegistrySync({
-    name: opts.runtime.agentCard.name ?? "universal-acp-gateway",
-    url: buildAgentCardBaseUrl(httpPort, opts.cliArgs.hostname),
-    intervalMs: syncIntervalMs,
-  });
+  const localName = opts.runtime.agentCard.name ?? "universal-acp-gateway";
+  const localUrl = buildAgentCardBaseUrl(httpPort, opts.cliArgs.hostname);
+
+  let registrySync: { stop: () => void };
+  if (opts.cliArgs.registrySync) {
+    const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
+      ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
+      : undefined;
+    registrySync = startRegistrySync({
+      name: localName,
+      url: localUrl,
+      intervalMs: syncIntervalMs,
+    });
+    console.log("[Gateway] Registry sync enabled (A2A-only peer payload)");
+  } else {
+    // Local auto-register only — fire-and-forget, mirrors
+    // startRegistrySync's autoRegister call so the local registry has
+    // an entry without needing to mount the cross-gateway endpoint.
+    void autoRegister({
+      name: localName,
+      kind: "a2a",
+      url: localUrl,
+    }).catch((err: unknown) => {
+      console.warn(
+        "[Gateway] Local auto-registration failed (non-fatal):",
+        err instanceof Error ? err.message : String(err),
+      );
+    });
+    registrySync = { stop: () => {} };
+    console.log(
+      "[Gateway] Registry sync disabled (default; pass --registry-sync or set AGENTS_JS_REGISTRY_SYNC=true to enable)",
+    );
+  }
 
   return { server, gatewayCard, executor, registrySync, httpPort };
 }
@@ -141,6 +203,39 @@ interface SetupWsBridgeOptions {
   surfaceBroadcaster: ReturnType<typeof createGatewaySurfaceBroadcaster>;
   gatewayCard: ReturnType<typeof buildAgentCard>;
   setActiveRuntime: (runtime: ResolvedGatewayRuntime) => void;
+  executor: HostA2AExecutor;
+  aguiCoordinator: AguiRunCoordinator;
+}
+
+/**
+ * Pure check: is any operator-driven work currently in flight that
+ * would be unsafe to interrupt with a runtime switch?
+ *
+ * Returns `null` when the gateway is idle and a switch is allowed,
+ * or a human-readable reason string when the switch must be rejected.
+ *
+ * Exported for unit testing — exercising this directly is much
+ * cheaper than orchestrating real A2A tasks + AG-UI runs.
+ */
+export function describeRuntimeSwitchBlockingActivity(input: {
+  executor: Pick<HostA2AExecutor, "getActivitySnapshot">;
+  aguiCoordinator: Pick<AguiRunCoordinator, "isActive" | "activeRunId">;
+}): string | null {
+  if (input.aguiCoordinator.isActive) {
+    return `AG-UI run is active (runId=${input.aguiCoordinator.activeRunId ?? "(unknown)"})`;
+  }
+  const { activeTaskCount, activeDispatchCount, inFlightLaneCount } =
+    input.executor.getActivitySnapshot();
+  if (activeDispatchCount > 0) {
+    return `${activeDispatchCount} @@dispatch task(s) in flight`;
+  }
+  if (activeTaskCount > 0) {
+    return `${activeTaskCount} A2A task(s) in flight`;
+  }
+  if (inFlightLaneCount > 0) {
+    return `${inFlightLaneCount} A2A lane(s) holding an in-flight prompt`;
+  }
+  return null;
 }
 
 function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBridge> {
@@ -162,6 +257,20 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
     defaultModelId: opts.resolvedDefaultModel,
     surfaceBroadcaster: opts.surfaceBroadcaster,
     setRuntime: async (runtimeId) => {
+      // Reject the switch if any operator-driven work is in flight.
+      // Allowing a switch through here would either cut off an
+      // in-flight ACP turn mid-stream OR leave a lane controller
+      // bound to the old runtime silently handling follow-up work.
+      // Both outcomes are footguns; the operator gets a clear
+      // "busy" error and can retry once their run finishes.
+      const blocking = describeRuntimeSwitchBlockingActivity({
+        executor: opts.executor,
+        aguiCoordinator: opts.aguiCoordinator,
+      });
+      if (blocking !== null) {
+        throw new Error(`[Gateway] Runtime switch rejected: ${blocking}`);
+      }
+
       const nextRuntime = applyEnvRuntimeProfile(
         await resolveGatewayRuntime(runtimeId),
         opts.loadedConfig,
@@ -179,6 +288,17 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
         activeRuntime = nextRuntime;
         activeRuntimeModels = nextRuntimeModels;
         opts.setActiveRuntime(nextRuntime);
+        // Evict idle lane controllers so the next prompt against an
+        // existing contextId spawns a fresh lane on the new runtime
+        // instead of inheriting one bound to the old runtime. Lanes
+        // still in flight are skipped — but the gate above should
+        // have prevented any from existing here.
+        const eviction = opts.executor.destroyIdleLanes();
+        if (eviction.evicted > 0 || eviction.skipped > 0) {
+          console.log(
+            `[Gateway] Post-switch lane eviction: evicted=${eviction.evicted} skipped=${eviction.skipped}`,
+          );
+        }
 
         const nextGatewayCard = buildAgentCard(nextRuntime.agentCard);
         nextGatewayCard.url = opts.gatewayCard.url;
@@ -228,7 +348,7 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
 }
 
 interface ShutdownTargets {
-  registrySync: ReturnType<typeof startRegistrySync>;
+  registrySync: { stop: () => void };
   server: Awaited<ReturnType<UniversalA2AServer["start"]>>;
   wsBridge: ReturnType<typeof createWSBridge>;
   executor: HostA2AExecutor;
@@ -370,6 +490,13 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // structural metadata only; raw user content never lands here.
   const audit = createAuditEmitter();
 
+  // Shared AG-UI run coordinator. Both the AG-UI fetch handler (which
+  // acquires/releases the run slot) and the WS bridge's setRuntime
+  // gate (which checks isActive) read from this single instance, so
+  // a runtime switch attempted mid-AG-UI-run sees the same busy state
+  // the second `POST /agent` would see.
+  const aguiCoordinator = new AguiRunCoordinator();
+
   const { server, gatewayCard, executor, registrySync, httpPort } = await setupServer({
     cliArgs,
     resolvedPort,
@@ -377,6 +504,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     session,
     controllerFactory,
     audit,
+    aguiCoordinator,
   });
 
   const wsBridge = setupWsBridge({
@@ -390,6 +518,8 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     surfaceBroadcaster,
     gatewayCard,
     setActiveRuntime,
+    executor,
+    aguiCoordinator,
   });
 
   const wsPort = wsBridge.server.port ?? 0;

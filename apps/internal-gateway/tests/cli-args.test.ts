@@ -46,3 +46,43 @@ describe("parseCliArgs — workspace trust gate", () => {
     expect(args.trustWorkspace).toBe(true);
   });
 });
+
+describe("parseCliArgs — registry sync gate", () => {
+  test("default — registrySync is false when flag absent and env unset", () => {
+    expect(parseCliArgs([], {}).registrySync).toBe(false);
+  });
+
+  test("--registry-sync flag enables sync", () => {
+    expect(parseCliArgs(["--registry-sync"], {}).registrySync).toBe(true);
+  });
+
+  test("AGENTS_JS_REGISTRY_SYNC=true env enables sync", () => {
+    expect(parseCliArgs([], { AGENTS_JS_REGISTRY_SYNC: "true" }).registrySync).toBe(true);
+  });
+
+  test("env values other than the literal 'true' do NOT enable sync", () => {
+    for (const value of ["1", "yes", "TRUE", "True", "on", " true ", ""]) {
+      expect(parseCliArgs([], { AGENTS_JS_REGISTRY_SYNC: value }).registrySync).toBe(false);
+    }
+  });
+
+  test("flag wins over env when both are set", () => {
+    expect(
+      parseCliArgs(["--registry-sync"], { AGENTS_JS_REGISTRY_SYNC: "false" }).registrySync,
+    ).toBe(true);
+  });
+
+  test("registrySync and trustWorkspace gates are independent", () => {
+    const both = parseCliArgs(["--registry-sync", "--trust-workspace"], {});
+    expect(both.registrySync).toBe(true);
+    expect(both.trustWorkspace).toBe(true);
+
+    const onlyRegistry = parseCliArgs(["--registry-sync"], {});
+    expect(onlyRegistry.registrySync).toBe(true);
+    expect(onlyRegistry.trustWorkspace).toBe(false);
+
+    const onlyTrust = parseCliArgs(["--trust-workspace"], {});
+    expect(onlyTrust.registrySync).toBe(false);
+    expect(onlyTrust.trustWorkspace).toBe(true);
+  });
+});

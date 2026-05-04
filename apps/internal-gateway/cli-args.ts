@@ -9,6 +9,7 @@ export interface GatewayCliArgs {
   hostname?: string;
   permissionMode: PermissionMode;
   port?: number;
+  registrySync: boolean;
   runtimeOverride?: string;
   trustWorkspace: boolean;
   workspace: string;
@@ -25,6 +26,18 @@ function resolveTrustWorkspace(flagPresent: boolean, env: NodeJS.ProcessEnv): bo
   return env.AGENTS_JS_TRUST_WORKSPACE === "true";
 }
 
+/**
+ * Resolve the registry-sync gate from CLI args + env. The internal
+ * gateway mirrors the published `agents-js serve` policy: peer sync
+ * is opt-in only and the env var must be the literal string `"true"`.
+ * Truthy variants (`"1"`, `"yes"`, etc.) are rejected so an operator
+ * does not enable a network surface by accident.
+ */
+function resolveRegistrySync(flagPresent: boolean, env: NodeJS.ProcessEnv): boolean {
+  if (flagPresent) return true;
+  return env.AGENTS_JS_REGISTRY_SYNC === "true";
+}
+
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCliArgs {
   let check = false;
   let runtimeOverride: string | undefined;
@@ -34,6 +47,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   let hostname: string | undefined;
   let port: number | undefined;
   let trustWorkspaceFlag = false;
+  let registrySyncFlag = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -112,12 +126,18 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       continue;
     }
 
+    if (arg === "--registry-sync") {
+      registrySyncFlag = true;
+      continue;
+    }
+
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace, --registry-sync.`,
     );
   }
 
   const trustWorkspace = resolveTrustWorkspace(trustWorkspaceFlag, env);
+  const registrySync = resolveRegistrySync(registrySyncFlag, env);
 
   return {
     check,
@@ -128,5 +148,6 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     hostname,
     port,
     trustWorkspace,
+    registrySync,
   };
 }

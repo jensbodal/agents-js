@@ -1006,6 +1006,58 @@ export class HostA2AExecutor implements InitializableExecutor {
   }
 
   /**
+   * Snapshot of in-flight work this executor knows about. Used to gate
+   * runtime switches: the gateway must reject a runtime change while
+   * any of these counters are non-zero, otherwise an in-flight A2A
+   * prompt or dispatch would be cut off mid-turn (or worse, a lane
+   * controller for the *old* runtime would silently keep handling
+   * follow-up prompts after the operator believed the switch
+   * completed).
+   *
+   * Read-only by design — writers must mutate the underlying maps.
+   */
+  getActivitySnapshot(): {
+    activeTaskCount: number;
+    activeDispatchCount: number;
+    activeLaneCount: number;
+    inFlightLaneCount: number;
+  } {
+    let inFlightLaneCount = 0;
+    for (const lane of this.lanes.values()) {
+      if (lane.inFlightPrompt !== null) inFlightLaneCount += 1;
+    }
+    return {
+      activeTaskCount: this.activeTasks.size,
+      activeDispatchCount: this.dispatchedTaskIds.size,
+      activeLaneCount: this.lanes.size,
+      inFlightLaneCount,
+    };
+  }
+
+  /**
+   * Best-effort eviction of every lane that is not currently driving a
+   * prompt. Call this *after* a successful runtime switch so future
+   * work spawns fresh lane controllers against the new runtime instead
+   * of inheriting the previous runtime's controller. Lanes still in
+   * flight are skipped and survive — but the activity-snapshot gate
+   * upstream should already have prevented those from existing.
+   */
+  destroyIdleLanes(): { evicted: number; skipped: number } {
+    let evicted = 0;
+    let skipped = 0;
+    for (const [contextId, lane] of [...this.lanes.entries()]) {
+      if (lane.inFlightPrompt !== null) {
+        skipped += 1;
+        continue;
+      }
+      this.teardownLane(lane);
+      this.lanes.delete(contextId);
+      evicted += 1;
+    }
+    return { evicted, skipped };
+  }
+
+  /**
    * Executor-wide shutdown hook. Tears down the idle-sweep timer and
    * destroys every factory-spawned lane controller. The primary controller
    * is caller-owned and is left alone.
@@ -1240,10 +1292,16 @@ export class HostA2AExecutor implements InitializableExecutor {
  * `subscribeToController` — those remain primary-prompt-only.
  *
  * Permission / write-gate / elicitation events are treated as terminal
- * failures: dispatch runs in `"yolo"` mode, so these should not fire in the
- * happy path. If they do, we surface a failed status update.
+ * failures: dispatch is non-interactive — it has no UI to prompt the
+ * operator. Under inherited `"ask"`/`"plan"`/`"hub"` modes the agent
+ * may still emit one of these events; we publish a failed status
+ * update *and* call `controller.cancel()` so the in-flight `sendPrompt`
+ * unblocks instead of hanging forever waiting for a `resolvePermission`
+ * call that no surface will make. Under `"yolo"` the agent should not
+ * emit these in practice; if it does, the same fail+cancel path
+ * applies.
  */
-function subscribeDispatchController(
+export function subscribeDispatchController(
   controller: ACPSessionController,
   sink: {
     taskId: string;
@@ -1258,6 +1316,18 @@ function subscribeDispatchController(
 } {
   let textBuffer: string | null = null;
   let agentMessageId: string | undefined;
+
+  /**
+   * Fire-and-forget cancel. Swallows rejections — the dispatch's
+   * outer try/catch already handles the resulting cancel/error and
+   * publishes a failed terminal task, so a controller cancel that
+   * itself throws should not bubble through this subscription.
+   */
+  const cancelDispatchController = (): void => {
+    void Promise.resolve(controller.cancel()).catch(() => {
+      // intentional: cancel best-effort during dispatch teardown
+    });
+  };
 
   const unsubscribe = controller.subscribe((event: ACPSessionEvent, _state: ACPSessionState) => {
     switch (event.type) {
@@ -1291,22 +1361,24 @@ function subscribeDispatchController(
         sink.eventBus.publish(
           buildStatusUpdate(sink.taskId, sink.contextId, {
             state: "failed",
-            text: `Dispatch target requested permission; dispatch runs in yolo mode (tool: ${
+            text: `Dispatch target requested permission; dispatch is non-interactive (tool: ${
               event.request.toolCall?.title ?? "unknown"
             })`,
             final: true,
           }),
         );
+        cancelDispatchController();
         break;
 
       case "write_gate_requested":
         sink.eventBus.publish(
           buildStatusUpdate(sink.taskId, sink.contextId, {
             state: "failed",
-            text: `Dispatch target requested write approval; dispatch runs in yolo mode (path: ${event.path})`,
+            text: `Dispatch target requested write approval; dispatch is non-interactive (path: ${event.path})`,
             final: true,
           }),
         );
+        cancelDispatchController();
         break;
 
       case "elicitation_requested":
@@ -1317,6 +1389,7 @@ function subscribeDispatchController(
             final: true,
           }),
         );
+        cancelDispatchController();
         break;
 
       case "error":
@@ -1351,10 +1424,18 @@ function subscribeDispatchController(
  * - no `toolCallContentHandlers` — dispatch targets are RPC-like, no A2UI
  *   surface plumbing
  * - no `sessionStorage` — turns are ephemeral, not persisted
- * - no `hooks` — dispatch runs ungated in yolo mode, and tool-call/lifecycle
- *   logging is unnecessary for one-shot dispatches
- * - in-memory `PermissionEngine` + `PermissionStore` (no rule loading) —
- *   yolo mode bypasses them anyway
+ * - no `hooks` — tool-call/lifecycle logging is unnecessary for one-shot
+ *   dispatches
+ * - **fresh** in-memory `PermissionEngine` + `PermissionStore` with no
+ *   rule loading — dispatch is non-interactive: under inherited
+ *   `"ask"`/`"plan"`/`"hub"` modes any permission/write-gate/elicitation
+ *   event is converted to a failed terminal + controller cancel by
+ *   `subscribeDispatchController` (so dispatch never hangs awaiting a
+ *   resolution from a UI that does not exist for it). Sharing the
+ *   gateway's persistent engine/store is intentionally avoided so
+ *   concurrent dispatches do not contend on the same store and so a
+ *   dispatched run cannot accidentally inherit a "remember-allow" rule
+ *   that the operator added for an interactive session.
  * - `allowRealHome: true` — dispatched harnesses still need real credentials
  *   under `~/.config/...` to authenticate, same posture as the primary
  *   gateway host session
