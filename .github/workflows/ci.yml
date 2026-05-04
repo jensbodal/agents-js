@@ -22,8 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install curl (Alpine runner workaround)
-        run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
         with:
@@ -42,8 +40,6 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-      - name: Install curl (Alpine runner workaround)
-        run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
         with:
@@ -62,8 +58,6 @@ jobs:
     needs: deterministic
     steps:
       - uses: actions/checkout@v4
-      - name: Install curl (Alpine runner workaround)
-        run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
         with:
@@ -88,8 +82,6 @@ jobs:
     needs: deterministic
     steps:
       - uses: actions/checkout@v4
-      - name: Install curl (Alpine runner workaround)
-        run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
         with:
