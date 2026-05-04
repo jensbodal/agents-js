@@ -94,6 +94,28 @@ function normalizeSyncEndpointUrl(peerUrl: string, path: string): string {
  * launch fields (`command`, `args`, `env`, `workspaceFlag`) are never
  * read from peer payloads even if a malicious peer were to attach them
  * to an A2A record.
+ *
+ * TODO(zod-migration): replace this hand-rolled validator with a zod
+ * schema. The repo already centralizes runtime validation in
+ * `@agents-js/validation` (see `validateRunAgentInput`,
+ * `validateAguiEvent`, `validateA2uiMessage`, the ACP request/response
+ * validators), and a zod discriminated union on `kind` would cover
+ * everything we do here:
+ *   - per-field type narrowing (currently a chain of `typeof` checks),
+ *   - opt-in field reads (currently manual `if (typeof r.x === ...)`),
+ *   - the A2A-only restriction (currently `if (r.kind !== "a2a")`),
+ *   - the projectAllowedFields whitelist below — derive it from a
+ *     separate `WireAgentRegistryRecordSchema` that picks the safe
+ *     subset of `AgentRegistryRecordSchema`.
+ *
+ * Deferred because `AgentRegistryRecord` is also the on-disk
+ * persistence schema; migrating the type-IS-the-schema relationship
+ * across registry.ts + node-autoregister.ts is a focused refactor
+ * that should not be folded into a security/release-readiness fix.
+ * When this lands, drop `SYNC_WIRE_ALLOWED_FIELDS` /
+ * `projectAllowedFields` and use the wire schema's `.parse()` output
+ * directly — schema and projection collapse into one declarative
+ * shape.
  */
 function parseWireRecord(raw: unknown): AgentRegistryRecord | null {
   if (typeof raw !== "object" || raw === null) return null;
