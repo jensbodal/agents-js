@@ -26,7 +26,14 @@ jobs:
         run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
-      - run: bun run setup
+        with:
+          bun-version: 1.3.12
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
+      - run: bun run setup --ci
       - run: bun run check
 
   # Default deterministic upstream proof gate.
@@ -39,7 +46,14 @@ jobs:
         run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
-      - run: bun run setup
+        with:
+          bun-version: 1.3.12
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
+      - run: bun run setup --ci
       - run: bun run e2e:deterministic
 
   # Release readiness checks that do not depend on a live curated runtime.
@@ -52,7 +66,14 @@ jobs:
         run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
-      - run: bun run setup
+        with:
+          bun-version: 1.3.12
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
+      - run: bun run setup --ci
       - name: ACP consumer smoke test
         env:
           AGENTS_JS_RC_DATE: ci-${{ github.run_id }}
@@ -71,6 +92,13 @@ jobs:
         run: apk add --no-cache curl
       - uses: jdx/mise-action@v2
       - uses: oven-sh/setup-bun@v2
-      - run: bun run setup --runtime ${{ github.event.inputs.runtime }}
+        with:
+          bun-version: 1.3.12
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
+      - run: bun run setup --ci --runtime ${{ github.event.inputs.runtime }}
       - run: bun run e2e:runtime -- --runtime ${{ github.event.inputs.runtime }}
       - run: bun run e2e:web:live -- --runtime ${{ github.event.inputs.runtime }}
