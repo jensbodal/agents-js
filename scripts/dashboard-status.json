@@ -1,5 +1,6 @@
 {
   "_comment": "Per-package validation status for output/agents-js-dashboard.html. Hand-authored. Status enum: pending | validating | tests-audited | live-validated | refactored | blocked | deferred. tests-audited = tests reviewed against the package's contract and pass; live-validated = also exercised on a real path by a live probe. The dashboard generator (scripts/build-dashboard.ts) reads this file plus docs/public/graph.json plus output/test-counts.json. Test counts and dep edges are auto-derived; only status + notes are authored here.",
+  "_release_readiness_scope": "The dashboard models per-package test posture and dependency topology. It does NOT model app/operator-surface release readiness — AG-UI primary run path, registry sync default-off, workspace trust gate, dispatch cancelability metadata, A2UI back-channel, and correlation/audit are all gated by `bun run release:preflight` (scripts/release-preflight.ts auditReleaseReadinessDefaults). Treat a green dashboard + a green preflight + the e2e/browser smoke suites as the trio for restricted-beta readiness; this dashboard alone is necessary but not sufficient.",
   "packages": {
     "@agents-js/policy": {
       "status": "live-validated",
