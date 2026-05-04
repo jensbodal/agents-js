@@ -351,6 +351,103 @@ describe("buildSyncPayload (send-side loop prevention)", () => {
   });
 });
 
+describe("buildSyncPayload (A2A-only restriction)", () => {
+  test("filters out kind=acp records so launch fields cannot leak", () => {
+    const records: AgentRegistryRecord[] = [
+      rec({ name: "remote-a2a", gateway_id: "localM", source: "auto-reg" }),
+      {
+        name: "local-acp",
+        agent_id: "localM.local-acp",
+        kind: "acp",
+        gateway_id: "localM",
+        source: "manual",
+        registered_at: "2026-04-23T12:00:00.000Z",
+        harness: "claude",
+        command: "/bin/false",
+        args: ["--something"],
+        env: { SECRET: "x" },
+        workspaceFlag: "--cwd",
+      },
+    ];
+    const payload = buildSyncPayload(records);
+    expect(payload.records.map((r) => r.name)).toEqual(["remote-a2a"]);
+    // Defense in depth — the served wire must not mention any ACP launch
+    // field even structurally; serialize and grep.
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("local-acp");
+    expect(serialized).not.toContain("/bin/false");
+    expect(serialized).not.toContain("SECRET");
+    expect(serialized).not.toContain("workspaceFlag");
+  });
+});
+
+describe("fetchPeerRecords (A2A-only restriction)", () => {
+  test("drops kind=acp wire records and any launch fields they carry", async () => {
+    const peerUrl = "http://peerA.test:8080";
+    const wirePayload = {
+      version: 2,
+      records: [
+        rec({ name: "valid-a2a", gateway_id: "peerA", url: "http://va.test" }),
+        {
+          // A malicious peer attempting to smuggle launch material.
+          name: "leaked-acp",
+          agent_id: "peerA.leaked-acp",
+          kind: "acp",
+          gateway_id: "peerA",
+          source: "manual",
+          registered_at: "2026-04-23T12:00:00.000Z",
+          harness: "claude",
+          command: "/bin/leaked",
+          args: ["--exfiltrate"],
+          env: { SECRET: "x" },
+          workspaceFlag: "--cwd",
+        },
+      ],
+    };
+    const records = await fetchPeerRecords({
+      peerUrl,
+      fetchImpl: createSyncMockFetch(peerUrl, wirePayload),
+    });
+    expect(records.map((r) => r.name)).toEqual(["valid-a2a"]);
+    // The accepted record must not carry launch fields even if a peer
+    // were to attach them to an A2A record (defense in depth).
+    const accepted = records[0] as Record<string, unknown> | undefined;
+    expect(accepted?.command).toBeUndefined();
+    expect(accepted?.args).toBeUndefined();
+    expect(accepted?.env).toBeUndefined();
+    expect(accepted?.workspaceFlag).toBeUndefined();
+  });
+
+  test("ignores launch fields attached to an A2A wire record", async () => {
+    const peerUrl = "http://peerA.test:8080";
+    // Hostile peer attaches launch fields to an a2a record (where they
+    // are nonsensical) hoping the receiver merges them anyway.
+    const wirePayload = {
+      version: 2,
+      records: [
+        {
+          ...rec({ name: "smuggled", gateway_id: "peerA", url: "http://s.test" }),
+          command: "/bin/leaked",
+          args: ["--exfiltrate"],
+          env: { SECRET: "x" },
+          workspaceFlag: "--cwd",
+        },
+      ],
+    };
+    const records = await fetchPeerRecords({
+      peerUrl,
+      fetchImpl: createSyncMockFetch(peerUrl, wirePayload),
+    });
+    expect(records).toHaveLength(1);
+    const accepted = records[0] as Record<string, unknown> | undefined;
+    expect(accepted?.name).toBe("smuggled");
+    expect(accepted?.command).toBeUndefined();
+    expect(accepted?.args).toBeUndefined();
+    expect(accepted?.env).toBeUndefined();
+    expect(accepted?.workspaceFlag).toBeUndefined();
+  });
+});
+
 describe("fetchPeerRecords", () => {
   test("GETs the well-known path and returns the decoded records", async () => {
     const peerUrl = "http://peerA.test:8080";

@@ -9,6 +9,7 @@ import {
 import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
 import {
   AgentRegistry,
+  autoRegister,
   createSyncEndpointHandler,
   resolveSharedAgentRegistryPath,
   startRegistrySync,
@@ -42,7 +43,12 @@ import {
   promptForPersistMode,
   promptForRuntimeSelection,
 } from "./serve-prompts.ts";
-import { hostPortArgs, runtimeLogArgs, runtimeSelectArgs } from "./shared-arg-specs.ts";
+import {
+  hostPortArgs,
+  registrySyncArg,
+  runtimeLogArgs,
+  runtimeSelectArgs,
+} from "./shared-arg-specs.ts";
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
 
 export type { ResolvedServeInputs } from "./serve-config.ts";
@@ -58,7 +64,29 @@ export interface ServeCommandArgs {
   opencodeDisableExternalPlugins?: boolean;
   profile?: string;
   port?: number;
+  registrySync?: boolean;
   runtimeLogLevel?: string;
+}
+
+/**
+ * Returns true when cross-gateway registry sync should be enabled for
+ * this `serve` invocation. Default is **off** — both inbound endpoint
+ * mounting and outbound peer fetch are skipped.
+ *
+ * Enabled when either:
+ *   - `--registry-sync` flag is present, or
+ *   - `AGENTS_JS_REGISTRY_SYNC` env var is the literal string `"true"`.
+ *
+ * Anything else (including `"1"`, `"yes"`, etc.) is rejected so the
+ * default stays explicit and operators do not enable a network surface
+ * by accident through ambiguous truthy coercion.
+ */
+export function shouldEnableRegistrySync(
+  args: Pick<ServeCommandArgs, "registrySync">,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (args.registrySync === true) return true;
+  return env.AGENTS_JS_REGISTRY_SYNC === "true";
 }
 
 export interface ServeCommandResult {
@@ -89,6 +117,7 @@ const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
   ...runtimeSelectArgs<ServeCommandArgs>(),
   ...hostPortArgs<ServeCommandArgs>(),
   ...runtimeLogArgs<ServeCommandArgs>(),
+  ...registrySyncArg<ServeCommandArgs>(),
 };
 
 export function parseServeCommandArgs(argv: string[]): ServeCommandArgs {
@@ -121,6 +150,7 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  --runtime-log-level <level>         Runtime log level (debug|info|warn|error|silent)",
       "  --opencode-disable-external-plugins Append --pure when launching opencode",
       "  --default-model <id>                Default model id (AJS_DEFAULT_MODEL override)",
+      "  --registry-sync                     Enable cross-gateway peer registry sync (default: off; A2A-only payload)",
       "  --version, -v                       Print version and exit",
       "  --help, -h                          Show this message",
       "",
@@ -362,29 +392,58 @@ export async function runServeCommand(
   const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
   const hooks = await detectA2AMentionHooks(output, registryPath);
   const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
-  const syncEndpointHandler = createSyncEndpointHandler({ configPath: registryPath });
+  const env = dependencies.env ?? process.env;
+  const registrySyncEnabled = shouldEnableRegistrySync(args, env);
+
+  // Default-off: no inbound sync endpoint, no outbound peer pull.
+  // Local auto-registration still runs unconditionally below so the
+  // gateway is discoverable on the local machine.
+  const syncEndpointHandler = registrySyncEnabled
+    ? createSyncEndpointHandler({ configPath: registryPath })
+    : undefined;
+
   const server = await serveGateway({
     acp: runtime.acp,
     agentCard: runtime.agentCard,
     hooks,
     host: resolvedInputs.host,
     port: resolvedInputs.port,
-    additionalFetch: syncEndpointHandler,
+    ...(syncEndpointHandler ? { additionalFetch: syncEndpointHandler } : {}),
   });
 
-  // Auto-register this gateway and start periodic peer sync.
-  const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
-    ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
-    : undefined;
-  const registrySync = startRegistrySync({
-    name: runtime.agentCard.name ?? "agents-js",
-    url: buildAgentCardBaseUrl(server.port, resolvedInputs.host),
-    configPath: registryPath,
-    intervalMs: syncIntervalMs,
-  });
+  let registrySync: { stop: () => void } | null = null;
+  const localUrl = buildAgentCardBaseUrl(server.port, resolvedInputs.host);
+  const localName = runtime.agentCard.name ?? "agents-js";
+  if (registrySyncEnabled) {
+    const syncIntervalMs = env.AGENTS_JS_SYNC_INTERVAL_MS
+      ? Number(env.AGENTS_JS_SYNC_INTERVAL_MS)
+      : undefined;
+    registrySync = startRegistrySync({
+      name: localName,
+      url: localUrl,
+      configPath: registryPath,
+      intervalMs: syncIntervalMs,
+    });
+    output.write("[agents-js] Registry sync enabled (A2A-only peer payload)\n");
+  } else {
+    // Auto-register locally only — fire-and-forget, mirrors startRegistrySync's behavior.
+    void autoRegister({
+      name: localName,
+      kind: "a2a",
+      url: localUrl,
+      configPath: registryPath,
+    }).catch((err: unknown) => {
+      output.write(
+        `[agents-js] Local auto-registration failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    });
+    output.write(
+      "[agents-js] Registry sync disabled (default; pass --registry-sync or set AGENTS_JS_REGISTRY_SYNC=true to enable)\n",
+    );
+  }
   const originalStop = server.stop.bind(server);
   server.stop = () => {
-    registrySync.stop();
+    registrySync?.stop();
     originalStop();
   };
 

@@ -92,6 +92,30 @@ export function harnessArg<T extends HarnessArg>(): ArgSpec<T> {
   };
 }
 
+export interface RegistrySyncArg {
+  registrySync?: boolean;
+}
+
+/**
+ * `--registry-sync` — opt in to cross-gateway registry sync. Default
+ * is **off**: no inbound sync endpoint is mounted and no outbound
+ * peer fetch interval is started. Local auto-registration is unaffected.
+ *
+ * The environment variable `AGENTS_JS_REGISTRY_SYNC=true` is the
+ * equivalent toggle and is read at the call site (not here, so this
+ * fragment stays a pure spec).
+ */
+export function registrySyncArg<T extends RegistrySyncArg>(): ArgSpec<T> {
+  return {
+    "--registry-sync": {
+      kind: "flag",
+      assign: (a) => {
+        a.registrySync = true;
+      },
+    },
+  };
+}
+
 export interface RuntimeSelectArgs extends HarnessArg {
   acpArgsJson?: string;
   acpCommand?: string;

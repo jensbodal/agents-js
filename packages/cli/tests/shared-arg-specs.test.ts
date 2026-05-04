@@ -4,8 +4,10 @@ import {
   type HostPortArgs,
   harnessArg,
   hostPortArgs,
+  type RegistrySyncArg,
   type RuntimeLogArgs,
   type RuntimeSelectArgs,
+  registrySyncArg,
   runtimeLogArgs,
   runtimeSelectArgs,
 } from "../src/shared-arg-specs.ts";
@@ -62,6 +64,28 @@ describe("harnessArg", () => {
     const acc: HarnessArg = {};
     spec["--harness"]?.assign(acc, "claude");
     expect(acc.harness).toBe("claude");
+  });
+});
+
+describe("registrySyncArg", () => {
+  test("declares --registry-sync as a flag", () => {
+    const spec = registrySyncArg<RegistrySyncArg>();
+    expect(Object.keys(spec)).toEqual(["--registry-sync"]);
+    expect(spec["--registry-sync"]?.kind).toBe("flag");
+  });
+
+  test("--registry-sync flips the boolean knob to true", () => {
+    const spec = registrySyncArg<RegistrySyncArg>();
+    const acc: RegistrySyncArg = {};
+    const entry = spec["--registry-sync"];
+    if (entry?.kind !== "flag") throw new Error("expected flag entry");
+    entry.assign(acc);
+    expect(acc.registrySync).toBe(true);
+  });
+
+  test("default state leaves the knob undefined (sync stays off)", () => {
+    const acc: RegistrySyncArg = {};
+    expect(acc.registrySync).toBeUndefined();
   });
 });
 

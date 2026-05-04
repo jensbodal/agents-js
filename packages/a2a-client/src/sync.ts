@@ -7,14 +7,21 @@
  * remainder into the local registry with `source="sync"` and a
  * `last_synced_at` watermark.
  *
+ * Peer sync is **A2A-only**: only `kind="a2a"` records are served, and
+ * `kind="acp"` records (with their operator-controlled launch fields
+ * `command` / `args` / `env` / `workspaceFlag`) never traverse the wire.
+ * The receiver also rejects any non-A2A wire record it sees, so a
+ * malicious peer cannot smuggle launch material through this surface.
+ *
  * Each gateway's sync endpoint serves only records it *originated*
  * (`source != "sync"`) — never re-serves records it received from
  * peers. Combined with the receive-side self-gateway filter this
  * prevents A→B→A fan-back loops and the load-multiplication that
  * would otherwise result from multi-hop gossip.
  *
- * No authentication: sync assumes callers run gateways on a trusted private
- * network. Add authentication before exposing the sync endpoint publicly.
+ * No authentication. Sync is also opt-in at the CLI level
+ * (`--registry-sync` / `AGENTS_JS_REGISTRY_SYNC=true`) so the endpoint
+ * is not mounted by default.
  *
  * Placement rationale (see node.ts for autoRegister alongside this):
  * node.ts already carried three concerns (shared-registry resolution,
@@ -81,13 +88,19 @@ function normalizeSyncEndpointUrl(peerUrl: string, path: string): string {
   return `${base}${suffix}`;
 }
 
-/** Narrow an arbitrary `unknown` into an `AgentRegistryRecord` or return null. Mirrors migrateRecord's required-field gates. */
+/**
+ * Narrow an arbitrary `unknown` into an `AgentRegistryRecord` or return null.
+ * Peer sync is A2A-only — kind="acp" wire records are rejected, and ACP
+ * launch fields (`command`, `args`, `env`, `workspaceFlag`) are never
+ * read from peer payloads even if a malicious peer were to attach them
+ * to an A2A record.
+ */
 function parseWireRecord(raw: unknown): AgentRegistryRecord | null {
   if (typeof raw !== "object" || raw === null) return null;
   const r = raw as Record<string, unknown>;
   if (typeof r.name !== "string" || r.name.length === 0) return null;
   if (typeof r.agent_id !== "string" || r.agent_id.length === 0) return null;
-  if (r.kind !== "a2a" && r.kind !== "acp") return null;
+  if (r.kind !== "a2a") return null;
   if (typeof r.gateway_id !== "string" || r.gateway_id.length === 0) return null;
   if (r.source !== "auto-reg" && r.source !== "manual" && r.source !== "sync") return null;
   if (typeof r.registered_at !== "string" || r.registered_at.length === 0) return null;
@@ -103,18 +116,6 @@ function parseWireRecord(raw: unknown): AgentRegistryRecord | null {
   if (r.actor_type === "human" || r.actor_type === "machine") rec.actor_type = r.actor_type;
   if (typeof r.url === "string") rec.url = r.url;
   if (typeof r.harness === "string") rec.harness = r.harness;
-  if (typeof r.command === "string") rec.command = r.command;
-  if (Array.isArray(r.args) && r.args.every((a) => typeof a === "string")) {
-    rec.args = r.args as string[];
-  }
-  if (
-    typeof r.env === "object" &&
-    r.env !== null &&
-    Object.values(r.env as Record<string, unknown>).every((v) => typeof v === "string")
-  ) {
-    rec.env = r.env as Record<string, string>;
-  }
-  if (typeof r.workspaceFlag === "string") rec.workspaceFlag = r.workspaceFlag;
   if (typeof r.last_synced_at === "string") rec.last_synced_at = r.last_synced_at;
   if (typeof r.protocol_version === "string") rec.protocol_version = r.protocol_version;
   if (typeof r.card_cache_refreshed_at === "string") {
@@ -509,12 +510,20 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
 
 /**
  * Produce the wire payload this gateway would serve at its sync endpoint.
- * Filters out `source="sync"` records — loop prevention on the send side.
+ *
+ * Two filters apply:
+ *
+ * 1. `source !== "sync"` — loop prevention on the send side; we never
+ *    re-serve records we received from a peer.
+ * 2. `kind === "a2a"` — peer sync is A2A-only. ACP launch fields
+ *    (`command`, `args`, `env`, `workspaceFlag`) are operator-controlled
+ *    process-launch material and must never traverse the unauthenticated
+ *    sync wire.
  */
 export function buildSyncPayload(records: AgentRegistryRecord[]): AgentsJsRegistrySyncPayload {
   return {
     version: 2,
-    records: records.filter((r) => r.source !== "sync"),
+    records: records.filter((r) => r.source !== "sync" && r.kind === "a2a"),
   };
 }
 

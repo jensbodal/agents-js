@@ -648,7 +648,7 @@ describe("agents-js CLI", () => {
     });
   });
 
-  test("serve wires sync endpoint handler into additionalFetch", async () => {
+  test("serve does NOT wire the sync endpoint handler by default", async () => {
     await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
       const output = makeOutputBuffer();
 
@@ -673,15 +673,94 @@ describe("agents-js CLI", () => {
           },
           output,
           serveGateway: async (options) => {
-            // Verify the sync endpoint handler is wired in additionalFetch
-            expect(options.additionalFetch).toBeDefined();
+            // Default-off: the additionalFetch hook should be absent so
+            // /.well-known/agents-js-registry.json returns 404 from the
+            // server's own routing instead of leaking the registry.
+            expect(options.additionalFetch).toBeUndefined();
+            return {
+              port: 40127,
+              server: {} as never,
+              stop() {},
+            };
+          },
+        },
+      );
 
-            // The handler should serve the well-known registry path
+      expect(typeof result).not.toBe("number");
+    });
+  });
+
+  test("--registry-sync wires the sync endpoint handler into additionalFetch", async () => {
+    await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
+      const output = makeOutputBuffer();
+
+      const result = await runServeCommand(
+        [
+          "--harness",
+          "custom",
+          "--acp-command",
+          "node",
+          "--acp-args-json",
+          JSON.stringify(["tests/mock-acp-agent.cjs"]),
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "0",
+          "--registry-sync",
+        ],
+        {
+          cwd,
+          env: {
+            HOME: homeDir,
+            XDG_CONFIG_HOME: xdgConfigHome,
+          },
+          output,
+          serveGateway: async (options) => {
+            expect(options.additionalFetch).toBeDefined();
             const req = new Request("http://127.0.0.1:40127/.well-known/agents-js-registry.json");
             const response = await options.additionalFetch?.(req);
-            // Even with an empty registry the handler returns 200 with version:2
             expect(response?.status).toBe(200);
 
+            return {
+              port: 40127,
+              server: {} as never,
+              stop() {},
+            };
+          },
+        },
+      );
+
+      expect(typeof result).not.toBe("number");
+    });
+  });
+
+  test("AGENTS_JS_REGISTRY_SYNC=true also wires the sync endpoint handler", async () => {
+    await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
+      const output = makeOutputBuffer();
+
+      const result = await runServeCommand(
+        [
+          "--harness",
+          "custom",
+          "--acp-command",
+          "node",
+          "--acp-args-json",
+          JSON.stringify(["tests/mock-acp-agent.cjs"]),
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "0",
+        ],
+        {
+          cwd,
+          env: {
+            HOME: homeDir,
+            XDG_CONFIG_HOME: xdgConfigHome,
+            AGENTS_JS_REGISTRY_SYNC: "true",
+          },
+          output,
+          serveGateway: async (options) => {
+            expect(options.additionalFetch).toBeDefined();
             return {
               port: 40127,
               server: {} as never,
