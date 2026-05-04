@@ -19,9 +19,8 @@ export interface RuntimeCapabilities {
 
 /**
  * Adapter shape the playground store talks to so the UI never imports a
- * specific runtime impl. Two adapters ship in M1; the seam is here so a
- * future `gatewayRuntimeAdapter` (the actual `agents-js-gateway` once it
- * exists) can land without UI changes.
+ * specific runtime impl. Runtime adapters can be added without changing the
+ * shell.
  *
  * `createRunner` is async because the local-wasm path may need to spin up
  * a worker / load weights before it can answer. The store treats this as
@@ -85,8 +84,8 @@ export function createLocalWasmRuntimeAdapter(opts: LocalWasmRuntimeOptions): Ru
     describeCapabilities() {
       return {
         streaming: true,
-        // Tool surface in M1 is host-provided (the consumer wires
-        // `createDefaultTools` into the loop). Adapter doesn't enumerate.
+        // Tool surface is host-provided (the consumer wires `createDefaultTools`
+        // into the loop). Adapter doesn't enumerate.
         tools: [],
       };
     },

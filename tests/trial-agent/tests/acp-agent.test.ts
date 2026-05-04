@@ -3,7 +3,7 @@
  *
  * The factory is the programmatic seam that lets test harnesses (and any
  * other host owning its own `AgentSideConnection`) embed the trial-agent
- * with explicit control over the document root root, rather than relying on
+ * with explicit control over the document root, rather than relying on
  * the bin's CLI-flag/env-var/default fallback chain.
  *
  * These tests exercise the factory directly with a stub connection — no
@@ -82,13 +82,13 @@ function fetchPrompt(text: string, sessionId: string): PromptRequest {
 describe("createTrialAgent", () => {
   test("uses the canonical default hub root when no override is supplied", () => {
     // The default constant is the contract: bin + factory must agree on
-    // the fallback path so operators get the same behaviour either way.
+    // the fallback path so callers get the same behavior either way.
     const { connection } = createStubConnection();
     const agent = createTrialAgent(connection);
     // The default is observable indirectly: we don't expose the captured
     // hubRoot, but we assert the canonical constant matches the path the
     // bin documents in its --help output.
-    expect(DEFAULT_TRIAL_AGENT_HUB_ROOT).toMatch(/lifestone_ios\/hub$/);
+    expect(DEFAULT_TRIAL_AGENT_HUB_ROOT).toMatch(/\.agents-js\/hub$/);
     expect(agent).toBeDefined();
   });
 
@@ -96,9 +96,8 @@ describe("createTrialAgent", () => {
     // The point of the lift: passing hubRoot here must reach
     // fetchContext so a hub-file source from the fixture vault appears
     // in the rendered text. If the factory ever stopped threading
-    // hubRoot, this assertion would fail because the production default
-    // (`~/workspace/syncthing/lifestone_ios/hub`) would be used and the
-    // fixture-only file would not be discovered.
+    // hubRoot, this assertion would fail because the package default would
+    // be used and the fixture-only file would not be discovered.
     const { connection, notifications } = createStubConnection();
     const agent = createTrialAgent(connection, {
       hubRoot: FIXTURE_HUB,

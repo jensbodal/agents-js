@@ -6,8 +6,8 @@ import type { A2AEvent, A2AMessageDeltaEvent } from "../src/types.ts";
 import { createStreamingMockTransport, type StreamItem } from "./mock-a2a-transport.ts";
 
 /**
- * Wave 3.4 — `message.delta` carries an incremental chunk via the new `delta`
- * field, while `text` continues to carry the accumulated value (backward compat).
+ * `message.delta` carries an incremental chunk via the `delta` field, while
+ * `text` continues to carry the accumulated value for backward compatibility.
  *
  * AG-UI spec semantics: `TextMessageContent.delta` is the *incremental* chunk
  * ("hel", "lo", " w"); accumulating the chunks reproduces the full text.
@@ -69,7 +69,7 @@ function deltas(events: A2AEvent[]): A2AMessageDeltaEvent[] {
   return events.filter((e): e is A2AMessageDeltaEvent => e.type === "message.delta");
 }
 
-describe("message.delta — incremental delta semantics (Wave 3.4)", () => {
+describe("message.delta — incremental delta semantics", () => {
   test("first delta: delta === text === full chunk (no prior text)", async () => {
     const events = await runStream([
       buildStatusUpdate("task-1", "ctx-1", "msg-1", "hel"),

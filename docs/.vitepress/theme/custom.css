@@ -16,10 +16,8 @@
  * the Google Fonts CSS API (latin + latin-ext subsets only).
  *
  * Why bundle: removes a third-party request from every page load, makes the
- * docs site work offline / on restricted networks, and means Cloudflare
- * Tunnel + Cloudflare Access can serve every asset the playground needs
- * without the browser hitting a Google CDN. See the catalog drift /
- * dependency-currency rules for the broader bundling discipline.
+ * docs site work offline / on restricted networks, and lets every page load
+ * without the browser hitting a Google CDN.
  *
  * Files live at docs/public/fonts/*.woff2 (vitepress copies public/ verbatim
  * to dist/). Total bundled weight: 4 woff2 files, ~176 KB.

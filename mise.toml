@@ -17,13 +17,13 @@ bun = "1.3.12"
 # `tsconfig.dev-paths.json`, so deps resolve through built artifacts not
 # source). Running them in parallel produced an intermittent "Cannot find
 # module '@agents-js/<pkg>'" TS2307 from `check` and the opaque
-# "[check] ERROR task failed" mise message that mis-led us to call this a
-# "vp-cache transient" through Playground v2 M1-M7. Live-reproduced under
-# `MISE_VERBOSE=1`; vanishes under serialized depends or `MISE_JOBS=1`.
+# "[check] ERROR task failed" mise message that made the race look like a cache
+# transient. Live-reproduced under `MISE_VERBOSE=1`; vanishes under serialized
+# depends or `MISE_JOBS=1`.
 # Trade-off: ~3s wall-clock cost (12.5s sequential vs 9.5s parallel) for a
 # deterministic gate.
 #
-# Full CI (docs, e2e, browser smoke) runs in Gitea Actions, not here.
+# Full CI (docs, e2e, browser smoke) runs outside this local pre-push task.
 # Invoked by .githooks/pre-push.
 
 [tasks.install]

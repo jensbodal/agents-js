@@ -1,2 +1,0 @@
-web: ./scripts/docs-tunnel.sh serve
-tunnel: ./scripts/docs-tunnel.sh tunnel

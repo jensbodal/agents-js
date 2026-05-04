@@ -12,8 +12,6 @@
  * These tests spawn the cli (`bun src/cli.ts acp --acp-command …`) as a real
  * child against the minimal fixture in `fixtures/real-process-acp-agent.cjs`.
  * They are gated to Unix; Windows is not a supported test platform.
- *
- * Addresses Medium refactor A-M3 from the 2026-04-18 cli review.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";

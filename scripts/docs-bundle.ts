@@ -3,7 +3,7 @@
  *
  * Follows the llmstxt.org spec:
  *  - llms.txt:  H1 project title + blockquoted summary + H2-grouped link
- *               sections, each link annotated with a brief description so
+ *               sections, each link annotated with a short description so
  *               an agent can prioritize what to load
  *  - llms-full.txt: Same header + full concatenated content of every page
  *
@@ -106,7 +106,7 @@ function readPage(filename: string): string {
 
 /**
  * Fallback description extractor. Manual descriptions in {@link PAGES}
- * should cover every real page; this exists so a page briefly missing
+ * should cover every real page; this exists so a page temporarily missing
  * from the manual table still produces a non-empty description rather
  * than a literal `---` (the prior bug).
  *

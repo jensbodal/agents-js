@@ -11,8 +11,8 @@
  * sidesteps the "Cannot read from private field" trap and yields a
  * deterministic test surface.
  *
- * M4 simplification: the mode picker has been retired. These tests only
- * cover the activate-button + status-text surface that remains.
+ * The manifest editor owns runtime selection, so these tests cover only the
+ * activate-button + status-text surface in this component.
  */
 import { describe, expect, test } from "bun:test";
 import { DocsRunControls, type RunControlsPhase, renderRunControls } from "./docs-run-controls.ts";
@@ -35,7 +35,7 @@ describe("DocsRunControls — class shape", () => {
     expect(props.get("errorText")).toBeDefined();
   });
 
-  test("does NOT expose mode or modelAvailable props (M4 mode-picker retirement)", () => {
+  test("does NOT expose mode or modelAvailable props", () => {
     const props = DocsRunControls.elementProperties;
     expect(props.get("mode")).toBeUndefined();
     expect(props.get("modelAvailable")).toBeUndefined();
@@ -62,7 +62,7 @@ describe("DocsRunControls — event dispatch", () => {
     handler.call(inst);
     expect(seen.length).toBe(1);
     expect(seen[0]?.type).toBe("playground-activate");
-    // M4: no `mode` payload — the shell reads `state.manifest.runtime`.
+    // No `mode` payload — the shell reads `state.manifest.runtime`.
     // `CustomEvent` with no `detail` initializer defaults to `null`.
     expect(seen[0]?.detail).toBeNull();
   });
@@ -156,7 +156,7 @@ describe("renderRunControls — branching", () => {
   });
 });
 
-describe("renderRunControls — replay branching (M5)", () => {
+describe("renderRunControls — replay branching", () => {
   test("active phase: replay button hidden when canReplay=false", () => {
     const result = renderRunControls({
       phase: "active",
@@ -222,7 +222,7 @@ describe("renderRunControls — replay branching (M5)", () => {
   });
 });
 
-describe("DocsRunControls — replay event dispatch (M5)", () => {
+describe("DocsRunControls — replay event dispatch", () => {
   test("_onReplay dispatches playground-replay (composed + bubbles, no detail)", () => {
     const inst = instance();
     const seen: CustomEvent[] = [];

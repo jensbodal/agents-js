@@ -52,7 +52,7 @@ export interface GroupDiscoveredTargetsOptions {
    * When `true`, demote entries whose `reachability === "offline"`
    * to `alternates`, keeping an online same-name entry as
    * `preferred` when one exists. Offline entries are still
-   * returned (per brief: "Do not remove raw discovery data").
+   * returned so diagnostics can still show every discovered target.
    * Default: `false`.
    */
   demoteOffline?: boolean;
@@ -73,8 +73,7 @@ export interface GroupDiscoveredTargetsOptions {
  * The function is pure and opt-in — passing no `options` (or `{}`)
  * preserves the original ordering inside each bucket: first record
  * wins, rest go to `alternates`. Same-name targets on different ports
- * remain visible (per brief: "Same-name targets on different ports
- * remain distinguishable").
+ * remain visible as distinguishable entries.
  *
  * Policy rules apply in this order when an option is enabled:
  *

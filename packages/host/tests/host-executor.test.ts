@@ -462,9 +462,8 @@ describe("HostA2AExecutor", () => {
   });
 
   test("routes controller chunks to the task that currently owns the prompt (B1 regression)", async () => {
-    // Regression guard for the per-contextId event-routing fix (see backlog
-    // `fix-event-routing-first-task-hack`). The prior implementation picked
-    // the "first active task in Map insertion order" to receive controller
+    // Regression guard for the per-contextId event-routing fix. The prior
+    // implementation picked the "first active task in Map insertion order" to receive controller
     // events, which was correct ONLY because the inFlightPrompt mutex
     // happened to keep activeTasks small. The current implementation tracks
     // an `owningTaskId` that is set at runPrompt start and cleared on

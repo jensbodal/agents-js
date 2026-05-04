@@ -75,15 +75,15 @@
     },
     "@agents-js/droid-acp": {
       "status": "live-validated",
-      "notes": "Wave 3 ACP initialize handshake probe ✅. Uses runAcpWrapperBinary."
+      "notes": "ACP initialize handshake probe. Uses runAcpWrapperBinary."
     },
     "@agents-js/pi-acp": {
       "status": "live-validated",
-      "notes": "Wave 3 ACP initialize handshake probe ✅. Uses runAcpWrapperBinary."
+      "notes": "ACP initialize handshake probe. Uses runAcpWrapperBinary."
     },
     "@agents-js/pi-extension": {
       "status": "deferred",
-      "notes": "Extras; private. Defer."
+      "notes": "Extras package."
     },
     "@agents-js/plane": {
       "status": "tests-audited",

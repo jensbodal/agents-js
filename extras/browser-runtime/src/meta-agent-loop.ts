@@ -11,7 +11,7 @@ export interface DecideResult {
 /**
  * Adapter contract between the meta-agent loop and an LLM backend.
  *
- * The optional `signal` field on each method's input is the M6 cancel
+ * The optional `signal` field on each method's input is the cancellation
  * primitive: the loop owns one `AbortController` per session, threads
  * `controller.signal` through every call, and aborts on `cancel(sessionId)`.
  * Adapters MUST honor the signal — `streamAnswer` by short-circuiting its
@@ -43,11 +43,9 @@ export interface MetaAgentLoopDeps {
 }
 
 export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
-  // Per-session AbortController registry. M6 replaces the prior
-  // `cancellations: Set<string>` flag with a real cancel primitive: callers
-  // get a fresh controller per `runPrompt`, `cancel(sessionId)` calls
-  // `abort()` on the matching entry, and the in-flight adapter call
-  // short-circuits within one tick.
+  // Per-session AbortController registry. Callers get a fresh controller per
+  // `runPrompt`, `cancel(sessionId)` calls `abort()` on the matching entry, and
+  // the in-flight adapter call short-circuits within one tick.
   const controllers = new Map<string, AbortController>();
   return {
     cancel(sessionId) {

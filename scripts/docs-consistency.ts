@@ -51,20 +51,8 @@ const docsUrl = `https://${docsHostname}/`;
 const launcherRuntimeCommand = "bun run dev --runtime claude";
 const browserSmokeCommand = "bun run browser:smoke";
 const liveBrowserCommand = "bun run e2e:web:live -- --runtime claude";
-const docsTunnelDoctorCommand = "./scripts/docs-tunnel.sh doctor";
-const docsDeployCommand = "PORTAINER_INSECURE_TLS=1 bun scripts/deploy-docs-stack.ts";
-const staleDocsDeployStrings = [
-  "GITEA_REGISTRY_",
-  "dot_mcp_gitea_token",
-  "one-time manual Portainer stack bootstrap",
-  "create the `agents-js-docs` stack once",
-  "If this is the first docs deployment on an environment",
-  "Cloudflare remains an external prerequisite",
-] as const;
-
 export const REMOVED_DOC_PATHS = [
   "docs/protocol-alignment.md",
-  "docs/browser-uat.md",
   "docs/runtime-matrix.md",
   "docs/contribute.md",
   "docs/release-checklist.md",
@@ -73,16 +61,13 @@ export const REMOVED_DOC_PATHS = [
 ] as const;
 
 const providerHostSourcePatterns: readonly RegExp[] = [
-  /https:\/\/(?:gitea|github)\.[^/\s]+\/[^/\s]+\/agents-js\b[^\s)\]}"]*/g,
-  /git\+https:\/\/(?:gitea|github)\.[^/\s]+\/[^/\s]+\/agents-js\.git/g,
+  /https:\/\/github\.[^/\s]+\/[^/\s]+\/agents-js\b[^\s)\]}"]*/g,
+  /git\+https:\/\/github\.[^/\s]+\/[^/\s]+\/agents-js\.git/g,
 ];
 
 const providerAuthorityPatterns: readonly RegExp[] = [
-  /\bGitea Actions\b/g,
   /\bGitHub Actions\b/g,
-  /\bGitea CI\b/g,
-  /\bGitea act_runner\b/g,
-  /\bCI\/CD source of truth:\s*Gitea\b/g,
+  /\bCI\/CD source of truth:\s*GitHub\b/g,
 ];
 
 const handAuthoredStatusPatterns: readonly { label: string; pattern: RegExp }[] = [
@@ -106,7 +91,7 @@ const generatedDocsPaths = new Set(["docs/llms.txt", "docs/llms-full.txt"]);
 // Calculated machine-readable outputs are allowed to carry exact counts.
 const generatedMachineReadablePrefixes = ["docs/public/", "docs/api/"] as const;
 
-const ciConfigPrefixes = [".github/", ".gitea/"] as const;
+const ciConfigPrefixes = [".github/"] as const;
 
 async function readText(relativePath: string, root = repoRoot): Promise<string> {
   return readFile(path.join(root, relativePath), "utf8");
@@ -203,9 +188,6 @@ async function readExistingScanFiles(root = repoRoot): Promise<TextFile[]> {
     }
     return /\.(?:md|txt)$/.test(filePath);
   });
-  const factoryFiles = (await listFilesRecursive(root, ".factory")).filter((filePath) =>
-    /\.(?:md|ya?ml|sh)$/.test(filePath),
-  );
   const githookFiles = (await listFilesRecursive(root, ".githooks")).filter((filePath) =>
     /(?:pre-commit|pre-push)$/.test(filePath),
   );
@@ -228,7 +210,6 @@ async function readExistingScanFiles(root = repoRoot): Promise<TextFile[]> {
     ...new Set([
       ...explicitFiles,
       ...docsFiles,
-      ...factoryFiles,
       ...githookFiles,
       ...packageManifestFiles,
       ...scriptFiles,
@@ -430,7 +411,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "## Quick Start",
         "## Advanced Usage",
       ],
-      forbids: staleDocsDeployStrings,
     },
     {
       path: "docs/surfaces.md",
@@ -495,30 +475,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "Open URL",
         "## Contributor quickstart",
       ],
-    },
-    {
-      path: ".factory/services.yaml",
-      optional: true,
-      contains: [
-        launcherRuntimeCommand,
-        browserSmokeCommand,
-        "./scripts/docs-tunnel.sh serve",
-        docsDeployCommand,
-      ],
-      forbids: ["3100", "3101"],
-    },
-    {
-      path: ".factory/library/user-testing.md",
-      optional: true,
-      contains: [
-        launcherRuntimeCommand,
-        browserSmokeCommand,
-        liveBrowserCommand,
-        docsTunnelDoctorCommand,
-        docsDeployCommand,
-        "Open URL",
-      ],
-      forbids: ["3100", "3101"],
     },
   ];
 

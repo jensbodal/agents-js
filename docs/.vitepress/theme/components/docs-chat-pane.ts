@@ -9,9 +9,9 @@ import { css, html, LitElement, nothing, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 
 /**
- * One rendered transcript line. The discriminant `role` matches the legacy
- * `<docs-meta-agent>` chat enum so visual styling can carry over verbatim,
- * while the source data is now AG-UI envelopes from the M1 store.
+ * One rendered transcript line. The discriminant `role` matches the chat
+ * surface vocabulary, while the source data is AG-UI envelopes from the
+ * playground store.
  */
 export interface ChatLine {
   role: "user" | "agent" | "tool" | "error" | "cancelled";
@@ -27,7 +27,7 @@ export interface ChatLine {
  * without mounting Lit, and keeps the element class trivially testable
  * (assert that the element renders the same array the helper produces).
  *
- * Mapping rules (tracked in the brief):
+ * Mapping rules:
  *   - `RunRecord.prompt` → leading `user` line (no separate accumulator).
  *   - `TEXT_MESSAGE_START` opens a new `agent` line keyed by `messageId`.
  *   - `TEXT_MESSAGE_CONTENT` appends `delta` to the open agent line.
@@ -37,7 +37,7 @@ export interface ChatLine {
  *   - `RUN_ERROR` emits an `error` line — or a `cancelled` line if the
  *     bridge tagged it with `code === "cancelled"` (see `agui-event-bridge`).
  *   - `TOOL_CALL_ARGS`, `TOOL_CALL_END`, `RUN_FINISHED` are deliberately
- *     ignored at the chat surface (M3 trace inspector renders those).
+ *     ignored at the chat surface (the trace inspector renders those).
  */
 export function deriveChatLines(run: RunRecord | undefined): ChatLine[] {
   if (!run) return [];
@@ -168,7 +168,7 @@ export class DocsChatPane extends LitElement {
       color: var(--vp-c-text-2, #777);
       font-style: italic;
     }
-    /* Replay mode (M5): muted, italic visual cue per chat line so users
+    /* Replay mode: muted, italic visual cue per chat line so users
      * see the same distinction the trace inspector applies to its rows. */
     .line.replay {
       font-style: italic;

@@ -1,17 +1,19 @@
 {
   "version": 1,
   "handAuthoredPages": [
+    "architecture.md",
+    "beta-contract.md",
     "index.md",
     "getting-started.md",
     "surfaces.md",
     "primitives.md",
     "harness-guide.md",
     "protocols.md",
+    "protocols-primer.md",
     "streaming-and-events.md",
     "observability.md",
-    "contribute.md",
-    "roadmap-and-non-goals.md"
+    "playground.md"
   ],
-  "excludedNamespaces": ["api/", "adrs/"],
+  "excludedNamespaces": ["api/"],
   "generatedOutputs": ["llms.txt", "llms-full.txt"]
 }

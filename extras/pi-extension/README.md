@@ -57,8 +57,8 @@ The Node.js bundle always uses direct mode (in-process A2A). The MCP bridge mode
 The direct client uses `stream: true` for A2A dispatch. Streaming events appear as:
 - `message.delta` -> `{ type: "streaming", text }` (token-by-token response)
 - `step.started` -> `{ type: "progress", text }` (dispatch status)
-- CUSTOM `agents-js.a2ui.surface_event` -> `{ type: "a2ui", surfaceId, event }` (Wave 6)
+- CUSTOM `agents-js.a2ui.surface_event` -> `{ type: "a2ui", surfaceId, event }`
 
 ## A2UI Surface Events
 
-When the gateway emits an AG-UI `CUSTOM` event named `agents-js.a2ui.surface_event` (see `@agents-js/a2ui-types` `A2UI_SURFACE_EVENT_NAME`), pi-extension forwards it through the same `onProgress` callback as `{ type: "a2ui", surfaceId, event }`. Pi itself has no TUI rendering for A2UI surfaces; this forwarding exists purely so downstream consumers — for example, a Pi plugin that knows how to render A2UI — can observe and display them. Interpretation of the `event` payload is out of scope for pi-extension. (Wave 6 limitation.)
+When the gateway emits an AG-UI `CUSTOM` event named `agents-js.a2ui.surface_event` (see `@agents-js/a2ui-types` `A2UI_SURFACE_EVENT_NAME`), pi-extension forwards it through the same `onProgress` callback as `{ type: "a2ui", surfaceId, event }`. Pi itself has no TUI rendering for A2UI surfaces; this forwarding exists purely so downstream consumers — for example, a Pi plugin that knows how to render A2UI — can observe and display them. Interpretation of the `event` payload is out of scope for pi-extension.

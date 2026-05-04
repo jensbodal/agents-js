@@ -8,17 +8,12 @@
 #      packages are added/renamed between pushes. Idempotent (reports
 #      "(no changes)" on cache hit, ~10ms).
 #   2. `mise run ci` — the validation gate: install + check + typecheck +
-#      test + docs:verify-generated. See mise.toml [tasks.ci].
+#      test via the serialized task graph in mise.toml.
 #
-# Why phase 1 exists: this repo's source checkout at ~/workspace/agents-js
-# (separate from the managed .worktrees/agents-js) accumulates a stale
-# node_modules/@agents-js/ when a new package lands but nobody runs
-# `bun install` in the source repo afterward. A ceremony push from the
-# source repo then fails `mise run ci` with "Cannot find module
-# '@agents-js/<new-pkg>'" errors during typecheck/docs:api even though
-# the branch is valid. Prior workaround was to run `bun install --force`
-# manually before pushing. Fix: refresh automatically on every push.
-# Mirrors the convert-all pattern that closed skills-js backlog #37.
+# Why phase 1 exists: adding or renaming workspace packages can leave
+# node_modules/@agents-js/* symlinks stale until the next install. Refreshing
+# before the validation gate prevents typecheck and docs generation from seeing
+# a half-bootstrapped package graph.
 #
 # Bypass: `git push --no-verify` or `SKIP_PREPUSH=1 git push`. Discouraged
 # — if bun install fails, that's a real dep-graph problem worth

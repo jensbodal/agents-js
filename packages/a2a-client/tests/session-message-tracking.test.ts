@@ -5,13 +5,13 @@ import type { A2AEvent, A2AMessageDeltaEvent } from "../src/types.ts";
 import { createStreamingMockTransport, type StreamItem } from "./mock-a2a-transport.ts";
 
 /**
- * Wave 3 follow-up (findings A3 + B3):
+ * Reasoning and message tracking regressions:
  *
- * A3 — reasoning.start / reasoning.end events that arrive without an explicit
+ * reasoning.start / reasoning.end events that arrive without an explicit
  * `messageId` should be enriched with the currently-active agent messageId so
  * consumers can correlate them to the right assistant message.
  *
- * B3 — multiple anonymous (messageId-less) message updates within a single
+ * Multiple anonymous (messageId-less) message updates within a single
  * stream must not share a delta accumulator bucket. Two successive anonymous
  * messages previously cross-contaminated each other's delta computation.
  */

@@ -50,7 +50,7 @@ function buildSkill(description: string): Skill {
       "",
       "Inline fixture body for word-boundary-pin tests. Exists only to",
       "satisfy the body-length rule (>= 200 chars) and the When-NOT-to-Use",
-      "section requirement. Pads the body with a brief explanation so the",
+      "section requirement. Pads the body with a short explanation so the",
       "test surface is description-only.",
       "",
       "## When NOT to Use",

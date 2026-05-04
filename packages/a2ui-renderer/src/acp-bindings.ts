@@ -56,7 +56,7 @@ interface AnyAcpProps {
 
 /**
  * Best-effort unwrap of an A2UI dynamic value. The renderer is intentionally
- * pure (no data-model wiring) in Wave 5 — binding paths render as empty so
+ * pure (no data-model wiring); binding paths render as empty so
  * the host can drive them through Lit properties later.
  */
 function unwrapString(value: unknown): string {

@@ -362,7 +362,7 @@ describe("existing A2AEvent variants unchanged", () => {
   });
 });
 
-describe("AG-UI field alignment (Wave 2.3)", () => {
+describe("AG-UI field alignment", () => {
   test("message.start accepts spec-shaped role values", () => {
     const roles = ["user", "agent", "assistant", "system", "tool", "developer"] as const;
     for (const role of roles) {

@@ -11,9 +11,8 @@ import {
 } from "./fake-host-controller.ts";
 
 /**
- * Fan-in E2E for Wave 4 — proves Track A (AGUITransport client) and
- * Track B (createAguiFetchHandler server) work together over a real
- * local HTTP server.
+ * End-to-end coverage for the native AG-UI client transport and server
+ * endpoint over a real local HTTP server.
  *
  * AGUITransport.runAgent → Bun.serve → createAguiFetchHandler → fake controller
  *
@@ -51,7 +50,7 @@ async function collect(events: AsyncGenerator<unknown>): Promise<unknown[]> {
   return out;
 }
 
-describe("Wave 4 fan-in — AGUITransport ↔ /agent endpoint E2E", () => {
+describe("AGUITransport ↔ /agent endpoint E2E", () => {
   let gateway: ServerHandle;
 
   beforeEach(() => {

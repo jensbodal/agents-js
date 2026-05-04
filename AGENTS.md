@@ -43,6 +43,6 @@
 
 ## Trackers
 
-- Do not suggest or create `backlog.json` or `roadmap.json` items by default.
-- Use trackers only when the user explicitly asks, or when a non-blocking issue is discovered during active work and parking it prevents derailing the session.
-- When parking a non-blocking issue, mention it briefly and ask before mutating tracker files.
+- Do not create project tracker files by default.
+- Use durable tracker files only when the user explicitly asks, or when parking a non-blocking issue prevents derailing active work.
+- When noting a non-blocking issue, mention it concisely and ask before mutating tracker files.

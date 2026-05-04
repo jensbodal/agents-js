@@ -312,9 +312,8 @@ export class ACPSessionController {
    *
    * This implicit-restart behavior is load-bearing in the host adapter's
    * `resetSession` path, which intentionally calls `start()` to clear state rather
-   * than maintaining a separate reset method. A breaking-change alternative
-   * (throw-on-double-start) is tracked as a separate backlog decision; see backlog
-   * for the design follow-up.
+   * than maintaining a separate reset method. A future breaking-change
+   * alternative would make double-start throw instead.
    */
   async start(config: StartConfig): Promise<void> {
     if (this.controller) {

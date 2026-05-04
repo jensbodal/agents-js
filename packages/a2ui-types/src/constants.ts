@@ -17,7 +17,7 @@ export const A2UI_META_KEY = "a2ui_message";
 /**
  * The AG-UI `CUSTOM` event `name` used when the gateway forwards an
  * `ACPSessionEvent { type: "surface_event" }` onto the wire. Namespaced
- * under `agents-js.*` per the Wave 4 CUSTOM-namespace discipline.
+ * under `agents-js.*` for collision resistance.
  */
 export const A2UI_SURFACE_EVENT_NAME = "agents-js.a2ui.surface_event";
 

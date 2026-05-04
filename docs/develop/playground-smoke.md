@@ -1,8 +1,8 @@
 ---
-title: Playground Smoke — Manual Verification
+title: Playground Smoke
 ---
 
-# Playground smoke — manual verification
+# Playground smoke
 
 The CI smoke (`bun run docs:smoke`) is build-time only. It asserts the page is wired correctly but does not launch a browser. A full real-browser smoke is a deferred follow-up modeled on `scripts/browser-smoke.ts`.
 

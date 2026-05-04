@@ -194,7 +194,7 @@ describe("isAtBottom — at-bottom detector", () => {
   });
 });
 
-describe("deriveTraceRows — replay mode (M5)", () => {
+describe("deriveTraceRows — replay mode", () => {
   test("renders from replayBuffer when replayMode is non-null", () => {
     const sourceEvents: AguiEventEnvelope[] = [
       ev({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "live-only" }),
@@ -241,7 +241,7 @@ describe("deriveTraceRows — replay mode (M5)", () => {
   });
 });
 
-describe("DocsTraceInspector — replay UI (M5)", () => {
+describe("DocsTraceInspector — replay UI", () => {
   test("render emits REPLAY badge when replayMode is non-null", () => {
     const inst = instance();
     const replayBuffer: AguiEventEnvelope[] = [

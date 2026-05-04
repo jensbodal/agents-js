@@ -1,9 +1,9 @@
 /**
  * Element-level tests for `<docs-playground-shell>`.
  *
- * Covers the dispatch-translation seams the shell adds on top of the M1
- * store: child events → store actions, capability detection → store
- * bootstrap, activation → cached-runner construction. Renders are exercised
+ * Covers the dispatch-translation seams the shell adds on top of the store:
+ * child events → store actions, capability detection → store bootstrap,
+ * activation → cached-runner construction. Renders are exercised
  * via the pure-helper extractions where possible; the shell instance is
  * staged via `Object.create` since Bun's test runtime has no DOM.
  */
@@ -188,8 +188,8 @@ describe("DocsPlaygroundShell — render", () => {
   });
 
   test("active-phase inspector wires ARIA tablist/tab/tabpanel relationships", () => {
-    // M4 review fix: tab `<button>`s declare aria-controls + id; the panel
-    // wrapper declares role="tabpanel" + aria-labelledby. Screen readers
+    // Tab `<button>`s declare aria-controls + id; the panel wrapper declares
+    // role="tabpanel" + aria-labelledby. Screen readers
     // need the round-trip wiring to navigate the tab/panel relationship
     // programmatically. We assert against the static template strings
     // since the attribute names land there even when their values are
@@ -295,7 +295,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(seenActions[0]?.type).toBe("APPLY_MANIFEST");
   });
 
-  test("playground-replay event translates to store START_REPLAY with last run id (M5)", () => {
+  test("playground-replay event translates to store START_REPLAY with last run id", () => {
     const inst = instance();
     const seenActions: Array<{ type: string; runId?: string }> = [];
     const fakeStore = {
@@ -339,7 +339,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(seenActions[0]?.runId).toBe("run-2");
   });
 
-  test("playground-replay is a no-op when there are no past runs (M5)", () => {
+  test("playground-replay is a no-op when there are no past runs", () => {
     const inst = instance();
     const seenActions: Array<{ type: string }> = [];
     const fakeStore = {
@@ -372,7 +372,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(seenActions.length).toBe(0);
   });
 
-  test("playground-stop-replay event translates to store STOP_REPLAY (M5)", () => {
+  test("playground-stop-replay event translates to store STOP_REPLAY", () => {
     const inst = instance();
     const seenActions: Array<{ type: string }> = [];
     const fakeStore: Pick<PlaygroundStore, "dispatch"> = {
@@ -387,7 +387,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(seenActions[0]?.type).toBe("STOP_REPLAY");
   });
 
-  test("_canReplay() returns true when runs.size > 0 and replayMode is null and last run finished (M5)", () => {
+  test("_canReplay() returns true when runs.size > 0 and replayMode is null and last run finished", () => {
     const inst = instance();
     Object.defineProperty(inst, "_state", {
       value: {
@@ -402,7 +402,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(result).toBe(true);
   });
 
-  test("_canReplay() returns false when replayMode is non-null (already replaying) (M5)", () => {
+  test("_canReplay() returns false when replayMode is non-null (already replaying)", () => {
     const inst = instance();
     Object.defineProperty(inst, "_state", {
       value: {
@@ -417,7 +417,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(result).toBe(false);
   });
 
-  test("_canReplay() returns false when the last run is still 'running' (M5 race guard)", () => {
+  test("_canReplay() returns false when the last run is still 'running'", () => {
     // Replaying a still-running run would race the live RECEIVE_EVENT
     // stream against the replay engine's cursor read of the same events
     // array. The shell's _canReplay() must hide the button while the
@@ -439,7 +439,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     expect(result).toBe(false);
   });
 
-  test("_canReplay() returns true when the last run is 'cancelled' or 'errored' (terminal states allow replay) (M5)", () => {
+  test("_canReplay() returns true when the last run is 'cancelled' or 'errored' (terminal states allow replay)", () => {
     const inst = instance();
     for (const status of ["cancelled", "errored"]) {
       Object.defineProperty(inst, "_state", {
@@ -456,7 +456,7 @@ describe("DocsPlaygroundShell — event translation", () => {
     }
   });
 
-  test("_isReplaying() reflects replayMode presence (M5)", () => {
+  test("_isReplaying() reflects replayMode presence", () => {
     const inst = instance();
     Object.defineProperty(inst, "_state", {
       value: {

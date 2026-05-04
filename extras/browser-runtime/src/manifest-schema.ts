@@ -2,10 +2,10 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
 /**
- * The four POC manifest fields the Playground v2 manifest editor (M4) will
- * round-trip. Kept intentionally small in M1: future fields land additively
- * via `additionalProperties: false` plus schema bumps; the validator surface
- * (`createManifestValidator`) does not change.
+ * The manifest fields the Playground manifest editor round-trips. The
+ * schema stays intentionally small: future fields land additively via
+ * `additionalProperties: false` plus schema bumps, while the validator
+ * surface (`createManifestValidator`) does not change.
  *
  * Runtime ids:
  *   - `mock`              — `createMockRuntimeAdapter` / `createMockRunner`.
@@ -34,7 +34,7 @@ export interface ManifestDraft {
 
 /**
  * JSON-Schema 2020-12 description of `ManifestDraft`. Exported so consumers
- * (e.g. M4 manifest-editor live preview) can introspect or render schema-driven
+ * can introspect or render schema-driven
  * form widgets without redeclaring the contract.
  *
  * `additionalProperties: false` everywhere — unknown keys must be a hard
@@ -83,7 +83,7 @@ const compiled = ajv.compile(MANIFEST_SCHEMA);
 
 /**
  * Returns a validator bound to the compiled `MANIFEST_SCHEMA`. Wrapped as a
- * factory (rather than a free function) so M4's editor can swap in stricter
+ * factory (rather than a free function) so the editor can swap in stricter
  * variants later (e.g. cross-field invariants like "yolo + tools.allow=false
  * is contradictory") without breaking the call site.
  */

@@ -201,8 +201,7 @@ describe("createMetaAgentLoop", () => {
     const tel = createInMemoryTelemetry();
     const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
 
-    // Pre-M6 the loop tracked a Set and silently added unknown ids; the new
-    // controllers Map ignores misses. Either way, no throw.
+    // Unknown session ids are ignored; cancel remains a no-op for misses.
     expect(() => runner.cancel("never-started")).not.toThrow();
   });
 

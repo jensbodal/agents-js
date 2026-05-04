@@ -332,8 +332,8 @@ export interface A2ATurnStartedEvent {
  *
  * Emitters that know the incremental value should populate `delta`; otherwise
  * only `text` is set. Consumers that want AG-UI-spec-shaped payloads should
- * prefer `delta` when present. Pure incremental-only semantics (dropping the
- * accumulated `text`) is a future phase and is not the Wave 2.3 contract.
+ * prefer `delta` when present. Pure incremental-only semantics would drop the
+ * accumulated `text`, which is not the current compatibility contract.
  */
 export interface A2AMessageDeltaEvent {
   type: "message.delta";

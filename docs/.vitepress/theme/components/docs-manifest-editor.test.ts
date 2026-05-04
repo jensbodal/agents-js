@@ -99,7 +99,7 @@ describe("RUNTIME_OPTIONS — selector contract", () => {
     // Disabling the option in the form is the safety rail that prevents
     // users from dispatching APPLY_MANIFEST with a runtime the shell has
     // no factory for. The schema still validates this value (it's reserved
-    // for M5+); the form just refuses to surface it as a live choice.
+    // for future gateway adapters); the form just refuses to surface it as a live choice.
     const gateway = RUNTIME_OPTIONS.find((o) => o.value === "agents-js-gateway");
     expect(gateway).toBeDefined();
     expect(gateway?.disabled).toBe(true);
@@ -480,9 +480,8 @@ describe("DocsManifestEditor — validator round-trip with createManifestValidat
 
 describe("DocsManifestEditor — stale validation errors clear on edit", () => {
   test("a draft edit after a failed Apply clears the stale error banner", () => {
-    // Reproduces the M4 review-flagged UX trap: user types an empty name,
-    // clicks Apply, sees the banner, then types a corrected name — the
-    // banner must disappear without waiting for the next Apply click.
+    // User types an empty name, clicks Apply, sees the banner, then types a
+    // corrected name; the banner must disappear without waiting for Apply.
     const inst = instance();
     Object.defineProperty(inst, "state", {
       value: makeState({

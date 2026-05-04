@@ -14,7 +14,7 @@ const MAX_BUFFER_BYTES = 1 << 20;
  * Parse an AG-UI Server-Sent Events stream into a generator of validated
  * `BaseEvent` instances.
  *
- * Protocol assumptions (per the Wave 4 shared contract):
+ * Protocol assumptions:
  * - Wire: `text/event-stream`, each frame `data: <json>\n\n`.
  * - Frames may be split across arbitrary `Uint8Array` chunks.
  * - `data:` can repeat on consecutive lines; per SSE spec they concatenate

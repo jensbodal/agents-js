@@ -5,7 +5,7 @@ describe("a2ui demo", () => {
   test("uses a directly renderable root primitive for browser inspection", () => {
     // WHAT: the dev-only ?a2ui=demo surface should visibly render its demo message
     // without requiring a live ACP controller or connected chat session.
-    // WHY: the manual browser pass found that rooting the demo on AcpChatApp
+    // WHY: browser inspection found that rooting the demo on AcpChatApp
     // rendered a second connection dialog instead of the intended A2UI surface.
     const update = buildDemoMessages().find((message) => "updateComponents" in message);
     const components = update?.updateComponents?.components ?? [];

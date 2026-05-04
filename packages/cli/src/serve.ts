@@ -10,6 +10,7 @@ import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
 import {
   AgentRegistry,
   createSyncEndpointHandler,
+  resolveSharedAgentRegistryPath,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
 import {
@@ -141,8 +142,9 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
  */
 async function detectA2AMentionHooks(
   output: Pick<NodeJS.WriteStream, "write">,
+  registryPath: string,
 ): Promise<ExecutorHooks | undefined> {
-  const registry = new AgentRegistry();
+  const registry = new AgentRegistry({ configPath: registryPath });
   let agents: Awaited<ReturnType<AgentRegistry["list"]>>;
 
   try {
@@ -357,9 +359,10 @@ export async function runServeCommand(
     },
     onMissingProfile: "throw",
   });
-  const hooks = await detectA2AMentionHooks(output);
+  const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
+  const hooks = await detectA2AMentionHooks(output, registryPath);
   const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
-  const syncEndpointHandler = createSyncEndpointHandler();
+  const syncEndpointHandler = createSyncEndpointHandler({ configPath: registryPath });
   const server = await serveGateway({
     acp: runtime.acp,
     agentCard: runtime.agentCard,
@@ -376,6 +379,7 @@ export async function runServeCommand(
   const registrySync = startRegistrySync({
     name: runtime.agentCard.name ?? "agents-js",
     url: buildAgentCardBaseUrl(server.port, resolvedInputs.host),
+    configPath: registryPath,
     intervalMs: syncIntervalMs,
   });
   const originalStop = server.stop.bind(server);

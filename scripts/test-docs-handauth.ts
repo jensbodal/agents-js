@@ -1,6 +1,6 @@
 /**
  * test-docs-handauth.ts — Best-effort typecheck for code blocks
- * in the 10 hand-authored docs pages.
+ * in the hand-authored docs pages.
  *
  * Extracts fenced ```ts / ```typescript blocks and runs each through
  * `bun build --no-bundle` to surface type errors.
@@ -13,16 +13,18 @@ import { join } from "node:path";
 const DOCS_DIR = join(import.meta.dir, "..", "docs");
 
 const PAGES = [
+  "architecture.md",
+  "beta-contract.md",
   "index.md",
   "getting-started.md",
   "surfaces.md",
   "primitives.md",
   "harness-guide.md",
   "protocols.md",
+  "protocols-primer.md",
   "streaming-and-events.md",
   "observability.md",
-  "contribute.md",
-  "roadmap-and-non-goals.md",
+  "playground.md",
 ] as const;
 
 const TMP_DIR = join(import.meta.dir, "..", ".tmp-docs-typecheck");

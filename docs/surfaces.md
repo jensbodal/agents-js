@@ -174,13 +174,13 @@ Choose the launch mode that matches what you are validating:
 |---|---|---|
 | Mock browser proof | `bun run browser:smoke` | Quick repo-owned validation of the browser shell |
 | Integrated live browser e2e | `bun run e2e:web:live -- --runtime claude` | Real runtime + real browser proof without shared browser tooling |
-| Real local browser UAT | `bun run dev` | Manual UAT against the printed `Open URL` from the integrated launcher |
-| Real local browser UAT (explicit runtime) | `bun run dev --runtime claude` | Manual UAT against the printed `Open URL` for a specific startup runtime |
-| Explicit runtime browser UAT | `vp run @agents-js/cli#serve -- --harness claude` and `vp run @agents-js/web-ui#dev` | Manual UAT when you want a specific runtime rather than the checked-in default |
+| Real local browser check | `bun run dev` | Manual check against the printed `Open URL` from the integrated launcher |
+| Real local browser check (explicit runtime) | `bun run dev --runtime claude` | Manual check against the printed `Open URL` for a specific startup runtime |
+| Explicit runtime browser check | `vp run @agents-js/cli#serve -- --harness claude` and `vp run @agents-js/web-ui#dev` | Manual check when you want a specific runtime rather than the checked-in default |
 
 #### Stable Manual Checks
 
-These checks are grounded in the current UI and are suitable for human UAT.
+These checks are grounded in the current UI and are suitable for human review.
 
 ##### Connect Dialog
 
@@ -214,10 +214,10 @@ These checks are grounded in the current UI and are suitable for human UAT.
 
 | # | Check | Evidence |
 |---|---|---|
-| M1 | `Model` dropdown is hidden when the runtime does not advertise models | Screenshot |
-| M2 | `Model` dropdown appears after connect when models are available | Screenshot |
-| M3 | The current model is selected in the dropdown | Screenshot |
-| M4 | Choosing a different model updates the UI after the host snapshot refresh | Observation |
+| C1 | `Model` dropdown is hidden when the runtime does not advertise models | Screenshot |
+| C2 | `Model` dropdown appears after connect when models are available | Screenshot |
+| C3 | The current model is selected in the dropdown | Screenshot |
+| C4 | Choosing a different model updates the UI after the host snapshot refresh | Observation |
 
 ##### Prompt Input
 
@@ -263,7 +263,7 @@ These checks are grounded in the current UI and are suitable for human UAT.
 #### Runtime-Dependent Checks
 
 These have deterministic fixture-backed coverage in `bun run browser:smoke`. When you are
-running manual UAT against a real runtime, use the same expectations once that runtime exposes the
+running a manual check against a real runtime, use the same expectations once that runtime exposes the
 state natively.
 
 ##### Elicitation Form
@@ -310,7 +310,7 @@ These are not current pass/fail browser checks:
 
 | Category | Definition |
 |---|---|
-| blocker | Prevents further browser UAT or invalidates an automated proof lane |
+| blocker | Prevents further browser review or invalidates an automated proof lane |
 | bug | Incorrect behavior, but testing can continue elsewhere |
 | unclear behavior | Unexpected result that may be intended or may be a defect |
 | blocked | Check could not be exercised because the required runtime state was unavailable |

@@ -42,7 +42,7 @@ describe("createLocalWasmRuntimeAdapter", () => {
     });
     const caps = adapter.describeCapabilities();
     expect(caps.streaming).toBe(true);
-    // Tool surface is host-provided in M1 — adapter doesn't enumerate.
+    // Tool surface is host-provided; adapter doesn't enumerate.
     expect(Array.isArray(caps.tools)).toBe(true);
   });
 

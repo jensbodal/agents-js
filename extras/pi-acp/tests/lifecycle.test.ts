@@ -51,7 +51,7 @@ describe("PiRpcClient against mock Pi fixture", () => {
       onExit: () => {},
     });
     const pending = client.sendAndAwait({ type: "prompt", message: "hi" });
-    // Kill after a brief delay so the pending request is already registered.
+    // Kill after a short delay so the pending request is already registered.
     setTimeout(() => client.kill("SIGTERM"), 50);
     let pendingError: unknown = null;
     try {

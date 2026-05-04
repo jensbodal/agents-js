@@ -117,7 +117,7 @@ const checks: Check[] = [
     },
   },
   {
-    name: "Playground v2 M2 element source registers <docs-playground-shell>",
+    name: "Playground shell source registers <docs-playground-shell>",
     run: () => {
       const path = join(
         REPO,
@@ -141,7 +141,7 @@ const checks: Check[] = [
     },
   },
   {
-    name: "Playground v2 M3 element source registers <docs-trace-inspector>",
+    name: "Playground trace inspector source registers <docs-trace-inspector>",
     run: () => {
       const inspectorPath = join(
         REPO,
@@ -179,7 +179,7 @@ const checks: Check[] = [
     },
   },
   {
-    name: "Playground v2 M4 element source registers <docs-manifest-editor>",
+    name: "Playground manifest editor source registers <docs-manifest-editor>",
     run: () => {
       const editorPath = join(
         REPO,

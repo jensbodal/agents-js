@@ -53,7 +53,7 @@ export interface TraceRow {
  * bounded. We do NOT slice or filter here — every event the store kept is
  * a row in the inspector, so users can trust 1:1 correspondence.
  *
- * Replay mode (M5): when `state.replayMode !== null`, the projection
+ * Replay mode: when `state.replayMode !== null`, the projection
  * switches to `state.replayBuffer` (the timer-driven re-emission buffer)
  * instead of the source run's `events`. The source run's events are never
  * mutated during replay — the buffer is a separate, cleared-on-stop
@@ -185,9 +185,8 @@ export function isAtBottom(opts: {
  * built-in microtask batching: a chunked TEXT_MESSAGE stream collapses to
  * a single `requestUpdate()` per event-loop tick.
  *
- * TODO(trace-raf-batching): see DOT-305 — if profiling later shows that
- * 200-event bursts during streaming drop frames, switch to an
- * rAF-batched render queue (the `_pendingRender` flag in the M3 plan).
+ * If profiling later shows that 200-event bursts during streaming drop
+ * frames, switch to an rAF-batched render queue.
  * Microtask batching is sufficient for the current scale.
  */
 @safeCustomElement("docs-trace-inspector")
@@ -264,8 +263,8 @@ export class DocsTraceInspector extends LitElement {
       font-style: italic;
       padding: 0.5rem;
     }
-    /* Replay mode (M5): muted, italic styling distinguishes replayed events
-     * from live ones so users know they're watching a historical scrub. */
+    /* Replay mode: muted, italic styling distinguishes replayed events
+     * from live ones. */
     .row.replay {
       font-style: italic;
       opacity: 0.75;
@@ -311,12 +310,12 @@ export class DocsTraceInspector extends LitElement {
    *
    * WHY listener cleanup matters: Lit's `firstUpdated` only fires once per
    * instance lifetime, but the host element may be disconnected and
-   * reconnected (M5 replay mode re-mounts the inspector). Without the
+   * reconnected after the inspector re-mounts. Without the
    * remove + re-add cycle below, a reconnected host has the OLD scroll
    * element wired into a now-dead reference, and `_wasAtBottom` writes
    * land against a detached node. Defensive cleanup also avoids a real
    * listener leak if any future teardown path nulls `_scrollEl` without
-   * destroying the host. (See M3 review.)
+   * destroying the host.
    */
   private _onScroll = (): void => {
     const el = this._scrollEl;

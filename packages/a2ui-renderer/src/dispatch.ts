@@ -2,7 +2,7 @@
  * Dispatcher that maps a single A2UI component envelope onto an `acp-*`
  * Lit primitive.
  *
- * Wave 5 only supports the ACP custom catalog (`ACP_CATALOG_ID`). Any other
+ * Currently supports the ACP custom catalog (`ACP_CATALOG_ID`). Any other
  * catalog id triggers `A2uiRendererError`. Unknown component names within
  * the ACP catalog likewise error so hosts fail fast instead of silently
  * rendering nothing.
@@ -26,7 +26,7 @@ export interface A2uiComponentNode {
 
 /** Options accepted by the renderer. */
 export interface RenderOptions {
-  /** Catalog id of the surface being rendered. Must be `ACP_CATALOG_ID` in Wave 5. */
+  /** Catalog id of the surface being rendered. Must be `ACP_CATALOG_ID`. */
   readonly catalogId: string;
   /** Handler for wrapped Action events. */
   readonly onEvent: A2uiEventHandler;
@@ -49,7 +49,7 @@ export interface RenderOptions {
 export function renderA2uiComponent(node: A2uiComponentNode, opts: RenderOptions): TemplateResult {
   if (opts.catalogId !== ACP_CATALOG_ID) {
     throw new A2uiRendererError(
-      `Unsupported catalog id "${opts.catalogId}". Wave 5 only supports ${ACP_CATALOG_ID}.`,
+      `Unsupported catalog id "${opts.catalogId}". Supported catalog: ${ACP_CATALOG_ID}.`,
       { catalogId: opts.catalogId },
     );
   }

@@ -9,10 +9,9 @@ import {
 } from "../src/acp-to-agui-translator.ts";
 
 /**
- * Table-driven coverage for every row of the ACP→AG-UI translation
- * table documented in the Wave 4 Track B brief. Each row either
- * produces specific AG-UI events, forwards via a namespaced `CUSTOM`
- * event, or is intentionally dropped.
+ * Table-driven coverage for the ACP→AG-UI translation rules. Each row
+ * either produces specific AG-UI events, forwards via a namespaced
+ * `CUSTOM` event, or is intentionally dropped.
  */
 
 function makeAgentChunkEvent(text: string, messageId?: string): ACPSessionEvent {
@@ -297,7 +296,7 @@ describe("translateAcpEvent — CUSTOM forwarded events", () => {
   }
 });
 
-describe("translateAcpEvent — surface events (Wave 5)", () => {
+describe("translateAcpEvent — surface events", () => {
   test("surface_event → CUSTOM agents-js.a2ui.surface_event with opaque payload", () => {
     const state = createTranslatorState();
     const payload = { kind: "beginRendering", components: [{ id: "root" }] };

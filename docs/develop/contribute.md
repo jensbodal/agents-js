@@ -4,7 +4,7 @@ title: Contribute
 
 # Contribute
 
-This page covers everything contributors and operators need to work inside the `agents-js` monorepo: development setup, build and test commands, release posture, the release checklist, and deploying docs from local.
+This page covers everything contributors and operators need to work inside the `agents-js` monorepo: development setup, build and test commands, release posture, and the release checklist.
 
 If you are trying to use the product first, start with [Getting Started](/getting-started), [Browser Guide](/surfaces), or [CLI Guide](/surfaces#cli).
 
@@ -58,7 +58,6 @@ bun run e2e:deterministic
 bun run e2e -- --runtime claude
 bun run ci             # deterministic upstream proof gate
 bun run test:docs      # TypeDoc code-block validation
-bun run docs:verify-generated  # fail if generated API docs drift from checked-in docs/api
 bun run release:preflight  # full local release/distribution contract audit
 ```
 
@@ -139,15 +138,9 @@ The release-defining validation surface for `agents-js` is repo-local:
 | `apps/web-ui` | Browser reference client | Proves the browser-side UX and host bridge from source. |
 | `apps/internal-gateway` | Runtime and ACP/A2A bridge | Proves runtime boot, gateway behavior, and repo-owned live flows. |
 | Package tests | Unit + integration | Prove reusable contracts package by package. |
-| Docs build + docs deploy tooling | Public docs surface | Proves that the published docs site matches the checked-in story. |
+| Static docs build | Public docs surface | Proves that the published docs site matches the checked-in story. |
 
 External consumers can still be useful corroborating evidence, but they are not the canonical release gate for this repo.
-
-### Managed Branch Flow
-
-`agents-js` is the long-lived reviewed integration lane for this repo. Keep the managed worktree on `agents-js`, push that branch for branch-local validation, and only promote `main` by fast-forwarding it to the exact validated `agents-js` tip.
-
-If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, rerun the required local gates, push the rebased `agents-js` branch, and only then fast-forward `main`. Do not use merge commits or ad hoc release branches between the two lanes.
 
 ### Release Operator Contract
 
@@ -157,9 +150,7 @@ If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, 
 
 ### Docs Publication Contract
 
-The repository builds static docs with VitePress. Deployment topology is
-operator-owned: CI systems, registries, tunnels, reverse proxies, and container
-orchestration are configured outside the package contract.
+The repository builds static docs with VitePress. Deployment topology is configured outside the package contract.
 
 ### Consumption Guidance
 

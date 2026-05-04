@@ -63,7 +63,6 @@
     "docs:consistency": "bun scripts/docs-consistency.ts",
     "docs:readmes": "bun scripts/generate-package-readmes.ts",
     "docs:smoke": "bun scripts/check-docs-playground.ts",
-    "docs:structure": "bun scripts/docs-structure.ts",
     "docs:typecheck-handauth": "bun scripts/test-docs-handauth.ts",
     "bump": "bun scripts/bump.ts",
     "dashboard": "bun scripts/dep-graph-gen.ts && bun scripts/test-counts.ts && bun scripts/build-dashboard.ts",

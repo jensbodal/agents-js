@@ -11,16 +11,16 @@ import {
 } from "./fake-host-controller.ts";
 
 /**
- * Wave 5 fan-in E2E — proves the A2UI surface-event round trip across
- * the gateway boundary.
+ * End-to-end coverage for the A2UI surface-event round trip across the
+ * gateway boundary.
  *
- *   Track B's translator: surface_event ACPSessionEvent
+ *   Translator: surface_event ACPSessionEvent
  *       → AG-UI CUSTOM frame (name = "agents-js.a2ui.surface_event")
- *       → Track A's AGUITransport client receives it from the SSE stream
+ *       → AGUITransport client receives it from the SSE stream
  *
  * Agent→Host direction (A2UI messages arriving via ACP) is covered by
- * Track A's host-surface-adapter.test.ts. This file exercises the
- * gateway-boundary side: a surface_event driven by the host relays out
+ * host-surface-adapter.test.ts. This file exercises the gateway-boundary side:
+ * a surface_event driven by the host relays out
  * to an AG-UI client as a CUSTOM frame, with the full payload intact.
  *
  * Also asserts the spec validator accepts each CreateSurface/UpdateComponents
@@ -58,7 +58,7 @@ async function collect(events: AsyncGenerator<unknown>): Promise<unknown[]> {
   return out;
 }
 
-describe("Wave 5 fan-in — A2UI surface_event round-trip across gateway", () => {
+describe("A2UI surface_event round-trip across gateway", () => {
   let gateway: ServerHandle;
 
   beforeEach(() => {
@@ -141,7 +141,7 @@ describe("Wave 5 fan-in — A2UI surface_event round-trip across gateway", () =>
   });
 });
 
-describe("Wave 5 fan-in — A2UI message spec conformance", () => {
+describe("A2UI message spec conformance", () => {
   /**
    * The four A2UI lifecycle message shapes that agents emit via ACP
    * `_meta.a2ui_message`. Each must pass `validateA2uiMessage` so that

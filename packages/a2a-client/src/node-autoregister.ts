@@ -29,7 +29,11 @@ export function resolveSharedAgentRegistryPath(
 ): string {
   // biome-ignore lint/style/noProcessEnv: node-only helper reads the shared registry override from the process environment by default.
   const env = options.env ?? process.env;
-  return options.configPath ?? env.AGENTS_JS_REGISTRY ?? DEFAULT_SHARED_REGISTRY_PATH;
+  const defaultPath =
+    options.env && typeof env.HOME === "string" && env.HOME.length > 0
+      ? join(env.HOME, ".agents-js", "registry.json")
+      : DEFAULT_SHARED_REGISTRY_PATH;
+  return options.configPath ?? env.AGENTS_JS_REGISTRY ?? defaultPath;
 }
 
 /** On-disk v2 file. `version` is absent on v1 files; synthesized on migration. */

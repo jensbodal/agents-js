@@ -234,7 +234,7 @@ describe("DocsChatPane — class shape + dispatch", () => {
   });
 });
 
-describe("pickRenderRun — replay synthesis (M5)", () => {
+describe("pickRenderRun — replay synthesis", () => {
   test("returns active run when replayMode is null", () => {
     const run = makeRun({ id: "live-id", events: [] });
     const state: PlaygroundState = {
@@ -339,7 +339,7 @@ describe("pickRenderRun — replay synthesis (M5)", () => {
   });
 });
 
-describe("DocsChatPane — replay UI (M5)", () => {
+describe("DocsChatPane — replay UI", () => {
   test("render applies 'replay' suffix to line class strings when replayMode is set", () => {
     const inst = instance();
     const replayBuffer: AguiEventEnvelope[] = [

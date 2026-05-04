@@ -50,7 +50,7 @@ function normalizeTransformId(id: string): string {
 
 export default defineConfig({
   build: {
-    // The reference UI intentionally ships as a single internal/UAT bundle.
+    // The reference UI intentionally ships as a single reference-app bundle.
     // Keep the warning budget aligned with the current bundled workspace deps.
     chunkSizeWarningLimit: 1_200,
   },

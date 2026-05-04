@@ -669,9 +669,9 @@ describe("generateScopeCandidates", () => {
   });
 
   test("directory-like path (no extension) labels as directory", () => {
-    const candidates = generateScopeCandidates("/ws/src/lifestone_ios", "/ws");
-    expect(candidates[0]?.label).toBe("Just this directory: lifestone_ios/");
-    expect(candidates[0]?.scope).toBe("/ws/src/lifestone_ios");
+    const candidates = generateScopeCandidates("/ws/src/project_alpha", "/ws");
+    expect(candidates[0]?.label).toBe("Just this directory: project_alpha/");
+    expect(candidates[0]?.scope).toBe("/ws/src/project_alpha");
   });
 
   test("path with trailing slash labels as directory", () => {

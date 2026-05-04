@@ -12,12 +12,11 @@
  * - `workspaceRoot` is the ACP `NewSessionRequest.cwd` if provided, else the
  *   inherited `process.cwd()`. The trial agent is happy with either; the
  *   integration test always pins it via `cwd` so probes hit fixture data.
- * - `hubRoot` defaults to {@link DEFAULT_TRIAL_AGENT_HUB_ROOT} (the canonical
- *   `~/workspace/syncthing/lifestone_ios/hub` path also baked into the
- *   `searchDocs` primitive). Override precedence: `--hub-root <path>` CLI
- *   flag > `TRIAL_AGENT_HUB_ROOT` env var > default. Test harnesses that
- *   embed the agent programmatically should call {@link createTrialAgent}
- *   with an explicit `hubRoot` instead of going through the bin.
+ * - `hubRoot` defaults to {@link DEFAULT_TRIAL_AGENT_HUB_ROOT}. Override
+ *   precedence: `--hub-root <path>` CLI flag > `TRIAL_AGENT_HUB_ROOT` env
+ *   var > default. Test harnesses that embed the agent programmatically
+ *   should call {@link createTrialAgent} with an explicit `hubRoot` instead
+ *   of going through the bin.
  */
 
 import { Readable, Writable } from "node:stream";

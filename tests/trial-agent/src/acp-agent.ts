@@ -3,7 +3,7 @@
  *
  * Lifted out of `bin/trial-agent.ts` so the agent can be embedded in test
  * harnesses (or any other host that owns its own `AgentSideConnection`)
- * with explicit control over the document root root rather than relying on
+ * with explicit control over the document root rather than relying on
  * the binary's env-var + default fallback chain.
  *
  * The bin script is a thin wrapper: it parses CLI flags + env vars,
@@ -11,8 +11,6 @@
  * {@link createTrialAgent} with the result.
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import {
   type Agent,
   type AgentSideConnection,
@@ -26,24 +24,19 @@ import {
   type PromptResponse,
 } from "@agentclientprotocol/sdk";
 import { extractPromptText } from "@agents-js/acp";
+import { DEFAULT_FETCH_CONTEXT_HUB_ROOT } from "@agents-js/tools";
 import { createPromptHandler } from "./prompt-handler.ts";
 
 export const TRIAL_AGENT_NAME = "trial-agent";
 export const TRIAL_AGENT_VERSION = "0.2.0-beta-3";
 
 /**
- * Default document root root used when no override is supplied. Mirrors the
+ * Default document root used when no override is supplied. Mirrors the
  * default baked into the `searchDocs` / `fetchContext` primitives in
  * `@agents-js/tools`. Exported so callers and tests can reference the
  * same canonical value rather than re-deriving it.
  */
-export const DEFAULT_TRIAL_AGENT_HUB_ROOT = join(
-  homedir(),
-  "workspace",
-  "syncthing",
-  "lifestone_ios",
-  "hub",
-);
+export const DEFAULT_TRIAL_AGENT_HUB_ROOT = DEFAULT_FETCH_CONTEXT_HUB_ROOT;
 
 /**
  * Options accepted by {@link createTrialAgent}. All fields are optional;
@@ -51,9 +44,9 @@ export const DEFAULT_TRIAL_AGENT_HUB_ROOT = join(
  */
 export interface CreateTrialAgentOptions {
   /**
-   * Hub-vault root passed to every `session/prompt` dispatch. When unset,
+   * Hub root passed to every `session/prompt` dispatch. When unset,
    * defaults to {@link DEFAULT_TRIAL_AGENT_HUB_ROOT}. Operators override
-   * this to point the agent at fixture data or a different vault layout.
+   * this to point the agent at fixture data or a different document layout.
    */
   hubRoot?: string;
   /**
@@ -80,9 +73,8 @@ function nextSessionId(counter: { value: number }): string {
  * Build the trial-agent ACP {@link Agent} bound to the supplied connection.
  *
  * `options.hubRoot` is the lift target — operators can construct the agent
- * with any hub root rather than the baked-in default. When unset, falls
- * back to {@link DEFAULT_TRIAL_AGENT_HUB_ROOT} so the bin's previous
- * behaviour is preserved.
+ * with any hub root rather than relying on the package default. When unset,
+ * falls back to {@link DEFAULT_TRIAL_AGENT_HUB_ROOT}.
  */
 export function createTrialAgent(
   connection: AgentSideConnection,

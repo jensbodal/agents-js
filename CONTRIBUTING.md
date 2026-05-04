@@ -36,7 +36,7 @@ pre-commit and pre-push hooks fire automatically once you've run setup.
 |------|---------|--------------|-------|
 | pre-commit | auto-fix + `bun run check` | `bun run format` + `biome check --write` (safe auto-fixes) + preflight, `tsc --noEmit`, biome, docs-api drift | local, on `git commit` |
 | pre-push | `mise run ci` | `install` + `check` + `test:vp` (parallel build + unit tests via vp) | local, on `git push` |
-| CI | `bun run ci` | `check` + `test` + `docs:build` + `e2e:gateway` + `browser:smoke` | Gitea Actions |
+| CI | `bun run ci` | `check` + `test` + `docs:build` + `e2e:gateway` + `browser:smoke` | hosted CI |
 
 The pre-commit hook auto-formats and auto-fixes safe lint before running `check`, so format/lint nits never block a commit. The final `check` step still enforces typecheck, unfixable lint, and generated-doc drift — real errors must be fixed manually.
 
@@ -75,18 +75,8 @@ bun run format   # auto-format with Biome
 bun run lint     # lint with Biome
 ```
 
-Treat docs publication, branch reconciliation, and “green enough” local checks as partial progress,
-not as release completion. If a defect affects the reusable reference surfaces or host packages,
+Treat partial local checks as progress, not as release completion. If a defect affects the reusable reference surfaces or host packages,
 fix it in `agents-js` before narrowing it to any host-specific consumer.
-
-## Planning Artifacts
-
-`backlog.json` is the structured task tracker.
-`roadmap.json` can stay quiet unless there is real active roadmap content.
-See [docs/develop/contribute.md#release-posture](docs/develop/contribute.md#release-posture) for current release posture.
-
-- Short-lived implementation notes belong in `plans/archive/` once the work lands.
-- Keep `apps/web-ui` and `apps/internal-gateway` healthy as the reference SDK proof surfaces.
 
 Run a single package's tests:
 
@@ -112,8 +102,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 1. Fork the repo and create a branch from `main`
 2. Make your changes
 3. Run `bun run ci`, `bun run docs:build`, and any relevant `e2e:*` proof-surface checks
-4. If the work intentionally changes release posture or planning authority, update the relevant
-   tracker/docs in the same PR
+4. If the work intentionally changes release posture, update the relevant docs in the same PR
 5. Open a PR with a clear description of what changed and why
 
 ## Code Conventions

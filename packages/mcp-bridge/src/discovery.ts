@@ -1,9 +1,9 @@
 /**
  * Progressive tool discovery index for the MCP bridge.
  *
- * Maps the brief's `tool_search` / `load_tool` primitives onto MCP's
- * existing `tools/list` + `tools/call` verbs (protocol-lineage note
- * below). Tools and skills are indexed in memory; a naive substring
+ * Maps `tool_search` / `load_tool` primitives onto MCP's existing
+ * `tools/list` + `tools/call` verbs (protocol-lineage note below).
+ * Tools and skills are indexed in memory; a naive substring
  * match over name + description powers `tool_search`. `load_tool`
  * flips an MCP `RegisteredTool` from `disable()` to `enable()`, which
  * is the SDK's built-in mechanism for progressive exposure and
@@ -52,9 +52,8 @@ export interface SearchOptions {
  * Search is a case-insensitive substring match over `name` and
  * `description`. Empty / whitespace-only query returns the full
  * catalog (bounded by `limit`). No ranking beyond "name match beats
- * description match", because anything more is already in
- * YAGNI-for-now territory per the brief's "no embedding system"
- * constraint.
+ * description match"; semantic ranking would require embeddings and is
+ * intentionally out of scope for this in-memory index.
  */
 export class DiscoveryIndex {
   private readonly entries = new Map<string, DiscoveryEntry>();

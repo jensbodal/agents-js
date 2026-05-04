@@ -69,7 +69,7 @@ export interface FetchContextOptions {
   hint?: FetchContextHint;
   /** Root under which `.agents/<name>/*.md` live. Defaults to `process.cwd()`. */
   workspaceRoot?: string;
-  /** Root of the hub vault. Defaults to the canonical path for local dev. */
+  /** Root of the hub vault. Defaults to `~/.agents-js/hub`. */
   hubRoot?: string;
   /** Maximum snippets to return. Default: 10. */
   limit?: number;

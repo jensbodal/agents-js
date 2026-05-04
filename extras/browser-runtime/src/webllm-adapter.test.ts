@@ -21,7 +21,7 @@ interface FakeModelHandle {
  * Build a `LocalModel` whose engine.chat.completions.create is a programmable
  * fake. Test fakes are an acceptable place for `as unknown as MLCEngineInterface`
  * — we only need to satisfy the `chat` + `interruptGenerate` shape the adapter
- * actually touches. `interruptCount` lets cancel tests assert that the M6
+ * actually touches. `interruptCount` lets cancel tests assert that the
  * `bridgeSignalToInterrupt` wiring fired.
  */
 function makeFakeModel(create: (args: CreateCall) => unknown): FakeModelHandle {

@@ -200,7 +200,7 @@ describe("autoRegister", () => {
       configPath,
       name: "review-agent",
       kind: "a2a",
-      url: "http://malar.test:8080/a2a",
+      url: "http://gateway.test:8080/a2a",
       gatewayId: "mac",
       protocolVersion: "0.2.1",
     });

@@ -19,8 +19,12 @@ _dot/
 .opencode
 .gemini
 
-# Local Codex per-checkout overrides
-.codex/config.toml
+# Local tool state
+.codex/
+.pi/
+.mcp.json
+gemini-extension.json
+Procfile.docs
 
 # Claude agent runtime state (agent definitions ARE committed)
 .claude/agent-memory/
@@ -69,7 +73,6 @@ plans/
 .playwright-cli/
 .playwright-mcp/
 .mana/
-.cloudflared-*.yaml
 .overmind.sock
 .overmind.env
 .overmind.pids/

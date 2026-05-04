@@ -253,7 +253,7 @@ describe("run lifecycle", () => {
   });
 });
 
-describe("replay engine (M5: timing-driven re-emission)", () => {
+describe("replay engine (timing-driven re-emission)", () => {
   it("START_REPLAY on a non-existent runId is a silent no-op (no commit, no timer)", () => {
     const sched = makeFakeScheduler();
     const store = freshStore({ scheduler: sched });
@@ -526,7 +526,7 @@ describe("replay engine (M5: timing-driven re-emission)", () => {
   });
 });
 
-describe("replay state preservation (M1 spec carryover)", () => {
+describe("replay state preservation", () => {
   it("CLEAR_SESSIONS empties runs map and clears active+replay+buffer", () => {
     const store = freshStore();
     store.dispatch({ type: "START_RUN", prompt: "p" });

@@ -6,7 +6,7 @@
  * outputs, and returns a ranked + cited top-N.
  *
  * `workspaceRoot` and `hubRoot` are the only inputs primitives need beyond
- * the query. Both are overridable for tests / non-default layouts.
+ * the query. Both are overridable for tests and host-specific layouts.
  */
 
 import { homedir } from "node:os";
@@ -22,7 +22,7 @@ import type {
   Source,
 } from "./types.ts";
 
-const DEFAULT_HUB_ROOT = join(homedir(), "workspace", "syncthing", "lifestone_ios", "hub");
+export const DEFAULT_FETCH_CONTEXT_HUB_ROOT = join(homedir(), ".agents-js", "hub");
 
 /**
  * Grounded memory-recall coordinator (Shape 1).
@@ -33,7 +33,9 @@ const DEFAULT_HUB_ROOT = join(homedir(), "workspace", "syncthing", "lifestone_io
  * ranked top-N with full 5-field provenance on every source.
  *
  * Callers override `workspaceRoot` / `hubRoot` when running under test
- * fixtures; both default to the canonical local-dev layout.
+ * fixtures or embedding the tool in a host. By default, workspace memory
+ * comes from the current process and document memory comes from
+ * `~/.agents-js/hub`.
  *
  * @param query - Free-text query string.
  * @param options - Optional routing hint, fixture roots, limit, and a
@@ -47,7 +49,7 @@ export async function fetchContext(
 ): Promise<FetchContextResult> {
   const hint = routeFetchContext(query, options.hint);
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
-  const hubRoot = options.hubRoot ?? DEFAULT_HUB_ROOT;
+  const hubRoot = options.hubRoot ?? DEFAULT_FETCH_CONTEXT_HUB_ROOT;
   const limit = options.limit ?? 10;
   const now = options.now;
 

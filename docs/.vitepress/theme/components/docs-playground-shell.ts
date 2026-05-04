@@ -28,7 +28,7 @@ import type { RunControlsPhase } from "./docs-run-controls.ts";
  * `START_RUN` before `activate()` runs. Throws so the misuse is loud rather
  * than silent.
  *
- * WHY a real factory (not a `null` placeholder): the M1 store invokes
+ * WHY a real factory (not a `null` placeholder): the store invokes
  * `runnerFactory()` inside `START_RUN`'s side-effect path and dispatches
  * `FINALIZE_RUN { status: "errored" }` on rejection. Returning a rejected
  * promise here gives well-defined behavior if the chat pane somehow becomes
@@ -313,7 +313,7 @@ export class DocsPlaygroundShell extends LitElement {
     }
     // `agents-js-gateway` and any future ids land here. The manifest editor
     // disables `agents-js-gateway` so this path is defensive only.
-    throw new Error(`Runtime "${runtime}" is not yet implemented (M5+).`);
+    throw new Error(`Runtime "${runtime}" is not yet implemented.`);
   }
 
   // --- Event translation: child events → store dispatches. -----------------
@@ -345,9 +345,9 @@ export class DocsPlaygroundShell extends LitElement {
   /**
    * Translate the `<docs-run-controls>` "Replay last run" event into a
    * `START_REPLAY` action. The most-recent run is the last entry in the
-   * store's runs map (insertion order is preserved by Map). M5 ships
-   * with single-button "replay last run"; a full picker is deferred —
-   * see TODO(replay-run-picker) on `<docs-run-controls>`.
+   * store's runs map (insertion order is preserved by Map). The current UI uses
+   * a single-button "replay last run" flow; a full picker is deferred — see
+   * TODO(replay-run-picker) on `<docs-run-controls>`.
    */
   private _onReplay(): void {
     if (!this._store) return;
@@ -404,7 +404,7 @@ export class DocsPlaygroundShell extends LitElement {
    * `START_RUN`-cancels-replay rule (live runs preempt replays); this
    * is the inverse — replays only allowed against finalized runs.
    *
-   * M5 surfaces a single "Replay last run" button — the multi-run
+   * The UI surfaces a single "Replay last run" button; the multi-run
    * picker is deferred. See TODO(replay-run-picker) on
    * `<docs-run-controls>`.
    */

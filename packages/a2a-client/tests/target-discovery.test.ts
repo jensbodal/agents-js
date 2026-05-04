@@ -6,9 +6,9 @@ function record(
   overrides: Partial<AgentRegistryRecord> & Pick<AgentRegistryRecord, "name">,
 ): AgentRegistryRecord {
   return {
-    agent_id: `malar.local.${overrides.name}`,
+    agent_id: `gateway.local.${overrides.name}`,
     kind: "a2a",
-    gateway_id: "malar.local",
+    gateway_id: "gateway.local",
     source: "manual",
     registered_at: "2026-04-27T00:00:00.000Z",
     actor_type: "machine",
@@ -38,17 +38,17 @@ function target(overrides: {
 describe("groupDiscoveredTargets", () => {
   test("default behavior groups by name with original order preserved", () => {
     const groups = groupDiscoveredTargets([
-      target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201" }),
-      target({ name: "tpm-example-mana", url: "http://127.0.0.1:9203" }),
-      target({ name: "tpm-agents-js", url: "http://127.0.0.1:9301" }),
+      target({ name: "peer-main", url: "http://127.0.0.1:9201" }),
+      target({ name: "peer-archive", url: "http://127.0.0.1:9203" }),
+      target({ name: "peer-main", url: "http://127.0.0.1:9301" }),
     ]);
 
     expect(groups).toHaveLength(2);
-    expect(groups[0]?.name).toBe("tpm-agents-js");
+    expect(groups[0]?.name).toBe("peer-main");
     expect(groups[0]?.preferred.record.url).toBe("http://127.0.0.1:9201");
     expect(groups[0]?.alternates).toHaveLength(1);
     expect(groups[0]?.alternates[0]?.record.url).toBe("http://127.0.0.1:9301");
-    expect(groups[1]?.name).toBe("tpm-example-mana");
+    expect(groups[1]?.name).toBe("peer-archive");
     expect(groups[1]?.alternates).toHaveLength(0);
   });
 
@@ -56,23 +56,23 @@ describe("groupDiscoveredTargets", () => {
     const groups = groupDiscoveredTargets(
       [
         target({
-          name: "tpm-agents-js",
+          name: "peer-main",
           url: "http://127.0.0.1:9201",
-          agent_id: "malar.local.tpm-agents-js",
+          agent_id: "gateway.local.peer-main",
         }),
         target({
-          name: "tpm-agents-js",
+          name: "peer-main",
           url: "http://127.0.0.1:9200",
-          agent_id: "malar.local.gateway",
+          agent_id: "gateway.local.gateway",
         }),
       ],
       { preferGateway: true },
     );
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.preferred.record.agent_id).toBe("malar.local.gateway");
+    expect(groups[0]?.preferred.record.agent_id).toBe("gateway.local.gateway");
     expect(groups[0]?.alternates).toHaveLength(1);
-    expect(groups[0]?.alternates[0]?.record.agent_id).toBe("malar.local.tpm-agents-js");
+    expect(groups[0]?.alternates[0]?.record.agent_id).toBe("gateway.local.peer-main");
   });
 
   test("preferGateway also promotes records named `gateway` directly", () => {
@@ -90,20 +90,20 @@ describe("groupDiscoveredTargets", () => {
 
   test("hideOffline excludes offline targets from output", () => {
     const targets: DiscoveredTarget[] = [
-      target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201", reachability: "online" }),
-      target({ name: "tpm-example-mana", url: "http://127.0.0.1:9203", reachability: "offline" }),
-      target({ name: "tpm-skills-js", url: "http://127.0.0.1:9204", reachability: "unknown" }),
+      target({ name: "peer-main", url: "http://127.0.0.1:9201", reachability: "online" }),
+      target({ name: "peer-archive", url: "http://127.0.0.1:9203", reachability: "offline" }),
+      target({ name: "peer-tools", url: "http://127.0.0.1:9204", reachability: "unknown" }),
     ];
 
     const hidden = groupDiscoveredTargets(targets, { hideOffline: true });
     expect(hidden).toHaveLength(2);
-    expect(hidden.map((g) => g.name)).toEqual(["tpm-agents-js", "tpm-skills-js"]);
+    expect(hidden.map((g) => g.name)).toEqual(["peer-main", "peer-tools"]);
 
-    // Same input without hideOffline preserves the offline entry —
-    // brief: "Do not remove raw discovery data."
+    // Same input without hideOffline preserves the offline entry so
+    // diagnostics can still show every discovered target.
     const visible = groupDiscoveredTargets(targets);
     expect(visible).toHaveLength(3);
-    expect(visible.map((g) => g.name)).toContain("tpm-example-mana");
+    expect(visible.map((g) => g.name)).toContain("peer-archive");
   });
 
   test("demoteOffline keeps offline visible but pushes them to alternates", () => {
@@ -111,13 +111,13 @@ describe("groupDiscoveredTargets", () => {
     const groups = groupDiscoveredTargets(
       [
         target({
-          name: "tpm-agents-js",
+          name: "peer-main",
           url: "http://127.0.0.1:9201",
           reachability: "offline",
           errorReason: "ECONNREFUSED",
         }),
         target({
-          name: "tpm-agents-js",
+          name: "peer-main",
           url: "http://127.0.0.1:9301",
           reachability: "online",
         }),
@@ -137,9 +137,9 @@ describe("groupDiscoveredTargets", () => {
 
   test("same-name targets on different ports remain distinguishable in alternates", () => {
     const groups = groupDiscoveredTargets([
-      target({ name: "tpm-agents-js", url: "http://127.0.0.1:9201" }),
-      target({ name: "tpm-agents-js", url: "http://127.0.0.1:9301" }),
-      target({ name: "tpm-agents-js", url: "http://10.0.0.5:9201" }),
+      target({ name: "peer-main", url: "http://127.0.0.1:9201" }),
+      target({ name: "peer-main", url: "http://127.0.0.1:9301" }),
+      target({ name: "peer-main", url: "http://10.0.0.5:9201" }),
     ]);
 
     expect(groups).toHaveLength(1);
@@ -161,25 +161,25 @@ describe("groupDiscoveredTargets", () => {
         target({
           name: "agent-x",
           url: "http://a.local",
-          agent_id: "malar.local.agent-x",
+          agent_id: "gateway.local.agent-x",
           reachability: "online",
         }),
         target({
           name: "agent-x",
           url: "http://b.local",
-          agent_id: "malar.local.gateway",
+          agent_id: "gateway.local.gateway",
           reachability: "offline",
         }),
         target({
           name: "agent-x",
           url: "http://c.local",
-          agent_id: "malar.local.agent-x",
+          agent_id: "gateway.local.agent-x",
           reachability: "offline",
         }),
         target({
           name: "agent-x",
           url: "http://d.local",
-          agent_id: "malar.local.gateway",
+          agent_id: "gateway.local.gateway",
           reachability: "online",
         }),
       ],

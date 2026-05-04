@@ -339,7 +339,7 @@ describe("new events propagate through A2AClientProvider event bus (VAL-AGUI-028
   });
 });
 
-describe("AG-UI field alignment (Wave 2.3)", () => {
+describe("AG-UI field alignment", () => {
   test("reasoning.start accepts optional messageId spec alias", () => {
     const event: A2AReasoningStartEvent = {
       type: "reasoning.start",

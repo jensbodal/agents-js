@@ -29,10 +29,10 @@ export interface RuntimeOption {
 }
 
 /**
- * Runtimes the M4 manifest editor knows how to surface. `mock` and
+ * Runtimes the manifest editor knows how to surface. `mock` and
  * `local-wasm-worker` are wired to real adapters (see `runtime-adapter.ts`);
  * `agents-js-gateway` is reserved for a future remote-runtime adapter
- * (M5+, DOT-307) and is rendered disabled.
+ * and is rendered disabled.
  *
  * WHY a module-level constant: the option list is part of the public
  * contract — tests assert on it directly to catch a future "I added a
@@ -110,9 +110,8 @@ export function renderManifestEditor(input: ManifestEditorRenderInput): Template
   const draft = input.state.manifestDraft;
   const dirty = isManifestDirty(input.state.manifest, draft);
   const firstTool = draft.tools[0];
-  // Single-tool form for M4. Multi-row editing tracked separately.
-  // TODO(manifest-editor-multi-tool): see DOT-307 — extend to N tools with
-  // add/remove affordances once the single-tool happy path stabilizes.
+  // Single-tool form. Extend to N tools with add/remove affordances once
+  // the single-tool happy path stabilizes.
   const toolName = firstTool?.name ?? "";
   const toolAllow = firstTool?.allow ?? true;
 
@@ -243,8 +242,8 @@ export function renderManifestEditor(input: ManifestEditorRenderInput): Template
  *
  * WHY this element exists: the manifest editor is the runtime selector for
  * Playground v2 — picking `mock` vs `local-wasm-worker` here drives which
- * factory the shell instantiates on `activate()`. The legacy mode picker on
- * `<docs-run-controls>` is retired in M4; this is the new source of truth.
+ * factory the shell instantiates on `activate()`. This element is the source
+ * of truth for runtime selection.
  */
 @safeCustomElement("docs-manifest-editor")
 export class DocsManifestEditor extends LitElement {

@@ -1,8 +1,7 @@
 // Importing any value from the `@agents-js/ui-components` barrel evaluates
-// the package's `@safeCustomElement` decorators. The legacy mode picker
-// used `<acp-choice-picker>`; M4 retires the mode picker entirely (manifest
-// editor is now the runtime selector). We keep the side-effectful import
-// for symmetry with sibling components.
+// the package's `@safeCustomElement` decorators. The manifest editor is now
+// the runtime selector, and this side-effectful import keeps registration
+// behavior symmetric with sibling components.
 import { safeCustomElement } from "@agents-js/ui-components";
 import { css, html, LitElement, nothing, type TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
@@ -20,16 +19,15 @@ export type RunControlsPhase = "detecting" | "ready-to-activate" | "loading" | "
  * function stays cheap to call from tests without staging a full Lit
  * instance. The element class re-exports its own props through this shape.
  *
- * M4 retires the mode picker: the manifest editor is now the source of
- * truth for runtime selection. The shell reads `state.manifest.runtime` on
- * activate; this control only renders the activate button + status + error.
+ * The manifest editor is the source of truth for runtime selection. The
+ * shell reads `state.manifest.runtime` on activate; this control only renders
+ * the activate button + status + error.
  *
- * M5 adds replay affordances:
- *   - `canReplay` is true when there's at least one past run to replay
- *     and no replay is currently active. Drives the "Replay last run"
- *     button visibility.
- *   - `isReplaying` is true while a replay is in flight. The replay button
- *     swaps to "Stop replay" and dispatches `playground-stop-replay`.
+ * Replay affordances:
+ *   - `canReplay` is true when there's at least one past run to replay and no
+ *     replay is currently active. Drives the "Replay last run" button visibility.
+ *   - `isReplaying` is true while a replay is in flight. The replay button swaps
+ *     to "Stop replay" and dispatches `playground-stop-replay`.
  */
 export interface RunControlsRenderInput {
   phase: RunControlsPhase;
@@ -61,12 +59,12 @@ export function renderRunControls(input: RunControlsRenderInput): TemplateResult
   }
 
   if (input.phase === "active") {
-    // M5 replay affordance: in the active phase, surface a "Replay last run"
+    // Replay affordance: in the active phase, surface a "Replay last run"
     // button when at least one past run exists and no replay is in flight.
     // While replaying, the same button switches to "Stop replay" so the
     // user has a single consistent control for the replay state machine.
-    // TODO(replay-run-picker): see DOT-306 — full multi-run picker UI is
-    // deferred; M5 ships with single-button "replay last run" UX.
+    // Full multi-run picker UI can extend this later; the current UX keeps a
+    // single-button "replay last run" flow.
     return html`
       <p class="notice">Ready.</p>
       ${
@@ -103,9 +101,8 @@ export function renderRunControls(input: RunControlsRenderInput): TemplateResult
  * factory to invoke). The shell holds the runner cache and the store; this
  * element is render-only state and an event source.
  *
- * M4 change: the mode picker (model vs mock `<acp-choice-picker>`) is
- * retired. The manifest editor's runtime select is now the single source
- * of truth for runtime selection. See M4 brief / DOT-307.
+ * The manifest editor's runtime select is the single source of truth for
+ * runtime selection.
  */
 @safeCustomElement("docs-run-controls")
 export class DocsRunControls extends LitElement {
@@ -185,7 +182,7 @@ export class DocsRunControls extends LitElement {
   protected _onReplay(): void {
     // No detail payload: the shell looks up the most-recent runId from
     // its store snapshot. Keeping the event payload-free leaves room for
-    // the run-picker UI to come (DOT-306) without a breaking change.
+    // a future run-picker UI without a breaking change.
     this.dispatchEvent(
       new CustomEvent("playground-replay", {
         bubbles: true,

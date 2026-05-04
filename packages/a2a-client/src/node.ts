@@ -136,7 +136,7 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
   })
     .then((record) => {
       logger.log("[agents-js/registry] Auto-registered", {
-        agent_id: record.agent_id,
+        name: record.name,
         url: record.url,
       });
     })

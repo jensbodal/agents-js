@@ -42,9 +42,8 @@ export interface PiHost {
 
 /**
  * Shape of the update object Pi's `onUpdate` callback accepts. Pi tolerates
- * unknown fields at runtime (per the Wave 6 forward-compat contract), so we
- * widen to `{ type: string; [k: string]: unknown }` and drop what would
- * otherwise need an `as unknown as` cast when adapting our richer
+ * unknown fields at runtime, so we widen to `{ type: string; [k: string]: unknown }`
+ * and drop what would otherwise need an `as unknown as` cast when adapting our richer
  * {@link ProgressUpdate} union into this channel.
  */
 export type PiOnUpdate = (update: { type: string; [key: string]: unknown }) => void;

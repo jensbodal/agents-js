@@ -10,7 +10,7 @@ describe("docs-consistency", () => {
   /**
    * WHAT: Pin that product docs and package metadata stay neutral about the
    * repository hosting provider.
-   * WHY: Gitea/GitHub are CI and publishing implementation details here; source
+   * WHY: repository hosting and CI providers are implementation details here; source
    * content should not claim either host as the canonical project truth.
    */
   test("rejects provider-host source URLs outside CI configuration", () => {

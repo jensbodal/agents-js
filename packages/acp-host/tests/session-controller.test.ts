@@ -2091,7 +2091,7 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
     // Start a prompt that will hang
     const _promptPromise = controller.sendPrompt([{ type: "text", text: "hello" }]).catch(() => {});
 
-    // Wait briefly for the status to reach "prompting"
+    // Wait shortly for the status to reach "prompting"
     await new Promise((r) => setTimeout(r, 50));
     expect(controller.getState().status).toBe("prompting");
 

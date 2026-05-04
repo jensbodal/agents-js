@@ -6,7 +6,7 @@
  * `RUN_ERROR`, and delegates the interior of the run to
  * `runAguiSession`.
  *
- * Lifecycle contract (see Wave 4 Track B brief):
+ * Lifecycle contract:
  * - first event = `RUN_STARTED` with `threadId` / `runId`
  * - terminal event = `RUN_FINISHED` or `RUN_ERROR`
  * - nothing is emitted after the terminal event, and the stream closes
@@ -183,7 +183,7 @@ export function createAguiFetchHandler(
 
 /**
  * Pull the last user-authored text from the input messages. Mirrors
- * how `HostA2AExecutor` treats A2A messages: we only need the plain
+ * how `HostA2AExecutor` treats A2A messages: the endpoint only needs the plain
  * user prompt for the ACP turn; multimodal content is not yet wired
  * through the AG-UI endpoint and will be a separate follow-up.
  */

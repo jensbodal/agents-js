@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "agents-js-bridge": {
-      "command": "agents-js",
-      "args": ["bridge"]
-    }
-  }
-}

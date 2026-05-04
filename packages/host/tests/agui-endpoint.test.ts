@@ -150,12 +150,8 @@ describe("createAguiFetchHandler — happy path streaming", () => {
   });
 
   test("synthesizes threadId when RunAgentInput omits it", async () => {
-    // Note: RunAgentInputSchema requires threadId to be present and
-    // non-empty. The contract says "echo threadId when provided, else
-    // crypto.randomUUID()" — this is relevant in practice when
-    // consumers pass an empty threadId and we synthesize one. AG-UI's
-    // spec enforces required, but the endpoint defensively handles
-    // the echo-vs-synthesize branch. See contract row 5 in the brief.
+    // AG-UI requires a non-empty threadId, and the endpoint preserves
+    // that value when it is provided.
     const fake = createFakeController();
     fake.setOnSendPrompt(async () => {
       fake.emit({ type: "turn_completed", stopReason: "end_turn" } as ACPSessionEvent);
@@ -222,7 +218,7 @@ describe("createAguiFetchHandler — error paths", () => {
   });
 });
 
-describe("createAguiFetchHandler — surface events (Wave 5)", () => {
+describe("createAguiFetchHandler — surface events", () => {
   test("surface_event from controller flows through as CUSTOM agents-js.a2ui.surface_event", async () => {
     const fake = createFakeController();
     const surfacePayload = { kind: "beginRendering", components: [{ id: "root" }] };

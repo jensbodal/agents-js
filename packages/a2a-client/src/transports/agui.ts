@@ -42,7 +42,7 @@ const RUN_PATH = "/agent";
  * have no AG-UI counterpart. Use {@link AguiToA2ATransportAdapter} for
  * backward compatibility with `A2AClientProvider`.
  *
- * Wire contract (Wave 4):
+ * Wire contract:
  * - `POST ${baseUrl}/agent`, body = `RunAgentInput` JSON
  * - Request: `Accept: text/event-stream`, `Content-Type: application/json`
  * - Response: `text/event-stream`, each frame `data: <json>\n\n`

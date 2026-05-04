@@ -7,9 +7,8 @@
  * to a single run. State is passed in explicitly so callers control the
  * lifetime of a run.
  *
- * The translation table is enumerated in the Wave 4 Track B brief; see
- * the tests in `tests/acp-to-agui-translator.test.ts` for the
- * exhaustive row-by-row coverage.
+ * See the tests in `tests/acp-to-agui-translator.test.ts` for
+ * exhaustive row-by-row coverage of the current mapping.
  *
  * Lifecycle wrappers (`RUN_STARTED`, `RUN_FINISHED`, `RUN_ERROR`) are
  * emitted by the endpoint (`agui-endpoint.ts`), NOT by this function —

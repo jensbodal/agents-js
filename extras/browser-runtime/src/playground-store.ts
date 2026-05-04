@@ -15,10 +15,10 @@ export interface RunRecord {
 }
 
 /**
- * Hard cap on per-run AG-UI events held in memory. The trace inspector (M3)
- * will render against this buffer; allowing it to grow unboundedly would let
- * a chatty model exhaust the page's heap. 200 covers ~typical multi-step run
- * with room to spare; older events fall off FIFO.
+ * Hard cap on per-run AG-UI events held in memory. The trace inspector renders
+ * against this buffer; allowing it to grow unboundedly would let a chatty model
+ * exhaust the page's heap. 200 covers a typical multi-step run with room to
+ * spare; older events fall off FIFO.
  */
 export const EVENT_CAP = 200;
 
@@ -148,7 +148,7 @@ export interface PlaygroundStore {
 /**
  * Injectable scheduler abstraction over `setTimeout` / `clearTimeout`.
  *
- * WHY a typed surface (not raw globals): the M5 replay engine schedules
+ * WHY a typed surface (not raw globals): the replay engine schedules
  * timer-driven event re-emissions, which need to be deterministic in
  * tests. A fake scheduler lets the test drive each tick by hand and
  * assert state transitions without real wall-clock waits.
@@ -183,7 +183,7 @@ export interface CreatePlaygroundStoreDeps {
    */
   runIdFactory?: () => RunId;
   /**
-   * Injectable scheduler for the M5 replay engine. Defaults to globals
+   * Injectable scheduler for the replay engine. Defaults to globals
    * (`setTimeout` / `clearTimeout`). Tests pass a fake scheduler that
    * captures pending callbacks so each replay tick can be driven manually.
    */

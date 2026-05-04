@@ -24,7 +24,7 @@ export {
   searchMemoriesTool,
   spawnAgentTool,
 } from "./builtins.ts";
-export { fetchContext } from "./fetch-context.ts";
+export { DEFAULT_FETCH_CONTEXT_HUB_ROOT, fetchContext } from "./fetch-context.ts";
 export { findTools } from "./find-tools.ts";
 export { searchDocs } from "./primitives/search-docs.ts";
 export { searchMemories } from "./primitives/search-memories.ts";

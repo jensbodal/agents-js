@@ -39,7 +39,7 @@ describe("createManifestValidator", () => {
     expect(r.valid).toBe(true);
   });
 
-  it("accepts the agents-js-gateway runtime id (reserved for M5+, no adapter yet)", () => {
+  it("accepts the agents-js-gateway runtime id (reserved for a future adapter)", () => {
     // Schema-level validity is independent of adapter availability — the
     // manifest editor disables this option in the form, but a hand-written
     // manifest with `runtime: "agents-js-gateway"` must still validate so

@@ -21,7 +21,7 @@ bun run preview
 
 ## Notes
 
-- Intended as the browser-facing reference surface for docs, browser UAT, release proof, and UI iteration.
+- Intended as the browser-facing reference surface for docs, browser proof, release proof, and UI iteration.
 - Keep host/runtime behavior in the shared packages; this app should stay thin.
 - For repo-level proof, prefer the root commands `bun run dev`,
   `bun run browser:smoke`, `bun run e2e:web:live -- --runtime claude`, and
