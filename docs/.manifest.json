@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "handAuthoredPages": [
+    "index.md",
+    "getting-started.md",
+    "surfaces.md",
+    "primitives.md",
+    "harness-guide.md",
+    "protocols.md",
+    "streaming-and-events.md",
+    "observability.md",
+    "contribute.md",
+    "roadmap-and-non-goals.md"
+  ],
+  "excludedNamespaces": ["api/", "adrs/"],
+  "generatedOutputs": ["llms.txt", "llms-full.txt"]
+}

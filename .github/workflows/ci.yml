@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: Curated runtime to exercise in the targeted runtime/browser e2e lane
+        required: false
+        type: choice
+        options:
+          - claude
+          - opencode
+          - gemini
+
+jobs:
+  # Lint + typecheck + preflight + docs gate. Same as local pre-commit
+  # (`bun run check`). Runs first so style/type drift fails fast before
+  # heavier e2e jobs.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install curl (Alpine runner workaround)
+        run: apk add --no-cache curl
+      - uses: jdx/mise-action@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: bun run setup
+      - run: bun run check
+
+  # Default deterministic upstream proof gate.
+  deterministic:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install curl (Alpine runner workaround)
+        run: apk add --no-cache curl
+      - uses: jdx/mise-action@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: bun run setup
+      - run: bun run e2e:deterministic
+
+  # Release readiness checks that do not depend on a live curated runtime.
+  release-gates:
+    runs-on: ubuntu-latest
+    needs: deterministic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install curl (Alpine runner workaround)
+        run: apk add --no-cache curl
+      - uses: jdx/mise-action@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: bun run setup
+      - name: ACP consumer smoke test
+        env:
+          AGENTS_JS_RC_DATE: ci-${{ github.run_id }}
+        run: bun scripts/acp-external-consumer-smoke.ts
+      - run: vp run @agents-js/cli#build
+
+  # Explicit opt-in runtime/browser gate. Run this manually when the selected
+  # curated runtime is intentionally available in the runner environment.
+  runtime-gates:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runtime != '' }}
+    runs-on: ubuntu-latest
+    needs: deterministic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install curl (Alpine runner workaround)
+        run: apk add --no-cache curl
+      - uses: jdx/mise-action@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: bun run setup --runtime ${{ github.event.inputs.runtime }}
+      - run: bun run e2e:runtime -- --runtime ${{ github.event.inputs.runtime }}
+      - run: bun run e2e:web:live -- --runtime ${{ github.event.inputs.runtime }}

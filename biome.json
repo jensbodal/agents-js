@@ -1,0 +1,115 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error"
+      },
+      "style": {
+        "noProcessEnv": "error",
+        "useImportType": "error",
+        "useExportType": "error"
+      },
+      "performance": {
+        "noBarrelFile": "error",
+        "noReExportAll": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "packages/*/src/index.ts",
+        "packages/*/src/index.tsx",
+        "extras/*/src/index.ts",
+        "tests/trial-agent/src/index.ts",
+        "packages/a2ui-types/src/catalog/index.ts",
+        "packages/ui-components/src/web-ui-glue.ts",
+        "packages/acp-host/src/browser.ts",
+        "packages/acp-host/src/editor/index.ts",
+        "packages/acp-host/src/editor/browser.ts",
+        "packages/acp-host/src/testing.ts",
+        "packages/acp-host/src/workflow-surface.ts",
+        "packages/a2ui-host/src/acp-host/index.ts",
+        "packages/a2a-client/src/node.ts",
+        "packages/policy/src/browser.ts",
+        "packages/tools/src/browser.ts"
+      ],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "off",
+            "noReExportAll": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/cli/src/acp.ts",
+        "packages/cli/src/serve.ts",
+        "packages/acp-host/src/process.ts",
+        "packages/acp-host/src/terminal-manager.ts",
+        "packages/acp/src/connection.ts",
+        "extras/reporting/src/runtime.ts",
+        "packages/gateway-runtime/src/subprocess.ts",
+        "apps/internal-gateway/cli.ts",
+        "apps/internal-gateway/main.ts",
+        "packages/host/src/runtime-profile-env.ts",
+        "packages/host/src/agent-registry.ts",
+        "packages/host/src/host-executor.ts",
+        "packages/host/src/host-session.ts",
+        "scripts/**",
+        "tests/**",
+        "examples/**",
+        "**/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    }
+  ],
+  "files": {
+    "maxSize": 2097152,
+    "includes": [
+      "**",
+      "!.obsidian",
+      "!node_modules",
+      "!**/dist",
+      "!out",
+      "!output",
+      "!.opencode",
+      "!**/.opencode",
+      "!_dot",
+      "!packages/cli/_dot",
+      "!logs",
+      "!tmp",
+      "!.tmp",
+      "!docs/.vitepress/.temp",
+      "!docs/.vitepress/cache",
+      "!docs/.vitepress/dist",
+      "!docs/public/docs-index.json",
+      "!docs/public/graph.json"
+    ]
+  }
+}

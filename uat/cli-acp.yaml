@@ -1,0 +1,90 @@
+- id: CLI-ACP-HELP-BANNER
+  title: acp --help returns 0 and includes the versioned banner
+  surface: agents-js/cli/acp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'runAcpCommand'
+  test_name: '--help returns 0 and includes the versioned banner'
+  given:
+    - agents-js CLI is available
+  when:
+    - User runs `agents-js acp --help`
+  then:
+    - Exits 0
+    - Output includes the versioned banner
+
+- id: CLI-ACP-PARSE-HARNESS
+  title: parseAcpCommandArgs parses harness and runtime flags
+  surface: agents-js/cli/acp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'parseAcpCommandArgs'
+  given:
+    - A set of harness + runtime flags is supplied
+  when:
+    - parseAcpCommandArgs runs
+  then:
+    - Parsed options include the harness name and runtime flag values
+
+- id: CLI-ACP-DEFAULT-HARNESS
+  title: acp with no args and no config defaults to the claude harness
+  surface: agents-js/cli/acp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'runAcpCommand'
+  test_name: 'no args with no config defaults to claude harness'
+  given:
+    - No args supplied
+    - No config file present
+  when:
+    - User runs `agents-js acp`
+  then:
+    - The claude harness is chosen by default
+
+- id: CLI-ACP-CUSTOM-COMMAND
+  title: acp --acp-command runs the supplied binary
+  surface: agents-js/cli/acp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'runAcpCommand'
+  test_name: '--acp-command /bin/custom-acp calls spawnProcess with /bin/custom-acp'
+  given:
+    - --acp-command points at a custom binary
+  when:
+    - acp invokes the runtime spawn path
+  then:
+    - spawnProcess is called with the supplied binary path
+
+- id: CLI-ACP-WORKSPACE-FLAG
+  title: acp --directory uses the runtime-specific workspace flag
+  surface: agents-js/cli/acp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'runAcpCommand'
+  test_name: '--directory uses the runtime-specific workspace flag'
+  given:
+    - --directory <path> is supplied
+  when:
+    - acp chooses the harness-specific workspace flag
+  then:
+    - The correct workspace flag (e.g. --directory) is forwarded to the
+      harness
+
+- id: CLI-ACP-DISPATCH
+  title: agents-js acp dispatch end-to-end
+  surface: agents-js/cli/acp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/acp.test.ts
+  test_selector: 'agents-js acp dispatch'
+  given:
+    - An acp dispatch configuration is constructed
+  when:
+    - dispatch runs end-to-end through the CLI dispatch surface
+  then:
+    - Dispatch returns successfully for well-formed payloads

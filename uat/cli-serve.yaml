@@ -1,0 +1,142 @@
+- id: CLI-SERVE-HELP
+  title: serve --help exits without starting the gateway
+  surface: agents-js/cli/serve
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'serve help exits without starting the gateway'
+  given:
+    - agents-js CLI binary is available
+  when:
+    - User runs `agents-js serve --help`
+  then:
+    - Exits 0
+    - Prints the serve help banner
+    - Does not start the gateway process
+
+- id: CLI-SERVE-NONINTERACTIVE
+  title: serve runs non-interactively with complete custom flags
+  surface: agents-js/cli/serve
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'runs non-interactively with complete custom flags'
+  given:
+    - All required flags are supplied on the command line
+  when:
+    - User runs `agents-js serve` with non-interactive flags
+  then:
+    - No interactive wizard is launched
+    - Gateway starts with the supplied configuration
+
+- id: CLI-SERVE-CURATED-HARNESS
+  title: serve runs non-interactively with a curated harness and wildcard host
+  surface: agents-js/cli/serve
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'runs non-interactively with a curated harness and wildcard host'
+  given:
+    - A curated harness name is supplied
+    - Host is set to a wildcard (0.0.0.0)
+  when:
+    - User runs `agents-js serve` with those flags
+  then:
+    - The curated harness resolves to a GatewayRuntimeDefinition
+    - Gateway binds to the wildcard host
+
+- id: CLI-SERVE-PROFILE
+  title: serve --profile accepts curated harnesses and auto-creates missing project profiles
+  surface: agents-js/cli/serve
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'accepts --profile for curated harnesses and auto-creates missing project profiles'
+  given:
+    - A profile name is supplied via --profile
+  when:
+    - User runs `agents-js serve --profile <name>`
+  then:
+    - Curated-harness profiles resolve immediately
+    - Missing project profiles are auto-created on first use
+
+- id: CLI-SERVE-IPV6
+  title: serve formats IPv6 agent card URLs correctly
+  surface: agents-js/cli/serve
+  priority: P2
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'formats IPv6 agent card URLs correctly'
+  given:
+    - Gateway is bound to an IPv6 host
+  when:
+    - Agent card URLs are rendered
+  then:
+    - IPv6 addresses are wrapped in brackets (e.g. http://[::1]:port/)
+
+- id: CLI-SERVE-WIZARD-FALLBACK
+  title: serve falls back to the interactive wizard when config is missing
+  surface: agents-js/cli/serve
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'agents-js CLI'
+  test_name: 'falls back to the interactive wizard when config is missing'
+  given:
+    - No config file and no non-interactive flags are supplied
+  when:
+    - User runs `agents-js serve`
+  then:
+    - The interactive wizard starts
+    - Gateway does not start until the wizard completes
+
+- id: CLI-SERVE-RUNTIME-ENV
+  title: serve respects runtime env override flags
+  surface: agents-js/cli/serve
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/cli.test.ts
+  test_selector: 'runtime env override flags'
+  given:
+    - Runtime env flags are supplied (e.g. --runtime-env KEY=VALUE)
+  when:
+    - The gateway runtime is selected
+  then:
+    - Env overrides propagate into the runtime environment
+
+- id: CLI-SERVE-PORT-CONFLICT
+  title: serve surfaces a clear error when the port is in use
+  surface: agents-js/cli/serve
+  priority: P1
+  automation: planned
+  notes: |
+    No describe covers port-conflict surfacing today. Add when EADDRINUSE
+    handling is prioritized.
+  given:
+    - Another process is bound to the requested port
+  when:
+    - User runs `agents-js serve --port <port>`
+  then:
+    - CLI exits non-zero
+    - Error message names the conflicting port
+
+- id: CLI-SERVE-SHUTDOWN
+  title: serve shuts down cleanly on SIGTERM
+  surface: agents-js/cli/serve
+  priority: P1
+  automation: manual
+  notes: |
+    Not covered by automated tests. Exercised during manual dev loop.
+  given:
+    - Gateway is running
+  when:
+    - The process receives SIGTERM
+  then:
+    - Gateway terminates within ~2 seconds
+    - Open sessions are torn down cleanly
+    - No orphan child processes remain

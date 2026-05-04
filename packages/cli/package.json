@@ -1,0 +1,55 @@
+{
+  "name": "@agents-js/cli",
+  "version": "0.2.0-beta-3",
+  "type": "module",
+  "description": "Terminal TUI and server commands for agents-js. Provides the agents-js binary with serve, client, and acp subcommands.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "bin": {
+    "agents-js": "dist/agents-js"
+  },
+  "scripts": {
+    "build": "bun run build:pkg && bun run build:bin",
+    "build:pkg": "bunx tsdown src/index.ts src/cli.ts --format esm --dts --out-dir dist --clean",
+    "build:bin": "bun scripts/build-bin.ts",
+    "client": "bun src/cli.ts client",
+    "serve": "bun src/cli.ts serve",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agents-js/a2a-client": "0.2.0-beta-3",
+    "@agents-js/acp": "0.2.0-beta-3",
+    "@agents-js/acp-host": "0.2.0-beta-3",
+    "@agents-js/a2a": "0.2.0-beta-3",
+    "@agents-js/gateway-runtime": "0.2.0-beta-3",
+    "@agents-js/mcp-bridge": "0.2.0-beta-3",
+    "@agents-js/schema-utils": "0.2.0-beta-3",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@opentui/core": "0.1.99",
+    "@zed-industries/claude-agent-acp": "0.23.1",
+    "@zed-industries/codex-acp": "0.12.0"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

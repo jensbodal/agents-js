@@ -1,0 +1,28 @@
+# agents-js
+
+> ACP runtimes over A2A — operator CLI and reusable client library for building agent surfaces.
+
+## Overview
+
+- [index.md](https://agents-js.bodal.dev/index.html): What agents-js is, how the pieces fit together, and the feature inventory.
+
+## Getting Started
+
+- [getting-started.md](https://agents-js.bodal.dev/getting-started.html): Run a local ACP runtime behind an A2A gateway in one command, browser or CLI.
+- [surfaces.md](https://agents-js.bodal.dev/surfaces.html): The shipped consumer surfaces — browser app, CLI, and multi-agent dispatch.
+
+## Core Concepts
+
+- [primitives.md](https://agents-js.bodal.dev/primitives.html): Composable packages: protocol primitives, tool surface (fetchContext, findTools, spawnAgent), and the Ports & Adapters layering.
+- [protocols.md](https://agents-js.bodal.dev/protocols.html): Canonical map of JSON-RPC, ACP, A2A, MCP, AG-UI, A2UI, and runtime manifests — what is implemented, validated, or passed through.
+- [harness-guide.md](https://agents-js.bodal.dev/harness-guide.html): Building a harness on agents-js: Gen-1 through Gen-3 agent integrations, permissions, terminals, and the host adapter seams.
+- [streaming-and-events.md](https://agents-js.bodal.dev/streaming-and-events.html): Event vocabularies and streaming behavior across ACP, A2A, and AG-UI.
+
+## Operations
+
+- [observability.md](https://agents-js.bodal.dev/observability.html): Logger, logStore, EvalTransport, and the tool-call-trace v0.1 structured event schema for observability and audit.
+
+## Optional
+
+- [develop/contribute.md](https://agents-js.bodal.dev/develop/contribute.html): Contributor + release-playbook reference. Not needed for first-time readers.
+- [develop/browser-entry-points.md](https://agents-js.bodal.dev/develop/browser-entry-points.html): Browser-safe package entry conventions for packages with server-only main entries.

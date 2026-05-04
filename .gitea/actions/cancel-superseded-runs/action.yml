@@ -1,0 +1,56 @@
+name: Cancel superseded runs
+description: >-
+  Cancel in-progress Gitea Actions runs for the same branch whose head_sha is
+  not the current commit. Intended as the FIRST step in a workflow so superseded
+  runs bail out before burning setup time. Implemented with inline curl+jq
+  because bun is not yet available at this point in the caller's setup.
+inputs:
+  gitea-token:
+    description: Gitea API token with actions:write on this repo.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITEA_TOKEN: ${{ inputs.gitea-token }}
+      run: |
+        API="${GITHUB_API_URL:-${GITHUB_SERVER_URL}/api/v1}"
+        REPO="${GITHUB_REPOSITORY}"
+        BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+        BRANCH="${BRANCH#refs/heads/}"
+
+        runs=$(curl -fsS -H "Authorization: token ${GITEA_TOKEN}" \
+          "${API}/repos/${REPO}/actions/runs?per_page=100") || {
+          echo "[cancel-superseded-runs] Non-fatal: list API failed"
+          exit 0
+        }
+
+        targets=$(echo "$runs" | jq -r \
+          --arg run "${GITHUB_RUN_ID}" \
+          --arg sha "${GITHUB_SHA}" \
+          --arg branch "${BRANCH}" '
+          (.workflow_runs // .runs // .data // [])[]
+          | select((.id | tostring | tonumber) < ($run | tonumber))
+          | select(((.head_branch // "") | sub("^refs/heads/"; "")) == $branch)
+          | select((.status // "" | ascii_downcase) as $s
+              | ["in_progress","pending","queued","requested","waiting"]
+              | index($s))
+          | select((.head_sha // "" | ascii_downcase) != ($sha | ascii_downcase))
+          | .id
+        ') || {
+          echo "[cancel-superseded-runs] Non-fatal: jq parse failed"
+          exit 0
+        }
+
+        if [ -z "$targets" ]; then
+          echo "[cancel-superseded-runs] No older active runs on ${BRANCH}."
+          exit 0
+        fi
+
+        for id in $targets; do
+          echo "[cancel-superseded-runs] Cancelling run $id"
+          curl -fsS -X POST -H "Authorization: token ${GITEA_TOKEN}" \
+            "${API}/repos/${REPO}/actions/runs/${id}/cancel" \
+            || echo "[cancel-superseded-runs] Non-fatal: cancel $id failed"
+        done

@@ -1,0 +1,48 @@
+{
+  "name": "@agents-js/a2ui-types",
+  "version": "0.2.0-beta-3",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./catalog": {
+      "types": "./dist/catalog/index.d.mts",
+      "bun": "./src/catalog/index.ts",
+      "import": "./dist/catalog/index.mjs",
+      "default": "./dist/catalog/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts src/catalog/index.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@a2ui/web_core": "0.9.1-alpha.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.workspace.json",
+  "include": ["packages/*/src/**/*.ts", "packages/*/tests/**/*.ts", "apps/*/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out",
+    "_dot",
+    "tmp",
+    "packages/ui-components",
+    "packages/a2ui-renderer",
+    "packages/a2ui-host",
+    "apps/web-ui"
+  ]
+}

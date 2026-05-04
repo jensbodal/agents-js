@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" role="img" aria-labelledby="fig2-title">
+  <title id="fig2-title">Sequence: User A prompts Host A, which delegates to Host B via A2A</title>
+  <desc>Lanes from left to right: User A, Host A, ACP Runtime, Host B. Messages flow between them showing A2A delegation and AG-UI streaming back.</desc>
+  <defs>
+    <marker id="ds-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1a1712"/>
+    </marker>
+  </defs>
+
+  <rect width="560" height="520" fill="#e8dfc8"/>
+
+  <!-- lanes -->
+  <g font-family="JetBrains Mono, monospace" font-size="10" fill="#1a1712">
+    <g>
+      <rect x="40" y="30" width="100" height="26" fill="#f1ead8" stroke="#1a1712" stroke-width="1.2"/>
+      <text x="90" y="47" text-anchor="middle">USER A</text>
+    </g>
+    <g>
+      <rect x="170" y="30" width="100" height="26" fill="#1a1712" stroke="#1a1712" stroke-width="1.2"/>
+      <text x="220" y="47" text-anchor="middle" fill="#f1ead8">HOST A</text>
+    </g>
+    <g>
+      <rect x="300" y="30" width="100" height="26" fill="#f1ead8" stroke="#1a1712" stroke-width="1.2"/>
+      <text x="350" y="47" text-anchor="middle">ACP RT</text>
+    </g>
+    <g>
+      <rect x="430" y="30" width="100" height="26" fill="#b43a1c" stroke="#1a1712" stroke-width="1.2"/>
+      <text x="480" y="47" text-anchor="middle" fill="#f1ead8">HOST B</text>
+    </g>
+  </g>
+
+  <!-- lifelines -->
+  <g stroke="#a89c7e" stroke-width="0.6" stroke-dasharray="3 4">
+    <line x1="90"  y1="58" x2="90"  y2="480"/>
+    <line x1="220" y1="58" x2="220" y2="480"/>
+    <line x1="350" y1="58" x2="350" y2="480"/>
+    <line x1="480" y1="58" x2="480" y2="480"/>
+  </g>
+
+  <!-- messages -->
+  <g stroke="#1a1712" stroke-width="1.2" fill="none">
+    <path d="M90,96 L217,96"  marker-end="url(#ds-arr2)"/>
+    <path d="M220,146 L477,146" marker-end="url(#ds-arr2)" stroke="#b43a1c" stroke-width="1.4"/>
+    <path d="M480,196 L353,196" marker-end="url(#ds-arr2)"/>
+    <path d="M350,246 L483,246" marker-end="url(#ds-arr2)" stroke-dasharray="2 3"/>
+    <path d="M480,296 L223,296" marker-end="url(#ds-arr2)" stroke="#b43a1c" stroke-width="1.4"/>
+    <path d="M220,346 L347,346" marker-end="url(#ds-arr2)"/>
+    <path d="M350,396 L223,396" marker-end="url(#ds-arr2)" stroke-dasharray="2 3"/>
+    <path d="M220,446 L93,446"  marker-end="url(#ds-arr2)"/>
+  </g>
+
+  <g font-family="Fraunces, serif" font-style="italic" font-size="11" fill="#1a1712">
+    <text x="155" y="90" text-anchor="middle">ask @agentB about X</text>
+    <text x="350" y="140" text-anchor="middle" fill="#b43a1c">A2A message/send (HTTP · JSON-RPC)</text>
+    <text x="420" y="190" text-anchor="middle">ACP session/prompt</text>
+    <text x="420" y="240" text-anchor="middle">response</text>
+    <text x="350" y="290" text-anchor="middle" fill="#b43a1c">A2A task response</text>
+    <text x="285" y="340" text-anchor="middle">prompt + &lt;delegation-response&gt;</text>
+    <text x="285" y="390" text-anchor="middle">composed answer</text>
+    <text x="155" y="440" text-anchor="middle">AG-UI stream</text>
+  </g>
+
+  <g font-family="JetBrains Mono, monospace" font-size="9" fill="#3d352a" letter-spacing="1">
+    <text x="30" y="100">01</text>
+    <text x="30" y="150">02</text>
+    <text x="30" y="200">03</text>
+    <text x="30" y="250">04</text>
+    <text x="30" y="300">05</text>
+    <text x="30" y="350">06</text>
+    <text x="30" y="400">07</text>
+    <text x="30" y="450">08</text>
+  </g>
+</svg>

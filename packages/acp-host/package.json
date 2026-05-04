@@ -1,0 +1,66 @@
+{
+  "name": "@agents-js/acp-host",
+  "version": "0.2.0-beta-3",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "browser": "./dist/browser.mjs",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.mts",
+      "bun": "./src/testing.ts",
+      "import": "./dist/testing.mjs",
+      "default": "./dist/testing.mjs"
+    },
+    "./editor": {
+      "types": "./dist/editor/index.d.mts",
+      "browser": "./dist/editor/browser.mjs",
+      "bun": "./src/editor/index.ts",
+      "import": "./dist/editor/index.mjs",
+      "default": "./dist/editor/index.mjs"
+    },
+    "./session-restore": {
+      "types": "./dist/session-restore.d.mts",
+      "bun": "./src/session-restore.ts",
+      "import": "./dist/session-restore.mjs",
+      "default": "./dist/session-restore.mjs"
+    },
+    "./workflow-surface": {
+      "types": "./dist/workflow-surface.d.mts",
+      "bun": "./src/workflow-surface.ts",
+      "import": "./dist/workflow-surface.mjs",
+      "default": "./dist/workflow-surface.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts src/browser.ts src/testing.ts src/editor/index.ts src/editor/browser.ts src/session-restore.ts src/workflow-surface.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
+    "@agents-js/acp": "0.2.0-beta-3",
+    "@agents-js/policy": "0.2.0-beta-3"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

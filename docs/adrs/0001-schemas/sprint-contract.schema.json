@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sprint Contract",
+  "description": "Pre-sprint agreement between orchestrator, generator, and evaluator. Defines scope, rubric, thresholds, and budget for one sprint.",
+  "type": "object",
+  "required": ["sprintId", "sprintNumber", "scope", "rubric", "thresholds", "budget"],
+  "properties": {
+    "sprintId": {
+      "type": "string",
+      "description": "Unique identifier for this sprint (e.g., 'sprint-001', ISO8601 timestamp)."
+    },
+    "sprintNumber": {
+      "type": "integer",
+      "description": "Sequential sprint number (1, 2, 3, …).",
+      "minimum": 1
+    },
+    "scope": {
+      "type": "array",
+      "description": "List of feature IDs to be completed in this sprint.",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "rubric": {
+      "type": "array",
+      "description": "Evaluation rubric: list of per-criterion pass/fail checks.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["criterion", "description"],
+        "properties": {
+          "criterion": {
+            "type": "string",
+            "description": "Name of the criterion (e.g., 'all-tests-pass', 'no-typescript-errors')."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of how to evaluate this criterion."
+          },
+          "weight": {
+            "type": "number",
+            "description": "Relative importance (0–1); sum should be ≤ 1.",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Hard pass/fail thresholds for this sprint.",
+      "required": ["minimumCriteriaMet"],
+      "properties": {
+        "minimumCriteriaMet": {
+          "type": "integer",
+          "description": "Minimum number of criteria that must pass (must be ≥ 1).",
+          "minimum": 1
+        },
+        "minimumWeightedScore": {
+          "type": "number",
+          "description": "Minimum weighted score (0–1) required to pass the sprint.",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "description": "Resource constraints for this sprint.",
+      "properties": {
+        "maxTokens": {
+          "type": "integer",
+          "description": "Maximum tokens the generator can use.",
+          "minimum": 1000
+        },
+        "maxRetries": {
+          "type": "integer",
+          "description": "Maximum number of retries if generator fails evaluator thresholds.",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "timeoutMinutes": {
+          "type": "integer",
+          "description": "Maximum wall-clock time for generator + evaluator (minutes).",
+          "minimum": 5
+        }
+      }
+    },
+    "generatorInstructions": {
+      "type": "string",
+      "description": "Specific instructions for the generator (e.g., 'Implement features F-001 and F-002, leaving repo buildable')."
+    },
+    "evaluatorInstructions": {
+      "type": "string",
+      "description": "Specific instructions for the evaluator (e.g., 'Run test suite and verify all criteria pass')."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Orchestrator notes on this sprint's goals or known risks."
+    }
+  }
+}

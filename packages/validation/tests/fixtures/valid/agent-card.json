@@ -1,0 +1,13 @@
+{
+  "name": "test-agent",
+  "description": "A test agent",
+  "url": "http://127.0.0.1:3000",
+  "version": "1.0.0",
+  "protocolVersion": "0.2.1",
+  "skills": [],
+  "defaultInputModes": ["text"],
+  "defaultOutputModes": ["text"],
+  "capabilities": {
+    "text-to-text": {}
+  }
+}

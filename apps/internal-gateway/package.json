@@ -1,0 +1,27 @@
+{
+  "name": "@agents-js/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference internal A2A gateway: hosts ACP runtimes, exposes AG-UI and WebSocket bridges, and serves discovery endpoints.",
+  "bin": {
+    "agents-js-gateway": "./cli.ts"
+  },
+  "scripts": {
+    "dev": "bun cli.ts",
+    "check:runtime": "bun cli.ts --check --runtime claude",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agents-js/a2a": "workspace:*",
+    "@agents-js/a2a-client": "workspace:*",
+    "@agents-js/acp-host": "workspace:*",
+    "@agents-js/droid-acp": "workspace:*",
+    "@agents-js/gateway-runtime": "workspace:*",
+    "@agents-js/host": "workspace:*",
+    "@agents-js/pi-acp": "workspace:*",
+    "@agents-js/plane": "workspace:*",
+    "@zed-industries/claude-agent-acp": "0.23.1",
+    "@zed-industries/codex-acp": "0.12.0"
+  }
+}

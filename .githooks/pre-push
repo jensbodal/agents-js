@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook: full local gate before any push.
+#
+# Two phases, in order:
+#   1. `bun install` — refresh workspace symlinks in node_modules/@agents-js/*.
+#      Side-effectful; self-heals stale symlinks that drift when sibling
+#      packages are added/renamed between pushes. Idempotent (reports
+#      "(no changes)" on cache hit, ~10ms).
+#   2. `mise run ci` — the validation gate: install + check + typecheck +
+#      test + docs:verify-generated. See mise.toml [tasks.ci].
+#
+# Why phase 1 exists: this repo's source checkout at ~/workspace/agents-js
+# (separate from the managed .worktrees/agents-js) accumulates a stale
+# node_modules/@agents-js/ when a new package lands but nobody runs
+# `bun install` in the source repo afterward. A ceremony push from the
+# source repo then fails `mise run ci` with "Cannot find module
+# '@agents-js/<new-pkg>'" errors during typecheck/docs:api even though
+# the branch is valid. Prior workaround was to run `bun install --force`
+# manually before pushing. Fix: refresh automatically on every push.
+# Mirrors the convert-all pattern that closed skills-js backlog #37.
+#
+# Bypass: `git push --no-verify` or `SKIP_PREPUSH=1 git push`. Discouraged
+# — if bun install fails, that's a real dep-graph problem worth
+# investigating, not routing around.
+#
+# Full CI (docs, e2e, browser smoke) runs in the configured CI provider.
+#
+set -euo pipefail
+
+if [[ "${SKIP_PREPUSH:-0}" == "1" ]]; then
+  echo "⏭  SKIP_PREPUSH=1 — skipping pre-push gate."
+  exit 0
+fi
+
+echo "🔄 Pre-push phase 1/2: refreshing workspace symlinks (bun install)..."
+if ! bun install; then
+  echo ""
+  echo "Pre-push gate FAILED: 'bun install' returned non-zero." >&2
+  echo "Resolve the dependency problem before pushing." >&2
+  exit 1
+fi
+
+echo "🔒 Pre-push phase 2/2: running validation gate (mise run ci)..."
+if ! mise run ci; then
+  echo ""
+  echo "Pre-push gate FAILED: 'mise run ci' returned non-zero." >&2
+  echo "Fix the failing step and retry, or bypass with SKIP_PREPUSH=1 (not recommended)." >&2
+  exit 1
+fi
+
+echo "✅ Pre-push gate passed."

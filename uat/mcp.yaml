@@ -1,0 +1,168 @@
+- id: CLI-MCP-HELP
+  title: mcp --help prints usage and exits 0
+  surface: agents-js/cli/mcp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'runMcpCommand'
+  test_name: 'prints help and exits 0'
+  given:
+    - agents-js CLI binary is available
+  when:
+    - User runs `agents-js mcp --help`
+  then:
+    - Exits 0
+    - Output contains "agents-js mcp"
+    - Output lists the setup subcommand
+
+- id: CLI-MCP-PARSE-EMPTY
+  title: parseMcpCommandArgs returns empty args for no arguments
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'parseMcpCommandArgs'
+  test_name: 'returns empty args for no arguments'
+  given:
+    - An empty argv is passed to the parser
+  when:
+    - parseMcpCommandArgs runs
+  then:
+    - Returned object is empty
+
+- id: CLI-MCP-PARSE-SETUP-GLOBAL
+  title: parseMcpCommandArgs parses setup --global
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'parseMcpCommandArgs'
+  test_name: 'parses setup --global'
+  given:
+    - `setup --global` is passed to the parser
+  when:
+    - parseMcpCommandArgs runs
+  then:
+    - parsed.subcommand === "setup"
+    - parsed.global === true
+
+- id: CLI-MCP-PARSE-UNKNOWN
+  title: parseMcpCommandArgs rejects unknown arguments with a named error
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'parseMcpCommandArgs'
+  test_name: 'throws on unknown argument'
+  given:
+    - An unrecognized flag is supplied
+  when:
+    - parseMcpCommandArgs runs
+  then:
+    - Parser throws an error that mentions "Unknown mcp argument"
+
+- id: CLI-MCP-NO-AGENTS
+  title: mcp exits 1 when no agents are configured
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'runMcpCommand'
+  test_name: 'returns 1 when no agents are configured'
+  given:
+    - The agent registry contains no entries
+  when:
+    - User runs `agents-js mcp`
+  then:
+    - Exit code is 1
+    - Output contains "No agents found"
+
+- id: CLI-MCP-START
+  title: mcp starts the MCP server with registered agents
+  surface: agents-js/cli/mcp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'runMcpCommand'
+  test_name: 'starts server with agents from config loader'
+  given:
+    - The loadBridgeConfig dependency yields at least one agent
+  when:
+    - runMcpCommand runs without --help or setup
+  then:
+    - The server-start callback receives the supplied agents
+    - Exit code is 0
+
+- id: CLI-MCP-SETUP-WRITE
+  title: mcp setup writes .mcp.json in cwd with args=["mcp"]
+  surface: agents-js/cli/mcp
+  priority: P0
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'runMcpCommand'
+  test_name: 'setup writes .mcp.json in cwd'
+  given:
+    - Temporary working directory with no existing .mcp.json
+  when:
+    - User runs `agents-js mcp setup`
+  then:
+    - .mcp.json is created in cwd
+    - mcpServers."agents-js-mcp".command === "agents-js"
+    - mcpServers."agents-js-mcp".args === ["mcp"]
+
+- id: CLI-MCP-SETUP-MERGE
+  title: mcp setup merges into an existing .mcp.json without clobbering other servers
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: automated
+  test_file: packages/cli/tests/mcp.test.ts
+  test_selector: 'runMcpCommand'
+  test_name: 'setup merges into existing .mcp.json'
+  given:
+    - .mcp.json exists with an unrelated server entry
+  when:
+    - User runs `agents-js mcp setup`
+  then:
+    - The existing unrelated server entry is preserved
+    - The agents-js-mcp entry is added with args=["mcp"]
+
+- id: CLI-MCP-DEPRECATED-BRIDGE-ALIAS
+  title: Legacy `bridge` verb still routes to mcp with a deprecation warning
+  surface: agents-js/cli/mcp
+  priority: P1
+  automation: manual
+  notes: |
+    The deprecation alias on the old `bridge` verb is wired in
+    packages/cli/src/cli.ts — running `agents-js bridge --help` should
+    emit a stderr line "[agents-js] `bridge` is deprecated for MCP use.
+    Use `mcp` instead." and then print the mcp help banner.
+    Not directly test-covered; verify by hand when smoke-testing the CLI.
+    Alias is short-lived — the `bridge` name will be reused for a
+    different subcommand in the next release.
+  given:
+    - agents-js CLI is available
+  when:
+    - User runs `agents-js bridge --help`
+  then:
+    - stderr contains the deprecation warning
+    - stdout prints the mcp help banner
+    - Exit code is 0
+
+- id: CLI-MCP-ACP-ENTRY-REJECT
+  title: AGENTS_JS_BRIDGE_AGENTS entries with kind="acp" are rejected with a clear error
+  surface: agents-js/cli/mcp
+  priority: P2
+  automation: manual
+  notes: |
+    loadBridgeConfig() in packages/cli/src/mcp.ts raises
+    `[agents-js] AGENTS_JS_BRIDGE_AGENTS entry ... has kind "acp" — not
+    yet supported via the MCP surface` when the env var contains an ACP
+    entry. The new `bridge` subcommand (when it ships) will own ACP
+    routing. Not automated today — verify by setting the env var by hand.
+  given:
+    - AGENTS_JS_BRIDGE_AGENTS contains a JSON array with a kind="acp" entry
+  when:
+    - User runs `agents-js mcp`
+  then:
+    - Process exits with a thrown error
+    - Error message identifies the offending entry by name and names kind "acp"

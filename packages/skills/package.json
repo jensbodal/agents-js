@@ -1,0 +1,35 @@
+{
+  "name": "@agents-js/skills",
+  "version": "0.2.0-beta-3",
+  "type": "module",
+  "sideEffects": false,
+  "description": "TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
