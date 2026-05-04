@@ -405,6 +405,181 @@ async function readScopedRegistryFromRepoNpmrc(rootDir: string): Promise<string 
   }
 }
 
+/* --------------------------------------------------------------------------
+ *  Release-readiness defaults audit
+ *  -------------------------------------------------------------------------
+ *  Source-level regression guards for the security/UX defaults established
+ *  during the release-readiness work. Any regression here is a fail of the
+ *  preflight: silent re-introduction of a global secret baseline, of
+ *  `setPermissionMode("yolo")` for dispatch, etc., is a release stopper.
+ *
+ *  These checks are intentionally string/source-level rather than runtime —
+ *  they catch regressions even when no test exercises the path, and they
+ *  fail fast with a single grep per concern.
+ * ------------------------------------------------------------------------ */
+
+interface SourceCheck {
+  /** Short name printed in the issue list. */
+  name: string;
+  /** Path relative to the repo root. */
+  filePath: string;
+  /**
+   * Returns an issue message when the source regresses, or `null` when the
+   * file looks correct. The function receives the file's full text.
+   */
+  validate(contents: string): string | null;
+}
+
+export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
+  {
+    name: "no global baseline secret keys",
+    filePath: "packages/host/src/runtime-env-policy.ts",
+    validate: (contents) => {
+      if (
+        !/BASELINE_AGENT_SECRET_ENV_KEYS:\s*readonly\s+string\[\]\s*=\s*Object\.freeze\(\[\]\)/.test(
+          contents,
+        )
+      ) {
+        return "BASELINE_AGENT_SECRET_ENV_KEYS must be Object.freeze([]) — global secret forwarding has regressed";
+      }
+      return null;
+    },
+  },
+  {
+    name: "--registry-sync flag exists",
+    filePath: "packages/cli/src/shared-arg-specs.ts",
+    validate: (contents) => {
+      if (!/"--registry-sync"\s*:\s*\{/.test(contents)) {
+        return "shared-arg-specs.ts must declare a --registry-sync flag";
+      }
+      return null;
+    },
+  },
+  {
+    name: "registry sync gate respects only literal 'true'",
+    filePath: "packages/cli/src/serve.ts",
+    validate: (contents) => {
+      if (!/AGENTS_JS_REGISTRY_SYNC\s*===\s*"true"/.test(contents)) {
+        return 'serve.ts must compare AGENTS_JS_REGISTRY_SYNC === "true" — ambiguous truthy parsing has regressed';
+      }
+      return null;
+    },
+  },
+  {
+    name: "--trust-workspace flag exists",
+    filePath: "apps/internal-gateway/cli-args.ts",
+    validate: (contents) => {
+      if (!/"--trust-workspace"/.test(contents)) {
+        return "internal-gateway/cli-args.ts must declare --trust-workspace";
+      }
+      if (!/AGENTS_JS_TRUST_WORKSPACE\s*===\s*"true"/.test(contents)) {
+        return 'cli-args.ts must compare AGENTS_JS_TRUST_WORKSPACE === "true"';
+      }
+      return null;
+    },
+  },
+  {
+    name: "@@dispatch does not hard-code yolo and publishes cancelable=false",
+    filePath: "packages/host/src/host-executor.ts",
+    validate: (contents) => {
+      if (/setPermissionMode\(\s*"yolo"\s*\)/.test(contents)) {
+        return 'host-executor.ts contains setPermissionMode("yolo") — dispatch must inherit gateway policy instead';
+      }
+      if (!/agents-js\.cancelable/.test(contents)) {
+        return "host-executor.ts must publish agents-js.cancelable metadata for dispatch tasks";
+      }
+      return null;
+    },
+  },
+  {
+    name: "AG-UI run coordinator module exists",
+    filePath: "packages/host/src/agui-run-coordinator.ts",
+    validate: (contents) => {
+      if (!/export\s+class\s+AguiRunCoordinator/.test(contents)) {
+        return "agui-run-coordinator.ts must export AguiRunCoordinator";
+      }
+      if (!/export\s+class\s+AguiRunBusyError/.test(contents)) {
+        return "agui-run-coordinator.ts must export AguiRunBusyError";
+      }
+      return null;
+    },
+  },
+  {
+    name: "AG-UI disconnect cancels controller",
+    filePath: "packages/host/src/agui-run-session.ts",
+    validate: (contents) => {
+      if (!/run canceled by disconnect/.test(contents)) {
+        return 'agui-run-session.ts must emit RUN_ERROR with "run canceled by disconnect" on abort';
+      }
+      if (!/controller\.cancel\?\.\(\)/.test(contents)) {
+        return "agui-run-session.ts must call controller.cancel() on abort";
+      }
+      return null;
+    },
+  },
+  {
+    name: "A2UI back-channel reaches the WS bridge",
+    filePath: "apps/web-ui/src/main.ts",
+    validate: (contents) => {
+      if (!/_hostClient\.sendSurfaceEvent/.test(contents)) {
+        return "apps/web-ui/src/main.ts must route A2UI surface events through hostClient.sendSurfaceEvent";
+      }
+      return null;
+    },
+  },
+  {
+    name: "WS bridge accepts surface_event frame",
+    filePath: "packages/host/src/ws-bridge.ts",
+    validate: (contents) => {
+      if (!/case\s+"surface_event"/.test(contents)) {
+        return "ws-bridge.ts must handle surface_event client message";
+      }
+      return null;
+    },
+  },
+  {
+    name: "audit module forbids sensitive payload keys",
+    filePath: "packages/host/src/audit.ts",
+    validate: (contents) => {
+      if (!/_NoSensitivePayload/.test(contents)) {
+        return "audit.ts must include the _NoSensitivePayload type-system guard";
+      }
+      // The set must reference all four forbidden keys. Order does not
+      // matter; we just check each appears within the type alias.
+      const slice = contents.slice(contents.indexOf("_NoSensitivePayload"));
+      for (const key of ["prompt", "env", "args", "payload"]) {
+        if (!new RegExp(`"${key}"`).test(slice)) {
+          return `audit.ts _NoSensitivePayload must list "${key}" as a forbidden key`;
+        }
+      }
+      return null;
+    },
+  },
+];
+
+export async function auditReleaseReadinessDefaults(rootDir: string): Promise<string[]> {
+  const issues: string[] = [];
+  for (const check of RELEASE_READINESS_CHECKS) {
+    const fullPath = path.join(rootDir, check.filePath);
+    let contents: string;
+    try {
+      contents = await readFile(fullPath, "utf8");
+    } catch (err) {
+      issues.push(
+        `release-readiness: cannot read ${check.filePath} for "${check.name}": ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      continue;
+    }
+    const issue = check.validate(contents);
+    if (issue !== null) {
+      issues.push(`release-readiness [${check.name}]: ${issue}`);
+    }
+  }
+  return issues;
+}
+
 export async function auditReleaseSurface(
   options: ReleaseAuditOptions = {},
 ): Promise<ReleaseAuditResult> {
@@ -482,6 +657,7 @@ export async function auditReleaseSurface(
   }
 
   issues.push(...(await collectExternalSdkVersionIssues(rootDir, config)));
+  issues.push(...(await auditReleaseReadinessDefaults(rootDir)));
 
   return {
     issues: issues.sort(),
