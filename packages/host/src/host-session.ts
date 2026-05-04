@@ -66,6 +66,17 @@ export interface HostSessionConfig {
    * by the translator. Default: `undefined` (no surface plumbing).
    */
   surfaceAdapter?: HostSurfaceAdapter;
+  /**
+   * Whether the operator has trusted the current workspace. When `false`
+   * (default), `.agents-js/permission-rules.json` in the workspace root
+   * is ignored on load and never written on save — global rules are the
+   * only persistent surface. Operators opt in via `--trust-workspace` /
+   * `AGENTS_JS_TRUST_WORKSPACE=true`.
+   *
+   * **Default: `false`**, so a freshly cloned repo cannot ride its own
+   * permission rules into the host engine.
+   */
+  trustWorkspace?: boolean;
 }
 
 export interface HostSession {
@@ -208,7 +219,18 @@ function getLocalRulesFilePath(workspacePath: string): string {
   return join(workspacePath, ".agents-js", "permission-rules.json");
 }
 
-function loadPersistedRules(workspacePath: string): PermissionRules {
+/**
+ * Load permission rules from the global path, and — only when the
+ * operator has explicitly trusted the current workspace — also from
+ * `.agents-js/permission-rules.json` in the workspace root.
+ *
+ * Workspace-local rules are powerful: a rule that grants `allow` for a
+ * destructive tool can ride into a freshly cloned repo. Loading them
+ * unconditionally turned `git clone` into an implicit-trust boundary.
+ * Pass `trustWorkspace: true` only when the operator has set
+ * `--trust-workspace` (or `AGENTS_JS_TRUST_WORKSPACE=true`).
+ */
+function loadPersistedRules(workspacePath: string, trustWorkspace: boolean): PermissionRules {
   let globalRules: PermissionRules = [];
   let localRules: PermissionRules = [];
 
@@ -224,19 +246,18 @@ function loadPersistedRules(workspacePath: string): PermissionRules {
     );
   }
 
-  const localPath = getLocalRulesFilePath(workspacePath);
-  try {
-    if (existsSync(localPath)) {
-      // SECURITY NOTICE: A full implementation should prompt the user to trust the workspace
-      // before loading local permission rules to prevent malicious clone attacks.
-      // This will be handled in a future UI update.
-      localRules = JSON.parse(readFileSync(localPath, "utf-8")) as PermissionRules;
+  if (trustWorkspace) {
+    const localPath = getLocalRulesFilePath(workspacePath);
+    try {
+      if (existsSync(localPath)) {
+        localRules = JSON.parse(readFileSync(localPath, "utf-8")) as PermissionRules;
+      }
+    } catch (err) {
+      console.error(
+        `[Gateway] Failed to load local permission rules from ${localPath}:`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
-  } catch (err) {
-    console.error(
-      `[Gateway] Failed to load local permission rules from ${localPath}:`,
-      err instanceof Error ? err.message : String(err),
-    );
   }
 
   // More specific workspace-local rules must win over global fallbacks because
@@ -244,7 +265,20 @@ function loadPersistedRules(workspacePath: string): PermissionRules {
   return [...localRules, ...globalRules];
 }
 
-function createSaveCallback(workspacePath: string): (rules: PermissionRules) => Promise<void> {
+/**
+ * Build the rule-persistence callback. Global rules always persist;
+ * workspace-scoped rules only persist when the workspace is trusted.
+ *
+ * When `trustWorkspace=false`, any rule whose `workspacePath` is not
+ * `"*"`/`"global"` is dropped from the save call: the rule still applies
+ * for the current session (the engine has it in memory), but it does
+ * not survive across sessions. This matches the load-side gate: an
+ * untrusted workspace contributes nothing to the on-disk rule set.
+ */
+function createSaveCallback(
+  workspacePath: string,
+  trustWorkspace: boolean,
+): (rules: PermissionRules) => Promise<void> {
   const globalPath = getGlobalRulesFilePath();
   const localPath = getLocalRulesFilePath(workspacePath);
 
@@ -253,7 +287,9 @@ function createSaveCallback(workspacePath: string): (rules: PermissionRules) => 
     const globalRules = rules.filter(
       (r) => r.workspacePath === "*" || r.workspacePath === "global",
     );
-    const localRules = rules.filter((r) => r.workspacePath !== "*" && r.workspacePath !== "global");
+    const localRules = trustWorkspace
+      ? rules.filter((r) => r.workspacePath !== "*" && r.workspacePath !== "global")
+      : [];
 
     try {
       if (globalRules.length > 0 || existsSync(globalPath)) {
@@ -265,6 +301,14 @@ function createSaveCallback(workspacePath: string): (rules: PermissionRules) => 
         `[Gateway] Failed to save global permission rules:`,
         err instanceof Error ? err.message : String(err),
       );
+    }
+
+    if (!trustWorkspace) {
+      // Untrusted workspace: never write the local rules file. We do
+      // not even touch existing files — operators who later opt in
+      // with --trust-workspace expect their previous local rules to
+      // still be there.
+      return;
     }
 
     try {
@@ -612,16 +656,25 @@ export async function createStandaloneHostController(config: {
 }
 
 export async function createHostSession(config: HostSessionConfig): Promise<HostSession> {
-  const { runtime, workspacePath, permissionMode, defaultModel, surfaceAdapter } = config;
+  const {
+    runtime,
+    workspacePath,
+    permissionMode,
+    defaultModel,
+    surfaceAdapter,
+    trustWorkspace = false,
+  } = config;
 
   // Create permission engine and store
   const permissionEngine = new PermissionEngine();
   const permissionStore = new PermissionStore();
 
-  // Load persisted rules
-  const persistedRules = loadPersistedRules(workspacePath);
+  // Load persisted rules. Workspace-local rules require explicit trust
+  // so a hostile clone can't ride its `.agents-js/permission-rules.json`
+  // into the engine.
+  const persistedRules = loadPersistedRules(workspacePath, trustWorkspace);
   permissionEngine.loadRules(persistedRules);
-  permissionStore.init(persistedRules, createSaveCallback(workspacePath));
+  permissionStore.init(persistedRules, createSaveCallback(workspacePath, trustWorkspace));
 
   // Create file adapters
   const fileAdapters = createNodeFileAdapters(workspacePath);

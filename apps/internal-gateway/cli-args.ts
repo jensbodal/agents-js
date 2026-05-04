@@ -10,10 +10,22 @@ export interface GatewayCliArgs {
   permissionMode: PermissionMode;
   port?: number;
   runtimeOverride?: string;
+  trustWorkspace: boolean;
   workspace: string;
 }
 
-export function parseCliArgs(argv: string[]): GatewayCliArgs {
+/**
+ * Resolve the trust-workspace gate from CLI args + env. Mirrors the
+ * `shouldEnableRegistrySync` gate in the published CLI: explicit
+ * literal `"true"` only — non-boolean truthy strings are rejected so
+ * an operator does not cross the workspace-trust boundary by accident.
+ */
+function resolveTrustWorkspace(flagPresent: boolean, env: NodeJS.ProcessEnv): boolean {
+  if (flagPresent) return true;
+  return env.AGENTS_JS_TRUST_WORKSPACE === "true";
+}
+
+export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCliArgs {
   let check = false;
   let runtimeOverride: string | undefined;
   let workspace: string = process.cwd();
@@ -21,6 +33,7 @@ export function parseCliArgs(argv: string[]): GatewayCliArgs {
   let defaultModel: string | undefined;
   let hostname: string | undefined;
   let port: number | undefined;
+  let trustWorkspaceFlag = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -94,10 +107,26 @@ export function parseCliArgs(argv: string[]): GatewayCliArgs {
       continue;
     }
 
+    if (arg === "--trust-workspace") {
+      trustWorkspaceFlag = true;
+      continue;
+    }
+
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace.`,
     );
   }
 
-  return { check, runtimeOverride, workspace, permissionMode, defaultModel, hostname, port };
+  const trustWorkspace = resolveTrustWorkspace(trustWorkspaceFlag, env);
+
+  return {
+    check,
+    runtimeOverride,
+    workspace,
+    permissionMode,
+    defaultModel,
+    hostname,
+    port,
+    trustWorkspace,
+  };
 }

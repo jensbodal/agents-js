@@ -245,7 +245,7 @@ function installSignalHandlers(targets: ShutdownTargets): void {
 }
 
 export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> {
-  const cliArgs = parseCliArgs(argv);
+  const cliArgs = parseCliArgs(argv, process.env);
   const loadedConfig = await loadAgentsJsConfig({
     cwd: cliArgs.workspace,
     env: buildRuntimeProfileConfigEnv(),
@@ -284,6 +284,9 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   console.log(`[Gateway] Executable: ${selectedRuntime.acp.command}`);
   console.log(`[Gateway] Workspace: ${cliArgs.workspace}`);
   console.log(`[Gateway] Permission mode: ${cliArgs.permissionMode}`);
+  console.log(
+    `[Gateway] Workspace trust: ${cliArgs.trustWorkspace ? "trusted (loading .agents-js/permission-rules.json)" : "untrusted (workspace-local rules ignored; pass --trust-workspace to enable)"}`,
+  );
   console.log(`[Gateway] Requested port: ${resolvedPort}`);
   if (resolvedDefaultModel) {
     console.log(`[Gateway] Default model: ${resolvedDefaultModel}`);
@@ -320,6 +323,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     permissionMode: cliArgs.permissionMode,
     defaultModel: resolvedDefaultModel,
     surfaceAdapter: surfaceBroadcaster,
+    trustWorkspace: cliArgs.trustWorkspace,
   });
 
   // The active-runtime cell is captured by both the controllerFactory and

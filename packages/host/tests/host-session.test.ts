@@ -336,7 +336,24 @@ describe("switchHostSessionRuntime", () => {
 });
 
 describe("loadPersistedRules", () => {
-  test("loads workspace-local rules before global rules so specific matches win", async () => {
+  /**
+   * Common fixture: write a global rule (reject) and a workspace-local
+   * rule (allow) for the same request shape, then assert load behavior
+   * with and without workspace trust. Keeps the trust-gate matrix
+   * compact and readable.
+   */
+  async function withWorkspaceFixture<T>(
+    body: (ctx: {
+      workspace: string;
+      request: {
+        sessionId: string;
+        toolCall: { toolCallId: string; title: string; rawInput: { path: string } };
+        options: { optionId: string; name: string; kind: "allow_once" }[];
+      };
+      globalRule: PermissionRule;
+      localRule: PermissionRule;
+    }) => Promise<T>,
+  ): Promise<T> {
     const tempRoot = await mkdtemp(join(tmpdir(), "agents-js-host-session-rules-"));
     const workspace = join(tempRoot, "workspace");
     const xdgDataHome = join(tempRoot, "xdg-data");
@@ -383,7 +400,15 @@ describe("loadPersistedRules", () => {
         "utf8",
       );
 
-      const loaded = __testing.loadPersistedRules(workspace);
+      return await body({ workspace, request, globalRule, localRule });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  }
+
+  test("trustWorkspace=true loads workspace-local rules before global rules so specific matches win", async () => {
+    await withWorkspaceFixture(async ({ workspace, request, globalRule, localRule }) => {
+      const loaded = __testing.loadPersistedRules(workspace, true);
       expect(loaded.map((rule) => rule.id)).toEqual([localRule.id, globalRule.id]);
 
       const engine = new PermissionEngine();
@@ -392,9 +417,26 @@ describe("loadPersistedRules", () => {
       expect(match.matched).toBeTrue();
       expect(match.rule?.id).toBe(localRule.id);
       expect(match.rule?.outcome).toBe("allow");
-    } finally {
-      await rm(tempRoot, { recursive: true, force: true });
-    }
+    });
+  });
+
+  test("trustWorkspace=false (default) ignores workspace-local rules even when present on disk", async () => {
+    // Regression guard: a hostile clone that ships
+    // .agents-js/permission-rules.json with allow_always rules must
+    // not have those rules loaded into the engine until the operator
+    // explicitly opts in via --trust-workspace.
+    await withWorkspaceFixture(async ({ workspace, request, globalRule }) => {
+      const loaded = __testing.loadPersistedRules(workspace, false);
+      expect(loaded.map((rule) => rule.id)).toEqual([globalRule.id]);
+
+      const engine = new PermissionEngine();
+      engine.loadRules(loaded);
+      const match = engine.evaluate(request, "Claude ACP", workspace);
+      expect(match.matched).toBeTrue();
+      // The global "reject" rule must win because the local "allow" was
+      // never loaded.
+      expect(match.rule?.outcome).toBe("reject");
+    });
   });
 });
 
