@@ -72,7 +72,7 @@ jobs:
         env:
           AGENTS_JS_RC_DATE: ci-${{ github.run_id }}
         run: bun scripts/acp-external-consumer-smoke.ts
-      - run: vp run @agents-js/cli#build
+      - run: ./node_modules/.bin/vp run @agents-js/cli#build
 
   # Explicit opt-in runtime/browser gate. Run this manually when the selected
   # curated runtime is intentionally available in the runner environment.
