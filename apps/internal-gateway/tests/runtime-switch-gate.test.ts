@@ -17,6 +17,7 @@ interface ActivitySnapshot {
   activeDispatchCount: number;
   activeLaneCount: number;
   inFlightLaneCount: number;
+  pendingLaneCount: number;
 }
 
 function makeExecutorStub(snapshot: ActivitySnapshot) {
@@ -32,6 +33,7 @@ const IDLE_SNAPSHOT: ActivitySnapshot = {
   activeDispatchCount: 0,
   activeLaneCount: 0,
   inFlightLaneCount: 0,
+  pendingLaneCount: 0,
 };
 
 describe("describeRuntimeSwitchBlockingActivity", () => {
@@ -84,6 +86,19 @@ describe("describeRuntimeSwitchBlockingActivity", () => {
       aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
     });
     expect(reason).toContain("lane");
+  });
+
+  test("pending lane construction (controllerFactory in flight) blocks the switch", () => {
+    // TOCTOU close: a factory call is awaiting; the lane has not
+    // yet been registered. Without this guard the switch would
+    // proceed and the freshly-spawned controller would be bound
+    // to the wrong runtime.
+    const reason = describeRuntimeSwitchBlockingActivity({
+      executor: makeExecutorStub({ ...IDLE_SNAPSHOT, pendingLaneCount: 2 }),
+      aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
+    });
+    expect(reason).toContain("currently being constructed");
+    expect(reason).toContain("2");
   });
 
   test("idle lane (factory-spawned, no in-flight prompt) does NOT block — eviction handles it", () => {

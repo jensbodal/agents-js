@@ -193,6 +193,16 @@ export class HostA2AExecutor implements InitializableExecutor {
    */
   private taskToLane = new Map<string, SessionLane>();
   /**
+   * ContextIds whose lane controllers are currently being constructed
+   * via `controllerFactory(contextId)` but have not yet been inserted
+   * into `lanes`. Closes the TOCTOU window the reviewer flagged: a
+   * runtime switch attempted between `await controllerFactory(...)`
+   * and `this.lanes.set(...)` would otherwise see `activeLaneCount:
+   * 0` and proceed, even though a fresh controller bound to the
+   * *previous* runtime was about to be inserted.
+   */
+  private pendingLaneCreations = new Set<string>();
+  /**
    * In-flight `@@dispatch` invocations, mapped taskId → contextId.
    * Dispatch is intentionally non-cancelable for this release — the
    * ephemeral controller has no cancel-token threading yet. Recording
@@ -533,7 +543,19 @@ export class HostA2AExecutor implements InitializableExecutor {
 
     if (this.controllerFactory) {
       // Factory mode: each lane owns a freshly-spawned controller.
-      const controller = await this.controllerFactory(contextId);
+      // Mark the lane as pending BEFORE awaiting the factory so a
+      // runtime-switch attempt during construction sees the activity
+      // and rejects. Without this, the switch could land between
+      // `await controllerFactory(...)` and `this.lanes.set(...)`,
+      // and the freshly-spawned controller (bound to the previous
+      // runtime) would still be inserted post-switch.
+      this.pendingLaneCreations.add(contextId);
+      let controller: GatewayHostController;
+      try {
+        controller = await this.controllerFactory(contextId);
+      } finally {
+        this.pendingLaneCreations.delete(contextId);
+      }
       const lane: SessionLane = {
         contextId,
         inFlightPrompt: null,
@@ -737,7 +759,27 @@ export class HostA2AExecutor implements InitializableExecutor {
     normalizedUserMessage: Message,
   ): Promise<void> {
     const { agentName, payload } = directive;
+    // Track A2A-kind dispatch in the same map ACP-kind dispatch uses
+    // so cancelTask publishes the explicit non-cancelable response,
+    // runtime-switch gating sees the active dispatch, and the audit
+    // emitter records the lifecycle. Without tracking, A2A dispatch
+    // appeared "invisible" to those surfaces — the reviewer flagged
+    // this as a P1 because it meant runtime switches could land
+    // mid-dispatch and cancel attempts silently fell through to the
+    // primary controller.
+    const correlationId = newCorrelationId();
+    const startedAtMs = Date.now();
+    this.dispatchedTaskIds.set(context.taskId, context.contextId);
+    this.audit?.record({
+      kind: "dispatch-started",
+      correlationId,
+      agentName,
+      harness: "a2a",
+      kindVariant: "a2a",
+      taskId: context.taskId,
+    });
 
+    let dispatchState: "completed" | "failed" = "completed";
     try {
       const provider = this.getDispatchProvider();
       const target = await provider.connect({ url: entry.url });
@@ -753,6 +795,8 @@ export class HostA2AExecutor implements InitializableExecutor {
           state: "completed",
           text: responseText || "(empty response)",
           metadata: {
+            "agents-js.cancelable": false,
+            "agents-js.correlationId": correlationId,
             "agents-js.dispatch": {
               agentName,
               agentUrl: entry.url,
@@ -762,6 +806,7 @@ export class HostA2AExecutor implements InitializableExecutor {
         }),
       );
     } catch (error) {
+      dispatchState = "failed";
       const message = formatRequestError(error);
       console.error("[Gateway] HostA2AExecutor: @@dispatch (a2a) failed", {
         agentName,
@@ -771,9 +816,24 @@ export class HostA2AExecutor implements InitializableExecutor {
         buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
           state: "failed",
           text: `Dispatch to "${agentName}" failed: ${message}`,
+          metadata: {
+            "agents-js.cancelable": false,
+            "agents-js.correlationId": correlationId,
+          },
         }),
       );
     } finally {
+      this.audit?.record({
+        kind: "dispatch-finished",
+        correlationId,
+        agentName,
+        harness: "a2a",
+        kindVariant: "a2a",
+        taskId: context.taskId,
+        state: dispatchState,
+        durationMs: Date.now() - startedAtMs,
+      });
+      this.dispatchedTaskIds.delete(context.taskId);
       eventBus.finished();
     }
   }
@@ -839,29 +899,43 @@ export class HostA2AExecutor implements InitializableExecutor {
       // `runEphemeralPrompt` owns the subscription lifecycle from creation to
       // teardown via its own try/finally so a thrown sendPrompt still
       // detaches the listener before propagating.
-      const { text, messageId } = await this.runEphemeralPrompt(
+      const { text, messageId, nonInteractiveFailure } = await this.runEphemeralPrompt(
         dispatchController,
         { taskId: context.taskId, contextId: context.contextId, eventBus },
         payload,
       );
 
-      eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-          state: "completed",
-          text: text || "(empty response)",
-          ...(messageId ? { messageId } : {}),
-          metadata: {
-            "agents-js.cancelable": false,
-            "agents-js.correlationId": correlationId,
-            "agents-js.dispatch": {
-              agentName,
-              harness: entry.harness,
-              ...(entry.command ? { command: entry.command } : {}),
-              directive: directive.fullMatch,
+      // Race guard: when sendPrompt resolves AFTER the subscription
+      // converted a permission/write-gate/elicitation event into a
+      // final "failed" status update, the agent's "completion"
+      // signal arrived on the wire after the cancel was issued and
+      // is not authoritative. Publishing a "completed" terminal
+      // here would put two terminal events on the bus — the
+      // reviewer flagged this as a P1 race because the A2A client
+      // could settle on either. The non-interactive-failure path
+      // already published its own final update, so we skip the
+      // success terminal entirely.
+      if (nonInteractiveFailure) {
+        dispatchState = "failed";
+      } else {
+        eventBus.publish(
+          buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
+            state: "completed",
+            text: text || "(empty response)",
+            ...(messageId ? { messageId } : {}),
+            metadata: {
+              "agents-js.cancelable": false,
+              "agents-js.correlationId": correlationId,
+              "agents-js.dispatch": {
+                agentName,
+                harness: entry.harness,
+                ...(entry.command ? { command: entry.command } : {}),
+                directive: directive.fullMatch,
+              },
             },
-          },
-        }),
-      );
+          }),
+        );
+      }
     } catch (error) {
       dispatchState = "failed";
       const message = formatRequestError(error);
@@ -933,13 +1007,28 @@ export class HostA2AExecutor implements InitializableExecutor {
     dispatchController: ACPSessionController,
     sink: { taskId: string; contextId: string; eventBus: ExecutionEventBus },
     payload: string | undefined,
-  ): Promise<{ text: string; messageId: string | undefined }> {
+  ): Promise<{
+    text: string;
+    messageId: string | undefined;
+    /**
+     * `true` when the subscription already published a final
+     * "failed" status update for a non-interactive event
+     * (permission/write-gate/elicitation). The caller MUST NOT
+     * publish its own "completed" terminal in that case — that
+     * would race two terminal events onto the same A2A bus.
+     */
+    nonInteractiveFailure: boolean;
+  }> {
     const subscription = subscribeDispatchController(dispatchController, sink);
     try {
       await dispatchController.sendPrompt([{ type: "text", text: payload || "(no message)" }]);
       const text = subscription.getTextBuffer() ?? "Prompt completed.";
       const messageId = subscription.getAgentMessageId();
-      return { text, messageId };
+      return {
+        text,
+        messageId,
+        nonInteractiveFailure: subscription.hasNonInteractiveFailure(),
+      };
     } finally {
       subscription.unsubscribe();
     }
@@ -1021,6 +1110,7 @@ export class HostA2AExecutor implements InitializableExecutor {
     activeDispatchCount: number;
     activeLaneCount: number;
     inFlightLaneCount: number;
+    pendingLaneCount: number;
   } {
     let inFlightLaneCount = 0;
     for (const lane of this.lanes.values()) {
@@ -1031,6 +1121,7 @@ export class HostA2AExecutor implements InitializableExecutor {
       activeDispatchCount: this.dispatchedTaskIds.size,
       activeLaneCount: this.lanes.size,
       inFlightLaneCount,
+      pendingLaneCount: this.pendingLaneCreations.size,
     };
   }
 
@@ -1300,6 +1391,11 @@ export class HostA2AExecutor implements InitializableExecutor {
  * call that no surface will make. Under `"yolo"` the agent should not
  * emit these in practice; if it does, the same fail+cancel path
  * applies.
+ *
+ * @internal — Exported only for unit tests. Not part of the
+ * `@agents-js/host` package's public surface; the package barrel does
+ * not re-export it. Consumers should use `@@dispatch` through
+ * `HostA2AExecutor.execute()`.
  */
 export function subscribeDispatchController(
   controller: ACPSessionController,
@@ -1313,9 +1409,20 @@ export function subscribeDispatchController(
   /** `null` = no chunks received; `""` = empty chunk received; otherwise the accumulated text. */
   getTextBuffer: () => string | null;
   getAgentMessageId: () => string | undefined;
+  /**
+   * Did the subscription already publish a *final* status update for
+   * the dispatch (because the agent emitted a permission /
+   * write-gate / elicitation event that we converted to non-
+   * interactive failure)? When `true`, the caller MUST NOT publish
+   * its own "completed" terminal — that would race two terminal
+   * events onto the same A2A event bus and the A2A client could
+   * settle on either.
+   */
+  hasNonInteractiveFailure: () => boolean;
 } {
   let textBuffer: string | null = null;
   let agentMessageId: string | undefined;
+  let nonInteractiveFailure = false;
 
   /**
    * Fire-and-forget cancel. Swallows rejections — the dispatch's
@@ -1358,6 +1465,7 @@ export function subscribeDispatchController(
       }
 
       case "permission_requested":
+        nonInteractiveFailure = true;
         sink.eventBus.publish(
           buildStatusUpdate(sink.taskId, sink.contextId, {
             state: "failed",
@@ -1371,6 +1479,7 @@ export function subscribeDispatchController(
         break;
 
       case "write_gate_requested":
+        nonInteractiveFailure = true;
         sink.eventBus.publish(
           buildStatusUpdate(sink.taskId, sink.contextId, {
             state: "failed",
@@ -1382,6 +1491,7 @@ export function subscribeDispatchController(
         break;
 
       case "elicitation_requested":
+        nonInteractiveFailure = true;
         sink.eventBus.publish(
           buildStatusUpdate(sink.taskId, sink.contextId, {
             state: "failed",
@@ -1412,6 +1522,7 @@ export function subscribeDispatchController(
     unsubscribe,
     getTextBuffer: () => textBuffer,
     getAgentMessageId: () => agentMessageId,
+    hasNonInteractiveFailure: () => nonInteractiveFailure,
   };
 }
 

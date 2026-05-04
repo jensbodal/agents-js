@@ -648,6 +648,55 @@ describe("agents-js CLI", () => {
     });
   });
 
+  test("serve passes a non-empty inheritedEnvKeys whitelist to spawnACPAgent", async () => {
+    await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
+      const output = makeOutputBuffer();
+
+      const result = await runServeCommand(
+        [
+          "--harness",
+          "custom",
+          "--acp-command",
+          "node",
+          "--acp-args-json",
+          JSON.stringify(["tests/mock-acp-agent.cjs"]),
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "0",
+        ],
+        {
+          cwd,
+          env: {
+            HOME: homeDir,
+            XDG_CONFIG_HOME: xdgConfigHome,
+          },
+          output,
+          serveGateway: async (options) => {
+            // Regression guard for the env-leak the reviewer flagged.
+            // Without inheritedEnvKeys, spawnACPAgent inherits the
+            // full process.env into the ACP child, leaking
+            // credentials for unrelated runtimes.
+            expect(Array.isArray(options.acp?.inheritedEnvKeys)).toBe(true);
+            const keys = options.acp?.inheritedEnvKeys ?? [];
+            expect(keys.length).toBeGreaterThan(0);
+            // PATH is always part of the standard inherited defaults
+            // (acp-host's DEFAULT_INHERITED_ENV_KEYS); a missing PATH
+            // means the whitelist composition was bypassed.
+            expect(keys).toContain("PATH");
+            return {
+              port: 40127,
+              server: {} as never,
+              stop() {},
+            };
+          },
+        },
+      );
+
+      expect(typeof result).not.toBe("number");
+    });
+  });
+
   test("serve does NOT wire the sync endpoint handler by default", async () => {
     await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
       const output = makeOutputBuffer();

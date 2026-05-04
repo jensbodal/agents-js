@@ -134,7 +134,13 @@ describe("renderA2uiComponent dispatch", () => {
     }
   });
 
-  test("Action props fire onEvent with (surfaceId, actionName, payload)", () => {
+  test("Permission modal routes the single response event to approve OR deny based on outcome", () => {
+    // Reviewer's P1: the binding listened for separate
+    // acp-permission-approve / acp-permission-deny events that the
+    // component never dispatches. The component emits a single
+    // `acp-permission-response` event with `detail.outcome` of
+    // "selected" (= approve) or "cancelled" (= deny). The fix
+    // routes off the actual event using a dual-action wrapper.
     const events: Array<[string, string, Record<string, unknown>]> = [];
     const handler = (surfaceId: string, actionName: string, payload: Record<string, unknown>) => {
       events.push([surfaceId, actionName, payload]);
@@ -149,16 +155,66 @@ describe("renderA2uiComponent dispatch", () => {
       { catalogId: ACP_CATALOG_ID, onEvent: handler, surfaceId: "s1" },
     );
 
-    // Locate the approve-listener in tpl.values: it should be a function.
-    const approveListener = tpl.values.find(
+    const responseListener = tpl.values.find(
       (v): v is (evt: Event) => void => typeof v === "function" && v.length === 1,
     );
-    expect(approveListener).toBeDefined();
-    approveListener?.(new CustomEvent("acp-permission-approve", { detail: { remember: true } }));
-    expect(events.length).toBeGreaterThan(0);
-    // The first listener in render order is approve.
-    expect(events[0]?.[0]).toBe("s1");
+    expect(responseListener).toBeDefined();
+
+    // Outcome: selected → approve action.
+    responseListener?.(
+      new CustomEvent("acp-permission-response", {
+        detail: { outcome: "selected", optionId: "allow", selectedScope: "/ws" },
+      }),
+    );
+    expect(events.length).toBe(1);
     expect(events[0]?.[1]).toBe("approve-click");
-    expect(events[0]?.[2]).toEqual({ remember: true });
+    expect(events[0]?.[2]).toMatchObject({ outcome: "selected", optionId: "allow" });
+
+    // Outcome: cancelled → deny action.
+    responseListener?.(
+      new CustomEvent("acp-permission-response", { detail: { outcome: "cancelled" } }),
+    );
+    expect(events.length).toBe(2);
+    expect(events[1]?.[1]).toBe("deny-click");
+    expect(events[1]?.[2]).toMatchObject({ outcome: "cancelled" });
+  });
+
+  test("Write-gate modal routes acp-write-gate-response by detail.action", () => {
+    const events: Array<[string, string, Record<string, unknown>]> = [];
+    const handler = (surfaceId: string, actionName: string, payload: Record<string, unknown>) => {
+      events.push([surfaceId, actionName, payload]);
+    };
+    const tpl = renderA2uiComponent(
+      {
+        component: "AcpWriteGateModal",
+        path: "/ws/notes.md",
+        rationale: "edit notes",
+        allow: "allow-click",
+        block: "block-click",
+      },
+      { catalogId: ACP_CATALOG_ID, onEvent: handler, surfaceId: "s2" },
+    );
+    const responseListener = tpl.values.find(
+      (v): v is (evt: Event) => void => typeof v === "function" && v.length === 1,
+    );
+    expect(responseListener).toBeDefined();
+
+    responseListener?.(
+      new CustomEvent("acp-write-gate-response", { detail: { action: "approve" } }),
+    );
+    expect(events[0]?.[1]).toBe("allow-click");
+
+    responseListener?.(
+      new CustomEvent("acp-write-gate-response", {
+        detail: { action: "allow_folder", folder: "/ws" },
+      }),
+    );
+    expect(events[1]?.[1]).toBe("allow-click");
+    expect(events[1]?.[2]).toMatchObject({ folder: "/ws" });
+
+    responseListener?.(
+      new CustomEvent("acp-write-gate-response", { detail: { action: "reject" } }),
+    );
+    expect(events[2]?.[1]).toBe("block-click");
   });
 });

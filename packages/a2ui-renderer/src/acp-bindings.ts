@@ -120,6 +120,39 @@ function wrapAction(action: unknown, ctx: BindingContext) {
   };
 }
 
+/**
+ * Wrap two A2UI actions into a single DOM-event listener that picks
+ * which one to fire based on a predicate over the event detail.
+ *
+ * The reviewer flagged P1: the permission/write-gate modals emit a
+ * single `*-response` event with the choice in `detail`, but the
+ * bindings were listening for separate per-choice events
+ * (`acp-permission-approve` / `acp-permission-deny` etc.) that the
+ * components never dispatch — so renderer-driven approvals never
+ * reached the WS bridge. This helper keeps the existing
+ * approve-vs-deny *action* split (the agent still sees two distinct
+ * actionNames, which matters for declarative rule writing) while
+ * routing them off the single event the components actually emit.
+ */
+function wrapDualAction(
+  approveAction: unknown,
+  denyAction: unknown,
+  pickApprove: (detail: Record<string, unknown>) => boolean,
+  ctx: BindingContext,
+) {
+  const approveName = extractActionName(approveAction);
+  const denyName = extractActionName(denyAction);
+  return (evt: Event) => {
+    const detail =
+      evt instanceof CustomEvent && evt.detail && typeof evt.detail === "object"
+        ? (evt.detail as Record<string, unknown>)
+        : {};
+    const chosen = pickApprove(detail) ? approveName : denyName;
+    if (!chosen) return;
+    ctx.onEvent(ctx.surfaceId, chosen, detail);
+  };
+}
+
 /** Resolve an ordered list of child ids into rendered template fragments. */
 function renderChildren(ids: unknown, ctx: BindingContext): TemplateResult[] {
   if (!Array.isArray(ids)) return [];
@@ -214,14 +247,23 @@ export function bindPermissionModal(props: AnyAcpProps, ctx: BindingContext): Bi
   const operation = unwrapString(props.operation);
   const target = unwrapString(props.target);
   const remember = unwrapBoolean(props.remember, false);
-  const onApprove = wrapAction(props.approve, ctx);
-  const onDeny = wrapAction(props.deny, ctx);
+  // The acp-permission-modal component emits a single
+  // `acp-permission-response` event with detail.outcome in
+  // {"selected","cancelled"}. "selected" means an option was picked
+  // (almost always an allow flavor — the chosen optionId is in
+  // detail.optionId), "cancelled" means the operator dismissed the
+  // modal. We treat "selected" as approve, "cancelled" as deny.
+  const onResponse = wrapDualAction(
+    props.approve,
+    props.deny,
+    (detail) => detail.outcome === "selected",
+    ctx,
+  );
   return html`<acp-permission-modal
     .operation=${operation}
     .target=${target}
     ?remember=${remember}
-    @acp-permission-approve=${onApprove}
-    @acp-permission-deny=${onDeny}
+    @acp-permission-response=${onResponse}
   ></acp-permission-modal>`;
 }
 
@@ -237,13 +279,21 @@ export function bindPermissionModeSelector(props: AnyAcpProps, ctx: BindingConte
 export function bindWriteGateModal(props: AnyAcpProps, ctx: BindingContext): BindingResult {
   const path = unwrapString(props.path);
   const rationale = unwrapString(props.rationale);
-  const onAllow = wrapAction(props.allow, ctx);
-  const onBlock = wrapAction(props.block, ctx);
+  // The acp-write-gate-modal component emits a single
+  // `acp-write-gate-response` event with detail.action in
+  // {"approve","reject","allow_folder"}. We treat "approve" /
+  // "allow_folder" as the allow action and "reject" as the block
+  // action; detail.folder (when present) rides through verbatim.
+  const onResponse = wrapDualAction(
+    props.allow,
+    props.block,
+    (detail) => detail.action === "approve" || detail.action === "allow_folder",
+    ctx,
+  );
   return html`<acp-write-gate-modal
     .path=${path}
     .rationale=${rationale}
-    @acp-write-gate-allow=${onAllow}
-    @acp-write-gate-block=${onBlock}
+    @acp-write-gate-response=${onResponse}
   ></acp-write-gate-modal>`;
 }
 

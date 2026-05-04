@@ -398,6 +398,83 @@ describe("createAguiFetchHandler — single-active-run gate", () => {
   });
 });
 
+describe("createAguiFetchHandler — lease release waits for cancel", () => {
+  test("a second /agent during a slow controller.cancel() gets 409, not 200", async () => {
+    // Reviewer's race: cancel() callback released the lease while
+    // controller.cancel() was still draining the prior turn. The fix
+    // awaits the cancel inside the run-session before resolving
+    // done; the endpoint's start() finally is the single release
+    // point.
+    const fake = createFakeController();
+
+    // Override cancel() to take a measurable time so the race is
+    // observable. The plain cancelCalls() counter only proves cancel
+    // was *called*, not that the lease release waited for it.
+    // Definite-assignment assertion: the assignment happens inside
+    // the cancel patch below, which always runs before we call
+    // `cancelResolve()` after the second handler resolves.
+    let cancelResolve!: () => void;
+    let cancelStartedResolve!: () => void;
+    const cancelStarted = new Promise<void>((resolve) => {
+      cancelStartedResolve = resolve;
+    });
+    const original = fake.controller.cancel;
+    fake.controller.cancel = async (): Promise<void> => {
+      await original();
+      await new Promise<void>((r) => {
+        cancelResolve = r;
+        cancelStartedResolve();
+      });
+    };
+
+    fake.setOnSendPrompt(async () => {
+      // Hold the prompt indefinitely until the abort path takes over.
+      await new Promise(() => {});
+    });
+
+    const coordinator = new AguiRunCoordinator();
+    const handler = createAguiFetchHandler({
+      controller: fake.controller,
+      coordinator,
+    });
+
+    const ac = new AbortController();
+    const firstReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("hold", { runId: "run-A" })),
+      signal: ac.signal,
+    });
+    const firstResponse = await handler(firstReq);
+    expect(firstResponse?.status).toBe(200);
+
+    // Read RUN_STARTED, then cancel the reader to fire the disconnect path.
+    const reader = (firstResponse as Response).body?.getReader();
+    if (!reader) throw new Error("expected SSE body reader");
+    await reader.read();
+    void reader.cancel();
+
+    // Wait until the cancel hook has been invoked but is NOT yet
+    // resolved — that is the window the reviewer flagged.
+    await cancelStarted;
+
+    // While cancel is still draining, a second run must see Busy.
+    const secondReq = new Request("http://local/agent", {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+      body: JSON.stringify(buildRunAgentInput("racer", { runId: "run-B" })),
+    });
+    const secondResponse = await handler(secondReq);
+    expect(secondResponse?.status).toBe(409);
+    const body = (await secondResponse?.json()) as { activeRunId: string };
+    expect(body.activeRunId).toBe("run-A");
+
+    // Let the cancel finish so the test cleans up.
+    cancelResolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+});
+
 describe("createAguiFetchHandler — disconnect cancels controller", () => {
   test("client disconnect calls controller.cancel() and emits a terminal RUN_ERROR", async () => {
     const fake = createFakeController();

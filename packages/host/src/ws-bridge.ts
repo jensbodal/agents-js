@@ -439,7 +439,24 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
             case "cancel":
               await controller.cancel();
               break;
-            case "surface_event":
+            case "surface_event": {
+              // Reviewer's P2: parsed JSON was cast to WSClientMessage
+              // without checking surfaceId/actionName are strings.
+              // A malformed frame could land non-string values in
+              // ACPSessionController.sendSurfaceEvent. Validate at
+              // ingress and drop with a warning rather than throwing.
+              if (typeof msg.surfaceId !== "string" || msg.surfaceId.length === 0) {
+                console.warn("[Gateway WS] Dropping surface_event: missing/invalid surfaceId", {
+                  surfaceId: msg.surfaceId,
+                });
+                break;
+              }
+              if (typeof msg.actionName !== "string" || msg.actionName.length === 0) {
+                console.warn("[Gateway WS] Dropping surface_event: missing/invalid actionName", {
+                  actionName: msg.actionName,
+                });
+                break;
+              }
               // Wrap the actionName + payload into the shape ACP
               // surface_event observers expect. The agent receives
               // this through its A2UI bridge subscription.
@@ -448,6 +465,7 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
                 payload: msg.payload,
               });
               break;
+            }
             default:
               console.warn("[Gateway WS] Unknown message type:", (msg as { type: string }).type);
           }

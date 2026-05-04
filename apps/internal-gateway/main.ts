@@ -224,7 +224,7 @@ export function describeRuntimeSwitchBlockingActivity(input: {
   if (input.aguiCoordinator.isActive) {
     return `AG-UI run is active (runId=${input.aguiCoordinator.activeRunId ?? "(unknown)"})`;
   }
-  const { activeTaskCount, activeDispatchCount, inFlightLaneCount } =
+  const { activeTaskCount, activeDispatchCount, inFlightLaneCount, pendingLaneCount } =
     input.executor.getActivitySnapshot();
   if (activeDispatchCount > 0) {
     return `${activeDispatchCount} @@dispatch task(s) in flight`;
@@ -234,6 +234,13 @@ export function describeRuntimeSwitchBlockingActivity(input: {
   }
   if (inFlightLaneCount > 0) {
     return `${inFlightLaneCount} A2A lane(s) holding an in-flight prompt`;
+  }
+  if (pendingLaneCount > 0) {
+    // TOCTOU close: a controllerFactory call is awaiting and a fresh
+    // lane bound to the *current* runtime is about to be registered.
+    // Switching now would either lose that lane or bind it to the
+    // wrong runtime.
+    return `${pendingLaneCount} A2A lane(s) currently being constructed`;
   }
   return null;
 }

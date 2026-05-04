@@ -9,6 +9,14 @@ export interface A2AHttpServerHandle {
 }
 
 export interface ServeACPOverA2AOptions {
+  /**
+   * Spawn config for the ACP child. **Production callers MUST set
+   * `acp.inheritedEnvKeys`** to a whitelist of env-var keys the child
+   * is allowed to inherit from `process.env`; without it the child
+   * sees the full parent env (and credentials for unrelated runtimes
+   * leak in). The published `agents-js serve` command computes the
+   * whitelist from the resolved runtime's `authEnvKeys`.
+   */
   acp?: ACPProcessOptions;
   agentCard: GatewayCardInput;
   host?: string;

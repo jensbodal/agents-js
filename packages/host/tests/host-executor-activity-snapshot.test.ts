@@ -36,6 +36,7 @@ describe("HostA2AExecutor.getActivitySnapshot", () => {
       activeDispatchCount: 0,
       activeLaneCount: 0,
       inFlightLaneCount: 0,
+      pendingLaneCount: 0,
     });
   });
 
@@ -73,6 +74,49 @@ describe("HostA2AExecutor.getActivitySnapshot", () => {
     const snapshot = executor.getActivitySnapshot();
     expect(snapshot.activeLaneCount).toBe(3);
     expect(snapshot.inFlightLaneCount).toBe(2);
+  });
+});
+
+describe("HostA2AExecutor.getActivitySnapshot — TOCTOU on lane creation", () => {
+  /**
+   * Reviewer's P2: a runtime switch attempted while
+   * `controllerFactory()` is awaiting was previously invisible —
+   * the lane was not yet in `lanes` and `activeLaneCount` was 0.
+   * The fix tracks "pending lane creations" so the snapshot
+   * reports the in-flight construction.
+   */
+  test("a controllerFactory call in flight reports pendingLaneCount > 0", async () => {
+    const idleController = createIdleControllerStub();
+    let resolveFactory!: (c: unknown) => void;
+    const factoryDeferred = new Promise<unknown>((resolve) => {
+      resolveFactory = resolve;
+    });
+    const executor = new HostA2AExecutor(idleController as never, {
+      controllerFactory: () => factoryDeferred as Promise<never>,
+    });
+
+    // Start a lane creation in the background; do NOT await — we
+    // want to inspect the snapshot mid-flight.
+    const lanePromise = (
+      executor as unknown as {
+        getOrCreateLane(contextId: string): Promise<unknown>;
+      }
+    ).getOrCreateLane("ctx-pending");
+
+    // Yield so the executor enters the await on `controllerFactory`.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const mid = executor.getActivitySnapshot();
+    expect(mid.pendingLaneCount).toBe(1);
+    expect(mid.activeLaneCount).toBe(0);
+
+    // Resolve the factory; the lane should now be registered and
+    // pending count should drop back to 0.
+    resolveFactory(idleController);
+    await lanePromise;
+
+    const after = executor.getActivitySnapshot();
+    expect(after.pendingLaneCount).toBe(0);
+    expect(after.activeLaneCount).toBe(1);
   });
 });
 

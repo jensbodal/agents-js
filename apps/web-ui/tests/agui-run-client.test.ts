@@ -102,6 +102,47 @@ describe("runTurnViaAgUi", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test("rejects when the SSE stream closes without a terminal frame", async () => {
+    // Reviewer's P1: if the stream truncates after RUN_STARTED and
+    // before RUN_FINISHED / RUN_ERROR, the previous implementation
+    // exited the read loop and resolved successfully — making a
+    // dropped connection look like a completed turn to the chat UI.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      makeSseResponse([
+        // Only RUN_STARTED; no RUN_FINISHED / RUN_ERROR. This models
+        // a server that crashed or a network drop mid-stream.
+        { type: "RUN_STARTED", threadId: "t-1", runId: "r-1" },
+      ]);
+    try {
+      await expect(
+        runTurnViaAgUi({
+          baseUrl: "http://gateway.local",
+          text: "hi",
+          threadId: "t-1",
+        }),
+      ).rejects.toThrow(/terminal frame/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("rejects with empty SSE stream (no frames at all)", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => makeSseResponse([]);
+    try {
+      await expect(
+        runTurnViaAgUi({
+          baseUrl: "http://gateway.local",
+          text: "hi",
+          threadId: "t-1",
+        }),
+      ).rejects.toThrow(/terminal frame/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("wrapControllerForAgUiRuns", () => {
@@ -129,7 +170,12 @@ describe("wrapControllerForAgUiRuns", () => {
     expect(legacyCalls).toBe(1);
   });
 
-  test("falls back to legacy sendTurn when getState returns no target URL and no fallback is configured", async () => {
+  test("throws (does NOT silently fall back to A2A) when no target URL is resolved", async () => {
+    // Reviewer's P2: the previous behavior fell back to legacy
+    // A2A sendTurn when no URL was available, contradicting the
+    // user-visible "AG-UI is the default run path" contract. The
+    // fix is to fail loudly so the chat UI shows a real error
+    // and the operator can either connect or pass ?run=a2a.
     let legacyCalls = 0;
     const controller = {
       getState() {
@@ -141,8 +187,11 @@ describe("wrapControllerForAgUiRuns", () => {
       },
     };
 
-    wrapControllerForAgUiRuns(controller, { fallbackBaseUrl: "" });
-    await controller.sendTurn("hi");
-    expect(legacyCalls).toBe(1);
+    wrapControllerForAgUiRuns(controller, {
+      fallbackBaseUrl: "",
+      logger: { warn() {}, error() {}, log() {} },
+    });
+    await expect(controller.sendTurn("hi")).rejects.toThrow(/no gateway URL resolved/);
+    expect(legacyCalls).toBe(0);
   });
 });

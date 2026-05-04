@@ -360,6 +360,52 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     }
   }, 60_000);
 
+  test("13. A2A-kind dispatch terminal carries cancelable=false + correlationId metadata", async () => {
+    // Reviewer's P1: A2A-kind dispatch was not tracked in
+    // dispatchedTaskIds and its terminal task lacked the
+    // non-cancelable + correlationId metadata that ACP-kind dispatch
+    // carries. Audit emission was also missing on the A2A path.
+    // This test asserts the terminal-task surface; the tracking
+    // (dispatchedTaskIds) is exercised by the unit tests in
+    // host-executor.test.ts.
+    const a2aTarget = await createGatewayTestServer({
+      acpCommand: "node",
+      acpArgs: [MOCK_AGENT],
+    });
+
+    try {
+      handle = await createGatewayTestServer({
+        acpCommand: "node",
+        acpArgs: [MOCK_AGENT],
+        dispatchRegistry: {
+          "a2a-agent": {
+            kind: "a2a",
+            name: "a2a-agent",
+            url: a2aTarget.url,
+          },
+        },
+      });
+
+      const response = await sendMessage(handle.url, "@@a2a-agent metadata probe");
+      const task = response.result;
+      expect(task?.status.state).toBe("completed");
+
+      const metadata = task?.metadata as
+        | {
+            "agents-js.dispatch"?: { agentName?: string; agentUrl?: string };
+            "agents-js.cancelable"?: boolean;
+            "agents-js.correlationId"?: string;
+          }
+        | undefined;
+      expect(metadata?.["agents-js.cancelable"]).toBe(false);
+      expect(typeof metadata?.["agents-js.correlationId"]).toBe("string");
+      expect(metadata?.["agents-js.correlationId"]?.length).toBeGreaterThan(0);
+      expect(metadata?.["agents-js.dispatch"]?.agentName).toBe("a2a-agent");
+    } finally {
+      await a2aTarget.stop();
+    }
+  }, 60_000);
+
   test("11. unknown registry kind publishes a descriptive failed terminal", async () => {
     handle = await createGatewayTestServer({
       acpCommand: "node",

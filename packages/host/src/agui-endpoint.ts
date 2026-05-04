@@ -211,9 +211,14 @@ export function createAguiFetchHandler(
           // `turn_completed` — emit a best-effort RUN_ERROR so the
           // contract stays intact for any still-connected observer.
           if (!result.finished && !result.errorMessage) {
+            // Reviewer's P2: error frames must carry threadId/runId
+            // for client-side correlation. The upstream zod schema
+            // is `.passthrough()` so adding them is permitted.
             emit({
               type: EventType.RUN_ERROR,
               message: "run ended without terminal event",
+              threadId,
+              runId,
             });
           }
 
@@ -245,7 +250,7 @@ export function createAguiFetchHandler(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           logger.error("[Gateway/AG-UI] Run session threw", { error: message });
-          emit({ type: EventType.RUN_ERROR, message });
+          emit({ type: EventType.RUN_ERROR, message, threadId, runId });
           audit?.record({
             kind: "agui-run-error",
             correlationId,
@@ -266,15 +271,18 @@ export function createAguiFetchHandler(
         // Triggered either by HTTP disconnect (covered by req.signal) or
         // a programmatic reader.cancel() (which does NOT propagate to
         // req.signal). Aborting the local controller ensures the
-        // run-session unwinds its subscription in both paths and that
-        // the run-session calls controller.cancel() on the active
-        // ACP turn (see agui-run-session.ts).
+        // run-session unwinds its subscription in both paths and the
+        // run-session awaits `controller.cancel()` before resolving
+        // its `done` promise.
+        //
+        // **The lease is intentionally NOT released here.** Releasing
+        // on cancel() would free the run slot before
+        // `runAguiSession` finished awaiting the controller cancel —
+        // the next `POST /agent` could 200 against a controller still
+        // draining the previous turn. The single release point is the
+        // start() `finally` block below, which only runs after the
+        // run-session has actually unwound.
         localAbort.abort();
-        // The lease is also released by the start() finally block;
-        // calling release here too is safe (idempotent) and ensures
-        // the slot is freed even if start() never observes the abort
-        // (e.g. the SSE stream was canceled before start() ran).
-        lease.release();
       },
     });
 

@@ -102,7 +102,23 @@ export async function runTurnViaAgUi(options: RunTurnViaAgUiOptions): Promise<vo
 
   const decoder = new TextDecoder();
   let buffer = "";
-  let terminated = false;
+  /**
+   * Tri-state terminal tracking. The AG-UI contract guarantees the
+   * server emits exactly one of `RUN_FINISHED` / `RUN_ERROR` before
+   * closing the stream — but the network can drop the connection
+   * before that frame arrives. The previous implementation exited
+   * the read loop on `done` and treated anything other than
+   * `RUN_ERROR` as success; a truncated stream silently looked like
+   * a completed turn. The reviewer flagged this as a P1 because it
+   * means the chat UI thinks a prompt finished when it actually got
+   * cut off mid-stream.
+   *
+   * - `null` — no terminal frame yet (in flight or truncated).
+   * - `"finished"` — `RUN_FINISHED` observed; resolve normally.
+   * - `"error"` — `RUN_ERROR` observed; throw with the supplied
+   *   message.
+   */
+  let terminal: "finished" | "error" | null = null;
   let errorMessage: string | null = null;
 
   try {
@@ -129,12 +145,12 @@ export async function runTurnViaAgUi(options: RunTurnViaAgUiOptions): Promise<vo
           errorMessage =
             (event as { type: typeof EventType.RUN_ERROR; message?: string }).message ??
             "AG-UI run failed";
-          terminated = true;
+          terminal = "error";
         } else if (event.type === EventType.RUN_FINISHED) {
-          terminated = true;
+          terminal = "finished";
         }
       }
-      if (terminated) break;
+      if (terminal !== null) break;
     }
   } finally {
     try {
@@ -144,8 +160,16 @@ export async function runTurnViaAgUi(options: RunTurnViaAgUiOptions): Promise<vo
     }
   }
 
-  if (errorMessage !== null) {
-    throw new Error(errorMessage);
+  if (terminal === "error") {
+    throw new Error(errorMessage ?? "AG-UI run failed");
+  }
+  if (terminal === null) {
+    // Stream closed without a terminal frame. Treating this as success
+    // would let a truncated turn look like a completed one — surface
+    // it as an error so the chat UI can show a real failure state.
+    throw new Error(
+      "AG-UI run ended without a terminal frame (stream closed unexpectedly before RUN_FINISHED or RUN_ERROR)",
+    );
   }
 }
 
@@ -174,8 +198,18 @@ export function wrapControllerForAgUiRuns<T extends ControllerSurface>(
   (controller as ControllerSurface).sendTurn = async (text: string) => {
     const baseUrl = controller.getState()?.targetInput?.url ?? fallbackBaseUrl;
     if (!baseUrl) {
-      logger.warn("[web-ui/AG-UI] No target URL resolved; falling back to A2A sendTurn");
-      return original(text);
+      // The reviewer flagged a P2: this branch previously fell back
+      // to legacy A2A sendTurn silently, defeating the user-visible
+      // "AG-UI is the default run path" contract — operators would
+      // only see A2A behavior when no target URL had resolved yet
+      // but not understand why. Fail loudly instead. The chat UI
+      // surfaces the error message; an explicit `?run=a2a` is the
+      // documented escape hatch for A2A.
+      const message =
+        "[web-ui/AG-UI] Cannot send: no gateway URL resolved yet. " +
+        "Connect to a target first, or use ?run=a2a for the diagnostic A2A path.";
+      logger.error(message);
+      throw new Error(message);
     }
     await runTurnViaAgUi({ baseUrl, text, threadId, logger });
     return undefined;

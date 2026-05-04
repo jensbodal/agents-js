@@ -14,6 +14,7 @@ import {
   resolveSharedAgentRegistryPath,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
+import { DEFAULT_INHERITED_ENV_KEYS } from "@agents-js/acp-host";
 import {
   type AgentsJsConfigPaths,
   createRuntimeSelectionFromArgs,
@@ -402,8 +403,18 @@ export async function runServeCommand(
     ? createSyncEndpointHandler({ configPath: registryPath })
     : undefined;
 
+  // Compose the spawn-env whitelist: standard inherited keys (PATH,
+  // HOME, LANG, etc.) plus the resolved runtime's declared
+  // `authEnvKeys`. Without this list, `spawnACPAgent` falls back to
+  // inheriting the full `process.env` and credentials for unrelated
+  // runtimes leak into the spawned ACP child. Deduplicate via a Set
+  // because a runtime is allowed to redeclare a key already present
+  // in the inherited defaults.
+  const runtimeAuthKeys = runtime.definition.authEnvKeys ?? [];
+  const inheritedEnvKeys = [...new Set([...DEFAULT_INHERITED_ENV_KEYS, ...runtimeAuthKeys])];
+
   const server = await serveGateway({
-    acp: runtime.acp,
+    acp: { ...runtime.acp, inheritedEnvKeys },
     agentCard: runtime.agentCard,
     hooks,
     host: resolvedInputs.host,

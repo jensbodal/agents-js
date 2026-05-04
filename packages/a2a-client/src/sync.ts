@@ -509,21 +509,71 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
 }
 
 /**
+ * Allowlist of fields that may appear on a wire record. Any field NOT
+ * in this set is stripped before serving — even from `kind="a2a"`
+ * records — so a future code path that accidentally attaches launch
+ * material (`command` / `args` / `env` / `workspaceFlag`) to an A2A
+ * record cannot leak it through the sync endpoint. The reviewer
+ * flagged this as P2: filtering by kind is necessary but not
+ * sufficient; a true whitelist is the safe shape.
+ */
+const SYNC_WIRE_ALLOWED_FIELDS: readonly (keyof AgentRegistryRecord)[] = Object.freeze([
+  "name",
+  "agent_id",
+  "kind",
+  "gateway_id",
+  "source",
+  "registered_at",
+  "actor_type",
+  "url",
+  "harness",
+  "last_synced_at",
+  "protocol_version",
+  "card_cache_refreshed_at",
+  "preferred_gateway_id",
+  "expires_at",
+  "health_check_url",
+  "description",
+]);
+
+function projectAllowedFields(record: AgentRegistryRecord): AgentRegistryRecord {
+  const projected: Record<string, unknown> = {};
+  // Cast the record through `unknown` to a string-indexed view so the
+  // dynamic key loop typechecks; the allowlist guarantees we only
+  // read fields that exist on AgentRegistryRecord.
+  const indexed = record as unknown as Record<string, unknown>;
+  for (const key of SYNC_WIRE_ALLOWED_FIELDS) {
+    const value = indexed[key];
+    if (value !== undefined) {
+      projected[key] = value;
+    }
+  }
+  // The projected object is structurally valid (allowlist is a subset
+  // of AgentRegistryRecord keys with their original value types) but
+  // tsc can't infer that from the dynamic loop.
+  return projected as unknown as AgentRegistryRecord;
+}
+
+/**
  * Produce the wire payload this gateway would serve at its sync endpoint.
  *
- * Two filters apply:
+ * Three filters apply:
  *
  * 1. `source !== "sync"` — loop prevention on the send side; we never
  *    re-serve records we received from a peer.
- * 2. `kind === "a2a"` — peer sync is A2A-only. ACP launch fields
- *    (`command`, `args`, `env`, `workspaceFlag`) are operator-controlled
- *    process-launch material and must never traverse the unauthenticated
- *    sync wire.
+ * 2. `kind === "a2a"` — peer sync is A2A-only. ACP records do not
+ *    traverse the wire at all.
+ * 3. **Field whitelist** — for every surviving A2A record, project
+ *    onto {@link SYNC_WIRE_ALLOWED_FIELDS}. Operator-controlled launch
+ *    material (`command`, `args`, `env`, `workspaceFlag`) is dropped
+ *    even if it somehow ended up on an A2A record in memory.
  */
 export function buildSyncPayload(records: AgentRegistryRecord[]): AgentsJsRegistrySyncPayload {
   return {
     version: 2,
-    records: records.filter((r) => r.source !== "sync" && r.kind === "a2a"),
+    records: records
+      .filter((r) => r.source !== "sync" && r.kind === "a2a")
+      .map(projectAllowedFields),
   };
 }
 

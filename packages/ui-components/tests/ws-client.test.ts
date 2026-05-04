@@ -523,4 +523,67 @@ describe("HostWSClient", () => {
       }),
     );
   });
+
+  test("sendSurfaceEvent drops the event when WS is not OPEN (no queueing across reconnect)", () => {
+    // Reviewer's P1 #7: surface events are moment-bound. Queuing
+    // them while closed and replaying on the next OPEN replays
+    // user clicks into a *later* session/runtime. This test pins
+    // the drop-on-closed contract.
+    const sent: string[] = [];
+    const client = new HostWSClient("ws://localhost:55364") as unknown as {
+      sendSurfaceEvent(s: string, a: string, p: unknown): boolean;
+      pendingMessages: Record<string, unknown>[];
+      ws: { readyState: number; send(m: string): void } | null;
+    };
+
+    // No socket attached → not OPEN. Surface event must drop.
+    expect(client.ws).toBeNull();
+    const accepted = client.sendSurfaceEvent("surf-1", "submit", { name: "ada" });
+    expect(accepted).toBe(false);
+    expect(client.pendingMessages).toEqual([]);
+
+    // Even with a CONNECTING socket (readyState 0), the event drops.
+    client.ws = {
+      readyState: 0, // CONNECTING
+      send(message: string) {
+        sent.push(message);
+      },
+    };
+    expect(client.sendSurfaceEvent("surf-2", "click", {})).toBe(false);
+    expect(sent).toEqual([]);
+    expect(client.pendingMessages).toEqual([]);
+
+    // OPEN → delivered, not queued.
+    client.ws = {
+      readyState: 1,
+      send(message: string) {
+        sent.push(message);
+      },
+    };
+    expect(client.sendSurfaceEvent("surf-3", "submit", { ok: true })).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0] ?? "{}")).toEqual({
+      type: "surface_event",
+      surfaceId: "surf-3",
+      actionName: "submit",
+      payload: { ok: true },
+    });
+    expect(client.pendingMessages).toEqual([]);
+  });
+
+  test("disconnect drops queued messages so they don't replay on next connect", () => {
+    const client = new HostWSClient("ws://localhost:55364") as unknown as {
+      cancel(): void;
+      disconnect(): void;
+      pendingMessages: Record<string, unknown>[];
+      ws: unknown;
+    };
+
+    // ws is null → cancel() falls through to pendingMessages.push.
+    client.cancel();
+    expect(client.pendingMessages.length).toBe(1);
+
+    client.disconnect();
+    expect(client.pendingMessages).toEqual([]);
+  });
 });

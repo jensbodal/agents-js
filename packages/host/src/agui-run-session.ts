@@ -118,12 +118,18 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
   const unsubscribe = controller.subscribe((event: ACPSessionEvent) => {
     if (terminal) return;
 
-    // Surface errors as RUN_ERROR and finish.
+    // Surface errors as RUN_ERROR and finish. The upstream
+    // RunErrorEvent schema is `.passthrough()` so attaching the
+    // run identity is permitted; the reviewer flagged that error
+    // frames previously omitted them, breaking client-side
+    // correlation between a failed run and its origin.
     if (event.type === "error") {
       emit({
         type: EventType.RUN_ERROR,
         message: event.message,
-      });
+        threadId,
+        runId,
+      } as BaseEvent);
       finalize({ finished: false, errorMessage: event.message });
       return;
     }
@@ -151,24 +157,46 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
   // without dropping the underlying HTTP connection — they will see
   // the error frame on whatever they wired up).
   //
-  // The cancel is best-effort: the controller may already be idle,
-  // and we swallow throwing cancel implementations because the run
-  // is unwinding regardless.
-  const onAbort = () => {
+  // **Awaits the cancel before finalizing.** The endpoint's run
+  // coordinator releases its lease in the start() finally block,
+  // which only runs after `done` resolves. If we fire-and-forgot the
+  // cancel here, the lease would be released while the controller is
+  // still draining its previous turn — and the next `POST /agent`
+  // would acquire the slot before the previous run had truly
+  // unwound. The await closes that race.
+  //
+  // The cancel is still best-effort: the controller may already be
+  // idle, and we swallow throwing cancel implementations because the
+  // run is unwinding regardless.
+  const onAbort = async (): Promise<void> => {
     if (terminal) return;
     const message = "run canceled by disconnect";
     emit({
       type: EventType.RUN_ERROR,
       message,
-    });
-    finalize({ finished: false, errorMessage: message });
-    void Promise.resolve(controller.cancel?.()).catch((err: unknown) => {
+      threadId,
+      runId,
+    } as BaseEvent);
+    try {
+      await controller.cancel?.();
+    } catch (err: unknown) {
       logger.warn("[Gateway/AG-UI] controller.cancel() during disconnect threw", {
         error: err instanceof Error ? err.message : String(err),
       });
-    });
+    }
+    // Finalize AFTER the cancel resolves so `done` does not settle
+    // until the controller has actually unwound the prior turn.
+    finalize({ finished: false, errorMessage: message });
   };
-  abortSignal?.addEventListener("abort", onAbort, { once: true });
+  // Wrap the listener: AbortSignal.addEventListener cannot await async
+  // handlers, so we capture the in-flight promise on a closure variable
+  // and the run-session's `done` await will join it transitively
+  // through `finalize`.
+  let inFlightAbort: Promise<void> | null = null;
+  const abortListener = (): void => {
+    inFlightAbort = onAbort();
+  };
+  abortSignal?.addEventListener("abort", abortListener, { once: true });
 
   // Kick off the prompt. If there is no active session yet, open one —
   // mirrors HostA2AExecutor.runPrompt().
@@ -183,7 +211,9 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
       emit({
         type: EventType.RUN_ERROR,
         message,
-      });
+        threadId,
+        runId,
+      } as BaseEvent);
       finalize({ finished: false, errorMessage: message });
     }
   }
@@ -192,9 +222,16 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
   // `turn_completed` event can race — keep awaiting the `done` promise
   // to guarantee we've processed the terminal frame.
   try {
-    return await done;
+    const result = await done;
+    // If a disconnect was observed during the run, the abort listener
+    // captured an in-flight cancel promise. Await it before returning
+    // so the endpoint's lease release waits for the cancel to settle.
+    if (inFlightAbort !== null) {
+      await inFlightAbort;
+    }
+    return result;
   } finally {
     unsubscribe();
-    abortSignal?.removeEventListener("abort", onAbort);
+    abortSignal?.removeEventListener("abort", abortListener);
   }
 }

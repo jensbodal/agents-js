@@ -198,6 +198,35 @@ describe("subscribeDispatchController — non-interactive contract", () => {
     expect(published.length).toBeGreaterThan(0);
   });
 
+  test("hasNonInteractiveFailure flips after a permission event (race guard)", async () => {
+    // The reviewer flagged that even with cancel-on-event, sendPrompt
+    // could resolve after the cancel was issued — and dispatchAcp
+    // would publish a "completed" terminal on top of the
+    // subscription's already-final "failed" status update. The
+    // race guard relies on this getter; the test pins the contract
+    // so future changes can't drop the flag.
+    const stub = createStubController();
+    const { eventBus } = createEventBus();
+
+    const subscription = subscribeDispatchController(stub.controller as ACPSessionController, {
+      taskId: "task-race",
+      contextId: "ctx-race",
+      eventBus,
+    });
+    expect(subscription.hasNonInteractiveFailure()).toBe(false);
+
+    stub.emit({
+      type: "permission_requested",
+      request: {
+        sessionId: "s-race",
+        toolCall: { toolCallId: "tc-1", title: "Run", rawInput: {} },
+        options: [{ optionId: "allow", name: "Allow", kind: "allow_once" as const }],
+      },
+    } as ACPSessionEvent);
+
+    expect(subscription.hasNonInteractiveFailure()).toBe(true);
+  });
+
   test("error event does NOT itself cancel — outer dispatch path handles termination", async () => {
     // The error case publishes a failed status but does not call cancel
     // because the controller is already in an error state; calling cancel

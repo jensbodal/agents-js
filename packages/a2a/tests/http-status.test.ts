@@ -134,6 +134,7 @@ describe("packages/a2a/tests/http-status.test.ts", () => {
   test("HTTP_STATUS declares exactly the documented set of codes", () => {
     expect(Object.keys(HTTP_STATUS).sort()).toEqual([
       "BAD_REQUEST",
+      "CONFLICT",
       "INTERNAL_SERVER_ERROR",
       "METHOD_NOT_ALLOWED",
       "NOT_ACCEPTABLE",
@@ -143,5 +144,16 @@ describe("packages/a2a/tests/http-status.test.ts", () => {
       "PAYLOAD_TOO_LARGE",
       "UPGRADE_REQUIRED",
     ]);
+  });
+
+  /**
+   * WHAT: `HTTP_STATUS.CONFLICT` equals 409.
+   * WHY: AG-UI single-active-run gate emits 409 when a second
+   *      `POST /agent` collides with an in-flight run. Pinning the
+   *      numeric value catches accidental drift to a different
+   *      "busy"-shaped code.
+   */
+  test("HTTP_STATUS.CONFLICT is 409", () => {
+    expect(HTTP_STATUS.CONFLICT).toBe(409);
   });
 });

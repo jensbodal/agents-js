@@ -117,24 +117,56 @@ export type AuditEvent =
 
 /**
  * If anyone adds a `prompt`, `env`, `args`, or `payload` key to any
- * `AuditEvent` variant, this conditional type evaluates to `never`,
- * which makes the helper line below fail to typecheck. The fail is
- * surfaced at the assertion line, but the underlying meaning is "your
- * variant added a sensitive-payload key".
+ * `AuditEvent` variant, this conditional type evaluates to `never`
+ * for that variant — and we use a value-level assertion below to
+ * surface the failure as a real typecheck error.
+ *
+ * **Predicate detail.** The previous form,
+ * `T extends Record<"prompt" | "env" | "args" | "payload", unknown>`,
+ * required *all four* forbidden keys to be present before rejecting.
+ * That meant a variant smuggling just `prompt` would slip through.
+ * The corrected form uses key-by-key intersection so any single
+ * forbidden key trips the check.
  *
  * The rule is intentionally rigid — convenience is not a reason to
  * expand this set. Operators who want to log raw payloads should do
  * it through a separate, gated, intentionally-not-here surface.
  */
-type _NoSensitivePayload<T> =
-  T extends Record<"prompt" | "env" | "args" | "payload", unknown> ? never : T;
+type ForbiddenKey = "prompt" | "env" | "args" | "payload";
+/**
+ * Distributes over the discriminated union (each variant T is checked
+ * individually) and returns `never` for any variant whose key set
+ * intersects the forbidden set. The previous predicate required all
+ * four forbidden keys to be present simultaneously, which would let
+ * a `prompt`-only variant slip through.
+ */
+type _NoSensitivePayload<T> = T extends unknown
+  ? Extract<keyof T, ForbiddenKey> extends never
+    ? T
+    : never
+  : never;
 
-// Compile-time assertion: every AuditEvent variant must satisfy
-// `_NoSensitivePayload`. If this exported type ever evaluates to
-// `never`, a variant smuggled in a forbidden key. Exporting (rather
-// than declaring an unused const) keeps biome quiet without weakening
-// the check.
-export type _AuditEventNoSensitivePayload = _NoSensitivePayload<AuditEvent>;
+/**
+ * Type-level assertion that every AuditEvent variant satisfies the
+ * no-forbidden-key constraint.
+ *
+ * The check uses *bidirectional* assignability: if the violating
+ * variant gets stripped to `never` by `_NoSensitivePayload<AuditEvent>`,
+ * the resulting union is a strict subset of `AuditEvent` — and
+ * `AuditEvent extends _NoSensitivePayload<AuditEvent>` becomes false.
+ * The literal `true` then fails to assign to `false` and tsc rejects
+ * the file.
+ *
+ * Declaring just a type alias does NOT fail typecheck on its own —
+ * exporting an alias for `never` is perfectly legal. The `true`
+ * assignment is what makes the guard load-bearing. Exporting the
+ * `const` keeps biome's `noUnusedVariables` quiet without weakening
+ * the check; consumers SHOULD NOT depend on this value (it is purely
+ * a guard).
+ */
+type _AssertExhaustiveAuditEvent =
+  AuditEvent extends _NoSensitivePayload<AuditEvent> ? true : false;
+export const _AUDIT_EVENT_NO_SENSITIVE_PAYLOAD: _AssertExhaustiveAuditEvent = true;
 
 /* -------------------------------------------------------------------------- */
 /*  Emitter                                                                   */

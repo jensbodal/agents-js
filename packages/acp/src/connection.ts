@@ -17,6 +17,24 @@ export interface ACPProcessOptions {
   args?: string[];
   /** Extra environment variables */
   env?: Record<string, string>;
+  /**
+   * Optional spawn-env whitelist. When provided, only the listed keys
+   * from `process.env` are inherited into the spawned ACP child;
+   * everything else is dropped. The caller's `env` overrides are
+   * applied on top of the whitelisted set.
+   *
+   * **When omitted, the spawned child inherits the full `process.env`**
+   * — convenient for low-level / test callers but a real leak surface
+   * for production gateways. The published `agents-js serve` command
+   * always supplies this whitelist (computed from the resolved runtime's
+   * `authEnvKeys` plus the project's standard inherited-env defaults)
+   * so credentials never reach a runtime that did not declare them.
+   *
+   * Format: a flat array of env-var names (e.g. `["PATH", "HOME",
+   * "ANTHROPIC_API_KEY"]`). Order is irrelevant; duplicates are
+   * harmless.
+   */
+  inheritedEnvKeys?: readonly string[];
 }
 
 export interface ACPProcess {
@@ -31,8 +49,39 @@ export interface ACPProcess {
 /**
  * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
  */
+/**
+ * Build the env map for the spawned child. When `inheritedEnvKeys` is
+ * supplied, parent env is filtered to those keys (everything else is
+ * dropped before overrides are layered on); otherwise the full
+ * `process.env` is inherited (legacy behavior, kept for back-compat).
+ *
+ * Exported for unit testing — the regression we want to lock down is
+ * "no key beyond the whitelist + caller-supplied overrides ever
+ * reaches the spawned child", which is much easier to test against
+ * this pure helper than against `spawn()` itself.
+ */
+export function buildSpawnEnv(
+  parentEnv: NodeJS.ProcessEnv,
+  options: {
+    env?: Record<string, string>;
+    inheritedEnvKeys?: readonly string[];
+  },
+): NodeJS.ProcessEnv {
+  if (options.inheritedEnvKeys === undefined) {
+    return { ...parentEnv, ...options.env };
+  }
+  const filtered: Record<string, string> = {};
+  for (const key of options.inheritedEnvKeys) {
+    const value = parentEnv[key];
+    if (typeof value === "string") {
+      filtered[key] = value;
+    }
+  }
+  return { ...filtered, ...options.env };
+}
+
 export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
-  const { command = "opencode", args = ["acp"], env } = options;
+  const { command = "opencode", args = ["acp"], env, inheritedEnvKeys } = options;
 
   // `detached: true` makes the spawned process a process-group leader on Unix,
   // which lets `kill()` below signal the whole group (child + grandchildren).
@@ -51,7 +100,7 @@ export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
   const isUnix = process.platform !== "win32";
   const child = spawn(command, args, {
     stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env, ...env },
+    env: buildSpawnEnv(process.env, { env, inheritedEnvKeys }),
     detached: isUnix,
   });
 

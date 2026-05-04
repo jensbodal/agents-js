@@ -98,6 +98,11 @@ export class HostWSClient {
   disconnect(): void {
     this.explicitlyClosed = true;
     this._clearReconnect();
+    // Drop any pending messages: replaying them into a later session
+    // (a reconnect to the same host or a connect to a different one)
+    // is a footgun. The setUrl path already does this; keep parity
+    // here so an explicit disconnect cleans the same way.
+    this.pendingMessages = [];
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -175,9 +180,28 @@ export class HostWSClient {
    * agents and observers see the user's interaction. Use this from the
    * `A2uiBridge` sink — without it, browser clicks are silently
    * dropped.
+   *
+   * **Surface events are moment-bound and are NEVER queued.** A click
+   * on an old surface is meaningless after the underlying session has
+   * disconnected — replaying it into a later session/runtime would be
+   * a security/UX hazard (the reviewer's P1 #7). When the WS is not
+   * `OPEN`, this method drops the event with a console warning and
+   * returns `false` so the caller (the A2UI sink) can surface a
+   * non-blocking notice if it cares to.
    */
-  sendSurfaceEvent(surfaceId: string, actionName: string, payload: unknown): void {
-    this._send({ type: "surface_event", surfaceId, actionName, payload });
+  sendSurfaceEvent(surfaceId: string, actionName: string, payload: unknown): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      console.warn("[ui-components/ws-client] surface_event dropped: WebSocket is not OPEN", {
+        surfaceId,
+        actionName,
+        readyState: this.ws?.readyState ?? "(no socket)",
+      });
+      return false;
+    }
+    // Bypass the queue path that `_send` falls through to; surface
+    // events MUST NOT be replayed when the socket reopens.
+    this.ws.send(JSON.stringify({ type: "surface_event", surfaceId, actionName, payload }));
+    return true;
   }
 
   setUrl(url: string): void {

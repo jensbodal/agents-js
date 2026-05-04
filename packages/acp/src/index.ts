@@ -1,6 +1,7 @@
 export {
   type ACPProcess,
   type ACPProcessOptions,
+  buildSpawnEnv,
   CLIENT_METHODS,
   ClientSideConnection,
   ndJsonStream,
