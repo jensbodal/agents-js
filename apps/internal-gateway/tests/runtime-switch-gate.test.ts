@@ -3,10 +3,10 @@ import { describeRuntimeSwitchBlockingActivity } from "../main.ts";
 
 /**
  * Pure check that decides whether the gateway should reject a runtime
- * switch. The reviewer flagged this as a P1 gap: previously,
- * setRuntime would call session.switchRuntime() while AG-UI/A2A/lane
- * work was in flight, cutting turns mid-stream OR leaving lane
- * controllers bound to the old runtime.
+ * switch. Without this gate, `setRuntime` would call
+ * `session.switchRuntime()` while AG-UI/A2A/lane work is in flight,
+ * cutting turns mid-stream or leaving lane controllers bound to the
+ * outgoing runtime.
  *
  * Cover every blocking branch + the idle case so future regressions
  * (e.g. someone forgets to count active dispatches) fail loudly.

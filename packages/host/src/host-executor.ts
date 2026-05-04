@@ -195,11 +195,11 @@ export class HostA2AExecutor implements InitializableExecutor {
   /**
    * ContextIds whose lane controllers are currently being constructed
    * via `controllerFactory(contextId)` but have not yet been inserted
-   * into `lanes`. Closes the TOCTOU window the reviewer flagged: a
-   * runtime switch attempted between `await controllerFactory(...)`
-   * and `this.lanes.set(...)` would otherwise see `activeLaneCount:
-   * 0` and proceed, even though a fresh controller bound to the
-   * *previous* runtime was about to be inserted.
+   * into `lanes`. Closes a TOCTOU window: a runtime switch attempted
+   * between `await controllerFactory(...)` and `this.lanes.set(...)`
+   * would otherwise see `activeLaneCount: 0` and proceed, even though
+   * a fresh controller bound to the outgoing runtime was about to be
+   * inserted.
    */
   private pendingLaneCreations = new Set<string>();
   /**
@@ -547,7 +547,7 @@ export class HostA2AExecutor implements InitializableExecutor {
       // runtime-switch attempt during construction sees the activity
       // and rejects. Without this, the switch could land between
       // `await controllerFactory(...)` and `this.lanes.set(...)`,
-      // and the freshly-spawned controller (bound to the previous
+      // and the freshly-spawned controller (bound to the outgoing
       // runtime) would still be inserted post-switch.
       this.pendingLaneCreations.add(contextId);
       let controller: GatewayHostController;
@@ -763,9 +763,8 @@ export class HostA2AExecutor implements InitializableExecutor {
     // so cancelTask publishes the explicit non-cancelable response,
     // runtime-switch gating sees the active dispatch, and the audit
     // emitter records the lifecycle. Without tracking, A2A dispatch
-    // appeared "invisible" to those surfaces — the reviewer flagged
-    // this as a P1 because it meant runtime switches could land
-    // mid-dispatch and cancel attempts silently fell through to the
+    // is invisible to those surfaces: runtime switches can land
+    // mid-dispatch and cancel attempts silently fall through to the
     // primary controller.
     const correlationId = newCorrelationId();
     const startedAtMs = Date.now();
@@ -860,9 +859,8 @@ export class HostA2AExecutor implements InitializableExecutor {
    *
    * Permission mode is **inherited** from the primary gateway controller
    * — operators who launched the gateway in "ask"/"plan"/"hub" get those
-   * modes for dispatched runs too, instead of the previous hard-coded
-   * "yolo" override. A dispatch directive does not implicitly grant
-   * elevated trust.
+   * modes for dispatched runs too. A dispatch directive does not
+   * implicitly grant elevated trust.
    *
    * Cancel semantics: dispatch is **non-cancelable** for this release.
    * The ephemeral controller has no cancel-token threading yet. Both
@@ -910,11 +908,10 @@ export class HostA2AExecutor implements InitializableExecutor {
       // final "failed" status update, the agent's "completion"
       // signal arrived on the wire after the cancel was issued and
       // is not authoritative. Publishing a "completed" terminal
-      // here would put two terminal events on the bus — the
-      // reviewer flagged this as a P1 race because the A2A client
-      // could settle on either. The non-interactive-failure path
-      // already published its own final update, so we skip the
-      // success terminal entirely.
+      // here would put two terminal events on the bus and the A2A
+      // client could settle on either. The non-interactive-failure
+      // path already published its own final update, so we skip
+      // the success terminal entirely.
       if (nonInteractiveFailure) {
         dispatchState = "failed";
       } else {
@@ -1099,8 +1096,8 @@ export class HostA2AExecutor implements InitializableExecutor {
    * runtime switches: the gateway must reject a runtime change while
    * any of these counters are non-zero, otherwise an in-flight A2A
    * prompt or dispatch would be cut off mid-turn (or worse, a lane
-   * controller for the *old* runtime would silently keep handling
-   * follow-up prompts after the operator believed the switch
+   * controller for the outgoing runtime would silently keep handling
+   * subsequent prompts after the operator believed the switch
    * completed).
    *
    * Read-only by design — writers must mutate the underlying maps.
@@ -1129,7 +1126,7 @@ export class HostA2AExecutor implements InitializableExecutor {
    * Best-effort eviction of every lane that is not currently driving a
    * prompt. Call this *after* a successful runtime switch so future
    * work spawns fresh lane controllers against the new runtime instead
-   * of inheriting the previous runtime's controller. Lanes still in
+   * of inheriting the outgoing runtime's controller. Lanes still in
    * flight are skipped and survive — but the activity-snapshot gate
    * upstream should already have prevented those from existing.
    */

@@ -199,12 +199,12 @@ describe("subscribeDispatchController — non-interactive contract", () => {
   });
 
   test("hasNonInteractiveFailure flips after a permission event (race guard)", async () => {
-    // The reviewer flagged that even with cancel-on-event, sendPrompt
-    // could resolve after the cancel was issued — and dispatchAcp
-    // would publish a "completed" terminal on top of the
-    // subscription's already-final "failed" status update. The
-    // race guard relies on this getter; the test pins the contract
-    // so future changes can't drop the flag.
+    // Even with cancel-on-event, sendPrompt can resolve after the
+    // cancel is issued — and dispatchAcp would publish a
+    // "completed" terminal on top of the subscription's already-
+    // final "failed" status update. The race guard relies on this
+    // getter; the test pins the contract so future changes cannot
+    // drop the flag.
     const stub = createStubController();
     const { eventBus } = createEventBus();
 

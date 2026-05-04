@@ -211,9 +211,9 @@ export function createAguiFetchHandler(
           // `turn_completed` — emit a best-effort RUN_ERROR so the
           // contract stays intact for any still-connected observer.
           if (!result.finished && !result.errorMessage) {
-            // Reviewer's P2: error frames must carry threadId/runId
-            // for client-side correlation. The upstream zod schema
-            // is `.passthrough()` so adding them is permitted.
+            // Error frames carry threadId/runId so clients can
+            // correlate the failure with its run. The upstream zod
+            // schema is `.passthrough()` so adding them is permitted.
             emit({
               type: EventType.RUN_ERROR,
               message: "run ended without terminal event",
@@ -279,9 +279,9 @@ export function createAguiFetchHandler(
         // on cancel() would free the run slot before
         // `runAguiSession` finished awaiting the controller cancel —
         // the next `POST /agent` could 200 against a controller still
-        // draining the previous turn. The single release point is the
-        // start() `finally` block below, which only runs after the
-        // run-session has actually unwound.
+        // draining the cancelled turn. The single release point is
+        // the start() `finally` block below, which only runs after
+        // the run-session has actually unwound.
         localAbort.abort();
       },
     });
@@ -296,8 +296,8 @@ export function createAguiFetchHandler(
 /**
  * Pull the last user-authored text from the input messages. Mirrors
  * how `HostA2AExecutor` treats A2A messages: the endpoint only needs the plain
- * user prompt for the ACP turn; multimodal content is not yet wired
- * through the AG-UI endpoint and will be a separate follow-up.
+ * user prompt for the ACP turn. Multimodal AG-UI content is not wired
+ * through this endpoint yet.
  */
 function extractLastUserText(input: RunAgentInput): string {
   const messages = Array.isArray(input.messages) ? input.messages : [];

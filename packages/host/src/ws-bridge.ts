@@ -440,11 +440,10 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
               await controller.cancel();
               break;
             case "surface_event": {
-              // Reviewer's P2: parsed JSON was cast to WSClientMessage
-              // without checking surfaceId/actionName are strings.
-              // A malformed frame could land non-string values in
-              // ACPSessionController.sendSurfaceEvent. Validate at
-              // ingress and drop with a warning rather than throwing.
+              // Validate at ingress: a malformed frame must not
+              // forward non-string values into
+              // ACPSessionController.sendSurfaceEvent. Drop with a
+              // warning rather than throwing.
               if (typeof msg.surfaceId !== "string" || msg.surfaceId.length === 0) {
                 console.warn("[Gateway WS] Dropping surface_event: missing/invalid surfaceId", {
                   surfaceId: msg.surfaceId,

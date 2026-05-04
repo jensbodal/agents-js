@@ -300,8 +300,8 @@ describe("mergeRecords (pure merge matrix)", () => {
   });
 
   // Preferred disagreement: both records have preferred_gateway_id but
-  // they point at different gateways. Spec addendum: fall through to
-  // LWW. Verify the fallback path explicitly — prevents silent bias.
+  // they point at different gateways. Falls through to LWW. Verify
+  // the fallback path explicitly — prevents silent bias.
   test("preferred_gateway_id disagreement falls through to last-writer-wins", () => {
     const local: AgentRegistryRecord = {
       ...rec({

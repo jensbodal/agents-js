@@ -106,12 +106,10 @@ export async function runTurnViaAgUi(options: RunTurnViaAgUiOptions): Promise<vo
    * Tri-state terminal tracking. The AG-UI contract guarantees the
    * server emits exactly one of `RUN_FINISHED` / `RUN_ERROR` before
    * closing the stream — but the network can drop the connection
-   * before that frame arrives. The previous implementation exited
-   * the read loop on `done` and treated anything other than
-   * `RUN_ERROR` as success; a truncated stream silently looked like
-   * a completed turn. The reviewer flagged this as a P1 because it
-   * means the chat UI thinks a prompt finished when it actually got
-   * cut off mid-stream.
+   * before that frame arrives. Treating an unobserved terminal as
+   * success would let a truncated stream look like a completed turn
+   * to the chat UI, so we track the terminal explicitly and surface
+   * the truncation as an error.
    *
    * - `null` — no terminal frame yet (in flight or truncated).
    * - `"finished"` — `RUN_FINISHED` observed; resolve normally.
@@ -198,13 +196,12 @@ export function wrapControllerForAgUiRuns<T extends ControllerSurface>(
   (controller as ControllerSurface).sendTurn = async (text: string) => {
     const baseUrl = controller.getState()?.targetInput?.url ?? fallbackBaseUrl;
     if (!baseUrl) {
-      // The reviewer flagged a P2: this branch previously fell back
-      // to legacy A2A sendTurn silently, defeating the user-visible
-      // "AG-UI is the default run path" contract — operators would
-      // only see A2A behavior when no target URL had resolved yet
-      // but not understand why. Fail loudly instead. The chat UI
-      // surfaces the error message; an explicit `?run=a2a` is the
-      // documented escape hatch for A2A.
+      // Fail loudly when no target URL has resolved. Falling back
+      // to legacy A2A `sendTurn` silently would defeat the
+      // user-visible "AG-UI is the default run path" contract: the
+      // chat UI must show a real error and operators can either
+      // connect to a target or pass `?run=a2a` as the documented
+      // escape hatch.
       const message =
         "[web-ui/AG-UI] Cannot send: no gateway URL resolved yet. " +
         "Connect to a target first, or use ?run=a2a for the diagnostic A2A path.";

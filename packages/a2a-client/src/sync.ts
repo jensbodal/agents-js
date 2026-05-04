@@ -38,6 +38,7 @@ import { dirname } from "node:path";
 import { HTTP_STATUS } from "@agents-js/a2a";
 import {
   validateWireAgentRegistryRecord,
+  type WireAgentRegistryRecord,
   WireAgentRegistryRecordSchema,
 } from "@agents-js/validation";
 import {
@@ -50,10 +51,15 @@ import type { AgentRegistryRecord } from "./registry.ts";
 /** Well-known path the peer sync endpoint is mounted at. */
 export const AGENTS_JS_REGISTRY_WELL_KNOWN_PATH = "/.well-known/agents-js-registry.json";
 
-/** Wire-format payload served by the sync endpoint and consumed by peers. */
+/**
+ * Wire-format payload served by the sync endpoint and consumed by peers.
+ * Records are typed as the wire shape — `kind="acp"` and the operator-
+ * controlled launch fields (`command`, `args`, `env`, `workspaceFlag`)
+ * are not part of the wire contract and never traverse this surface.
+ */
 export interface AgentsJsRegistrySyncPayload {
   version: 2;
-  records: AgentRegistryRecord[];
+  records: WireAgentRegistryRecord[];
 }
 
 /** Default peer-fetch timeout — matches AgentRegistry.cardFetchTimeoutMs. */
@@ -214,8 +220,8 @@ export interface SyncFromPeerOptions extends FetchPeerRecordsOptions {
 
 /**
  * Merge-branch decision core. Extracted as a pure function so each branch
- * is testable without disk I/O and so reviewers can audit conflict-resolution
- * rules at a single site.
+ * is testable without disk I/O and so the conflict-resolution rules live
+ * at a single site.
  *
  * Returns `{ next, action }` where `next` is the record to store locally
  * (or `null` to leave the local untouched) and `action` is the reason.
@@ -240,12 +246,12 @@ function resolveMergeBranch(
     };
   }
 
-  // --- Branch 2: same-gateway (agent we previously received from peer). ---
-  // WHY: peer is re-asserting a record we already store under their
-  // gateway_id. Compare registered_at — peer is authoritative over its
-  // own records but an older peer record would be a regression, so
-  // local-wins on tie or when local is newer. When peer wins, we still
-  // carry source="sync" and refresh last_synced_at.
+  // --- Branch 2: same-gateway — record already stored under peer's gateway_id. ---
+  // WHY: peer is re-asserting a record we already track for them.
+  // Compare registered_at — peer is authoritative over its own records
+  // but an older peer record would be a regression, so local-wins on
+  // tie or when local is newer. When peer wins, we still carry
+  // source="sync" and refresh last_synced_at.
   if (local.gateway_id === peer.gateway_id) {
     if (peer.registered_at > local.registered_at) {
       const next: AgentRegistryRecord = {
@@ -287,7 +293,6 @@ function resolveMergeBranch(
   //   - If preferred_gateway_id matches NEITHER gateway_id → the
   //     operator is pointing at a third gateway neither record
   //     represents; also fall through to last-writer-wins.
-  // Spec addendum committed alongside this file captures the same rules.
   const localPref = local.preferred_gateway_id;
   const peerPref = peer.preferred_gateway_id;
   let preferredId: string | undefined;
@@ -505,12 +510,12 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
  * served payload for the rest of the registry.
  */
 export function buildSyncPayload(records: AgentRegistryRecord[]): AgentsJsRegistrySyncPayload {
-  const wireRecords: AgentRegistryRecord[] = [];
+  const wireRecords: WireAgentRegistryRecord[] = [];
   for (const r of records) {
     if (r.source === "sync" || r.kind !== "a2a") continue;
     const parsed = WireAgentRegistryRecordSchema.safeParse(r);
     if (parsed.success) {
-      wireRecords.push(parsed.data satisfies AgentRegistryRecord);
+      wireRecords.push(parsed.data);
     }
   }
   return { version: 2, records: wireRecords };

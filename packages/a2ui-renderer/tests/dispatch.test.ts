@@ -135,12 +135,11 @@ describe("renderA2uiComponent dispatch", () => {
   });
 
   test("Permission modal routes the single response event to approve OR deny based on outcome", () => {
-    // Reviewer's P1: the binding listened for separate
-    // acp-permission-approve / acp-permission-deny events that the
-    // component never dispatches. The component emits a single
-    // `acp-permission-response` event with `detail.outcome` of
-    // "selected" (= approve) or "cancelled" (= deny). The fix
-    // routes off the actual event using a dual-action wrapper.
+    // The component emits a single `acp-permission-response` event
+    // with `detail.outcome` of "selected" (= approve) or
+    // "cancelled" (= deny). The binding must route off that event
+    // using a dual-action wrapper rather than listening for
+    // per-choice events the component never dispatches.
     const events: Array<[string, string, Record<string, unknown>]> = [];
     const handler = (surfaceId: string, actionName: string, payload: Record<string, unknown>) => {
       events.push([surfaceId, actionName, payload]);

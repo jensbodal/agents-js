@@ -673,10 +673,11 @@ describe("agents-js CLI", () => {
           },
           output,
           serveGateway: async (options) => {
-            // Regression guard for the env-leak the reviewer flagged.
-            // Without inheritedEnvKeys, spawnACPAgent inherits the
-            // full process.env into the ACP child, leaking
-            // credentials for unrelated runtimes.
+            // Regression guard: ACP children must not inherit
+            // unrelated runtime credentials. Without
+            // inheritedEnvKeys, spawnACPAgent inherits the full
+            // process.env into the ACP child, leaking credentials
+            // for unrelated runtimes.
             expect(Array.isArray(options.acp?.inheritedEnvKeys)).toBe(true);
             const keys = options.acp?.inheritedEnvKeys ?? [];
             expect(keys.length).toBeGreaterThan(0);

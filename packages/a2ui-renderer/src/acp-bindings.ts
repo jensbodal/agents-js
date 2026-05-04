@@ -124,12 +124,8 @@ function wrapAction(action: unknown, ctx: BindingContext) {
  * Wrap two A2UI actions into a single DOM-event listener that picks
  * which one to fire based on a predicate over the event detail.
  *
- * The reviewer flagged P1: the permission/write-gate modals emit a
- * single `*-response` event with the choice in `detail`, but the
- * bindings were listening for separate per-choice events
- * (`acp-permission-approve` / `acp-permission-deny` etc.) that the
- * components never dispatch — so renderer-driven approvals never
- * reached the WS bridge. This helper keeps the existing
+ * The permission/write-gate modals emit a single `*-response` event
+ * with the choice in `detail`. This helper preserves the
  * approve-vs-deny *action* split (the agent still sees two distinct
  * actionNames, which matters for declarative rule writing) while
  * routing them off the single event the components actually emit.

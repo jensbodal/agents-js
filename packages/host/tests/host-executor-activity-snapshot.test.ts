@@ -79,11 +79,11 @@ describe("HostA2AExecutor.getActivitySnapshot", () => {
 
 describe("HostA2AExecutor.getActivitySnapshot — TOCTOU on lane creation", () => {
   /**
-   * Reviewer's P2: a runtime switch attempted while
-   * `controllerFactory()` is awaiting was previously invisible —
-   * the lane was not yet in `lanes` and `activeLaneCount` was 0.
-   * The fix tracks "pending lane creations" so the snapshot
-   * reports the in-flight construction.
+   * A runtime switch attempted while `controllerFactory()` is
+   * awaiting must not be invisible — without tracking, the lane is
+   * not yet in `lanes` and `activeLaneCount` reads 0 even though a
+   * fresh controller is about to be inserted. `pendingLaneCount`
+   * surfaces the in-flight construction so the gate sees it.
    */
   test("a controllerFactory call in flight reports pendingLaneCount > 0", async () => {
     const idleController = createIdleControllerStub();

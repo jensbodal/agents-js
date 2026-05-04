@@ -56,8 +56,8 @@ const RECONNECT_DELAY_MS = 2_000;
  * Optional behaviour hooks for {@link HostWSClient}.
  *
  * All fields are optional so existing `new HostWSClient(url)` call sites
- * keep working unchanged. Adding a hook here is additive — callers that
- * omit it see the previous behaviour.
+ * keep working unchanged. Omitting a hook leaves the corresponding
+ * surface inert.
  */
 export interface HostWSClientOptions {
   /**
@@ -183,11 +183,11 @@ export class HostWSClient {
    *
    * **Surface events are moment-bound and are NEVER queued.** A click
    * on an old surface is meaningless after the underlying session has
-   * disconnected — replaying it into a later session/runtime would be
-   * a security/UX hazard (the reviewer's P1 #7). When the WS is not
-   * `OPEN`, this method drops the event with a console warning and
-   * returns `false` so the caller (the A2UI sink) can surface a
-   * non-blocking notice if it cares to.
+   * disconnected — replaying it into a later session/runtime is a
+   * security/UX hazard. When the WS is not `OPEN`, this method drops
+   * the event with a console warning and returns `false` so the
+   * caller (the A2UI sink) can surface a non-blocking notice if it
+   * cares to.
    */
   sendSurfaceEvent(surfaceId: string, actionName: string, payload: unknown): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {

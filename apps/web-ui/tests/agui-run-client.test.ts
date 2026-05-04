@@ -104,10 +104,11 @@ describe("runTurnViaAgUi", () => {
   });
 
   test("rejects when the SSE stream closes without a terminal frame", async () => {
-    // Reviewer's P1: if the stream truncates after RUN_STARTED and
-    // before RUN_FINISHED / RUN_ERROR, the previous implementation
-    // exited the read loop and resolved successfully — making a
-    // dropped connection look like a completed turn to the chat UI.
+    // If the stream truncates after RUN_STARTED and before
+    // RUN_FINISHED / RUN_ERROR, the read loop must surface the
+    // truncation rather than treat the close as success — a
+    // dropped connection must not look like a completed turn to
+    // the chat UI.
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () =>
       makeSseResponse([
@@ -171,11 +172,10 @@ describe("wrapControllerForAgUiRuns", () => {
   });
 
   test("throws (does NOT silently fall back to A2A) when no target URL is resolved", async () => {
-    // Reviewer's P2: the previous behavior fell back to legacy
-    // A2A sendTurn when no URL was available, contradicting the
-    // user-visible "AG-UI is the default run path" contract. The
-    // fix is to fail loudly so the chat UI shows a real error
-    // and the operator can either connect or pass ?run=a2a.
+    // Falling back to legacy A2A sendTurn when no URL is available
+    // would contradict the user-visible "AG-UI is the default run
+    // path" contract. The chat UI must surface a real error so the
+    // operator can either connect or pass ?run=a2a.
     let legacyCalls = 0;
     const controller = {
       getState() {

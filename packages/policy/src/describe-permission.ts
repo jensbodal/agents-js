@@ -7,9 +7,9 @@ import { classifyOperation, extractResourceScope } from "./permission-engine.ts"
  * {@link describeOperationClass} is exhaustive against this union: adding a
  * branch to `classifyOperation` without extending `KNOWN_OPERATION_CLASSES`
  * produces a non-exhaustive-switch type error rather than silently degrading to
- * the fallback description. Host-side renderers that re-implemented this map
- * previously had no such defense and were the drift risk flagged by the
- * permission-UX audit (2026-04-17).
+ * the fallback description. The single source of truth lives here so
+ * host-side renderers do not re-implement the map and drift from the
+ * classifier.
  */
 export const KNOWN_OPERATION_CLASSES = [
   "file.read",

@@ -120,9 +120,8 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
 
     // Surface errors as RUN_ERROR and finish. The upstream
     // RunErrorEvent schema is `.passthrough()` so attaching the
-    // run identity is permitted; the reviewer flagged that error
-    // frames previously omitted them, breaking client-side
-    // correlation between a failed run and its origin.
+    // run identity is permitted, and clients need it to correlate
+    // a failed run with its origin.
     if (event.type === "error") {
       emit({
         type: EventType.RUN_ERROR,
@@ -159,11 +158,10 @@ export async function runAguiSession(options: RunSessionOptions): Promise<RunSes
   //
   // **Awaits the cancel before finalizing.** The endpoint's run
   // coordinator releases its lease in the start() finally block,
-  // which only runs after `done` resolves. If we fire-and-forgot the
-  // cancel here, the lease would be released while the controller is
-  // still draining its previous turn — and the next `POST /agent`
-  // would acquire the slot before the previous run had truly
-  // unwound. The await closes that race.
+  // which only runs after `done` resolves. Without the await, the
+  // lease would be released while the controller is still draining
+  // the cancelled turn, and the next `POST /agent` could acquire
+  // the slot before the run truly unwound.
   //
   // The cancel is still best-effort: the controller may already be
   // idle, and we swallow throwing cancel implementations because the

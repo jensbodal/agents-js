@@ -361,13 +361,12 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
   }, 60_000);
 
   test("13. A2A-kind dispatch terminal carries cancelable=false + correlationId metadata", async () => {
-    // Reviewer's P1: A2A-kind dispatch was not tracked in
-    // dispatchedTaskIds and its terminal task lacked the
-    // non-cancelable + correlationId metadata that ACP-kind dispatch
-    // carries. Audit emission was also missing on the A2A path.
-    // This test asserts the terminal-task surface; the tracking
-    // (dispatchedTaskIds) is exercised by the unit tests in
-    // host-executor.test.ts.
+    // A2A-kind dispatch must be tracked in dispatchedTaskIds and
+    // its terminal task must carry the non-cancelable +
+    // correlationId metadata that ACP-kind dispatch carries, plus
+    // matching audit emission. This test asserts the terminal-task
+    // surface; the tracking (dispatchedTaskIds) is exercised by
+    // the unit tests in host-executor.test.ts.
     const a2aTarget = await createGatewayTestServer({
       acpCommand: "node",
       acpArgs: [MOCK_AGENT],

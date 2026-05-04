@@ -66,9 +66,9 @@ describe("packages/validation/tests/registry-wire-schema.test.ts", () => {
   });
 
   /**
-   * The reviewer's load-bearing security guarantee: a malicious peer
-   * attaches `command` / `args` / `env` / `workspaceFlag` to an A2A
-   * wire record hoping the receiver merges them. The schema is
+   * Load-bearing security guarantee: a malicious peer attaches
+   * `command` / `args` / `env` / `workspaceFlag` to an A2A wire
+   * record hoping the receiver merges them. The schema is
    * `.strip()`-mode so unknown keys are silently dropped on parse.
    */
   test("ACP launch fields attached to an A2A wire record are stripped", () => {

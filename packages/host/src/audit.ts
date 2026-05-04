@@ -116,17 +116,10 @@ export type AuditEvent =
 /* -------------------------------------------------------------------------- */
 
 /**
- * If anyone adds a `prompt`, `env`, `args`, or `payload` key to any
- * `AuditEvent` variant, this conditional type evaluates to `never`
- * for that variant — and we use a value-level assertion below to
- * surface the failure as a real typecheck error.
- *
- * **Predicate detail.** The previous form,
- * `T extends Record<"prompt" | "env" | "args" | "payload", unknown>`,
- * required *all four* forbidden keys to be present before rejecting.
- * That meant a variant smuggling just `prompt` would slip through.
- * The corrected form uses key-by-key intersection so any single
- * forbidden key trips the check.
+ * If any `AuditEvent` variant declares a `prompt`, `env`, `args`, or
+ * `payload` key, the conditional type below evaluates to `never` for
+ * that variant; the value-level assertion at the end of the file
+ * surfaces the failure as a real typecheck error.
  *
  * The rule is intentionally rigid — convenience is not a reason to
  * expand this set. Operators who want to log raw payloads should do
@@ -136,9 +129,8 @@ type ForbiddenKey = "prompt" | "env" | "args" | "payload";
 /**
  * Distributes over the discriminated union (each variant T is checked
  * individually) and returns `never` for any variant whose key set
- * intersects the forbidden set. The previous predicate required all
- * four forbidden keys to be present simultaneously, which would let
- * a `prompt`-only variant slip through.
+ * intersects the forbidden set. Key-by-key intersection ensures even
+ * a single forbidden key on one variant trips the check.
  */
 type _NoSensitivePayload<T> = T extends unknown
   ? Extract<keyof T, ForbiddenKey> extends never

@@ -525,10 +525,10 @@ describe("HostWSClient", () => {
   });
 
   test("sendSurfaceEvent drops the event when WS is not OPEN (no queueing across reconnect)", () => {
-    // Reviewer's P1 #7: surface events are moment-bound. Queuing
-    // them while closed and replaying on the next OPEN replays
-    // user clicks into a *later* session/runtime. This test pins
-    // the drop-on-closed contract.
+    // Surface events are moment-bound. Queuing them while closed
+    // and replaying on the next OPEN would replay user clicks into
+    // a later session/runtime. This test pins the drop-on-closed
+    // contract.
     const sent: string[] = [];
     const client = new HostWSClient("ws://localhost:55364") as unknown as {
       sendSurfaceEvent(s: string, a: string, p: unknown): boolean;

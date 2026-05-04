@@ -400,11 +400,10 @@ describe("createAguiFetchHandler — single-active-run gate", () => {
 
 describe("createAguiFetchHandler — lease release waits for cancel", () => {
   test("a second /agent during a slow controller.cancel() gets 409, not 200", async () => {
-    // Reviewer's race: cancel() callback released the lease while
-    // controller.cancel() was still draining the prior turn. The fix
-    // awaits the cancel inside the run-session before resolving
-    // done; the endpoint's start() finally is the single release
-    // point.
+    // The cancel() callback must not release the run lease while
+    // controller.cancel() is still draining the prior turn. The
+    // run-session awaits the cancel before resolving done so the
+    // endpoint's start() finally remains the single release point.
     const fake = createFakeController();
 
     // Override cancel() to take a measurable time so the race is
@@ -455,7 +454,8 @@ describe("createAguiFetchHandler — lease release waits for cancel", () => {
     void reader.cancel();
 
     // Wait until the cancel hook has been invoked but is NOT yet
-    // resolved — that is the window the reviewer flagged.
+    // resolved — that is the window where a second run could
+    // otherwise race the lease release.
     await cancelStarted;
 
     // While cancel is still draining, a second run must see Busy.

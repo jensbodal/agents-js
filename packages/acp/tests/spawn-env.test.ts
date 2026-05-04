@@ -2,12 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { buildSpawnEnv } from "../src/connection.ts";
 
 /**
- * The reviewer flagged that the published `agents-js serve` command
- * was leaking the full `process.env` into every ACP child because
- * `spawnACPAgent` did `{ ...process.env, ...env }` unconditionally.
- *
- * `buildSpawnEnv` is the new pure helper that decides what reaches
- * the spawned child. The contract:
+ * `buildSpawnEnv` decides what env reaches a spawned ACP child. Without
+ * an explicit whitelist, `spawnACPAgent` would otherwise leak the full
+ * `process.env` into every child. The contract:
  *
  *   1. With `inheritedEnvKeys` undefined (legacy callers), behavior
  *      is unchanged: full parent env merged with overrides.
@@ -40,9 +37,8 @@ describe("buildSpawnEnv", () => {
     expect(result.PATH).toBe("/usr/bin:/bin");
     expect(result.HOME).toBe("/home/op");
     expect(result.ANTHROPIC_API_KEY).toBe("secret-anthropic");
-    // The reviewer's exact regression case — credentials for other
-    // runtimes must not reach a child whose runtime did not declare
-    // them.
+    // Regression case — credentials for other runtimes must not
+    // reach a child whose runtime did not declare them.
     expect(result.CODEX_API_KEY).toBeUndefined();
     expect(result.MATRIX_ACCESS_TOKEN).toBeUndefined();
     expect(result.RANDOM_DEV_VAR).toBeUndefined();
