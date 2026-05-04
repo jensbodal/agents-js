@@ -14,6 +14,9 @@ on:
           - opencode
           - gemini
 
+permissions:
+  contents: read
+
 jobs:
   # Lint + typecheck + preflight + docs gate. Same as local pre-commit
   # (`bun run check`). Runs first so style/type drift fails fast before
@@ -21,13 +24,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
       - name: Cache Bun downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
@@ -39,13 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
       - name: Cache Bun downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
@@ -57,13 +60,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: deterministic
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
       - name: Cache Bun downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
@@ -81,13 +84,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: deterministic
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
       - name: Cache Bun downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.3.12-${{ hashFiles('bun.lock') }}
