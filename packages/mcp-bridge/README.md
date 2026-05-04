@@ -19,21 +19,18 @@ bun add @agents-js/mcp-bridge
 ### Functions
 
 - **`bridgeConfigFromRegistry`** — Build a {BridgeConfig} from the shared agent registry file. Reads the registry at the given path (or the default `~/.agents-js/registry.json` / `$AGENTS_JS_REGISTRY`), maps every A2A entry to an {A...
+- **`createBridgeServer`** — Create and configure an MCP server that bridges A2A agents as MCP tools. For each agent in the config, connects to the A2A endpoint, fetches its agent card, and registers an MCP tool. Tool calls ar...
 
 ### Interfaces
 
+- **`AgentEndpoint`** — Configuration for a single A2A agent endpoint that the bridge will expose as an MCP tool.
+- **`BridgeConfig`** — Full bridge configuration: a list of agent endpoints to expose.
 - **`DiscoveryEntry`** — Lightweight metadata returned by `tool_search`. Intentionally not the full tool spec — just enough for an agent to decide whether to follow up with `load_tool` (or, in non-progressive mode, a direc...
 - **`SearchOptions`**
 
 ### Types
 
 - **`DiscoveryEntrySource`** — Source system that contributed a discoverable entry. Existing sources: agents-bridged-as-MCP-tools, `-js/skills` registry entries, and freeform host-provided internal tools.
-- **`AgentEndpoint`**
-- **`BridgeConfig`**
-
-### Exports
-
-- **`createBridgeServer`**
 
 
 ## Dependencies

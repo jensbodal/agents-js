@@ -35,6 +35,8 @@ interface ExportEntry {
   name: string;
   jsdoc: string;
   kind: "function" | "class" | "interface" | "type" | "const" | "other";
+  /** Source path the export was discovered in (used for tiebreaking). */
+  sourcePath: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +54,13 @@ function readJson<T>(filePath: string): T | null {
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
   if (!existsSync(dir)) return results;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  // Sort lexicographically by name so walk order is filesystem-independent.
+  // macOS APFS and Linux ext4 return readdir entries in different orders,
+  // and downstream dedup must not depend on that order.
+  const entries = readdirSync(dir, { withFileTypes: true })
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       results.push(...collectTsFiles(full));
@@ -116,7 +124,7 @@ function extractExportsFromFile(filePath: string): ExportEntry[] {
       const jsdocSummary = pendingJsdoc ? cleanJsdocSummary(pendingJsdoc) : "";
       if (!isInternal) {
         for (const name of names) {
-          entries.push({ name, jsdoc: jsdocSummary, kind });
+          entries.push({ name, jsdoc: jsdocSummary, kind, sourcePath: filePath });
         }
       }
       pendingJsdoc = "";
@@ -278,6 +286,10 @@ function generateReadme(pkg: PkgJson, exports: ExportEntry[], readmeNote: string
     const items = byKind[kind];
     if (!items || items.length === 0) continue;
 
+    // Sort each bucket by symbol name so emit order is stable across
+    // filesystems and walk orders.
+    items.sort((a, b) => a.name.localeCompare(b.name));
+
     apiSection += `\n### ${kindLabels[kind] ?? kind}\n\n`;
     for (const item of items) {
       if (item.jsdoc) {
@@ -406,14 +418,36 @@ for (const dirName of pkgDirs) {
     allExports.push(...extractExportsFromFile(file));
   }
 
-  // Deduplicate by name — keep first occurrence (prefer one with JSDoc)
-  const seen = new Set<string>();
-  const uniqueExports: ExportEntry[] = [];
+  // Deduplicate by name with a deterministic, walk-order-independent tiebreaker.
+  // Ranking criteria (earlier criterion dominates; ties fall through):
+  //   1. Concrete kind (function/class/interface/type/const) beats "other".
+  //      Bare `export { foo } from "./..."` re-exports surface as "other".
+  //   2. Non-barrel files beat barrels (`index.ts`). Module-level JSDoc on a
+  //      barrel can leak into the first re-export's summary; the original
+  //      declaration carries the authoritative JSDoc.
+  //   3. Entries with a JSDoc summary beat entries without one.
+  //   4. Lexicographically smaller source path (final stable tiebreaker).
+  const isBarrel = (p: string): boolean => p.endsWith("/index.ts") || p.endsWith("\\index.ts");
+  const compareEntries = (a: ExportEntry, b: ExportEntry): number => {
+    const kindRank = (k: ExportEntry["kind"]): number => (k === "other" ? 1 : 0);
+    const k = kindRank(a.kind) - kindRank(b.kind);
+    if (k !== 0) return k;
+    const ba = (isBarrel(a.sourcePath) ? 1 : 0) - (isBarrel(b.sourcePath) ? 1 : 0);
+    if (ba !== 0) return ba;
+    const j = (a.jsdoc ? 0 : 1) - (b.jsdoc ? 0 : 1);
+    if (j !== 0) return j;
+    return a.sourcePath.localeCompare(b.sourcePath);
+  };
+  const bestByName = new Map<string, ExportEntry>();
   for (const entry of allExports) {
-    if (seen.has(entry.name)) continue;
-    seen.add(entry.name);
-    uniqueExports.push(entry);
+    const prev = bestByName.get(entry.name);
+    if (!prev || compareEntries(entry, prev) < 0) {
+      bestByName.set(entry.name, entry);
+    }
   }
+  // Emit a stable winners list. Downstream regroups by kind and sorts each
+  // bucket by name, so walk order does not affect final output.
+  const uniqueExports: ExportEntry[] = Array.from(bestByName.values());
 
   const readmeNotePath = join(pkgDir, ".readme-note.md");
   const readmeNote = existsSync(readmeNotePath) ? readFileSync(readmeNotePath, "utf-8") : null;

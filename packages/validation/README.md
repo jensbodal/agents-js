@@ -18,90 +18,90 @@ bun add @agents-js/validation
 
 ### Functions
 
-- **`isACPOpenExtensionProperty`**
-- **`validateJsonRpcEnvelope`**
-- **`cloneValidationValue`**
-- **`validateJsonSchema`**
-- **`validateJsonSchemaArtifacts`**
-- **`loadJsonFromSource`**
-- **`runValidationCli`**
 - **`buildACPFormElicitationMetadata`**
-- **`isACPFormElicitationMetadata`**
-- **`isACPElicitationResponseMetadata`**
+- **`cloneValidationValue`**
+- **`getBasicCatalog`** — Returns a lazily-constructed `Catalog` wrapping `BASIC_COMPONENTS`. Cached so repeated calls reuse the same instance.
+- **`isA2uiMessage`** — Type guard form of {validateA2uiMessage}. Useful for narrowing `unknown` values at the boundary of a transport without allocating a result object.
 - **`isACPAuthRequiredMetadata`**
+- **`isACPElicitationResponseMetadata`**
+- **`isACPFormElicitationMetadata`**
+- **`isACPOpenExtensionProperty`**
+- **`isAguiEvent`** — Type guard form of {validateAguiEvent}. Useful for narrowing `unknown` values inside stream handlers without allocating a result object.
+- **`isValidationMode`**
+- **`loadJsonFromSource`**
+- **`registerRuntimeValidator`**
+- **`resetRuntimeValidatorsForTest`**
+- **`resolveValidationMode`**
+- **`runValidationCli`**
+- **`toValidationIssues`** — Use {zodIssuesToValidationIssues} — it accepts both Zod v3 and v4 errors via duck-typing. Kept as an alias for callers that want the v4-typed signature.
+- **`validateA2AMessageSendResponseResult`**
+- **`validateA2ARequest`**
+- **`validateA2AResponse`**
+- **`validateA2uiComponent`** — Validate a single component entry against a catalog. Accepts the wire-format component envelope `{ component, id?, weight?, ...props }` and delegates the property-shape check to the catalog's `Comp...
+- **`validateA2uiMessage`** — Validate a lifecycle A2UI message (CreateSurface, UpdateComponents, UpdateDataModel, DeleteSurface). Returns the typed message on success.
+- **`validateA2uiSurfaceTree`** — Validate a full component tree against a catalog. Fails fast on the first invalid component and accumulates issues from both envelope and property-level failures.
 - **`validateACPEnvelope`**
 - **`validateACPMethod`**
 - **`validateACPRequest`**
 - **`validateACPResponse`**
-- **`getBasicCatalog`** — Returns a lazily-constructed `Catalog` wrapping `BASIC_COMPONENTS`. Cached so repeated calls reuse the same instance.
-- **`validateA2uiMessage`** — Validate a lifecycle A2UI message (CreateSurface, UpdateComponents, UpdateDataModel, DeleteSurface). Returns the typed message on success.
-- **`isA2uiMessage`** — Type guard form of {validateA2uiMessage}. Useful for narrowing `unknown` values at the boundary of a transport without allocating a result object.
-- **`validateA2uiComponent`** — Validate a single component entry against a catalog. Accepts the wire-format component envelope `{ component, id?, weight?, ...props }` and delegates the property-shape check to the catalog's `Comp...
-- **`validateA2uiSurfaceTree`** — Validate a full component tree against a catalog. Fails fast on the first invalid component and accumulates issues from both envelope and property-level failures.
-- **`isValidationMode`**
-- **`resolveValidationMode`**
-- **`registerRuntimeValidator`**
-- **`validateRuntimeManifest`**
-- **`resetRuntimeValidatorsForTest`**
-- **`validateAguiEvent`** — Validate an AG-UI event against the canonical `EventSchemas` discriminated union published by `-ui/core`.
-- **`isAguiEvent`** — Type guard form of {validateAguiEvent}. Useful for narrowing `unknown` values inside stream handlers without allocating a result object.
-- **`validateRunAgentInput`** — Validate a `RunAgentInput` envelope — the payload AG-UI agents accept as their run entrypoint. Wraps `RunAgentInputSchema.safeParse`.
-- **`zodIssuesToValidationIssues`** — Zod-version-agnostic conversion of a `ZodError` to the canonical {ValidationIssue} shape. Accepts errors from either Zod v3 or v4 without triggering structural-type incompatibility, because we only...
-- **`toValidationIssues`** — Use {zodIssuesToValidationIssues} — it accepts both Zod v3 and v4 errors via duck-typing. Kept as an alias for callers that want the v4-typed signature.
-- **`zodObjectWithMode`**
-- **`validateWireAgentRegistryRecord`** — Validate an arbitrary `unknown` against the wire schema and return a canonical {ValidationResult}. Mirrors the result shape used by `validateAguiEvent` / `validateA2uiMessage` so consumers get a un...
-- **`validateA2ARequest`**
-- **`validateA2AResponse`**
 - **`validateAgentCard`**
-- **`validateA2AMessageSendResponseResult`**
+- **`validateAguiEvent`** — Validate an AG-UI event against the canonical `EventSchemas` discriminated union published by `-ui/core`.
+- **`validateJsonRpcEnvelope`**
+- **`validateJsonSchema`**
+- **`validateJsonSchemaArtifacts`**
+- **`validateRunAgentInput`** — Validate a `RunAgentInput` envelope — the payload AG-UI agents accept as their run entrypoint. Wraps `RunAgentInputSchema.safeParse`.
+- **`validateRuntimeManifest`**
+- **`validateWireAgentRegistryRecord`** — Validate an arbitrary `unknown` against the wire schema and return a canonical {ValidationResult}. Mirrors the result shape used by `validateAguiEvent` / `validateA2uiMessage` so consumers get a un...
+- **`zodIssuesToValidationIssues`** — Zod-version-agnostic conversion of a `ZodError` to the canonical {ValidationIssue} shape. Accepts errors from either Zod v3 or v4 without triggering structural-type incompatibility, because we only...
+- **`zodObjectWithMode`**
 
 ### Interfaces
 
+- **`ACPAuthRequiredMetadata`**
+- **`ACPElicitationResponseMetadata`**
+- **`ACPErrorObject`**
+- **`ACPFormElicitationMetadata`**
 - **`ACPGeneratedMethodSchemaInfo`**
 - **`ACPGeneratedSchemaArtifacts`**
-- **`ValidationIssue`**
-- **`ValidationErrorOptions`**
-- **`JsonSchemaValidationOptions`**
-- **`JsonSchemaValidationArtifacts`**
-- **`ACPFormElicitationMetadata`**
-- **`ACPElicitationResponseMetadata`**
-- **`ACPAuthRequiredMetadata`**
-- **`ACPErrorObject`**
-- **`ACPRequestLikeEnvelope`**
 - **`ACPRequestEnvelope`**
+- **`ACPRequestLikeEnvelope`**
 - **`ACPResponseEnvelope`**
 - **`ACPResponseValidationOptions`**
+- **`JsonSchemaValidationArtifacts`**
+- **`JsonSchemaValidationOptions`**
+- **`ValidationErrorOptions`**
+- **`ValidationIssue`**
 - **`ValidationOptions`**
 
 ### Types
 
+- **`ACPEnvelope`**
+- **`ACPMethod`**
 - **`ACPMethodSide`**
 - **`ACPPayloadKind`**
 - **`JsonRpcRequest`**
 - **`JsonRpcResponse`**
 - **`JsonSource`**
-- **`ValidationResult`** — Result of a non-throwing validation call. Mirrors the Zod `safeParse` shape but exposes a structured {ValidationError} on failure so consumers get the same error surface across every validator in t...
-- **`ACPMethod`**
-- **`ACPEnvelope`**
+- **`RuntimeManifestValidator`**
 - **`SurfaceTree`** — A surface component tree — the `components` array of an `updateComponents` message.
 - **`ValidationMode`**
-- **`RuntimeManifestValidator`**
+- **`ValidationResult`** — Result of a non-throwing validation call. Mirrors the Zod `safeParse` shape but exposes a structured {ValidationError} on failure so consumers get the same error surface across every validator in t...
 - **`WireAgentRegistryRecord`** — Inferred TypeScript shape of a parsed wire record.
 
 ### Constants
 
-- **`acpGeneratedSchemaArtifacts`**
-- **`ACP_OPEN_EXTENSION_PROPERTIES`** — ACP open-extension properties.
-- **`jsonRpcRequestSchema`** — JSON-RPC 2.0 request envelope
-- **`jsonRpcResponseSchema`** — JSON-RPC 2.0 response envelope
+- **`a2aValidationSchemas`**
+- **`ACP_AUTH_REQUIRED_METADATA_KEY`**
 - **`ACP_ELICITATION_METADATA_KEY`**
 - **`ACP_ELICITATION_RESPONSE_METADATA_KEY`**
-- **`ACP_AUTH_REQUIRED_METADATA_KEY`**
 - **`ACP_METHOD_WHITELIST`**
+- **`ACP_OPEN_EXTENSION_PROPERTIES`** — ACP open-extension properties.
+- **`acpGeneratedSchemaArtifacts`**
 - **`BASIC_CATALOG_ID`** — Stable id for the built-in basic catalog (used when no catalog is supplied).
+- **`jsonRpcRequestSchema`** — JSON-RPC 2.0 request envelope
+- **`jsonRpcResponseSchema`** — JSON-RPC 2.0 response envelope
 - **`VALIDATION_MODES`**
 - **`WireAgentRegistryRecordSchema`** — Wire schema for an A2A registry record served or accepted across the peer-sync wire (`GET /.well-known/agents-js-registry.json` and `POST` of the same payload). Peer sync is **A2A-only**: `kind` is...
-- **`a2aValidationSchemas`**
 
 ### Exports
 

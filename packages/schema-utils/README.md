@@ -19,10 +19,10 @@ bun add @agents-js/schema-utils
 
 ### Interfaces
 
-- **`SchemaProperty`** — Schema property definition shape used for field rendering. Mirrors the inner values of ACPA2AElicitationSchema.properties.
-- **`OneOfEntry`**
-- **`FieldMeta`** — Parsed field metadata used internally for rendering and validation.
 - **`ElicitationSchema`** — Shape of the schema prop — matches ACPA2AElicitationSchema from a2a-client.
+- **`FieldMeta`** — Parsed field metadata used internally for rendering and validation.
+- **`OneOfEntry`**
+- **`SchemaProperty`** — Schema property definition shape used for field rendering. Mirrors the inner values of ACPA2AElicitationSchema.properties.
 
 ## License
 

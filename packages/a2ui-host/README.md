@@ -14,23 +14,23 @@ bun add @agents-js/a2ui-host
 
 ### Classes
 
-- **`SurfaceSession`**
 - **`A2uiBridge`** — Wires an {A2uiHost} onto a transport. The bridge owns no host state of its own — it is pure glue.
 - **`A2uiHost`** — Renders a live `SurfaceGroupModel` into a DOM mount point, applying A2UI lifecycle messages as they arrive.
+- **`SurfaceSession`**
 
 ### Functions
 
-- **`createBridgeSurfaceAdapter`** — Build a {HostSurfaceAdapter} that forwards every incoming A2UI lifecycle message through the given bridge. Pass the returned adapter into `createA2uiToolCallContentHandler({ surfaceAdapter })` and ...
 - **`createA2uiToolCallContentHandler`**
+- **`createBridgeSurfaceAdapter`** — Build a {HostSurfaceAdapter} that forwards every incoming A2UI lifecycle message through the given bridge. Pass the returned adapter into `createA2uiToolCallContentHandler({ surfaceAdapter })` and ...
 
 ### Interfaces
 
-- **`CreateA2uiToolCallContentHandlerOptions`**
-- **`HostSurfaceAdapter`**
-- **`SurfaceSessionOptions`**
-- **`SurfaceEventSink`** — Minimal shape of a sink that can ferry surface events back to the agent. The `<P>` generic narrows the payload envelope. Consumers that know their wire contract at the wiring site can narrow once h...
 - **`A2uiBridgeOptions`** — Options for constructing an {A2uiBridge}.
 - **`A2uiHostOptions`** — Options for constructing an {A2uiHost}.
+- **`CreateA2uiToolCallContentHandlerOptions`**
+- **`HostSurfaceAdapter`**
+- **`SurfaceEventSink`** — Minimal shape of a sink that can ferry surface events back to the agent. The `<P>` generic narrows the payload envelope. Consumers that know their wire contract at the wiring site can narrow once h...
+- **`SurfaceSessionOptions`**
 
 ### Types
 

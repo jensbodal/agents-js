@@ -18,40 +18,40 @@ bun add @agents-js/a2ui-renderer
 
 ### Functions
 
+- **`bindAuthSelector`**
 - **`bindChatApp`**
-- **`bindTranscript`**
-- **`bindMessage`**
-- **`bindStreamingText`**
-- **`bindPromptInput`**
+- **`bindCodeBlock`**
 - **`bindConnectDialog`**
+- **`bindDebugPanel`**
 - **`bindElicitationForm`**
+- **`bindMessage`**
+- **`bindModelSelector`**
 - **`bindPermissionModal`**
 - **`bindPermissionModeSelector`**
-- **`bindWriteGateModal`**
-- **`bindAuthSelector`**
-- **`bindModelSelector`**
-- **`bindDebugPanel`**
+- **`bindPromptInput`**
 - **`bindStatusBar`**
-- **`bindCodeBlock`**
-- **`renderSurface`** — Render a full A2UI surface (or every surface in a group) into a single Lit `TemplateResult`.
+- **`bindStreamingText`**
+- **`bindTranscript`**
+- **`bindWriteGateModal`**
 - **`renderA2uiComponent`** — Render a single A2UI component node into a Lit `TemplateResult`. Throws `A2uiRendererError` when the catalog id is unknown or when the component name is not present in the ACP catalog.
+- **`renderSurface`** — Render a full A2UI surface (or every surface in a group) into a single Lit `TemplateResult`.
 
 ### Interfaces
 
+- **`A2uiComponentNode`** — Minimum shape this renderer needs from an A2UI component entry.
 - **`BindingContext`** — Context passed to every binding function.
 - **`ComponentLike`** — Minimal shape of a `/web_core` `ComponentModel` that the surface view reads. Both real models and plain-object fakes satisfy this shape.
-- **`SurfaceLike`** — Minimal shape of a surface as the renderer needs it.
-- **`SurfaceGroupLike`** — Minimal shape of a `SurfaceGroupModel` as the renderer needs it.
-- **`RenderSurfaceOptions`** — Options for {renderSurface}.
-- **`A2uiComponentNode`** — Minimum shape this renderer needs from an A2UI component entry.
 - **`RenderOptions`** — Options accepted by the renderer.
+- **`RenderSurfaceOptions`** — Options for {renderSurface}.
+- **`SurfaceGroupLike`** — Minimal shape of a `SurfaceGroupModel` as the renderer needs it.
+- **`SurfaceLike`** — Minimal shape of a surface as the renderer needs it.
 
 ### Types
 
 - **`A2uiAction`** — An A2UI `Action` — either an action name string or a `{ action: string }` object.
-- **`DynamicValue`** — An A2UI `DynamicString` / `DynamicBoolean` — a literal or a `{ path }` binding.
 - **`A2uiEventHandler`** — Handler fired whenever an ACP primitive emits an event that should be forwarded.
 - **`BindingResult`** — Type-shape returned by the binding functions.
+- **`DynamicValue`** — An A2UI `DynamicString` / `DynamicBoolean` — a literal or a `{ path }` binding.
 
 ### Constants
 

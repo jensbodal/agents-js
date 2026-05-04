@@ -15,53 +15,53 @@ bun add @agents-js/policy
 ### Functions
 
 - **`classifyOperation`** — Classify the operation type from a permission request. Uses heuristics on the tool name to determine the operation class. Includes workspace-specific operations (workspace.search, workspace.command...
-- **`isReadOnly`** — Returns true if the given operation class represents a read-only operation that is safe to auto-approve without user confirmation.
-- **`extractResourceScope`** — Extract the resource scope from a permission request. Looks for common path-like arguments or command names.
-- **`generateScopeCandidates`** — Generate an ordered list of scope candidates for a permission scope selection UI. Given an extracted resource scope (from {extractResourceScope}), produces candidates from most specific (exact file...
-- **`isHighRisk`** — Check if an operation is high-risk and should never match remembered rules.
-- **`scopeMatches`** — Check if a rule's resource scope matches the request's resource scope. IMPORTANT: This performs raw string prefix matching. Callers must normalize paths (resolve `..` and `.` segments) before stori...
-- **`evaluatePermissionRules`** — Evaluate a permission request against stored rules. Returns both the match result and a new array of rules with expired entries removed and consumed once-rules marked. The input array is not mutated.
+- **`closestParentFolder`** — Return the closest parent folder for a workspace-relative file path. Examples: - `closestParentFolder("projects/daily/note.md")` → `"projects/daily"` - `closestParentFolder("note.md")` → `""` (root...
 - **`createPermissionRule`** — Create a permission rule from a request and user choice.
 - **`createRememberedRule`** — Create a remembered rule from a permission request and response. Returns null for "once" lifetime (once-rules are not remembered).
-- **`filterSessionRules`** — Filter to persistent rules only (removes session and once rules).
-- **`filterConsumedOnceRules`** — Remove consumed once-rules.
-- **`filterExpiredRules`** — Remove expired rules.
-- **`policyError`** — Error for a policy violation -- the request is structurally valid but blocked by policy. Uses the reserved server-error range rather than `-32600`, which is reserved for malformed JSON-RPC requests.
-- **`validationError`** — Error for a validation failure -- the request parameters are invalid.
-- **`evaluateWriteGate`** — Evaluates whether a write operation should be reviewed or blocked. Outside-workspace paths are blocked. Everything else goes to review (never auto-approved). Cross-platform: handles both POSIX and ...
-- **`generateUnifiedDiff`** — Generates a simple unified diff between two strings. No external dependencies -- implements a basic line-based LCS diff.
-- **`usesWindowsPaths`** — Detect whether any of the provided path strings use Windows path conventions. Returns true if any value starts with a drive letter (C:\) or contains backslashes.
-- **`isWithinWorkspace`** — Check whether a candidate path is equal to or within a workspace root. Handles both POSIX and Windows paths automatically. Resolves relative segments (`.`, `..`) and normalizes case on Windows befo...
-- **`isWithinDirectory`** — Check whether a candidate path is equal to or nested within a target directory. Both paths are workspace-relative (not absolute). Examples: - `isWithinDirectory("hub/acp", "hub/acp/file.md")` → tru...
-- **`closestParentFolder`** — Return the closest parent folder for a workspace-relative file path. Examples: - `closestParentFolder("projects/daily/note.md")` → `"projects/daily"` - `closestParentFolder("note.md")` → `""` (root...
-- **`validateTerminalRequest`** — Validates a CreateTerminalRequest against the direct-exec-only policy. Rules: 1. command must be a non-empty string 2. command must not be a shell wrapper 3. command must not contain path separator...
 - **`describeOperationClass`** — Host-agnostic verb phrase for a canonical operation class. For unknown classes (including the `tool.<name>` fallback emitted by {classifyOperation} for unrecognised tool titles), falls back to the ...
 - **`describeReplayScope`** — Build the human-readable "replay will match X" copy for a permission request. Derives operation class + resource scope via {classifyOperation} / {extractResourceScope} and pairs them with host-iden...
+- **`evaluatePermissionRules`** — Evaluate a permission request against stored rules. Returns both the match result and a new array of rules with expired entries removed and consumed once-rules marked. The input array is not mutated.
+- **`evaluateWriteGate`** — Evaluates whether a write operation should be reviewed or blocked. Outside-workspace paths are blocked. Everything else goes to review (never auto-approved). Cross-platform: handles both POSIX and ...
+- **`extractResourceScope`** — Extract the resource scope from a permission request. Looks for common path-like arguments or command names.
+- **`filterConsumedOnceRules`** — Remove consumed once-rules.
+- **`filterExpiredRules`** — Remove expired rules.
+- **`filterSessionRules`** — Filter to persistent rules only (removes session and once rules).
+- **`generateScopeCandidates`** — Generate an ordered list of scope candidates for a permission scope selection UI. Given an extracted resource scope (from {extractResourceScope}), produces candidates from most specific (exact file...
+- **`generateUnifiedDiff`** — Generates a simple unified diff between two strings. No external dependencies -- implements a basic line-based LCS diff.
+- **`isHighRisk`** — Check if an operation is high-risk and should never match remembered rules.
+- **`isReadOnly`** — Returns true if the given operation class represents a read-only operation that is safe to auto-approve without user confirmation.
+- **`isWithinDirectory`** — Check whether a candidate path is equal to or nested within a target directory. Both paths are workspace-relative (not absolute). Examples: - `isWithinDirectory("hub/acp", "hub/acp/file.md")` → tru...
+- **`isWithinWorkspace`** — Check whether a candidate path is equal to or within a workspace root. Handles both POSIX and Windows paths automatically. Resolves relative segments (`.`, `..`) and normalizes case on Windows befo...
+- **`policyError`** — Error for a policy violation -- the request is structurally valid but blocked by policy. Uses the reserved server-error range rather than `-32600`, which is reserved for malformed JSON-RPC requests.
+- **`scopeMatches`** — Check if a rule's resource scope matches the request's resource scope. IMPORTANT: This performs raw string prefix matching. Callers must normalize paths (resolve `..` and `.` segments) before stori...
+- **`usesWindowsPaths`** — Detect whether any of the provided path strings use Windows path conventions. Returns true if any value starts with a drive letter (C:\) or contains backslashes.
+- **`validateTerminalRequest`** — Validates a CreateTerminalRequest against the direct-exec-only policy. Rules: 1. command must be a non-empty string 2. command must not be a shell wrapper 3. command must not contain path separator...
+- **`validationError`** — Error for a validation failure -- the request parameters are invalid.
 
 ### Interfaces
 
-- **`PolicyErrorInfo`** — Error helpers for ACP policy decisions. Returns code + message pairs that hosts can pass to `new RequestError(code, message)` from /sdk.
-- **`ScopeCandidate`** — A candidate scope that can be presented to the user for selection.
-- **`PermissionRule`** — Scoped permission rule schema. Rules are scoped by agent identity, workspace, operation class, and resource scope. High-risk operations (shell execution, broad edits) are excluded from matching.
-- **`RuleMatchResult`**
 - **`PermissionEvaluationResult`** — Result of evaluating permission rules, including any mutations (expired rules removed, once-rules marked consumed). Hosts decide whether to apply the updated rules.
-- **`ReplayScopeLabels`** — Host-identity labels plugged into {describeReplayScope} output copy. - `hostLabel` replaces the subject of the replay sentence (e.g. "Obsidian", "VS Code", "this host"). - `resourceLabel` names the...
+- **`PermissionRule`** — Scoped permission rule schema. Rules are scoped by agent identity, workspace, operation class, and resource scope. High-risk operations (shell execution, broad edits) are excluded from matching.
+- **`PolicyErrorInfo`** — Error helpers for ACP policy decisions. Returns code + message pairs that hosts can pass to `new RequestError(code, message)` from /sdk.
 - **`ReplayScopeDescription`**
+- **`ReplayScopeLabels`** — Host-identity labels plugged into {describeReplayScope} output copy. - `hostLabel` replaces the subject of the replay sentence (e.g. "Obsidian", "VS Code", "this host"). - `resourceLabel` names the...
+- **`RuleMatchResult`**
+- **`ScopeCandidate`** — A candidate scope that can be presented to the user for selection.
 
 ### Types
 
+- **`KnownOperationClass`**
 - **`RememberedLifetime`** — Lifetime of a remembered permission rule.
 - **`ScopeLevel`** — Granularity level for a permission scope candidate.
-- **`WriteGateDecision`**
 - **`TerminalValidationResult`**
-- **`KnownOperationClass`**
+- **`WriteGateDecision`**
 
 ### Constants
 
 - **`HIGH_RISK_OPERATIONS`** — Operation classes that can never be matched by remembered rules. Includes terminal operations, file deletion, and workspace command execution due to their potential for destructive or irreversible ...
+- **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {classifyOperation}. {describeOperationClass} is exhaustive against this union: adding a branch to `classifyOperation` without extending `KNOWN_O...
 - **`READ_OPERATIONS`** — Operation classes that are always safe to auto-approve. These represent read-only or navigational operations with no side effects.
 - **`SHELL_COMMANDS`** — Commands that are always considered shell wrappers. Used by both the permission high-risk check and the terminal validation policy.
-- **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {classifyOperation}. {describeOperationClass} is exhaustive against this union: adding a branch to `classifyOperation` without extending `KNOWN_O...
 
 ### Exports
 

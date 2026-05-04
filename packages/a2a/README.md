@@ -20,76 +20,76 @@ bun add @agents-js/a2a
 
 ### Functions
 
-- **`getMessageText`** — Extract text content from an A2A Message's parts array
-- **`nowIso`**
-- **`buildTerminalTask`** — Build a terminal Task snapshot with an agent message in the history. Used for final (completed/failed/rejected/canceled) task publications.
-- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status.
-- **`extractValidAgentMessageId`**
-- **`selectPermissionOutcome`**
-- **`resolveAgentMessageId`**
-- **`createConsoleLogger`**
-- **`buildAgentCard`**
-- **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
-- **`isACPAuthRequiredError`**
-- **`withAuthRetry`** — Retry an async operation when it fails with an ACP auth_required error. - The operation to attempt - Called on auth errors; returns true if auth was handled and retry should proceed - Maximum numbe...
-- **`newCorrelationId`** — Generate a fresh correlation id.
-- **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
-- **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
-- **`buildACPA2ATaskMetadata`**
 - **`buildACPA2AContinuationMetadata`**
-- **`extractACPA2AContinuationMetadata`**
-- **`formatHttpAuthorityHost`**
-- **`normalizeAdvertisedHost`**
+- **`buildACPA2ATaskMetadata`**
+- **`buildAgentCard`**
 - **`buildAgentCardBaseUrl`**
+- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status.
+- **`buildTerminalTask`** — Build a terminal Task snapshot with an agent message in the history. Used for final (completed/failed/rejected/canceled) task publications.
+- **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
+- **`createConsoleLogger`**
+- **`extractACPA2AContinuationMetadata`**
+- **`extractValidAgentMessageId`**
 - **`formatBindAddress`**
+- **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
+- **`formatHttpAuthorityHost`**
+- **`getMessageText`** — Extract text content from an A2A Message's parts array
+- **`isACPAuthRequiredError`**
+- **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
+- **`newCorrelationId`** — Generate a fresh correlation id.
+- **`normalizeAdvertisedHost`**
+- **`nowIso`**
+- **`resolveAgentMessageId`**
+- **`selectPermissionOutcome`**
 - **`serveACPOverA2A`**
+- **`withAuthRetry`** — Retry an async operation when it fails with an ACP auth_required error. - The operation to attempt - Called on auth errors; returns true if auth was handled and retry should proceed - Maximum numbe...
 
 ### Interfaces
 
+- **`A2AHttpServerHandle`**
+- **`A2ALogger`**
+- **`ACPA2AContinuationMetadata`**
+- **`ACPA2ATaskMetadata`**
+- **`AuditEmitter`** — Public emitter handle.
+- **`DiscoveredPrompt`**
+- **`DiscoveredResource`**
 - **`ExecutorHooks`** — Lifecycle hooks for the {ACPtoA2AExecutor}. Mirrors the subset of {import("-js/acp-host").SessionHooks} that applies to the A2A-to-ACP bridge. Hosts that want to transform prompt content before it ...
 - **`InitializableExecutor`** — An AgentExecutor that also supports ACP initialization. Used by UniversalA2AServer to discover agent capabilities before serving the A2A agent card. Both ACPtoA2AExecutor and HostA2AExecutor implem...
-- **`A2ALogger`**
-- **`DiscoveredResource`**
-- **`DiscoveredPrompt`**
-- **`AuditEmitter`** — Public emitter handle.
-- **`ACPA2ATaskMetadata`**
-- **`ACPA2AContinuationMetadata`**
-- **`UniversalA2AServerOptions`**
-- **`A2AHttpServerHandle`**
-- **`ServeACPOverA2AOptions`**
 - **`ServeACPOverA2AHandle`**
+- **`ServeACPOverA2AOptions`**
+- **`UniversalA2AServerOptions`**
 
 ### Types
 
-- **`HttpStatus`** — Union of the numeric values in {HTTP_STATUS}. Useful for typing custom handler return values or status-code routing tables that should only accept codes the monorepo emits.
 - **`AgentCard`**
-- **`Message`**
-- **`Task`**
-- **`TaskStatus`**
-- **`TaskStatusUpdateEvent`**
 - **`AgentExecutor`**
+- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
+- **`AuditEventInput`**
+- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
 - **`ExecutionEventBus`**
-- **`RequestContext`**
 - **`GatewayAgentCapabilities`**
 - **`GatewayAgentCard`**
 - **`GatewayCardInput`**
-- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
-- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
-- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
-- **`AuditEventInput`**
+- **`HttpStatus`** — Union of the numeric values in {HTTP_STATUS}. Useful for typing custom handler return values or status-code routing tables that should only accept codes the monorepo emits.
+- **`Message`**
+- **`RequestContext`**
+- **`Task`**
+- **`TaskStatus`**
+- **`TaskStatusUpdateEvent`**
 
 ### Constants
 
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
+- **`CURRENT_A2A_PROTOCOL_VERSION`**
+- **`DEFAULT_MAX_REQUEST_BODY_SIZE`** — Default maximum request body size in bytes (4 MB).
 - **`DEFAULT_MAX_TEXT_BUFFER_SIZE`** — Default maximum text buffer size in bytes (256 KB).
 - **`HTTP_STATUS`** — Centralized HTTP status code constants for any module in the monorepo that constructs a `Response` object. **Inclusion policy**: this list is intentionally narrow — only codes the monorepo actually...
-- **`CURRENT_A2A_PROTOCOL_VERSION`**
-- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
-- **`DEFAULT_MAX_REQUEST_BODY_SIZE`** — Default maximum request body size in bytes (4 MB).
 
 ### Exports
 
-- **`type HttpStatus`**
 - **`type A2ALogger`**
+- **`type HttpStatus`**
 
 
 ## Dependencies

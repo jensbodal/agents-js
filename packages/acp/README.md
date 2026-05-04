@@ -14,40 +14,40 @@ bun add @agents-js/acp
 
 ### Classes
 
+- **`ACPClientController`** — Low-level ACP client controller managing the full agent lifecycle. This is the **Provider** for ACP communication. It owns the connection state machine, sends protocol messages over a stdio/NDJSON ...
 - **`CwdResolutionError`**
 - **`ResilientACPProcess`**
-- **`ACPClientController`** — Low-level ACP client controller managing the full agent lifecycle. This is the **Provider** for ACP communication. It owns the connection state machine, sends protocol messages over a stdio/NDJSON ...
 
 ### Functions
 
-- **`resolveSessionCwd`**
-- **`extractPromptText`** — Extract the concatenated textual representation of an ACP `PromptRequest`. Local-process agent adapters (pi-acp, droid-acp, trial-agent, ...) all need to flatten the structured `prompt` array into ...
 - **`buildSpawnEnv`** — Build the env map for the spawned child. When `inheritedEnvKeys` is supplied, parent env is filtered to those keys (everything else is dropped before overrides are layered on); otherwise the full `...
-- **`spawnACPAgent`**
-- **`runAcpWrapperBinary`** — Run an in-repo wrapper ACP binary. Returns once `--help`/`--version` exit paths fire; otherwise resolves immediately after the `AgentSideConnection` is wired up — the connection keeps the process a...
+- **`createErrorAwareReadable`** — Wrap a ReadableStreamDefaultReader in an error-aware ReadableStream that propagates child-process spawn/exit errors instead of silently closing. Attaches `error` and `close` event handlers to the c...
+- **`extractPromptText`** — Extract the concatenated textual representation of an ACP `PromptRequest`. Local-process agent adapters (pi-acp, droid-acp, trial-agent, ...) all need to flatten the structured `prompt` array into ...
 - **`extractRequestErrorDetails`** — Extract the most useful human-readable string from a JSON-RPC error's `data` field. Priority: 1. `data.details` (string) 2. `data.message` (string) 3. JSON-stringified `data` (non-empty, non-`{}` o...
 - **`formatRequestError`** — Format an error into a single human-readable string that includes both `error.message` AND any `data.details` / `data.message` context from a JSON-RPC `RequestError`. Falls back to `error.message` ...
-- **`createErrorAwareReadable`** — Wrap a ReadableStreamDefaultReader in an error-aware ReadableStream that propagates child-process spawn/exit errors instead of silently closing. Attaches `error` and `close` event handlers to the c...
+- **`resolveSessionCwd`**
+- **`runAcpWrapperBinary`** — Run an in-repo wrapper ACP binary. Returns once `--help`/`--version` exit paths fire; otherwise resolves immediately after the `AgentSideConnection` is wired up — the connection keeps the process a...
+- **`spawnACPAgent`**
 
 ### Interfaces
 
-- **`ACPWorkspaceRootPolicy`**
-- **`ResilientACPProcessOptions`**
-- **`ACPProcessOptions`**
-- **`ACPProcess`**
-- **`AcpWrapperBinarySpec`**
-- **`LogSink`**
-- **`ErrorSignal`** — Handle for signalling errors into an error-aware readable stream. Attach child-process event handlers that call `signal()` on failure.
-- **`ErrorAwareStreamOptions`**
-- **`ACPHostAdapters`** — Host platform callbacks injected into the ACP client controller at construction time. This is the primary **Adapter** interface in the Ports & Adapters architecture. The controller delegates all ho...
-- **`ACPClientState`** — State machine for the ACP client controller. Transitions follow this lifecycle: ``` idle -> initializing -> ready -> starting_session -> session_ready | ^ v | prompting --+ | v cancelling -> sessio...
 - **`ACPClientControllerOptions`**
+- **`ACPClientState`** — State machine for the ACP client controller. Transitions follow this lifecycle: ``` idle -> initializing -> ready -> starting_session -> session_ready | ^ v | prompting --+ | v cancelling -> sessio...
+- **`ACPHostAdapters`** — Host platform callbacks injected into the ACP client controller at construction time. This is the primary **Adapter** interface in the Ports & Adapters architecture. The controller delegates all ho...
+- **`ACPProcess`**
+- **`ACPProcessOptions`**
+- **`AcpWrapperBinarySpec`**
+- **`ErrorAwareStreamOptions`**
+- **`ErrorSignal`** — Handle for signalling errors into an error-aware readable stream. Attach child-process event handlers that call `signal()` on failure.
+- **`LogSink`**
+- **`ResilientACPProcessOptions`**
 
 ### Types
 
+- **`ACPControllerEvent`**
+- **`ACPWorkspaceRootPolicy`**
 - **`ExhaustionCallback`**
 - **`Stream`**
-- **`ACPControllerEvent`**
 
 ### Constants
 
@@ -60,8 +60,8 @@ bun add @agents-js/acp
 - **`ndJsonStream`**
 - **`PROTOCOL_VERSION`**
 - **`RequestError`**
-- **`type LogSink`**
 - **`type AcpWrapperBinarySpec`**
+- **`type LogSink`**
 
 
 ## Dependencies
