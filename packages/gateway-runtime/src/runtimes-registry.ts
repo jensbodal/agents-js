@@ -330,10 +330,10 @@ const gatewayRuntimeRegistry = {
         'Use the published @agents-js/cli package, or install "@zed-industries/claude-agent-acp" on PATH.',
     },
     resolvesFromWorkspaceBin: true,
-    // claude-agent-acp reads ANTHROPIC_API_KEY from the inherited env. The
-    // host composition layer adds ANTHROPIC_API_KEY to its baseline secret
-    // env keys for every harness, so this entry doesn't need a harness-
-    // specific key.
+    // claude-agent-acp reads ANTHROPIC_API_KEY from the inherited env.
+    // Declared explicitly per-harness — the host no longer forwards a
+    // global baseline, so each runtime owns its own credential surface.
+    authEnvKeys: ["ANTHROPIC_API_KEY"],
   }),
   codex: createAcpHarness({
     id: "codex",

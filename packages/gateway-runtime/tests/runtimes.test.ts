@@ -202,6 +202,14 @@ describe("@agents-js/gateway-runtime", () => {
     expect(droid.authEnvKeys).toEqual(["FACTORY_API_KEY"]);
   });
 
+  test("claude runtime declares ANTHROPIC_API_KEY as the auth env key", () => {
+    // The host no longer forwards ANTHROPIC_API_KEY as part of a global
+    // baseline; each harness owns its own credential surface. Claude
+    // must declare the key so the host composition layer permits it.
+    const claude = getGatewayRuntimeDefinition("claude");
+    expect(claude.authEnvKeys).toEqual(["ANTHROPIC_API_KEY"]);
+  });
+
   test("droid runtime has no defaultEnv (auth passthrough via authEnvKeys is the host's job)", async () => {
     const resolved = await resolveGatewayRuntime("droid", {
       resolver: {
@@ -1039,12 +1047,13 @@ describe("@agents-js/gateway-runtime", () => {
       expect(pi.authEnvKeys).toBeUndefined();
     });
 
-    test("claude declares no harness-specific authEnvKeys", () => {
-      // claude-agent-acp reads ANTHROPIC_API_KEY via the shared baseline
-      // applied by the host composition layer; it does not need a
-      // harness-specific key.
+    test("claude declares ANTHROPIC_API_KEY as its harness-specific authEnvKeys", () => {
+      // The host no longer forwards a global baseline of secret env keys.
+      // Each harness owns its own credential surface, so Claude must
+      // declare ANTHROPIC_API_KEY explicitly for the host composition
+      // layer to permit it.
       const claude = getGatewayRuntimeDefinition("claude");
-      expect(claude.authEnvKeys).toBeUndefined();
+      expect(claude.authEnvKeys).toEqual(["ANTHROPIC_API_KEY"]);
     });
 
     test("every curated harness's authEnvKeys (when set) are non-empty strings", () => {
