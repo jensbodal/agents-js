@@ -645,6 +645,121 @@ function createCapturingTransport(
   } as A2ATransport & { sentTexts: string[] };
 }
 
+describe("HostA2AExecutor.cancelTask — dispatch non-cancelable", () => {
+  /**
+   * Dispatch is intentionally non-cancelable for this release. The
+   * cancel path must surface that explicitly: a status update with
+   * `agents-js.cancelable=false` and the eventBus finished — never
+   * a silent no-op.
+   */
+  test("publishes a non-cancelable status update for a dispatched taskId", async () => {
+    const controller = {
+      getState() {
+        return {
+          status: "ready",
+          sessionId: "session-1",
+          agentName: "gateway",
+          agentCapabilities: null,
+        };
+      },
+      subscribe() {
+        return () => {};
+      },
+      async cancel() {
+        throw new Error("cancel must NOT be called for dispatch tasks");
+      },
+      permissionMode: "ask" as const,
+    };
+
+    const executor = new HostA2AExecutor(controller as never);
+    // The dispatch helper populates this map when executeDirectDispatch
+    // routes through dispatchAcp. Seed it directly here so we exercise
+    // cancelTask in isolation without standing up the full dispatch
+    // pipeline (mock ACP child + ephemeral controller).
+    const internals = executor as unknown as { dispatchedTaskIds: Map<string, string> };
+    internals.dispatchedTaskIds.set("dispatch-task-1", "ctx-1");
+
+    const bus = createEventBus();
+    await executor.cancelTask("dispatch-task-1", bus.eventBus);
+
+    expect(bus.finished).toBe(true);
+    const statusUpdate = bus.published.find(
+      (e) => (e as { kind?: string }).kind === "status-update",
+    ) as
+      | {
+          metadata?: { "agents-js.cancelable"?: boolean };
+          status: { message?: { parts: { kind: string; text?: string }[] } };
+        }
+      | undefined;
+    expect(statusUpdate).toBeDefined();
+    expect(statusUpdate?.metadata?.["agents-js.cancelable"]).toBe(false);
+    const text = statusUpdate?.status.message?.parts.find((p) => p.kind === "text")?.text;
+    expect(text).toContain("Cancel rejected");
+    expect(text).toContain("@@dispatch");
+    expect(text).toContain("non-cancelable");
+  });
+
+  test("does NOT call controller.cancel() for a dispatched taskId", async () => {
+    let cancelCalls = 0;
+    const controller = {
+      getState() {
+        return {
+          status: "ready",
+          sessionId: "session-1",
+          agentName: "gateway",
+          agentCapabilities: null,
+        };
+      },
+      subscribe() {
+        return () => {};
+      },
+      async cancel() {
+        cancelCalls += 1;
+      },
+      permissionMode: "ask" as const,
+    };
+
+    const executor = new HostA2AExecutor(controller as never);
+    const internals = executor as unknown as { dispatchedTaskIds: Map<string, string> };
+    internals.dispatchedTaskIds.set("dispatch-task-2", "ctx-2");
+
+    const bus = createEventBus();
+    await executor.cancelTask("dispatch-task-2", bus.eventBus);
+
+    expect(cancelCalls).toBe(0);
+  });
+
+  test("falls through to the lane/primary cancel for non-dispatch taskIds", async () => {
+    let cancelCalls = 0;
+    const controller = {
+      getState() {
+        return {
+          status: "ready",
+          sessionId: "session-1",
+          agentName: "gateway",
+          agentCapabilities: null,
+        };
+      },
+      subscribe() {
+        return () => {};
+      },
+      async cancel() {
+        cancelCalls += 1;
+      },
+      permissionMode: "ask" as const,
+    };
+
+    const executor = new HostA2AExecutor(controller as never);
+    const bus = createEventBus();
+    await executor.cancelTask("regular-task-1", bus.eventBus);
+
+    // Non-dispatch task path goes through controller.cancel() (the
+    // primary controller, since no lane is registered for this id).
+    expect(cancelCalls).toBe(1);
+    expect(bus.finished).toBe(true);
+  });
+});
+
 describe("@@dispatch", () => {
   test("routes @@my-agent do something to target, returns response text", async () => {
     const transport = createMockTransport({

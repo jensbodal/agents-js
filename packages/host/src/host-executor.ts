@@ -181,6 +181,15 @@ export class HostA2AExecutor implements InitializableExecutor {
    */
   private taskToLane = new Map<string, SessionLane>();
   /**
+   * In-flight `@@dispatch` invocations, mapped taskId → contextId.
+   * Dispatch is intentionally non-cancelable for this release — the
+   * ephemeral controller has no cancel-token threading yet. Recording
+   * the (id, contextId) pair lets `cancelTask` publish an explicit
+   * non-cancelable status update on the right A2A context instead of
+   * silently no-op-ing.
+   */
+  private dispatchedTaskIds = new Map<string, string>();
+  /**
    * Phase-1 shared-controller gate. Only engaged when no `controllerFactory`
    * was supplied — then all lanes point at the primary controller and must
    * serialize here. With a factory, each lane drives its own controller and
@@ -754,13 +763,18 @@ export class HostA2AExecutor implements InitializableExecutor {
    *    Does not touch lane state / `activeTasks` / `subscribeToController`
    *    — those remain primary-prompt-only (Gamma's invariant, commit e70d2f5).
    *
-   * Permission mode is pinned to `"yolo"` so dispatched targets run
-   * autonomously; permission-request events fail the dispatch rather than
-   * prompting for human input.
+   * Permission mode is **inherited** from the primary gateway controller
+   * — operators who launched the gateway in "ask"/"plan"/"hub" get those
+   * modes for dispatched runs too, instead of the previous hard-coded
+   * "yolo" override. A dispatch directive does not implicitly grant
+   * elevated trust.
    *
-   * Cancel semantics parity-gap: `cancelTask(dispatchedTaskId)` is a no-op
-   * for both A2A and ACP dispatch today. Backlog item "dispatch cancel
-   * token threading" tracks the follow-up.
+   * Cancel semantics: dispatch is **non-cancelable** for this release.
+   * The ephemeral controller has no cancel-token threading yet. Both
+   * the working status update and the terminal task metadata publish
+   * `agents-js.cancelable=false`, and `cancelTask(dispatchedTaskId)`
+   * returns an explicit non-cancelable status update rather than
+   * silently no-op-ing.
    */
   private async dispatchAcp(
     context: RequestContext,
@@ -771,6 +785,7 @@ export class HostA2AExecutor implements InitializableExecutor {
   ): Promise<void> {
     const { agentName, payload } = directive;
     const dispatchController = new ACPSessionController();
+    this.dispatchedTaskIds.set(context.taskId, context.contextId);
 
     try {
       await this.spawnEphemeralController(dispatchController, entry);
@@ -790,6 +805,7 @@ export class HostA2AExecutor implements InitializableExecutor {
           text: text || "(empty response)",
           ...(messageId ? { messageId } : {}),
           metadata: {
+            "agents-js.cancelable": false,
             "agents-js.dispatch": {
               agentName,
               harness: entry.harness,
@@ -810,9 +826,11 @@ export class HostA2AExecutor implements InitializableExecutor {
         buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
           state: "failed",
           text: `Dispatch to "${agentName}" (harness "${entry.harness}") failed: ${message}`,
+          metadata: { "agents-js.cancelable": false },
         }),
       );
     } finally {
+      this.dispatchedTaskIds.delete(context.taskId);
       this.disposeEphemeralController(dispatchController);
       eventBus.finished();
     }
@@ -820,10 +838,11 @@ export class HostA2AExecutor implements InitializableExecutor {
 
   /**
    * Bring an ephemeral controller online: resolve the runtime, build a slim
-   * StartConfig, start the process, pin permission mode to `"yolo"` (so
-   * dispatched targets run un-gated), and allocate a session. Throws on any
-   * failure; the caller's outer try/finally is responsible for disposing the
-   * controller in that case.
+   * StartConfig, start the process, **inherit the primary controller's
+   * permission mode** (so dispatched targets honor the gateway's policy
+   * instead of running unconditionally autonomous), and allocate a session.
+   * Throws on any failure; the caller's outer try/finally is responsible
+   * for disposing the controller in that case.
    */
   private async spawnEphemeralController(
     dispatchController: ACPSessionController,
@@ -834,9 +853,12 @@ export class HostA2AExecutor implements InitializableExecutor {
     const startConfig = buildEphemeralDispatchStartConfig(runtime, workspacePath);
 
     await dispatchController.start(startConfig);
-    // `"yolo"` skips permission-rule evaluation so dispatched targets run
-    // un-gated.
-    await dispatchController.setPermissionMode("yolo");
+    // Inherit the gateway's current permission mode so a dispatch
+    // directive does not implicitly grant elevated trust. The primary
+    // controller's permissionMode is updated via setPermissionMode at
+    // gateway level; reading it here gives dispatched targets the same
+    // policy operators see in the chat UI.
+    await dispatchController.setPermissionMode(this.primaryController.permissionMode);
     await dispatchController.newSession();
   }
 
@@ -882,6 +904,23 @@ export class HostA2AExecutor implements InitializableExecutor {
   }
 
   async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {
+    // Dispatch tasks are non-cancelable for this release. Surface the
+    // refusal explicitly so the A2A client sees a definite signal
+    // instead of inferring it from a delayed terminal event.
+    const dispatchContextId = this.dispatchedTaskIds.get(taskId);
+    if (dispatchContextId !== undefined) {
+      eventBus.publish(
+        buildStatusUpdate(taskId, dispatchContextId, {
+          state: "working",
+          text: "Cancel rejected: @@dispatch tasks are non-cancelable in this release.",
+          final: false,
+          metadata: { "agents-js.cancelable": false },
+        }),
+      );
+      eventBus.finished();
+      return;
+    }
+
     const task = this.activeTasks.get(taskId);
     const lane = this.taskToLane.get(taskId);
     if (task) {
@@ -923,6 +962,7 @@ export class HostA2AExecutor implements InitializableExecutor {
     this.lanes.clear();
     this.taskToLane.clear();
     this.activeTasks.clear();
+    this.dispatchedTaskIds.clear();
   }
 
   // -- Lane lifecycle --

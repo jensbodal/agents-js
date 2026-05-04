@@ -137,7 +137,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     expect(text).toBe("Hello from Mock ACP Agent!");
   }, 30_000);
 
-  test("2. metadata on completed terminal contains agentName + harness + directive", async () => {
+  test("2. metadata on completed terminal contains agentName + harness + directive + cancelable=false", async () => {
     handle = await createGatewayTestServer({
       acpCommand: "node",
       acpArgs: [MOCK_AGENT],
@@ -149,7 +149,10 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     expect(task?.status.state).toBe("completed");
 
     const metadata = task?.metadata as
-      | { "agents-js.dispatch"?: Record<string, unknown> }
+      | {
+          "agents-js.dispatch"?: Record<string, unknown>;
+          "agents-js.cancelable"?: boolean;
+        }
       | undefined;
     const dispatch = metadata?.["agents-js.dispatch"];
     expect(dispatch).toBeDefined();
@@ -161,6 +164,9 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
       // `@@agent-name` token without the payload suffix.
       directive: "@@acp-agent",
     });
+    // Dispatch is non-cancelable for this release; the metadata makes
+    // that explicit so A2A clients do not surface a cancel affordance.
+    expect(metadata?.["agents-js.cancelable"]).toBe(false);
   }, 30_000);
 
   test("3. multiple sequential dispatches each spawn fresh controllers, no state bleed", async () => {
