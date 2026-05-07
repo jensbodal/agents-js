@@ -1,6 +1,7 @@
 {
   "version": 1,
   "handAuthoredPages": [
+    "_generated/README.md",
     "architecture.md",
     "beta-contract.md",
     "index.md",
@@ -15,5 +16,22 @@
     "playground.md"
   ],
   "excludedNamespaces": ["api/"],
-  "generatedOutputs": ["llms.txt", "llms-full.txt"]
+  "generatedOutputs": ["llms.txt", "llms-full.txt"],
+  "referenceIndexExempt": ["_generated/README.md"],
+  "pendingExtraction": [
+    {
+      "page": "protocols.md",
+      "blockedBy": "Port 6"
+    },
+    {
+      "page": "observability.md",
+      "blockedBy": "Future port (canonical events + logger surface)"
+    },
+    {
+      "page": "harness-guide.md",
+      "section": "package-reference",
+      "blockedBy": "Port 1a deferred",
+      "unblockCriterion": "Concern column moves to package.json metadata or is removed entirely; vocabulary stable enough that source-derivation does not lock in a regrettable taxonomy."
+    }
+  ]
 }

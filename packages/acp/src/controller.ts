@@ -82,6 +82,8 @@ type ElicitationAdapter = {
  * Only `requestPermission` and `sessionUpdate` are required. All other
  * adapters are optional -- the controller advertises available capabilities
  * to the agent based on which adapters are provided.
+ *
+ * @hostSurface
  */
 export interface ACPHostAdapters {
   /** Handle a permission request from the agent. Return an approved/denied/cancelled outcome. */
@@ -119,6 +121,8 @@ export type { ACPWorkspaceRootPolicy } from "./cwd-resolver.ts";
  *
  * The `lastError` field is set whenever an operation fails. The `lastStopReason`
  * captures why the most recent prompt turn ended (e.g., "end_turn", "cancelled").
+ *
+ * @hostSurface
  */
 export interface ACPClientState {
   /** Current lifecycle phase of the controller. */
@@ -145,6 +149,7 @@ export interface ACPClientState {
   lastError?: unknown;
 }
 
+/** @hostSurface */
 export type ACPControllerEvent =
   | { type: "state.updated"; state: ACPClientState }
   | { type: "initialized"; response: InitializeResponse }
@@ -293,6 +298,8 @@ function createTransport(options: ACPClientControllerOptions): ControllerTranspo
  * const response = await controller.prompt({ message: "Hello" });
  * controller.dispose();
  * ```
+ *
+ * @hostSurface
  */
 export class ACPClientController {
   private readonly adapters: ACPHostAdapters;

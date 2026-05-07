@@ -1,5 +1,6 @@
 ---
 title: Primitives
+diataxis: explanation
 ---
 
 # Primitives

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import markdownItInclude from "markdown-it-include";
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 
@@ -49,6 +50,23 @@ export default withMermaid(
     // pages. Same for the api/ tree's regenerated typedoc-sidebar.json
     // (config-only, not a page).
     srcExclude: ["superpowers/**"],
+    markdown: {
+      // Resolve `!!!include(path)!!!` directives relative to docs/ root so
+      // hand-authored pages can transclude generated reference partials
+      // emitted by `scripts/docs-reference.ts`. See `docs/_generated/README.md`
+      // for the partial schema and regeneration command.
+      config(md) {
+        md.use(markdownItInclude, {
+          root: path.resolve(__dirname, ".."),
+          throwError: true,
+          // Anchor the directive to the start of a line so inline `!!!include(...)!!!`
+          // examples in prose (e.g. inside code spans, list-item continuations) are
+          // not processed. Real include directives in hand-authored pages always
+          // appear at column 0 on their own line.
+          includeRe: /^!{3}\s*include(\([^)\n]+\))!{3}\s*$/m,
+        });
+      },
+    },
     vite: {
       // The docs theme imports a Lit element (`docs-meta-agent.ts`) that uses
       // TC39 decorators + accessor syntax. esbuild's default target predates

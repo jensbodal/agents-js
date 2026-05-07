@@ -1,5 +1,6 @@
 ---
 title: Streaming, Events, and Concurrency
+diataxis: explanation
 ---
 
 # Streaming, Events, and Concurrency

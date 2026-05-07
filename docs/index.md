@@ -1,5 +1,6 @@
 ---
 layout: home
+diataxis: landing
 
 hero:
   name: agents-js

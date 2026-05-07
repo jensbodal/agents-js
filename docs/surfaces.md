@@ -1,5 +1,6 @@
 ---
 title: Surfaces
+diataxis: howto
 ---
 
 # Surfaces

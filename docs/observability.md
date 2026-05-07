@@ -1,5 +1,6 @@
 ---
 title: Observability
+diataxis: reference
 ---
 
 # Observability

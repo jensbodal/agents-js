@@ -1,5 +1,6 @@
 ---
 title: Architecture
+diataxis: explanation
 outline: [2, 3]
 ---
 

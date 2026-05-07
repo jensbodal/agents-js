@@ -1,5 +1,6 @@
 ---
 title: Protocols
+diataxis: reference
 ---
 
 # Protocols and Schema Alignment

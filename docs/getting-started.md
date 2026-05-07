@@ -1,5 +1,6 @@
 ---
 title: Getting Started
+diataxis: tutorial
 ---
 
 # Get started
