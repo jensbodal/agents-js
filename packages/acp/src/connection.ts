@@ -40,9 +40,6 @@ export interface ACPProcess {
 }
 
 /**
- * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
- */
-/**
  * Build the env map for the spawned child. When `inheritedEnvKeys` is
  * supplied, parent env is filtered to those keys (everything else is
  * dropped before overrides are layered on); otherwise the full
@@ -74,6 +71,8 @@ export function buildSpawnEnv(
 }
 
 /**
+ * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
+ *
  * @hostSurface
  * @hostProcess
  */

@@ -27,7 +27,7 @@ bun add @agents-js/acp
 - **`formatRequestError`** — Format an error into a single human-readable string that includes both `error.message` AND any `data.details` / `data.message` context from a JSON-RPC `RequestError`. Falls back to `error.message` ...
 - **`resolveSessionCwd`**
 - **`runAcpWrapperBinary`** — Run an in-repo wrapper ACP binary. Returns once `--help`/`--version` exit paths fire; otherwise resolves immediately after the `AgentSideConnection` is wired up — the connection keeps the process a...
-- **`spawnACPAgent`**
+- **`spawnACPAgent`** — Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
 
 ### Interfaces
 
