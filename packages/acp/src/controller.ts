@@ -352,6 +352,7 @@ export class ACPClientController {
    * Advertises client capabilities based on the provided adapters.
    * Must be called before any session or prompt operations.
    * @throws {ACPControllerError} If already disposed or handshake times out.
+   * @hostLifecycle
    */
   async initialize(
     request: Omit<InitializeRequest, "clientCapabilities" | "protocolVersion"> = {},
@@ -417,6 +418,7 @@ export class ACPClientController {
    * Create a new agent session. Resolves the working directory from the
    * workspace policy and sends the session creation request.
    * @throws {ACPControllerError} If not initialized or a prompt is in progress.
+   * @hostLifecycle
    */
   async newSession(
     request: Omit<NewSessionRequest, "cwd" | "mcpServers"> & {
@@ -455,6 +457,13 @@ export class ACPClientController {
     return this.connection.listSessions(request);
   }
 
+  /**
+   * Resume a previously-created agent session by id. Resolves the working
+   * directory from the workspace policy and forwards the load request to
+   * the agent.
+   *
+   * @hostLifecycle
+   */
   async loadSession(request: {
     sessionId: string;
     cwd?: string;
@@ -682,6 +691,7 @@ export class ACPClientController {
    * Only one prompt can be in-flight at a time. While the prompt is active,
    * the agent may call back through the adapters (permissions, file I/O, etc.).
    * @throws {ACPControllerError} If no active session or a prompt is already in progress.
+   * @hostLifecycle
    */
   async prompt(request: Omit<PromptRequest, "sessionId">): Promise<PromptResponse> {
     this.assertInitialized();
@@ -742,6 +752,7 @@ export class ACPClientController {
    * Cancel the currently in-flight prompt turn. Also cancels any pending
    * permission requests that are waiting for host approval.
    * @throws {ACPControllerError} If no prompt is currently active.
+   * @hostLifecycle
    */
   async cancel(notification: Omit<CancelNotification, "sessionId"> = {}): Promise<void> {
     this.assertInitialized();
@@ -785,6 +796,7 @@ export class ACPClientController {
   /**
    * Dispose the controller, killing the agent process and cleaning up resources.
    * Cancels any pending permission requests. Idempotent -- safe to call multiple times.
+   * @hostLifecycle
    */
   dispose(): void {
     if (this.state.status === "disposed") {

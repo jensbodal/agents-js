@@ -24,17 +24,23 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getHostSurfaceExports } from "./lib/package-introspection.ts";
+import {
+  getHostLifecycleMethods,
+  getHostProcessFunctions,
+  getHostSurfaceExports,
+} from "./lib/package-introspection.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const GENERATED_DIR = join(ROOT, "docs/_generated");
 
-// SOURCE-OF-TRUTH-DEBT: the per-package `intro` strings here are editorial
+// SOURCE-OF-TRUTH-DEBT: the per-partial `intro` strings here are editorial
 // (they describe the bullet list in human language). Symbol lists are fully
-// source-derived from `@hostSurface` JSDoc tags; only these intro lines are
-// hand-authored. A future port should either move them into JSDoc on the
-// package's `index.ts` module-level comment or into the package manifest's
-// `agentsJs.docsHostSurfaceIntro` field. Tracked alongside Port 2.
+// source-derived from JSDoc tags; only these intro lines are hand-authored.
+// A future port should either move them into JSDoc on the package's
+// `index.ts` module-level comment or into the package manifest under
+// `agentsJs.docs*Intro` fields. The same debt applies to the lifecycle,
+// process-creation, and (future Port 3) observability/canonical-events
+// intros below.
 const STABLE_SURFACE_PACKAGES = [
   {
     pkg: "@agents-js/acp",
@@ -74,6 +80,46 @@ const PARTIALS: PartialSpec[] = [
         sections.push(lines.join("\n"));
       }
       return sections.join("\n\n");
+    },
+  },
+  {
+    name: "acp-controller-lifecycle.md",
+    sources: ["packages/acp/src"],
+    extractionMethod: "@hostLifecycle JSDoc tags via ts-morph",
+    body() {
+      const methods = getHostLifecycleMethods(join(ROOT, "packages/acp/src"));
+      if (methods.length === 0) {
+        throw new Error(
+          "No @hostLifecycle methods found under packages/acp/src. Either tag at least one method on ACPClientController or remove this entry from PARTIALS in scripts/docs-reference.ts.",
+        );
+      }
+      const lines = [
+        "The supported `ACPClientController` lifecycle methods are:",
+        "",
+        ...methods.map((n) => `- \`${n}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-process-creation.md",
+    sources: ["packages/acp/src", "packages/acp-host/src"],
+    extractionMethod: "@hostProcess JSDoc tags via ts-morph",
+    body() {
+      const acpFns = getHostProcessFunctions(join(ROOT, "packages/acp/src"));
+      const hostFns = getHostProcessFunctions(join(ROOT, "packages/acp-host/src"));
+      const all = [...acpFns, ...hostFns].sort((a, b) => a.localeCompare(b));
+      if (all.length === 0) {
+        throw new Error(
+          "No @hostProcess functions found across packages/acp/src or packages/acp-host/src. Either tag at least one function or remove this entry from PARTIALS.",
+        );
+      }
+      const lines = [
+        "The supported host-managed process-creation entry points are:",
+        "",
+        ...all.map((n) => `- \`${n}\``),
+      ];
+      return lines.join("\n");
     },
   },
 ];

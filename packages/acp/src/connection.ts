@@ -73,7 +73,10 @@ export function buildSpawnEnv(
   return { ...filtered, ...options.env };
 }
 
-/** @hostSurface */
+/**
+ * @hostSurface
+ * @hostProcess
+ */
 export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
   const { command = "opencode", args = ["acp"], env, inheritedEnvKeys } = options;
 

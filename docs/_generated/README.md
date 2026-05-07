@@ -92,6 +92,8 @@ audit, which doesn't need to participate in the gate.
 | Partial | Source of truth | Consumed by |
 |---|---|---|
 | [`acp-host-stable-surface.md`](./acp-host-stable-surface.md) | `packages/acp/src/index.ts`, `packages/acp-host/src/index.ts` (`@hostSurface` JSDoc tags) | [Harness Guide → Stable Host Surface](../harness-guide#stable-host-surface) |
+| [`acp-controller-lifecycle.md`](./acp-controller-lifecycle.md) | `packages/acp/src/controller.ts` (`@hostLifecycle` JSDoc tags on `ACPClientController` methods) | [Harness Guide → Lifecycle Contract](../harness-guide#lifecycle-contract) |
+| [`acp-process-creation.md`](./acp-process-creation.md) | `packages/acp/src/connection.ts`, `packages/acp-host/src/process.ts` (`@hostProcess` JSDoc tags) | [Harness Guide → Process Creation Contract](../harness-guide#process-creation-contract) |
 
 Future ports add entries here as they land.
 
@@ -187,6 +189,34 @@ records the blocker and the unblock criterion so a future port reviewer
 sees one source of truth (this page) cross-referenced against the
 breadcrumb in the affected page (`<!-- pending-extraction: <token> -->`)
 and the manifest entry (`docs/.manifest.json#pendingExtraction`).
+
+### Port 2 — `ACPSessionController` host-session control concerns (harness-guide.md)
+
+- **Page**: `docs/harness-guide.md`
+- **Section**: `### Lifecycle Contract` — the second bullet list under
+  "`ACPSessionController` composes that controller with host-level
+  concerns" (six concept bullets: permission evaluation and
+  remembered-rule lookup, write-gate approval requests, terminal
+  session lifecycle, elicitation mediation, prompt queueing and turn
+  snapshots, optional session storage).
+- **Blocker**: Curation vocabulary not yet stable. The six concept
+  bullets are editorial groupings rather than direct method names;
+  `ACPSessionController` exposes ~15–20 public methods that map
+  unevenly to those bullets, and tagging each method with a future
+  `@hostSessionControl` would expand the rendered list 3x while losing
+  the conceptual grouping.
+- **Unblock criterion**: Either a curation vocabulary stable enough to
+  cluster ~15–20 methods into ~6 groups (e.g. an `@hostSessionControl`
+  tag accompanied by a curated grouping in the partial generator), OR
+  a product decision that the bullet-count expansion from method
+  enumeration is acceptable.
+- **Workaround until then**: The hand-authored six concept bullets in
+  `harness-guide.md` stay in place around the
+  `acp-controller-lifecycle.md` include. No breadcrumb is needed
+  because the bullets describe `ACPSessionController` (a different
+  class than the one the lifecycle partial covers); leaving them
+  un-flagged correctly conveys "still hand-authored" without
+  cross-referencing a specific extraction target.
 
 ### Port 1a — Package Reference table (harness-guide.md)
 

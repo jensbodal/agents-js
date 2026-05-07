@@ -13,8 +13,14 @@
  * Exposed surface, today:
  *   - `collectTsFiles`, `readJson`, `extractExportsFromFile` — regex-based
  *     helpers promoted out of `generate-package-readmes.ts` unchanged.
- *   - `getHostSurfaceExports` — ts-morph-based extractor used by
- *     `scripts/docs-reference.ts` for the `@hostSurface` JSDoc surface.
+ *   - `getTaggedExports(packageSrcDir, tag)` — ts-morph-based extractor for
+ *     top-level declarations carrying the given JSDoc tag. Returns names
+ *     sorted alphabetically.
+ *   - `getTaggedClassMethods(packageSrcDir, tag)` — same idea, descends into
+ *     class bodies to find method-level tags (e.g. `@hostLifecycle`).
+ *   - `getHostSurfaceExports`, `getHostLifecycleMethods`,
+ *     `getHostProcessFunctions`, `getHostObservabilityExports` — convenience
+ *     wrappers used by `scripts/docs-reference.ts` partials.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -249,7 +255,7 @@ function getProject(): Project {
 
 /**
  * Walk the package's `src/` tree, find every top-level statement whose
- * leading JSDoc carries `@hostSurface`, and return the declared / re-exported
+ * leading JSDoc carries the given tag, and return the declared / re-exported
  * names. The names are sorted alphabetically for stable output across
  * filesystem walk orders.
  *
@@ -263,15 +269,20 @@ function getProject(): Project {
  *
  * Symbols re-exported by an alias (`export { A as B }`) are emitted under
  * the original name; the alias rename is invisible to consumers.
+ *
+ * `tag` is the JSDoc tag to filter on, including the leading `@` (e.g.
+ * `"@hostSurface"`, `"@hostProcess"`, `"@hostObservability"`). Method-level
+ * tags like `@hostLifecycle` live inside class bodies and are not visible
+ * here — use {@link getTaggedClassMethods} for those.
  */
-export function getHostSurfaceExports(packageSrcDir: string): string[] {
+export function getTaggedExports(packageSrcDir: string, tag: string): string[] {
   const project = getProject();
   const seen = new Set<string>();
 
   for (const filePath of collectTsFiles(packageSrcDir)) {
     const sourceFile = project.addSourceFileAtPath(filePath);
     for (const stmt of sourceFile.getStatements()) {
-      if (!hasHostSurfaceTag(stmt)) continue;
+      if (!hasTag(stmt, tag)) continue;
       for (const name of extractDeclarationNames(stmt)) {
         seen.add(name);
       }
@@ -280,6 +291,73 @@ export function getHostSurfaceExports(packageSrcDir: string): string[] {
   }
 
   return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Backwards-compatible wrapper for the Port 1b `@hostSurface` extractor.
+ * Equivalent to {@link getTaggedExports} with `"@hostSurface"`.
+ */
+export function getHostSurfaceExports(packageSrcDir: string): string[] {
+  return getTaggedExports(packageSrcDir, "@hostSurface");
+}
+
+/**
+ * Walk the package's `src/` tree, find every method on every class whose
+ * leading JSDoc carries the given tag, and return the method names sorted
+ * alphabetically.
+ *
+ * `@hostLifecycle` lives on methods inside `ACPClientController`, not on
+ * top-level statements; the top-level walker in {@link getTaggedExports}
+ * cannot reach them. This walker descends into every class body and inspects
+ * each `MethodDeclaration`'s leading JSDoc.
+ *
+ * Method names are returned without the owning class name; the partial body
+ * carries the class name in its intro line. If multiple classes carry the
+ * same tag on a same-named method, the name appears once (deduplicated).
+ */
+export function getTaggedClassMethods(packageSrcDir: string, tag: string): string[] {
+  const project = getProject();
+  const seen = new Set<string>();
+
+  for (const filePath of collectTsFiles(packageSrcDir)) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    for (const cls of sourceFile.getClasses()) {
+      for (const method of cls.getMethods()) {
+        if (!hasTag(method, tag)) continue;
+        const name = method.getName();
+        if (name) seen.add(name);
+      }
+    }
+    project.removeSourceFile(sourceFile);
+  }
+
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Convenience wrapper: returns method names tagged `@hostLifecycle` across
+ * all classes in `packageSrcDir`. Used by Port 2's lifecycle partial.
+ */
+export function getHostLifecycleMethods(packageSrcDir: string): string[] {
+  return getTaggedClassMethods(packageSrcDir, "@hostLifecycle");
+}
+
+/**
+ * Convenience wrapper: returns top-level function/class names tagged
+ * `@hostProcess` in `packageSrcDir`. Used by Port 2's process-creation
+ * partial.
+ */
+export function getHostProcessFunctions(packageSrcDir: string): string[] {
+  return getTaggedExports(packageSrcDir, "@hostProcess");
+}
+
+/**
+ * Convenience wrapper: returns top-level export names tagged
+ * `@hostObservability` in `packageSrcDir`. Used by Port 3's observability
+ * surface partial.
+ */
+export function getHostObservabilityExports(packageSrcDir: string): string[] {
+  return getTaggedExports(packageSrcDir, "@hostObservability");
 }
 
 function extractDeclarationNames(stmt: Statement): string[] {
@@ -309,15 +387,25 @@ function extractDeclarationNames(stmt: Statement): string[] {
 // ts-morph's `ExportDeclaration` does not implement `JSDocableNode`, so
 // `getJsDocs()` is not available on re-export declarations. The JSDoc text
 // surfaces here as a leading comment range instead — we read the raw
-// comment text and look for the `@hostSurface` token. This intentionally
-// matches both `/** @hostSurface */` and `/** Stable surface ... @hostSurface */`
-// styles; richer parsing (tag arguments, multi-tag) can be added later.
-function hasHostSurfaceTag(decl: Node): boolean {
+// comment text and look for the requested tag token. This intentionally
+// matches both `/** @tag */` and `/** Description ... @tag */` styles;
+// richer parsing (tag arguments, multi-tag) can be added later.
+//
+// `tag` includes the leading `@` (e.g. `"@hostSurface"`). The matcher
+// requires the tag to be preceded by start-of-string, whitespace, or a `*`
+// (the JSDoc continuation marker), and followed by whitespace or end-of-token,
+// so a tag like `@hostLife` does not match `@hostLifecycle`.
+function hasTag(decl: Node, tag: string): boolean {
+  if (!tag.startsWith("@")) {
+    throw new Error(`hasTag: tag must start with '@' (got ${JSON.stringify(tag)})`);
+  }
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher = new RegExp(`(^|[\\s*])${escaped}(\\s|$)`, "m");
   const ranges = decl.getLeadingCommentRanges();
   for (const range of ranges) {
     const text = range.getText();
     if (!text.startsWith("/**")) continue; // only JSDoc-style block comments
-    if (/(^|[\s*])@hostSurface(\s|\b)/.test(text)) return true;
+    if (matcher.test(text)) return true;
   }
   return false;
 }

@@ -80,14 +80,9 @@ shared host-policy helpers.
 
 ### Lifecycle Contract
 
-`ACPClientController` owns the ACP transport lifecycle:
+`ACPClientController` owns the ACP transport lifecycle.
 
-- `initialize`
-- `newSession`
-- `loadSession`
-- `prompt`
-- `cancel`
-- `dispose`
+!!!include(_generated/acp-controller-lifecycle.md)!!!
 
 `ACPSessionController` composes that controller with host-level concerns:
 
@@ -151,7 +146,9 @@ launching sessions from a more specific working directory.
 
 ### Process Creation Contract
 
-There are two supported ways to create ACP subprocesses:
+!!!include(_generated/acp-process-creation.md)!!!
+
+When choosing between them:
 
 - use `spawnACPAgent` when the default command, args, and inherited environment are acceptable
 - inject `createProcess` into `ACPClientController` or `ACPSessionController` when the host needs

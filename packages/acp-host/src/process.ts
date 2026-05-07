@@ -132,7 +132,10 @@ function hasWorkspaceFlag(args: readonly string[], workspaceFlag: string): boole
   return args.some((arg) => arg === workspaceFlag || arg.startsWith(`${workspaceFlag}=`));
 }
 
-/** @hostSurface */
+/**
+ * @hostSurface
+ * @hostProcess
+ */
 export function createHostACPProcess(
   workspaceRootPath: string,
   options: HostACPProcessOptions = {},
