@@ -360,6 +360,172 @@ export function getHostObservabilityExports(packageSrcDir: string): string[] {
   return getTaggedExports(packageSrcDir, "@hostObservability");
 }
 
+/**
+ * Walk the package's `src/` tree, find the named `TypeAliasDeclaration`,
+ * resolve it as a `UnionType`, and return the discriminant string-literal
+ * values (sorted alphabetically) for the named field.
+ *
+ * Used to enumerate event-shape catalogs that use the discriminated-union
+ * pattern (e.g. `ACPSessionEvent` keyed on `type`). The strict shape check
+ * keeps the extractor honest: each union member must be a `TypeLiteralNode`
+ * with a property whose `TypeNode` is a `LiteralTypeNode` wrapping a
+ * `StringLiteral`. Indirect discriminants (e.g. members that resolve through
+ * a separate type alias) throw rather than silently fall through —
+ * silent fallthrough corrupts the partial.
+ *
+ * If a future shape change causes throws, defer the extraction the way
+ * `@hostSessionControl` was deferred (page breadcrumb + manifest entry +
+ * `_generated/README.md` Deferred extractions entry); do not pile on
+ * special cases.
+ */
+export function getDiscriminatedUnionVariants(
+  packageSrcDir: string,
+  typeName: string,
+  discriminantField: string,
+): string[] {
+  const project = getProject();
+  let foundAlias: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getTypeAlias"]>;
+
+  for (const filePath of collectTsFiles(packageSrcDir)) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const candidate = sourceFile.getTypeAlias(typeName);
+    if (candidate) {
+      foundAlias = candidate;
+      // Don't remove the source file yet — we still need to read AST nodes.
+      break;
+    }
+    project.removeSourceFile(sourceFile);
+  }
+
+  if (!foundAlias) {
+    throw new Error(
+      `getDiscriminatedUnionVariants: type alias ${JSON.stringify(typeName)} not found under ${packageSrcDir}.`,
+    );
+  }
+
+  const typeNode = foundAlias.getTypeNode();
+  if (!typeNode || !Node.isUnionTypeNode(typeNode)) {
+    throw new Error(
+      `getDiscriminatedUnionVariants: ${typeName} resolved to ${typeNode?.getKindName() ?? "undefined"}, expected UnionType.`,
+    );
+  }
+
+  const variants: string[] = [];
+  for (const member of typeNode.getTypeNodes()) {
+    if (!Node.isTypeLiteral(member)) {
+      throw new Error(
+        `getDiscriminatedUnionVariants: ${typeName} union member at ${member.getStart()} is ${member.getKindName()}, expected TypeLiteral.`,
+      );
+    }
+    const property = member.getProperty(discriminantField);
+    if (!property) {
+      throw new Error(
+        `getDiscriminatedUnionVariants: ${typeName} union member at ${member.getStart()} has no '${discriminantField}' property.`,
+      );
+    }
+    const propertyTypeNode = property.getTypeNode();
+    if (!propertyTypeNode || !Node.isLiteralTypeNode(propertyTypeNode)) {
+      throw new Error(
+        `getDiscriminatedUnionVariants: ${typeName} union member at ${member.getStart()} has non-literal '${discriminantField}' type (${propertyTypeNode?.getKindName() ?? "undefined"}).`,
+      );
+    }
+    const literal = propertyTypeNode.getLiteral();
+    if (!Node.isStringLiteral(literal)) {
+      throw new Error(
+        `getDiscriminatedUnionVariants: ${typeName} union member at ${member.getStart()} has non-string-literal '${discriminantField}' value (${literal.getKindName()}).`,
+      );
+    }
+    variants.push(literal.getLiteralValue());
+  }
+
+  project.removeSourceFile(foundAlias.getSourceFile());
+
+  return [...new Set(variants)].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Walk the package's `src/` tree, find the named `InterfaceDeclaration`,
+ * and return its property fields as `{ name, signature, optional }` triples
+ * **in source declaration order**.
+ *
+ * Source order rather than alphabetical: interface members are not
+ * reordered by tooling (biome's `organize-imports` does not touch
+ * interface bodies), so source order is byte-stable for routine refactors.
+ * The Port 1b alphabetical rule was written for symbol-list extractors
+ * vulnerable to biome reorderings; for fixed interface fields, source order
+ * preserves natural lifecycle pairings (e.g. `beforePrompt` next to
+ * `afterPrompt`) that alphabetical sort would scramble. A deliberate
+ * reorder of the interface IS a real change and should reflect in the
+ * partial.
+ */
+export function getInterfaceFieldSignatures(
+  packageSrcDir: string,
+  interfaceName: string,
+): Array<{ name: string; signature: string; optional: boolean }> {
+  const project = getProject();
+  let foundInterface: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getInterface"]>;
+
+  for (const filePath of collectTsFiles(packageSrcDir)) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const candidate = sourceFile.getInterface(interfaceName);
+    if (candidate) {
+      foundInterface = candidate;
+      break;
+    }
+    project.removeSourceFile(sourceFile);
+  }
+
+  if (!foundInterface) {
+    throw new Error(
+      `getInterfaceFieldSignatures: interface ${JSON.stringify(interfaceName)} not found under ${packageSrcDir}.`,
+    );
+  }
+
+  const fields: Array<{ name: string; signature: string; optional: boolean }> = [];
+  for (const member of foundInterface.getMembers()) {
+    // Properties (`name: T`) and methods (`name(args): R`) are both surfaced
+    // as members; we treat each as a field with its full signature text.
+    // Signatures are flattened to a single line so they render cleanly as
+    // markdown inline code spans — multi-line ts-morph output breaks bullet
+    // formatting otherwise.
+    if (Node.isPropertySignature(member)) {
+      const typeNode = member.getTypeNode();
+      const raw = typeNode ? typeNode.getText() : "unknown";
+      fields.push({
+        name: member.getName(),
+        signature: flattenSignature(raw),
+        optional: member.hasQuestionToken(),
+      });
+    } else if (Node.isMethodSignature(member)) {
+      // Reconstruct as a callable type expression: `(params) => returnType`.
+      const params = member
+        .getParameters()
+        .map((p) => p.getText())
+        .join(", ");
+      const returnTypeNode = member.getReturnTypeNode();
+      const returnType = returnTypeNode ? returnTypeNode.getText() : "unknown";
+      fields.push({
+        name: member.getName(),
+        signature: flattenSignature(`(${params}) => ${returnType}`),
+        optional: member.hasQuestionToken(),
+      });
+    }
+  }
+
+  project.removeSourceFile(foundInterface.getSourceFile());
+
+  return fields;
+}
+
+// Flatten a TypeScript type signature for inline-code rendering. ts-morph
+// preserves the source text including embedded newlines and indentation —
+// fine for `getText()` consumers but breaks markdown bullets when emitted
+// as a `\`code span\``. Collapses any run of whitespace to a single space
+// and strips leading/trailing whitespace.
+function flattenSignature(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
 function extractDeclarationNames(stmt: Statement): string[] {
   if (Node.isExportDeclaration(stmt)) {
     return stmt.getNamedExports().map((spec) => spec.getName());

@@ -51,6 +51,7 @@ export const REDACTION_SENTINEL = "REDACTED";
  * carries a success payload (error cases may have `null`); `args` is
  * optional because some tools intentionally take no input.
  */
+// #region tool-call-trace
 export interface ToolCallTrace {
   schema_version: string;
   event_id: string;
@@ -67,6 +68,7 @@ export interface ToolCallTrace {
   root_event_id: string;
   tags?: string[];
 }
+// #endregion tool-call-trace
 
 /**
  * Destination for persisted trace records. Implementations must be

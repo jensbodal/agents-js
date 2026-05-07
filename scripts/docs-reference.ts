@@ -25,9 +25,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  getDiscriminatedUnionVariants,
   getHostLifecycleMethods,
+  getHostObservabilityExports,
   getHostProcessFunctions,
   getHostSurfaceExports,
+  getInterfaceFieldSignatures,
 } from "./lib/package-introspection.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -118,6 +121,70 @@ const PARTIALS: PartialSpec[] = [
         "The supported host-managed process-creation entry points are:",
         "",
         ...all.map((n) => `- \`${n}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-canonical-events.md",
+    sources: ["packages/acp-host/src/types/session.ts"],
+    extractionMethod: "ACPSessionEvent discriminated-union variants via ts-morph",
+    body() {
+      const variants = getDiscriminatedUnionVariants(
+        join(ROOT, "packages/acp-host/src"),
+        "ACPSessionEvent",
+        "type",
+      );
+      if (variants.length === 0) {
+        throw new Error(
+          "ACPSessionEvent has no variants. Either restore at least one or defer this extraction in _generated/README.md Deferred extractions.",
+        );
+      }
+      const lines = [
+        "The canonical `ACPSessionEvent` variants are:",
+        "",
+        ...variants.map((v) => `- \`${v}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-session-hooks.md",
+    sources: ["packages/acp-host/src/types/hooks.ts"],
+    extractionMethod: "SessionHooks interface fields via ts-morph (source order)",
+    body() {
+      const fields = getInterfaceFieldSignatures(
+        join(ROOT, "packages/acp-host/src"),
+        "SessionHooks",
+      );
+      if (fields.length === 0) {
+        throw new Error(
+          "SessionHooks has no members. Either restore the interface or defer this extraction.",
+        );
+      }
+      const lines = ["The `SessionHooks` interface members are:", ""];
+      for (const f of fields) {
+        const opt = f.optional ? "?" : "";
+        lines.push(`- \`${f.name}${opt}: ${f.signature}\``);
+      }
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-observability-surface.md",
+    sources: ["packages/acp-host/src"],
+    extractionMethod: "@hostObservability JSDoc tags via ts-morph",
+    body() {
+      const names = getHostObservabilityExports(join(ROOT, "packages/acp-host/src"));
+      if (names.length === 0) {
+        throw new Error(
+          "No @hostObservability exports found under packages/acp-host/src. Either tag at least one declaration or remove this entry from PARTIALS.",
+        );
+      }
+      const lines = [
+        "The `@agents-js/acp-host` observability surface is:",
+        "",
+        ...names.map((n) => `- \`${n}\``),
       ];
       return lines.join("\n");
     },

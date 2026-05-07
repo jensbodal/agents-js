@@ -94,6 +94,16 @@ audit, which doesn't need to participate in the gate.
 | [`acp-host-stable-surface.md`](./acp-host-stable-surface.md) | `packages/acp/src/index.ts`, `packages/acp-host/src/index.ts` (`@hostSurface` JSDoc tags) | [Harness Guide → Stable Host Surface](../harness-guide#stable-host-surface) |
 | [`acp-controller-lifecycle.md`](./acp-controller-lifecycle.md) | `packages/acp/src/controller.ts` (`@hostLifecycle` JSDoc tags on `ACPClientController` methods) | [Harness Guide → Lifecycle Contract](../harness-guide#lifecycle-contract) |
 | [`acp-process-creation.md`](./acp-process-creation.md) | `packages/acp/src/connection.ts`, `packages/acp-host/src/process.ts` (`@hostProcess` JSDoc tags) | [Harness Guide → Process Creation Contract](../harness-guide#process-creation-contract) |
+| [`acp-canonical-events.md`](./acp-canonical-events.md) | `packages/acp-host/src/types/session.ts` (`ACPSessionEvent` discriminated-union variants on the `type` discriminant) | [Observability → Canonical Events](../observability#canonical-events) |
+| [`acp-session-hooks.md`](./acp-session-hooks.md) | `packages/acp-host/src/types/hooks.ts` (`SessionHooks` interface members; **source order**, see Port author rule deviation below) | [Observability → Session Hooks](../observability#session-hooks) |
+| [`acp-observability-surface.md`](./acp-observability-surface.md) | `packages/acp-host/src/logger.ts` (`@hostObservability` JSDoc tags) | [Observability → Current Primitive: Logger + logStore](../observability#current-primitive-logger-logstore) |
+
+`docs/observability.md` also transcludes the `ToolCallTrace` interface
+directly via VitePress `<<<` from
+`packages/tools/src/trace.ts#tool-call-trace`. That mechanism does not
+go through this directory; the source file region is the source of
+truth and there is no drift gate (a manual edit to the interface
+re-renders the section on the next `docs:build`).
 
 Future ports add entries here as they land.
 
@@ -181,6 +191,17 @@ but cannot recover from a reordered bullet list.
 `scripts/lib/package-introspection.ts` is the canonical implementation
 of this pattern; future port extractors should structure themselves the
 same way.
+
+**Deliberate deviation — `getInterfaceFieldSignatures` (Port 3)**:
+interface members are emitted in **source declaration order**, not
+alphabetical. Justification: biome's `assist/source/organizeImports`
+does not reorder interface bodies, so source order is byte-stable for
+routine refactors. Alphabetical sort would scramble natural lifecycle
+pairings (e.g. `beforePrompt` next to `afterPrompt` in `SessionHooks`)
+that carry editorial value. A deliberate reorder of the interface IS
+a real change and should reflect in the partial. Apply this deviation
+only to fixed-shape interface extractors; keep alphabetical for
+symbol-list extractors that aggregate across files.
 
 ## Deferred extractions
 
