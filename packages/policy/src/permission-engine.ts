@@ -20,6 +20,24 @@ import type {
 } from "./permission-types.ts";
 import { HIGH_RISK_OPERATIONS, READ_OPERATIONS, SHELL_COMMANDS } from "./permission-types.ts";
 
+let fallbackRuleIdCounter = 0;
+
+function createRuleIdSuffix(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") {
+    return cryptoApi.randomUUID().slice(0, 8);
+  }
+  if (typeof cryptoApi?.getRandomValues === "function") {
+    const bytes = cryptoApi.getRandomValues(new Uint8Array(4));
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  // Rule IDs are readability identifiers, not auth tokens; this covers runtimes
+  // without Web Crypto so rule creation still works.
+  fallbackRuleIdCounter = (fallbackRuleIdCounter + 1) >>> 0;
+  return fallbackRuleIdCounter.toString(16).padStart(8, "0").slice(-8);
+}
+
 /**
  * Classify the operation type from a permission request.
  *
@@ -323,7 +341,7 @@ export function createPermissionRule(
   const now = Date.now();
   const resourceScope = scopeOverride ?? extractResourceScope(request);
   return {
-    id: `rule-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `rule-${now}-${createRuleIdSuffix()}`,
     agentName,
     workspacePath,
     operationClass: classifyOperation(request),

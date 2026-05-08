@@ -73,7 +73,7 @@ export interface SyncLogger {
 
 /** Options for {@link fetchPeerRecords}. */
 export interface FetchPeerRecordsOptions {
-  /** Base URL of the peer gateway (e.g. `http://peer.tail.ts.net:8080`). Path gets appended. */
+  /** Base URL of the peer gateway (e.g. `http://peer.example.internal:8080`). Path gets appended. */
   peerUrl: string;
   /** Override the well-known path. Defaults to {@link AGENTS_JS_REGISTRY_WELL_KNOWN_PATH}. */
   path?: string;

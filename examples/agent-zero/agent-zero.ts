@@ -10,7 +10,7 @@ export interface AgentZeroAdapterOptions {
    * Agent Zero reports url: `http://localhost:8000` internally; this value
    * replaces it in the normalized AgentCard.
    *
-   * Example: "https://agent-zero.example.ts.net"
+   * Example: "https://agent-zero.example.internal"
    */
   externalUrl: string;
 

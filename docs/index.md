@@ -29,7 +29,7 @@ features:
   - title: Bridge into any MCP host
     details: The same gateway exposes registered ACP agents as MCP tools to Claude Code, Cursor, Zed, or any MCP-aware host. One agent process; many operator UXs.
   - title: Local-operator first
-    details: Single-tenant, trusted-network posture. Tailnet, VPN, or single-machine. Public-internet hardening is a separate, declared track.
+    details: Single-tenant, trusted-network posture. Private network, VPN, or single-machine. Public-internet hardening is a separate, declared track.
 ---
 
 ## Two tracks, one runtime
@@ -122,7 +122,7 @@ agents-js serve --harness trial --port 9000
 From any client on the network:
 
 ```bash
-curl -X POST http://my-gateway.tailnet:9000/a2a \
+curl -X POST http://my-gateway.example.internal:9000/a2a \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
