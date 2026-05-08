@@ -420,6 +420,8 @@ The server-side bridge currently supports these user-facing A2A methods:
 The gateway also supports push-notification config CRUD and authenticated extended-card retrieval at
 the SDK/server layer, but the turn/task methods above are the core user-facing bridge.
 
+!!!include(_generated/a2a-server-bridge.md)!!!
+
 ### Streaming behavior
 
 Streaming is task-backed rather than raw ACP chunk forwarding. The bridge emits JSON-RPC envelopes

@@ -90,7 +90,7 @@ bun add @agents-js/validation
 
 ### Constants
 
-- **`a2aValidationSchemas`**
+- **`a2aValidationSchemas`** — Server-side bridge of A2A request and result schemas. Each entry is the imported AJV schema or zod schema constant the gateway dispatches against for one of the user-facing A2A methods (`message/se...
 - **`ACP_AUTH_REQUIRED_METADATA_KEY`**
 - **`ACP_ELICITATION_METADATA_KEY`**
 - **`ACP_ELICITATION_RESPONSE_METADATA_KEY`**

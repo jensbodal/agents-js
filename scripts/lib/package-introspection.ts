@@ -692,6 +692,93 @@ function unwrapAssertions(node: Node | undefined): Node | undefined {
   return current;
 }
 
+/**
+ * Walk the package's `src/` tree, find the named `VariableStatement` whose
+ * initializer is a flat `ObjectLiteralExpression`, and return one entry per
+ * top-level property: `{ name, kind }`, where `kind` is `"validator"` if the
+ * property name ends with `Validator` and `"schema"` otherwise (the A2A
+ * registry uses both shapes today; future entries that match neither
+ * convention would still be classified `"schema"`).
+ *
+ * Used for A2A's flat schema constants in `a2aValidationSchemas` (see
+ * `packages/validation/src/a2a.ts`). The shape is a plain object literal
+ * with shorthand property assignments referring to imported schema bindings;
+ * each entry's name IS the schema/validator export.
+ *
+ * Each "unexpected shape" branch throws with a precise error — silent
+ * fallthrough corrupts the partial. Result is sorted alphabetically by
+ * `name` for stable output.
+ */
+export function getFlatValidationSchemaExports(
+  packageSrcDir: string,
+  exportSymbolName: string,
+): Array<{ name: string; kind: "schema" | "validator" }> {
+  const project = getProject();
+  const sourceFiles = collectTsFiles(packageSrcDir).map((p) => project.addSourceFileAtPath(p));
+
+  let decl: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getVariableDeclaration"]>;
+  for (const sf of sourceFiles) {
+    const candidate = sf.getVariableDeclaration(exportSymbolName);
+    if (candidate) {
+      decl = candidate;
+      break;
+    }
+  }
+  if (!decl) {
+    for (const sf of sourceFiles) project.removeSourceFile(sf);
+    throw new Error(
+      `getFlatValidationSchemaExports: variable ${JSON.stringify(exportSymbolName)} not found under ${packageSrcDir}.`,
+    );
+  }
+
+  const init = unwrapAssertions(decl.getInitializer());
+  if (!init || !Node.isObjectLiteralExpression(init)) {
+    throw new Error(
+      `getFlatValidationSchemaExports: ${exportSymbolName} initializer (after unwrapping as/satisfies) is ${init?.getKindName() ?? "undefined"}, expected ObjectLiteralExpression.`,
+    );
+  }
+
+  const entries: Array<{ name: string; kind: "schema" | "validator" }> = [];
+  for (const property of init.getProperties()) {
+    let name: string | undefined;
+    if (Node.isShorthandPropertyAssignment(property)) {
+      name = property.getName();
+    } else if (Node.isPropertyAssignment(property)) {
+      const nameNode = property.getNameNode();
+      if (Node.isIdentifier(nameNode)) {
+        name = nameNode.getText();
+      } else if (Node.isStringLiteral(nameNode)) {
+        name = nameNode.getLiteralValue();
+      } else {
+        throw new Error(
+          `getFlatValidationSchemaExports: ${exportSymbolName} property at ${property.getStart()} has non-identifier non-string-literal name node ${nameNode.getKindName()}.`,
+        );
+      }
+    } else {
+      throw new Error(
+        `getFlatValidationSchemaExports: ${exportSymbolName} contains a ${property.getKindName()} entry at ${property.getStart()}, expected ShorthandPropertyAssignment or PropertyAssignment.`,
+      );
+    }
+    if (!name) {
+      throw new Error(
+        `getFlatValidationSchemaExports: ${exportSymbolName} property at ${property.getStart()} produced an empty name.`,
+      );
+    }
+    const kind: "schema" | "validator" = name.endsWith("Validator") ? "validator" : "schema";
+    entries.push({ name, kind });
+  }
+
+  if (entries.length === 0) {
+    throw new Error(
+      `getFlatValidationSchemaExports: ${exportSymbolName} has no entries. Either populate it or remove the partial.`,
+    );
+  }
+
+  for (const sf of sourceFiles) project.removeSourceFile(sf);
+
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function readStringLiteralProperty(
   obj: import("ts-morph").ObjectLiteralExpression,
   key: string,

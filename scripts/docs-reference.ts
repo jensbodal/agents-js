@@ -27,6 +27,7 @@ import { join, resolve } from "node:path";
 import {
   getCLISubcommandFlags,
   getDiscriminatedUnionVariants,
+  getFlatValidationSchemaExports,
   getHostLifecycleMethods,
   getHostObservabilityExports,
   getHostProcessFunctions,
@@ -202,6 +203,23 @@ const PARTIALS: PartialSpec[] = [
         "ACP response methods:",
         "",
         ...resps.map((e) => `- \`${e.method}\` → \`${e.schemaName}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "a2a-server-bridge.md",
+    sources: ["packages/validation/src/a2a.ts"],
+    extractionMethod: "@hostValidator-tagged a2aValidationSchemas object literal via ts-morph",
+    body() {
+      const entries = getFlatValidationSchemaExports(
+        join(ROOT, "packages/validation/src"),
+        "a2aValidationSchemas",
+      );
+      const lines = [
+        "The server-side A2A bridge in `@agents-js/validation` registers these schemas:",
+        "",
+        ...entries.map((e) => `- \`${e.name}\` (${e.kind})`),
       ];
       return lines.join("\n");
     },
