@@ -1,5 +1,6 @@
 ---
 title: Playground — Local Docs Meta-Agent
+diataxis: tutorial
 ---
 
 # Playground

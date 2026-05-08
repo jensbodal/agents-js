@@ -65,6 +65,8 @@ export interface HostFileAdapters {
 /**
  * Configuration for starting an ACP session controller.
  * Replaces the old positional parameters with a structured config object.
+ *
+ * @hostSurface
  */
 export interface StartConfig extends WorkspaceContextConfig {
   agentConfig: AgentConfig;

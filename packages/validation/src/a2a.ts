@@ -597,6 +597,18 @@ export function validateA2AMessageSendResponseResult(
   });
 }
 
+/**
+ * Server-side bridge of A2A request and result schemas. Each entry is the
+ * imported AJV schema or zod schema constant the gateway dispatches against
+ * for one of the user-facing A2A methods (`message/send`, `message/stream`,
+ * `tasks/*`, push-notification config CRUD, authenticated extended card,
+ * stream events). The keys are the export names of the schemas themselves;
+ * dispatch happens by switching on JSON-RPC `method` rather than by a
+ * Map lookup, so the registry's only role is to be the canonical "what the
+ * server can validate" list.
+ *
+ * @hostValidator
+ */
 export const a2aValidationSchemas = {
   messageSendRequestSchema,
   messageStreamRequestSchema,

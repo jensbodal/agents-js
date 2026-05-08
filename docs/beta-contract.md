@@ -1,5 +1,6 @@
 ---
 title: Beta Contract
+diataxis: explanation
 ---
 
 # Beta Contract

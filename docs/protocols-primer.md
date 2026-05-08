@@ -1,5 +1,6 @@
 ---
 title: Protocols at a Glance
+diataxis: explanation
 ---
 
 # Protocols at a glance

@@ -1,5 +1,6 @@
 ---
 title: Observability
+diataxis: reference
 ---
 
 # Observability
@@ -9,6 +10,10 @@ How agents-js surfaces runtime behavior for debugging, monitoring, and future te
 ## Current Primitive: Logger + logStore
 
 `@agents-js/acp-host` ships a structured logging system backed by a singleton ring buffer. Every session controller, permission engine, and terminal handler emits `LogEntry` objects through the `Logger` class, which are captured by the global `logStore` for the debug panel.
+
+!!!include(_generated/acp-observability-surface.md)!!!
+
+The detailed shape of each is documented below.
 
 ### LogEntry
 
@@ -89,77 +94,17 @@ Each `Span` contains `requestId`, `sessionId`, `startedAt`, `completedAt`, and t
 
 ## Canonical Events
 
-The debug stream covers five canonical event categories:
+`ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`.
 
-### 1. Session lifecycle
+!!!include(_generated/acp-canonical-events.md)!!!
 
-Emitted by `ACPSessionController` as `ACPSessionEvent` discriminated-union types:
-
-- `status_changed` — status transitions (idle → initializing → ready → prompting → …)
-- `session_created` — new session established
-- `session_loaded` — existing session loaded
-- `session_closed` — session closed
-- `session_forked` — session branched
-- `session_resumed` — session resumed
-
-Subscribe via `controller.subscribe(listener)`. The listener receives `(event: ACPSessionEvent, state: ACPSessionState)`.
-
-### 2. Tool invocation
-
-Emitted as `tool_call_start` and `tool_call_end` events:
-
-```ts
-| { type: "tool_call_start"; toolCallId: string; toolCallName: string; parentMessageId?: string }
-| { type: "tool_call_end"; toolCallId: string }
-```
-
-The `SessionHooks.onToolCall` hook also receives a `ToolCallSummary` (`{ id, name, status }`) for each invocation.
-
-### 3. Permission decision
-
-Permission requests and resolutions flow through both the event stream and hooks:
-
-- `permission_requested` — agent requests permission, includes the `RequestPermissionRequest`
-- `permission_resolved` — user resolves the request, includes cancel state and selected scope
-- `SessionHooks.beforePermission` / `afterPermission` — lifecycle hooks for mutating or observing decisions
-
-### 4. Content streaming
-
-Text chunks accumulate in `TurnState.textChunks` during a turn. The `SessionHooks.afterPrompt` hook receives the full `textChunks` array, `stopReason`, and `durationMs` when a turn completes.
-
-### 5. Error/exception
-
-Errors surface through:
-
-- `ACPSessionEvent` type `{ type: "error"; message: string }` — transport-level errors
-- `LogEntry` with `level: "error"` and `category: "error"` — structured error logging
-- `ACPSessionState.lastError` — the most recent error message on the session state
-- `EvalTransport` — collects errors per-request into `EvalRecord.errors[]`
+`SessionHooks` provides a parallel callback surface for the prompt and permission lifecycles (see below); errors additionally surface through `LogEntry` (`level: "error"`, `category: "error"`), `ACPSessionState.lastError`, and `EvalTransport`'s per-request `errors[]` array.
 
 ## Session Hooks
 
 `SessionHooks` provides typed lifecycle callbacks for host-side instrumentation:
 
-```ts
-export interface SessionHooks {
-  beforePrompt?(content: ContentBlock[], sessionId: string | null):
-    Promise<ContentBlock[] | undefined> | ContentBlock[] | undefined;
-  afterPrompt?(params: {
-    sessionId: string | null;
-    promptContent: ContentBlock[];
-    textChunks: string[];
-    stopReason: string;
-    durationMs: number;
-    requestId: string;
-    userMessageId?: string;
-    agentMessageId?: string;
-  }): Promise<void> | void;
-  beforePermission?(request, sessionId): Promise<RequestPermissionRequest | undefined>;
-  afterPermission?(request, response, sessionId, selectedScope?): Promise<void> | void;
-  onToolCall?(tool: ToolCallSummary, sessionId: string | null): Promise<void> | void;
-  onStatusChange?(from: ACPSessionStatus, to: ACPSessionStatus): Promise<void> | void;
-}
-```
+!!!include(_generated/acp-session-hooks.md)!!!
 
 Wire hooks into `StartConfig.hooks` when creating the controller. The A2A mention middleware uses `beforePrompt` for cross-agent dispatch.
 
@@ -188,23 +133,14 @@ Schema at v0.1; backwards-compatible field additions expected over time.
 
 ### Record shape
 
-Each `ToolCallTrace` record carries:
+The `ToolCallTrace` interface defined in `@agents-js/tools`:
 
-| Field | Description |
-|-------|-------------|
-| `schema_version` | Semver of the schema (`"0.1.0"` today) |
-| `event_id` | ULID or UUID v4 unique to this invocation |
-| `timestamp` | ISO 8601 wall-clock start time |
-| `agent_id` | MXID-shaped identifier of the invoking agent |
-| `session_id` | ACP session id, or `null` for direct-emission calls |
-| `tool_name` | Canonical name (e.g. `"SpawnAgent"`, `"fetchContext"`) |
-| `args` / `result` | Tool input and output, with per-tool redaction applied |
-| `status` | `ok` \| `error` \| `timeout` \| `cancelled` \| `in_flight` |
-| `duration_ms` | Wall-clock elapsed time |
-| `parent_event_id` | Parent invocation for composition chains |
-| `root_event_id` | Outermost ancestor for O(1) composition traversal |
-| `error` | Populated on non-`ok` status |
-| `tags` | Free-form indexing labels |
+<<< @/../packages/tools/src/trace.ts#tool-call-trace{ts}
+
+Field-level format expectations not visible in the TypeScript types
+(e.g. `event_id` as ULID/UUIDv4, `timestamp` as ISO 8601, `agent_id`
+as MXID-shaped, `schema_version` as semver) are pinned by the schema
+spec referenced from the interface JSDoc.
 
 ### Redaction
 

@@ -51,6 +51,8 @@ export interface CreateTerminalHandlersOptions {
 /**
  * Create a scoped set of terminal handlers backed by a dedicated TerminalManager.
  * Each ACPSessionController should call this once and own the returned handlers.
+ *
+ * @hostSurface
  */
 export function createTerminalHandlers(
   options: CreateTerminalHandlersOptions = {},

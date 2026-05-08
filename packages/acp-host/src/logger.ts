@@ -22,6 +22,15 @@ export interface LogEntry {
 
 // -- Configurable logging harness ---------------------------------------------
 
+/**
+ * Sink for structured log entries. Implementors handle each `LogEntry`
+ * synchronously (any async work must be self-managed) and decide where it
+ * goes — console, span buffer, eval transport, or a host-supplied custom
+ * sink. The host wires its preferred transport into the global Logger via
+ * {@link configureLogging}.
+ *
+ * @hostObservability
+ */
 export interface LogTransport {
   handle(entry: LogEntry): void;
 }
@@ -113,13 +122,19 @@ class LogStoreImpl {
   }
 }
 
-/** Singleton log store instance */
+/**
+ * Singleton log store instance.
+ *
+ * @hostObservability
+ */
 export const logStore = new LogStoreImpl();
 
 /**
  * Structured console logger with category prefixes.
  * Provides debug visibility for session lifecycle, permissions, and errors.
  * All log calls are also pushed to the global logStore for the debug panel.
+ *
+ * @hostObservability
  */
 export class Logger {
   private category: LogCategory;
@@ -203,6 +218,12 @@ export type ReadonlySpan = Readonly<Omit<Span, "entries">> & {
   readonly entries: ReadonlyArray<LogEntry>;
 };
 
+/**
+ * `LogTransport` that buckets entries into spans keyed by `entry.spanId`,
+ * tracking active and completed spans for the debug panel and trace export.
+ *
+ * @hostObservability
+ */
 export class SpanLogTransport implements LogTransport {
   private spans = new Map<string, Span>();
   private completedSpans: Span[] = [];
@@ -271,6 +292,12 @@ export interface EvalRecord {
   errors?: Array<{ message: string; category: string; data?: Record<string, unknown> }>;
 }
 
+/**
+ * `LogTransport` that captures per-prompt evaluation records (prompt
+ * content, response, stop reason, errors) for offline regression suites.
+ *
+ * @hostObservability
+ */
 export class EvalTransport implements LogTransport {
   private records: EvalRecord[] = [];
   private maxRecords: number;

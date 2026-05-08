@@ -62,15 +62,24 @@ const setAcpHelp = (a: AcpCommandArgs): void => {
   a.help = true;
 };
 
-const ACP_ARG_SPEC: ArgSpec<AcpCommandArgs> = {
-  "--help": { kind: "flag", assign: setAcpHelp },
-  "-h": { kind: "flag", assign: setAcpHelp },
+/**
+ * Argv-parser spec for `agents-js acp`. Exposed as a top-level binding so
+ * the docs governance generator (`scripts/docs-reference.ts`) can extract
+ * the subcommand's flag table by walking the spread fragments.
+ *
+ * @hostCliSubcommand
+ */
+export const ACP_ARG_SPEC: ArgSpec<AcpCommandArgs> = {
+  "--help": { kind: "flag", assign: setAcpHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setAcpHelp, description: "Show this message." },
   ...runtimeSelectArgs<AcpCommandArgs>(),
   "--directory": {
     kind: "value",
     assign: (a, v) => {
       a.directory = v;
     },
+    description: "Constrain runtime to this workspace directory.",
+    valueExample: "<path>",
   },
   ...runtimeLogArgs<AcpCommandArgs>(),
 };

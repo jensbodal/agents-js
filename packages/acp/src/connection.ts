@@ -1,13 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import {
-  CLIENT_METHODS,
-  ClientSideConnection,
-  ndJsonStream,
-  PROTOCOL_VERSION,
-  RequestError,
-  type Stream,
-} from "@agentclientprotocol/sdk";
+import { CLIENT_METHODS, ndJsonStream, RequestError, type Stream } from "@agentclientprotocol/sdk";
 import { createErrorAwareReadable } from "./stream-utils.ts";
 
 export interface ACPProcessOptions {
@@ -47,9 +40,6 @@ export interface ACPProcess {
 }
 
 /**
- * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
- */
-/**
  * Build the env map for the spawned child. When `inheritedEnvKeys` is
  * supplied, parent env is filtered to those keys (everything else is
  * dropped before overrides are layered on); otherwise the full
@@ -80,6 +70,12 @@ export function buildSpawnEnv(
   return { ...filtered, ...options.env };
 }
 
+/**
+ * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
+ *
+ * @hostSurface
+ * @hostProcess
+ */
 export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
   const { command = "opencode", args = ["acp"], env, inheritedEnvKeys } = options;
 
@@ -150,4 +146,9 @@ export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
 }
 
 export type { Stream };
-export { CLIENT_METHODS, ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError };
+// `ClientSideConnection`, `ndJsonStream`, and `PROTOCOL_VERSION` are
+// re-exported from `host-surface-sdk.ts` so the `@hostSurface` tag stays
+// next to them without colliding with biome's organize-exports. Internal
+// callers still import them via the `import` block at the top of this
+// file.
+export { CLIENT_METHODS, RequestError };

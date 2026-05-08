@@ -108,6 +108,8 @@ export type { PermissionMode } from "./session-state.ts";
  * await controller.prompt("Explain this codebase");
  * controller.destroy();
  * ```
+ *
+ * @hostSurface
  */
 export class ACPSessionController {
   private listeners = new Set<Listener>();

@@ -1,5 +1,6 @@
 ---
 title: Harness Guide
+diataxis: howto
 ---
 
 # Harness Guide
@@ -72,40 +73,16 @@ For the broader standards map, see [Protocols & Schemas](/protocols).
 
 ### Stable Host Surface
 
-The supported `@agents-js/acp` host-facing exports are:
-
-- `ACPClientController`
-- `ACPHostAdapters`
-- `ACPWorkspaceRootPolicy`
-- `ACPClientState`
-- `ACPControllerEvent`
-- `spawnACPAgent`
-- `ClientSideConnection`
-- `PROTOCOL_VERSION`
-- `ndJsonStream`
-
-The supported `@agents-js/acp-host` orchestration surface is centered on:
-
-- `ACPSessionController`
-- `createHostACPProcess`
-- `createNodeFileAdapters`
-- `createTerminalHandlers`
-- `StartConfig`
-- workspace-context helpers such as `resolveWorkspaceContext`
+!!!include(_generated/acp-host-stable-surface.md)!!!
 
 The companion `@agents-js/validation` surface covers ACP, A2A, runtime-manifest, JSON-RPC, and
 shared host-policy helpers.
 
 ### Lifecycle Contract
 
-`ACPClientController` owns the ACP transport lifecycle:
+`ACPClientController` owns the ACP transport lifecycle.
 
-- `initialize`
-- `newSession`
-- `loadSession`
-- `prompt`
-- `cancel`
-- `dispose`
+!!!include(_generated/acp-controller-lifecycle.md)!!!
 
 `ACPSessionController` composes that controller with host-level concerns:
 
@@ -169,7 +146,9 @@ launching sessions from a more specific working directory.
 
 ### Process Creation Contract
 
-There are two supported ways to create ACP subprocesses:
+!!!include(_generated/acp-process-creation.md)!!!
+
+When choosing between them:
 
 - use `spawnACPAgent` when the default command, args, and inherited environment are acceptable
 - inject `createProcess` into `ACPClientController` or `ACPSessionController` when the host needs
@@ -442,6 +421,11 @@ For transport-level errors from `ACPClientController`, subscribe separately thro
 The `Logger` system in `@agents-js/acp-host` also emits `LogEntry` objects to the global `logStore` and any configured `LogTransport`. See [Observability](/observability) for the full logging API.
 
 ## Package Reference
+
+<!-- pending-extraction: package-reference -->
+<!-- The Concern column is editorial vocabulary, not derivable from package metadata.
+     Tracked in docs/.manifest.json#pendingExtraction; see docs/_generated/README.md
+     "Deferred extractions" for the unblock criterion. -->
 
 Each package maps to a specific harness concern:
 

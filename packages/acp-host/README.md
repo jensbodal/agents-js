@@ -16,11 +16,11 @@ bun add @agents-js/acp-host
 
 - **`ACPSessionController`** — High-level session orchestrator for ACP agent communication. This is the top-level **Provider** for host applications. It composes an {ACPClientController} with host-level concerns: permission eval...
 - **`CapabilityCache`** — Parses and caches agent capabilities from InitializeResponse. Provides boolean helpers for capability-gating UI and behavior. "Advertised" flags reflect what the CLIENT advertises to the agent. The...
-- **`EvalTransport`**
+- **`EvalTransport`** — `LogTransport` that captures per-prompt evaluation records (prompt content, response, stop reason, errors) for offline regression suites.
 - **`Logger`** — Structured console logger with category prefixes. Provides debug visibility for session lifecycle, permissions, and errors. All log calls are also pushed to the global logStore for the debug panel.
 - **`PermissionEngine`**
 - **`PermissionStore`** — Persistence layer for permission rules. Session-scoped rules are held in memory. Persistent rules are saved via a host-provided callback.
-- **`SpanLogTransport`**
+- **`SpanLogTransport`** — `LogTransport` that buckets entries into spans keyed by `entry.spanId`, tracking active and completed spans for the debug panel and trace export.
 - **`TerminalManager`**
 
 ### Functions
@@ -139,7 +139,7 @@ bun add @agents-js/acp-host
 - **`JsonRpcResponse`**
 - **`LogEntry`**
 - **`LoggerConfig`**
-- **`LogTransport`**
+- **`LogTransport`** — Sink for structured log entries. Implementors handle each `LogEntry` synchronously (any async work must be self-managed) and decide where it goes — console, span buffer, eval transport, or a host-s...
 - **`ManagedTerminal`**
 - **`McpInitializeResult`**
 - **`McpPropertySchema`**
@@ -236,7 +236,7 @@ bun add @agents-js/acp-host
 - **`JSON_RPC_INVALID_REQUEST`**
 - **`JSON_RPC_METHOD_NOT_FOUND`**
 - **`JSON_RPC_PARSE_ERROR`**
-- **`logStore`** — Singleton log store instance
+- **`logStore`** — Singleton log store instance.
 - **`SESSION_RESTORE_FAILURE_MESSAGE`**
 - **`SYSTEM_FORBIDDEN_ENV_KEYS`** — System/loader keys that agent config (`extraEnv`) must never override. These guards apply regardless of the harness or caller-supplied policy because they protect the spawned process's loader contr...
 

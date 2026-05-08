@@ -2,7 +2,7 @@
 
 ## Scope
 
-- `agents-js` is the reusable ACP/A2A SDK plus the reference gateway and web UI surfaces.
+- See `README.md` for the canonical project positioning ("what it is" and the published tagline). Do not paraphrase that prose into other surfaces — `docs/index.md` is derived from README, and `scripts/docs-consistency.ts` enforces the parity marker.
 - If a defect affects reusable SDK or reference-surface behavior, fix it here before narrowing it to a downstream consumer.
 
 ## Stack
@@ -23,6 +23,8 @@
 - Follow existing formatting, linting, and package-boundary conventions unless the current pattern is actively harmful.
 - Keep sessions focused. Start fresh for unrelated tasks.
 - **Before drafting any PR body, read `.github/pull_request_template.md` and use its H2 sections verbatim.** Do not improvise or omit sections. If a section doesn't apply, write `(none)` rather than deleting the heading. The template's sections are the contract reviewers expect — silently dropping "Protocol / compatibility notes" because the change "doesn't have any" is the most common drift, and it makes mechanical review harder for the next person.
+- **When editing a hand-authored doc page (anything in `docs/.manifest.json`'s `handAuthoredPages`), read the entire page first.** Do not rewrite hero copy, tagline prose, or the "what it is" framing without an explicit user ask — the canonical source is `README.md` and `docs/index.md` is derived. The tagline + positioning marker is enforced by `scripts/docs-consistency.ts` (`CANONICAL_POSITIONING_MARKER` and `userFacingForbiddenPhrases`). Bun is the workspace's internal toolchain, not a consumer requirement; framing the project as a "Bun toolkit" or assuming `@agents-js/cli` is unpublished is a regression the gate will reject.
+- **Auto-generated reference partials live under `docs/_generated/`.** Hand-edits to those files are silently overwritten on the next regen. See `docs/_generated/README.md` for the regen command (`bun run docs:reference`), the partial schema, the drift-detection rules, and the deferred-extractions index. New extraction targets follow the `@host*` JSDoc-tag pattern documented there.
 
 ## Proof Surfaces
 

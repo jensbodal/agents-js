@@ -35,39 +35,56 @@ const setHelp = (a: McpCommandArgs): void => {
   a.help = true;
 };
 
-/** Top-level `agents-js mcp` flags (server-mode default). */
-const MCP_ROOT_ARG_SPEC: ArgSpec<McpCommandArgs> = {
-  "--help": { kind: "flag", assign: setHelp },
-  "-h": { kind: "flag", assign: setHelp },
+/**
+ * Top-level `agents-js mcp` flags (server-mode default). Exposed for the
+ * docs governance generator.
+ *
+ * @hostCliSubcommand
+ */
+export const MCP_ROOT_ARG_SPEC: ArgSpec<McpCommandArgs> = {
+  "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
 };
 
-/** `agents-js mcp setup` flags. */
-const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
-  "--help": { kind: "flag", assign: setHelp },
-  "-h": { kind: "flag", assign: setHelp },
+/**
+ * `agents-js mcp setup` flags. Exposed for the docs governance generator.
+ *
+ * @hostCliSubcommand
+ */
+export const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
+  "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
   "--global": {
     kind: "flag",
     assign: (a) => {
       a.global = true;
     },
+    description: "Write MCP config to ~/.claude/settings.json.",
   },
   "--claude": {
     kind: "flag",
     assign: (a) => {
       a.claude = true;
     },
+    description: "Register with Claude Code via `claude mcp add`.",
   },
 };
 
-/** `agents-js mcp bridge` flags. */
-const MCP_BRIDGE_ARG_SPEC: ArgSpec<McpCommandArgs> = {
-  "--help": { kind: "flag", assign: setHelp },
-  "-h": { kind: "flag", assign: setHelp },
+/**
+ * `agents-js mcp bridge` flags. Exposed for the docs governance generator.
+ *
+ * @hostCliSubcommand
+ */
+export const MCP_BRIDGE_ARG_SPEC: ArgSpec<McpCommandArgs> = {
+  "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
   "--url": {
     kind: "value",
     assign: (a, v) => {
       a.url = v;
     },
+    description: "A2A gateway base URL.",
+    valueExample: "<gateway-url>",
   },
 };
 
