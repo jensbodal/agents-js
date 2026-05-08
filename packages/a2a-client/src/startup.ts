@@ -44,7 +44,7 @@ export interface StartRegistrySyncOptions {
   /** Local agent name — written to the registry as the `name` field. */
   name: string;
   /**
-   * Base URL of this gateway (e.g. `http://192.168.1.5:8080`). Used as
+   * Base URL of this gateway (e.g. `http://192.0.2.5:8080`). Used as
    * the A2A entry point URL.
    */
   url: string;

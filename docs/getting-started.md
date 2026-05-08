@@ -78,7 +78,7 @@ The [Playground](/playground) page runs a local docs agent entirely in your brow
 - I want to drive it from a different host (Obsidian plugin, custom desktop) → [Surfaces](/surfaces)
 - I want to embed ACP in my own app → [Harness Guide](/harness-guide)
 - I want to know exactly what beta means here → [Beta Contract](/beta-contract)
-- I want a peer agent on my tailnet to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)
+- I want a peer agent on my trusted network to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)
 - I want to try it in my browser → [Playground](/playground)
 
 ## Choose a different runtime

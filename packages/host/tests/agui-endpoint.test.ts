@@ -67,7 +67,15 @@ describe("createAguiFetchHandler — routing", () => {
 
   test("400 when body is not valid JSON", async () => {
     const fake = createFakeController();
-    const handler = createAguiFetchHandler({ controller: fake.controller });
+    const warnCalls: unknown[][] = [];
+    const handler = createAguiFetchHandler({
+      controller: fake.controller,
+      logger: {
+        warn: (...args: unknown[]) => warnCalls.push(args),
+        error: () => {},
+        log: () => {},
+      },
+    });
     const req = new Request("http://local/agent", {
       method: "POST",
       headers: { Accept: "text/event-stream" },
@@ -75,6 +83,12 @@ describe("createAguiFetchHandler — routing", () => {
     });
     const response = await handler(req);
     expect(response?.status).toBe(400);
+    const body = (await response?.json()) as { error: string; message?: string };
+    expect(body).toEqual({ error: "Invalid JSON body" });
+    expect(body.message).toBeUndefined();
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0]?.[0]).toBe("[Gateway/AG-UI] Invalid JSON body");
+    expect(typeof (warnCalls[0]?.[1] as { error?: unknown } | undefined)?.error).toBe("string");
   });
 
   test("400 when body is not a valid RunAgentInput", async () => {

@@ -98,10 +98,11 @@ export function createAguiFetchHandler(
     try {
       rawBody = await req.json();
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("[Gateway/AG-UI] Invalid JSON body", { error: message });
       return new Response(
         JSON.stringify({
           error: "Invalid JSON body",
-          message: err instanceof Error ? err.message : String(err),
         }),
         { status: HTTP_STATUS.BAD_REQUEST, headers: JSON_HEADERS },
       );

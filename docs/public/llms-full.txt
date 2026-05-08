@@ -60,7 +60,7 @@ features:
   - title: Bridge into any MCP host
     details: The same gateway exposes registered ACP agents as MCP tools to Claude Code, Cursor, Zed, or any MCP-aware host. One agent process; many operator UXs.
   - title: Local-operator first
-    details: Single-tenant, trusted-network posture. Tailnet, VPN, or single-machine. Public-internet hardening is a separate, declared track.
+    details: Single-tenant, trusted-network posture. Private network, VPN, or single-machine. Public-internet hardening is a separate, declared track.
 ---
 
 ## Two tracks, one runtime
@@ -153,7 +153,7 @@ agents-js serve --harness trial --port 9000
 From any client on the network:
 
 ```bash
-curl -X POST http://my-gateway.tailnet:9000/a2a \
+curl -X POST http://my-gateway.example.internal:9000/a2a \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -266,7 +266,7 @@ The [Playground](/playground) page runs a local docs agent entirely in your brow
 - I want to drive it from a different host (Obsidian plugin, custom desktop) → [Surfaces](/surfaces)
 - I want to embed ACP in my own app → [Harness Guide](/harness-guide)
 - I want to know exactly what beta means here → [Beta Contract](/beta-contract)
-- I want a peer agent on my tailnet to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)
+- I want a peer agent on my trusted network to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)
 - I want to try it in my browser → [Playground](/playground)
 
 ## Choose a different runtime
@@ -712,10 +712,9 @@ vp run @agents-js/cli#client -- --url http://127.0.0.1:<printed-port>
 Use `serve` to launch a local ACP runtime through the A2A gateway.
 
 ```sh
-agents-js serve --harness opencode
 agents-js serve --harness claude
-agents-js serve --harness gemini
 agents-js serve --harness opencode --profile clean-room
+agents-js serve
 ```
 
 What `serve` gives you:
@@ -724,12 +723,9 @@ What `serve` gives you:
 - an agent card URL
 - runtime-specific launch handling for curated ACP runtimes
 
-Curated runtime choices:
-
-- `opencode`
-- `claude`
-
-See [Runtime Matrix](#runtime-matrix) for runtime resolution details.
+Pass `--harness <id>` for any curated runtime listed in the [Runtime Matrix](#runtime-matrix).
+Use `--profile <name>` for a named launch context, or omit `--harness` when `serve.harness`
+is configured.
 
 #### Profiles
 
@@ -1093,7 +1089,7 @@ render an activity indicator synchronously before the wire call begins.
 import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
 
 const middleware = createA2AMentionMiddleware({
-  agents: { bob: { url: "http://bob.tailnet.ts.net" } },
+  agents: { bob: { url: "http://bob.example.internal" } },
   onDispatchStart({ agentName }) {
     activityUi.push(`Delegating to @${agentName}…`);
   },
@@ -1127,19 +1123,19 @@ const middleware = createA2AMentionMiddleware({
   global mutex.
 - **No registry sync.** `~/.agents-js/registry.json` lives on each user's local
   disk. New agents need to be added on every machine that wants to reach them.
-  This is fine for a homelab or a trusted tailnet, but it is not a substitute for
+  This is fine for a homelab or a trusted private network, but it is not a substitute for
   service discovery.
 - **No A2A authentication.** The registry is plain JSON and agent cards are served
-  unauthenticated at `/.well-known/agent-card.json`. Assume a trusted network —
-  tailnet, VPN, or equivalent — not the public internet.
+  unauthenticated at `/.well-known/agent-card.json`. Assume a trusted private network,
+  VPN, or equivalent — not the public internet.
 
 ## Agent Registry
 
 ::: danger Trusted-network only
 The registry is **plain JSON, unauthenticated, and unsigned**. Agent cards are
 served at `/.well-known/agent-card.json` with no auth. Cross-host A2A dispatch
-through this registry is appropriate for a homelab, tailnet, VPN, or equivalent
-trusted network. **It is not safe to expose to the public internet** — there is
+through this registry is appropriate for a homelab, VPN, or equivalent trusted
+network. **It is not safe to expose to the public internet** — there is
 no ACL, no endpoint identity, no schema validation on registry entries, and no
 trace redaction guarantee. Public-internet hardening (auth, registry validation,
 endpoint identity) is a separate track. See `docs/streaming-and-events.md`
@@ -1173,11 +1169,14 @@ peer URL into a fresh `registry.json` before the auto-sync chain takes over.
 The registry is plain JSON with one top-level key, `agents`, mapping short names to
 target descriptors:
 
+Use real reachable URLs in your own registry. The `192.0.2.100` address below is
+TEST-NET-1, reserved for documentation examples.
+
 ```json
 {
   "agents": {
     "code-reviewer": { "url": "http://localhost:3000" },
-    "knowledge-compiler": { "url": "http://192.168.1.100:5000" }
+    "knowledge-compiler": { "url": "http://192.0.2.100:5000" }
   }
 }
 ```
@@ -1250,7 +1249,7 @@ Agent cards fetched from `<url>/.well-known/agent-card.json` are cached by the
 does not fetch cards itself — it returns an `AgentTargetInput` (just the URL),
 and card fetching happens downstream in the `A2AClientProvider.connect()` step.
 
-### Setting Up For Two Users On The Same Tailnet
+### Setting Up Two Peers On The Same Trusted Network
 
 Assume two users on a trusted network: Alice on `alice.agent.example`, Bob on
 `bob.agent.example`. Each user wants to be able to `@mention` the other user's
@@ -1303,9 +1302,9 @@ listed agent.
 Agent cards at `<url>/.well-known/agent-card.json` are served unauthenticated.
 Requests to the listed URLs are plain A2A with no mutual TLS or tokens.
 
-**Assume a trusted network.** Homelab, tailnet, VPN, or equivalent. Do not use this
-registry to point at public internet agents without an auth layer in front. Do not
-add URLs you don't control to a registry on a shared machine.
+**Assume a trusted network.** Homelab, VPN, or equivalent trusted private network.
+Do not use this registry to point at public internet agents without an auth layer
+in front. Do not add URLs you don't control to a registry on a shared machine.
 
 ### Known Limits
 
@@ -1363,9 +1362,9 @@ Use this when you want a terminal-only local session.
 Use a curated runtime directly:
 
 ```sh
-agents-js serve --harness opencode
 agents-js serve --harness claude
 agents-js serve --harness gemini
+agents-js serve --harness pi
 ```
 
 Use an isolated runtime context with a profile:
@@ -1417,7 +1416,7 @@ Route messages between agents using host-wired `@mentions` and `@@dispatch` dire
 **2. Start two gateways** on different ports:
 
 ```sh
-agents-js serve --harness opencode --port 3001
+agents-js serve --harness opencode --profile clean-room --port 3001
 agents-js serve --harness claude --port 3002
 ```
 
@@ -1508,19 +1507,14 @@ production runtime.
 - `gemini` is not maintained in this repo
 - the repo wires the runtimes into the gateway and CLI, and the lower-level `apps/internal-gateway` workspace keeps a direct `@agents-js/acp` edge for its local gateway test harness
 
-### Practical Use
+### Local Proof Commands
+
+Use the runtime IDs from the matrix above when running live checks:
 
 ```sh
-vp run @agents-js/cli#serve -- --harness opencode
-vp run @agents-js/cli#serve -- --harness claude
-vp run @agents-js/cli#serve -- --harness codex
-vp run @agents-js/cli#serve -- --harness pi
-vp run @agents-js/cli#serve -- --harness droid
-vp run @agents-js/cli#serve -- --harness gemini
-vp run @agents-js/cli#serve -- --harness trial
-vp run @agents-js/cli#serve -- --harness opencode --profile clean-room
 bun run e2e:runtime -- --runtime claude
 bun run e2e:web:live -- --runtime claude
+bun run e2e:runtime -- --runtime opencode --profile clean-room
 ```
 
 ### Auth
@@ -1562,6 +1556,20 @@ Example:
   "profiles": {
     "clean-room": {
       "runtime": "opencode"
+    }
+  }
+}
+```
+
+For curated `pi`, prefer a plain harness config unless you intentionally want to isolate
+Pi from its normal `~/.pi` state and provider environment:
+
+```json
+{
+  "serve": {
+    "harness": {
+      "kind": "curated",
+      "runtime": "pi"
     }
   }
 }

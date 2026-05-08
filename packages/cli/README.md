@@ -239,7 +239,7 @@ agents-js registry --help
 **Examples:**
 
 ```sh
-agents-js registry add planner http://10.0.0.5:7878
+agents-js registry add planner http://192.0.2.5:7878
 agents-js registry add reviewer --kind acp --harness claude
 agents-js registry list
 agents-js registry remove planner

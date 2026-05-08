@@ -396,7 +396,42 @@ describe("createPermissionRule", () => {
     const request = makeRequest("readFile");
     const rule1 = createPermissionRule(request, "a", "/ws", "allow", "session", "allow");
     const rule2 = createPermissionRule(request, "a", "/ws", "allow", "session", "allow");
+    expect(rule1.id).toMatch(/^rule-\d+-[0-9a-f]{8}$/);
+    expect(rule2.id).toMatch(/^rule-\d+-[0-9a-f]{8}$/);
     expect(rule1.id).not.toBe(rule2.id);
+  });
+
+  test("falls back to getRandomValues when randomUUID is unavailable", () => {
+    const originalCrypto = globalThis.crypto;
+    const fakeCrypto = {
+      getRandomValues(array: Uint8Array): Uint8Array {
+        array.set([0xab, 0xcd, 0xef, 0x01]);
+        return array;
+      },
+    } as unknown as Crypto;
+
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      writable: true,
+      value: fakeCrypto,
+    });
+    try {
+      const rule = createPermissionRule(
+        makeRequest("readFile"),
+        "a",
+        "/ws",
+        "allow",
+        "session",
+        "allow",
+      );
+      expect(rule.id).toMatch(/^rule-\d+-abcdef01$/);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", {
+        configurable: true,
+        writable: true,
+        value: originalCrypto,
+      });
+    }
   });
 
   test("uses scopeOverride when provided", () => {
