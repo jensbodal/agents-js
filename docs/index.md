@@ -5,7 +5,7 @@ diataxis: landing
 hero:
   name: agents-js
   text: One runtime. Many reaches.
-  tagline: A typed Bun toolkit for ACP runtimes over A2A. The same runtime is reachable from the CLI, an A2A network, any ACP harness, an MCP host, or the browser (or Obsidian) — without writing transport code.
+  tagline: A TypeScript library tying together the latest versions of ACP, A2A, AG-UI, A2UI, and MCP — plus a CLI that wires them together.
   image:
     src: /protocol-stack.svg
     alt: agents-js protocol stack
@@ -26,37 +26,60 @@ features:
     details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through the gateway directly (no policy gate). Two distinct surfaces, both deterministic."
   - title: A2UI declarative surfaces
     details: Agents emit UI as data; renderers (web-ui, Obsidian) bind it to native components. No agent-side DOM. No surface-side prompt logic.
-  - title: Multi-harness, not multi-framework
-    details: Plays inside Claude Code, OpenCode, Droid, Codex via skills + plugins. The runtimes are the same; the harness chooses the operator UX.
+  - title: Bridge into any MCP host
+    details: The same gateway exposes registered ACP agents as MCP tools to Claude Code, Cursor, Zed, or any MCP-aware host. One agent process; many operator UXs.
   - title: Local-operator first
     details: Single-tenant, trusted-network posture. Tailnet, VPN, or single-machine. Public-internet hardening is a separate, declared track.
 ---
 
 ## Two tracks, one runtime
 
-### Bring your own harness
+### CLI users start here
+
+Run any ACP coding agent as an A2A server, talk to it from a terminal, and bridge it into MCP hosts — without writing TypeScript.
+
+```sh
+# One-off, no install
+bunx @agents-js/cli --help
+
+# Or install globally
+npm i -g @agents-js/cli
+agents-js --help
+```
 
 You already have an ACP harness (`claude`, `opencode`, `gemini`, `pi`, `droid`, `codex`, or your own). One command puts it on the network as an A2A peer:
 
-```bash
-bunx @agents-js/cli serve --harness claude --port 9000
+```sh
+agents-js serve --harness claude --port 9000
 ```
 
 The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering `/a2a` on the port. Any peer on the same trusted network can now reach it. See [Surfaces](/surfaces) and `packages/cli/README.md` for full options.
 
-*Until `@agents-js/cli` is published to public npm, run this from a clone via the full-stack track instead.*
+For the full launcher walkthrough — clone, `bun run dev`, browser session, session-continuity proof — see [Get Started](/getting-started).
 
-### Run the full stack
+### Library users start here
 
-From a fresh clone of `agents-js`:
+Install only the protocol packages you need:
 
-```bash
-mise install
-bun run setup --runtime claude
-bun run dev
+```sh
+bun add @agents-js/acp @agents-js/a2a @agents-js/a2a-client
 ```
 
-The launcher prints four URLs. Click `Open URL`, the connect dialog finds the gateway, send "Hello", and watch a real Claude reply stream. Full walkthrough plus session-continuity proof: [Get Started](/getting-started).
+Drive a running A2A gateway through `@agents-js/a2a-client` and read the result:
+
+```ts
+import { A2AClientController } from "@agents-js/a2a-client";
+
+const controller = new A2AClientController();
+await controller.connect({ url: "http://127.0.0.1:7878", mode: "base" });
+await controller.sendTurn("Reply with the single word ready.");
+
+const state = controller.getState();
+const reply = [...state.transcript].reverse().find((entry) => entry.role === "agent");
+console.log(reply?.text ?? null);
+```
+
+Per-package surfaces are documented under [Build → Primitives](/primitives) and [Reference → Protocols](/protocols).
 
 ## Hello, world — for real
 

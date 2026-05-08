@@ -31,11 +31,12 @@
 
 ---
 layout: home
+diataxis: landing
 
 hero:
   name: agents-js
   text: One runtime. Many reaches.
-  tagline: A typed Bun toolkit for ACP runtimes over A2A. The same runtime is reachable from the CLI, an A2A network, any ACP harness, an MCP host, or the browser (or Obsidian) — without writing transport code.
+  tagline: A TypeScript library tying together the latest versions of ACP, A2A, AG-UI, A2UI, and MCP — plus a CLI that wires them together.
   image:
     src: /protocol-stack.svg
     alt: agents-js protocol stack
@@ -56,37 +57,60 @@ features:
     details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through the gateway directly (no policy gate). Two distinct surfaces, both deterministic."
   - title: A2UI declarative surfaces
     details: Agents emit UI as data; renderers (web-ui, Obsidian) bind it to native components. No agent-side DOM. No surface-side prompt logic.
-  - title: Multi-harness, not multi-framework
-    details: Plays inside Claude Code, OpenCode, Droid, Codex via skills + plugins. The runtimes are the same; the harness chooses the operator UX.
+  - title: Bridge into any MCP host
+    details: The same gateway exposes registered ACP agents as MCP tools to Claude Code, Cursor, Zed, or any MCP-aware host. One agent process; many operator UXs.
   - title: Local-operator first
     details: Single-tenant, trusted-network posture. Tailnet, VPN, or single-machine. Public-internet hardening is a separate, declared track.
 ---
 
 ## Two tracks, one runtime
 
-### Bring your own harness
+### CLI users start here
+
+Run any ACP coding agent as an A2A server, talk to it from a terminal, and bridge it into MCP hosts — without writing TypeScript.
+
+```sh
+# One-off, no install
+bunx @agents-js/cli --help
+
+# Or install globally
+npm i -g @agents-js/cli
+agents-js --help
+```
 
 You already have an ACP harness (`claude`, `opencode`, `gemini`, `pi`, `droid`, `codex`, or your own). One command puts it on the network as an A2A peer:
 
-```bash
-bunx @agents-js/cli serve --harness claude --port 9000
+```sh
+agents-js serve --harness claude --port 9000
 ```
 
 The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering `/a2a` on the port. Any peer on the same trusted network can now reach it. See [Surfaces](/surfaces) and `packages/cli/README.md` for full options.
 
-*Until `@agents-js/cli` is published to public npm, run this from a clone via the full-stack track instead.*
+For the full launcher walkthrough — clone, `bun run dev`, browser session, session-continuity proof — see [Get Started](/getting-started).
 
-### Run the full stack
+### Library users start here
 
-From a fresh clone of `agents-js`:
+Install only the protocol packages you need:
 
-```bash
-mise install
-bun run setup --runtime claude
-bun run dev
+```sh
+bun add @agents-js/acp @agents-js/a2a @agents-js/a2a-client
 ```
 
-The launcher prints four URLs. Click `Open URL`, the connect dialog finds the gateway, send "Hello", and watch a real Claude reply stream. Full walkthrough plus session-continuity proof: [Get Started](/getting-started).
+Drive a running A2A gateway through `@agents-js/a2a-client` and read the result:
+
+```ts
+import { A2AClientController } from "@agents-js/a2a-client";
+
+const controller = new A2AClientController();
+await controller.connect({ url: "http://127.0.0.1:7878", mode: "base" });
+await controller.sendTurn("Reply with the single word ready.");
+
+const state = controller.getState();
+const reply = [...state.transcript].reverse().find((entry) => entry.role === "agent");
+console.log(reply?.text ?? null);
+```
+
+Per-package surfaces are documented under [Build → Primitives](/primitives) and [Reference → Protocols](/protocols).
 
 ## Hello, world — for real
 
@@ -164,6 +188,7 @@ The full file is `tests/trial-agent/bin/trial-agent.ts` — ~200 lines including
 
 ---
 title: Getting Started
+diataxis: tutorial
 ---
 
 # Get started
@@ -270,6 +295,7 @@ Optional: `bun run browser:smoke` (real-browser end-to-end check, not CI-gated).
 
 ---
 title: Surfaces
+diataxis: howto
 ---
 
 # Surfaces
@@ -444,13 +470,13 @@ Choose the launch mode that matches what you are validating:
 |---|---|---|
 | Mock browser proof | `bun run browser:smoke` | Quick repo-owned validation of the browser shell |
 | Integrated live browser e2e | `bun run e2e:web:live -- --runtime claude` | Real runtime + real browser proof without shared browser tooling |
-| Real local browser UAT | `bun run dev` | Manual UAT against the printed `Open URL` from the integrated launcher |
-| Real local browser UAT (explicit runtime) | `bun run dev --runtime claude` | Manual UAT against the printed `Open URL` for a specific startup runtime |
-| Explicit runtime browser UAT | `vp run @agents-js/cli#serve -- --harness claude` and `vp run @agents-js/web-ui#dev` | Manual UAT when you want a specific runtime rather than the checked-in default |
+| Real local browser check | `bun run dev` | Manual check against the printed `Open URL` from the integrated launcher |
+| Real local browser check (explicit runtime) | `bun run dev --runtime claude` | Manual check against the printed `Open URL` for a specific startup runtime |
+| Explicit runtime browser check | `vp run @agents-js/cli#serve -- --harness claude` and `vp run @agents-js/web-ui#dev` | Manual check when you want a specific runtime rather than the checked-in default |
 
 #### Stable Manual Checks
 
-These checks are grounded in the current UI and are suitable for human UAT.
+These checks are grounded in the current UI and are suitable for human review.
 
 ##### Connect Dialog
 
@@ -484,10 +510,10 @@ These checks are grounded in the current UI and are suitable for human UAT.
 
 | # | Check | Evidence |
 |---|---|---|
-| M1 | `Model` dropdown is hidden when the runtime does not advertise models | Screenshot |
-| M2 | `Model` dropdown appears after connect when models are available | Screenshot |
-| M3 | The current model is selected in the dropdown | Screenshot |
-| M4 | Choosing a different model updates the UI after the host snapshot refresh | Observation |
+| C1 | `Model` dropdown is hidden when the runtime does not advertise models | Screenshot |
+| C2 | `Model` dropdown appears after connect when models are available | Screenshot |
+| C3 | The current model is selected in the dropdown | Screenshot |
+| C4 | Choosing a different model updates the UI after the host snapshot refresh | Observation |
 
 ##### Prompt Input
 
@@ -528,12 +554,12 @@ These checks are grounded in the current UI and are suitable for human UAT.
 |---|---|---|
 | X1 | Invalid or unreachable connect target stays in the connect dialog with Connect disabled until controller-driven inspection succeeds | Screenshot |
 | X2 | Controller-level failures after the dialog phase surface in the top-of-page error banner | Observation |
-| X3 | A later successful action clears or replaces the prior top-of-page error state as expected | Observation |
+| X3 | A subsequent successful action clears or replaces the prior top-of-page error state as expected | Observation |
 
 #### Runtime-Dependent Checks
 
 These have deterministic fixture-backed coverage in `bun run browser:smoke`. When you are
-running manual UAT against a real runtime, use the same expectations once that runtime exposes the
+running a manual check against a real runtime, use the same expectations once that runtime exposes the
 state natively.
 
 ##### Elicitation Form
@@ -565,7 +591,7 @@ These are not current pass/fail browser checks:
 
 - The first-pass prompt `What is the last message I sent?` is useful as a runtime smoke check, but
   it is not a pure browser-shell assertion.
-- Elicitation and auth dismissal depend on follow-up controller/runtime state, so the UI should not
+- Elicitation and auth dismissal depend on controller/runtime state after dismissal, so the UI should not
   promise immediate disappearance independent of backend behavior.
 - `bun run dev` uses the checked-in internal gateway runtime, which currently resolves to
   `opencode`; `bun run dev --runtime <id>` overrides that startup runtime for the integrated dev
@@ -580,7 +606,7 @@ These are not current pass/fail browser checks:
 
 | Category | Definition |
 |---|---|
-| blocker | Prevents further browser UAT or invalidates an automated proof lane |
+| blocker | Prevents further browser review or invalidates an automated proof lane |
 | bug | Incorrect behavior, but testing can continue elsewhere |
 | unclear behavior | Unexpected result that may be intended or may be a defect |
 | blocked | Check could not be exercised because the required runtime state was unavailable |
@@ -757,6 +783,16 @@ runtime prints shell banners, plugin warnings, or other non-protocol bytes befor
 JSON-RPC reply, `acp` fails fast with exit code `2` and a diagnostic on stderr — replacing the
 prior silent-hang failure mode. The helpers are exported as `inspectFirstChunk` and
 `formatContaminationError` from `@agents-js/cli`.
+
+### Subcommand Reference
+
+The flag tables below are extracted from the CLI parser specs themselves
+(`packages/cli/src/{acp,bridge,serve,mcp,send}.ts`); they enumerate every option the
+parser accepts on each subcommand. The narrative subsections above describe expected
+flows; this reference is the canonical list. The `client` subcommand is documented in
+its own subsection above and is not included here.
+
+!!!include(_generated/cli-command-table.md)!!!
 
 ### Protocol Context
 
@@ -994,8 +1030,8 @@ const middleware = createA2AMentionMiddleware({
   lifecycle hooks (see above), but Bob's step-by-step reasoning is not streamed
   to User A.
 - **Non-streaming.** The `stream: false` flag in the middleware is load-bearing.
-  User A does not see Bob's step-by-step reasoning, only the final text. A
-  follow-up release may lift this.
+  User A does not see Bob's step-by-step reasoning, only the final text.
+  Streaming delegated reasoning is not part of the beta @mention contract.
 - **Per-contextId session lanes, single upstream agent.** `apps/internal-gateway`
   routes concurrent prompts by `contextId` into independent `SessionLane`s.
   Each lane has its own in-flight bookkeeping and can optionally own a dedicated ACP
@@ -1061,9 +1097,15 @@ target descriptors:
 }
 ```
 
-Each entry is a `{ "url": "<http-endpoint>" }` object. The name is what a user types
-after `@` in a prompt. The URL must point at an A2A-compatible HTTP endpoint that
-serves an agent card at `<url>/.well-known/agent-card.json`.
+The name is what a user types after `@` in a prompt. Each entry is one of:
+
+!!!include(_generated/agent-registry-schema.md)!!!
+
+For `kind: "a2a"` entries, the URL must point at an A2A-compatible HTTP endpoint that
+serves an agent card at `<url>/.well-known/agent-card.json`. For `kind: "acp"` entries,
+the harness id selects the ACP runtime to spawn locally; see [Runtime Matrix](#runtime-matrix)
+for supported harness ids. The `kind` field defaults to `"a2a"` when omitted, for
+backward compatibility with pre-discriminator registries.
 
 ### Where The Registry Lives
 
@@ -1317,16 +1359,12 @@ surfaces.
 
 ### Supported Runtimes
 
-| Runtime    | Status                              | Command            | Ownership                      | Resolution                          | Notes |
-| ---------- | ----------------------------------- | ------------------ | ------------------------------ | ----------------------------------- | ----- |
-| `claude`   | Default validated path              | `claude-agent-acp` | Zed-maintained package         | CLI/workspace package bin, then `PATH` fallback | Default docs path and primary browser/CLI proof lane. |
-| `opencode` | Validated adapter path              | `opencode acp`     | External CLI                   | `PATH`                              | Use the clean-room profile path when local OpenCode plugins make diagnostics noisy. |
-| `gemini`   | Adapter present; validate locally   | `gemini --acp`     | External CLI                   | `PATH`                              | Requires the Gemini CLI to expose its ACP mode in the local environment. |
-| `codex`    | Adapter present; validate locally   | `codex-acp`        | Zed-maintained package         | CLI/workspace package bin, then `PATH` fallback | Uses the `codex-acp` bridge; API-key auth works for spawned contexts, while local subscription login is not portable to remote-spawned contexts. |
-| `pi`       | Adapter present; wire validation pending | `pi-acp`       | In-repo (@agents-js/pi-acp)    | workspace package bin, then `PATH` fallback | Requires the separate `pi` CLI and its local login state; do not treat as broadly validated yet. |
-| `droid`    | Adapter present; wire validation pending | `droid-acp`    | In-repo (@agents-js/droid-acp) | workspace package bin, then `PATH` fallback | Requires the separate Droid CLI and `FACTORY_API_KEY` or local Droid auth state; do not treat as broadly validated yet. |
-| `trial`    | Deterministic test fixture              | `trial-agent`  | In-repo (@agents-js/trial-agent) | workspace package bin, then `PATH` fallback | Exercises the ACP wire and tool primitives for tests; not a production runtime. |
-| custom     | Supported by ACP contract           | operator-provided  | Operator                       | operator-provided                   | Any command is acceptable if it speaks ACP over stdio. |
+!!!include(_generated/runtime-matrix.md)!!!
+
+A `custom` runtime is also supported by the ACP contract — any command is acceptable if it speaks
+ACP over stdio. The `mock-acp` runtime is registered only when `AGENTS_JS_ENABLE_MOCK_ACP_RUNTIME=1`
+and is intended for CI; the in-repo `trial` agent is a deterministic fixture rather than a
+production runtime.
 
 ### Behavior
 
@@ -1557,6 +1595,7 @@ A complete `.agents-js/config.json` with multiple profiles targeting different r
 
 ---
 title: Primitives
+diataxis: explanation
 ---
 
 # Primitives
@@ -1792,6 +1831,7 @@ console.log(result.status, result.summary, result.sources);
 
 ---
 title: Protocols
+diataxis: reference
 ---
 
 # Protocols and Schema Alignment
@@ -1811,7 +1851,7 @@ host-owned extensions begin.
 | **A2A** | Remote/browser/CLI protocol | Implemented and validated | ACP-specific metadata is carried in namespaced metadata keys rather than changing the A2A base envelope |
 | **MCP** | Tool/context interoperability surface | Passed through and schema-compatible | `agents-js` carries MCP server config through ACP session setup but is not a standalone MCP server/client framework |
 | **AG-UI** | Event vocabulary, client workflow semantics, and native transport | Implemented server + client — see [AG-UI](#ag-ui) | Namespaced `CUSTOM` events (`agents-js.*`) carry repo-specific concepts without breaking AG-UI consumers |
-| **A2UI** | Agent-authored surface lifecycle over the ACP host adapter seam | Compliant host adapter + renderer plus browser (`apps/web-ui`) and pi-extension host integrations; Obsidian is a separate-repo follow-up — see [A2UI](#a2ui) | User → agent back-channel rides a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event until the upstream spec lands a contract |
+| **A2UI** | Agent-authored surface lifecycle over the ACP host adapter seam | Compliant host adapter + renderer plus browser (`apps/web-ui`) and pi-extension host integrations — see [A2UI](#a2ui) | User → agent back-channel rides a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event until the upstream spec lands a contract |
 | **Runtime manifests** | Repo-defined validation surface | Implemented and validated | Runtime-specific validators register on top of the generic manifest contract |
 
 A2UI scope: compliant host adapter in `@agents-js/acp-host` plus a renderer in
@@ -2034,6 +2074,8 @@ The repo validates:
 - ACP responses via `validateACPResponse`
 - ACP form elicitation metadata via `ACPFormElicitationMetadata`
 
+!!!include(_generated/acp-validated-surface.md)!!!
+
 Validation supports the repo-wide modes:
 
 - `strict`
@@ -2209,11 +2251,13 @@ The server-side bridge currently supports these user-facing A2A methods:
 The gateway also supports push-notification config CRUD and authenticated extended-card retrieval at
 the SDK/server layer, but the turn/task methods above are the core user-facing bridge.
 
+!!!include(_generated/a2a-server-bridge.md)!!!
+
 ### Streaming behavior
 
 Streaming is task-backed rather than raw ACP chunk forwarding. The bridge emits JSON-RPC envelopes
 that wrap A2A task events, and the client stack can either consume them live or resume an in-flight
-task later.
+task through `tasks/resubscribe`.
 
 In practice this means:
 
@@ -2446,6 +2490,8 @@ Clients should treat the absence of `RUN_FINISHED`/`RUN_ERROR` as an incomplete 
 
 ### Supported Event Types
 
+<!-- pending-extraction: agui-canonical-events -->
+
 The server and client implement the full canonical set from `@ag-ui/core@0.0.52` (27
 event types), plus a namespaced `CUSTOM` extension family for agents-js-specific events
 that do not map cleanly to a canonical AG-UI event.
@@ -2591,19 +2637,17 @@ expected-but-not-yet-shipped capabilities are intentionally out of scope:
 
 - **Single in-flight prompt per gateway process.** The reference gateway backs AG-UI
   requests with a shared `HostSession` singleton. Issuing a second `POST /agent` while an
-  earlier run is still streaming will either queue behind it or be rejected, depending on
-  gateway configuration. Multi-tenant deployments should run one gateway process per
-  concurrent run for now.
+  earlier run is still streaming is rejected with HTTP 409 before the SSE stream opens.
+  Multi-tenant deployments should run one gateway process per concurrent run.
 - **No AG-UI resume.** The spec does not currently define a resume/reattach operation for
   runs. agents-js does not ship one either. A disconnected client must start a new run.
   The existing A2A `tasks/resubscribe` path is unchanged, but it is an A2A feature, not an
   AG-UI one.
-- **No per-thread multi-session isolation yet.** `threadId` is echoed correctly on every
+- **No per-thread multi-session isolation.** `threadId` is echoed correctly on every
   run, but the gateway does not maintain per-thread state across runs — each `POST /agent`
   is an independent session from the gateway's point of view.
 - **A2UI surface lifecycle is not part of AG-UI.** Dynamic agent-authored UI surfaces remain
-  host-owned and are not transported over AG-UI events. A2UI surface lifecycle is a later
-  wave.
+  host-owned and are not transported over AG-UI events.
 
 ### Repo Evidence
 
@@ -2626,8 +2670,7 @@ the resulting component trees onto the existing `acp-*` Lit primitives.
 
 The current implementation wires that surface lifecycle into the shipped hosts: `apps/web-ui` is the browser
 reference renderer and `extras/pi-extension` forwards surface events through its existing
-`onProgress` callback. The Obsidian plugin is a deferred follow-up tracked in the
-`obsidian-acp-plugin` repo.
+`onProgress` callback.
 
 This section is the compliance reference. The earlier posture — "component-vocabulary alignment
 only, no surface transport" — no longer describes the shipped state. The `@agents-js/ui-components`
@@ -2653,6 +2696,8 @@ same primitives through a published catalog.
 
 ### Supported Messages
 
+<!-- pending-extraction: a2ui-supported-messages -->
+
 The host adapter and renderer handle the four surface-lifecycle messages defined by
 `@a2ui/web_core@0.9.1-alpha.0`:
 
@@ -2670,6 +2715,8 @@ before it reaches the adapter or the renderer. The validator is the single gate;
 loose mode.
 
 ### Catalog
+
+<!-- pending-extraction: a2ui-catalog -->
 
 agents-js publishes one A2UI catalog: the ACP catalog. Its canonical ID is:
 
@@ -2804,25 +2851,25 @@ callback as `{ type: "a2ui", ... }`. Downstream consumers — Pi plugins and oth
 embedders — own rendering. The extension itself does not import `@agents-js/a2ui-renderer`
 and does not render a TUI surface; it is deliberately a transport hop.
 
-#### Obsidian (deferred)
+#### Obsidian
 
-Obsidian plugin integration is not part of the current package surface.
+Obsidian plugin integration is not part of the `agents-js` package surface.
 
 ### Known Limitations
 
-This is a compliant implementation of the A2UI surface lifecycle. Several
-expected-but-not-yet-shipped capabilities are intentionally out of scope:
+This is a compliant implementation of the A2UI surface lifecycle. These
+capabilities are outside the beta contract:
 
 - **Opaque back-channel.** A2UI v0.9 does not standardize a user → agent event format.
   agents-js carries events through the `agents-js.a2ui.surface_event` namespace without
   claiming cross-vendor interop on the return path. Treat the back-channel as
   implementation-defined until the upstream spec lands a contract.
 - **ACP catalog only.** The bundled `@agents-js/a2ui-renderer` resolves the ACP catalog
-  exclusively. The A2UI basic catalog and custom catalogs are deferred. Surfaces that
-  reference an unsupported catalog ID are rejected at validation time.
+  exclusively. Surfaces that reference an unsupported catalog ID are rejected at
+  validation time.
 - **Single surface per session.** The current baseline assumes one active surface per ACP
   session. Multi-surface composition — including surface stacking, overlays, and
-  independent lifecycles in one session — is a later wave.
+  independent lifecycles in one session — is outside the beta contract.
 
 ### Related Packages
 
@@ -2908,9 +2955,7 @@ The registry is intentionally runtime-id keyed, and the test helper
 
 Manifest validation honors the repo-wide validation modes:
 
-- `strict`
-- `loose`
-- `filter`
+!!!include(_generated/validation-modes.md)!!!
 
 The generic schema uses those modes the same way the rest of `@agents-js/validation` does:
 
@@ -2971,6 +3016,7 @@ library checks share the same contract.
 
 ---
 title: Harness Guide
+diataxis: howto
 ---
 
 # Harness Guide
@@ -3043,40 +3089,16 @@ For the broader standards map, see [Protocols & Schemas](/protocols).
 
 ### Stable Host Surface
 
-The supported `@agents-js/acp` host-facing exports are:
-
-- `ACPClientController`
-- `ACPHostAdapters`
-- `ACPWorkspaceRootPolicy`
-- `ACPClientState`
-- `ACPControllerEvent`
-- `spawnACPAgent`
-- `ClientSideConnection`
-- `PROTOCOL_VERSION`
-- `ndJsonStream`
-
-The supported `@agents-js/acp-host` orchestration surface is centered on:
-
-- `ACPSessionController`
-- `createHostACPProcess`
-- `createNodeFileAdapters`
-- `createTerminalHandlers`
-- `StartConfig`
-- workspace-context helpers such as `resolveWorkspaceContext`
+!!!include(_generated/acp-host-stable-surface.md)!!!
 
 The companion `@agents-js/validation` surface covers ACP, A2A, runtime-manifest, JSON-RPC, and
 shared host-policy helpers.
 
 ### Lifecycle Contract
 
-`ACPClientController` owns the ACP transport lifecycle:
+`ACPClientController` owns the ACP transport lifecycle.
 
-- `initialize`
-- `newSession`
-- `loadSession`
-- `prompt`
-- `cancel`
-- `dispose`
+!!!include(_generated/acp-controller-lifecycle.md)!!!
 
 `ACPSessionController` composes that controller with host-level concerns:
 
@@ -3140,7 +3162,9 @@ launching sessions from a more specific working directory.
 
 ### Process Creation Contract
 
-There are two supported ways to create ACP subprocesses:
+!!!include(_generated/acp-process-creation.md)!!!
+
+When choosing between them:
 
 - use `spawnACPAgent` when the default command, args, and inherited environment are acceptable
 - inject `createProcess` into `ACPClientController` or `ACPSessionController` when the host needs
@@ -3414,6 +3438,11 @@ The `Logger` system in `@agents-js/acp-host` also emits `LogEntry` objects to th
 
 ## Package Reference
 
+<!-- pending-extraction: package-reference -->
+<!-- The Concern column is editorial vocabulary, not derivable from package metadata.
+     Tracked in docs/.manifest.json#pendingExtraction; see docs/_generated/README.md
+     "Deferred extractions" for the unblock criterion. -->
+
 Each package maps to a specific harness concern:
 
 | Package | Concern | Key Exports |
@@ -3443,6 +3472,7 @@ Each package maps to a specific harness concern:
 
 ---
 title: Streaming, Events, and Concurrency
+diataxis: explanation
 ---
 
 # Streaming, Events, and Concurrency
@@ -3554,6 +3584,11 @@ in the streaming layer:)
 
 ## ACP mapping
 
+!!!include(_generated/acp-session-mapping.md)!!!
+
+`ACPSessionController` translates each of the variants above into host-side
+events and A2A status updates per the rules below.
+
 ### ACP text chunks
 
 - ACP `agent_message_chunk` text updates are accumulated per active task.
@@ -3626,6 +3661,8 @@ Artifact-append parity remains intentionally outside that claim.
 
 ## The five paths at a glance
 
+<!-- pending-extraction: streaming-five-paths -->
+
 | Path | Endpoint | Session isolation | In-flight slots | Streaming | Notes |
 |---|---|---|---|---|---|
 | **A2A** (`message/send`, `message/stream`, `tasks/resubscribe`) | `POST /a2a` | **Per `contextId`** — disjoint `SessionLane` per context | One in-flight prompt per lane (per-lane mutex) | Yes (SSE on `message/stream` / `tasks/resubscribe`) | Each lane gets its own controller when a `controllerFactory` is configured; otherwise lanes share a primary controller. |
@@ -3691,13 +3728,15 @@ governed by the target executor — the gateway forwards what the target emits.
 
 ## Concurrency boundary summary
 
+<!-- pending-extraction: concurrency-boundary -->
+
 | Concurrency aspect | Bounded by | Where enforced |
 |---|---|---|
 | Same-context serialization | `lane.inFlightPrompt` | `host-executor.ts` `getOrCreateLane()` + `runPrompt()` |
 | Cross-context parallelism | Number of distinct `contextId`s | Lane map size; lane idle sweep evicts stale entries |
-| AG-UI parallelism | None today | Shared `controller` in `agui-endpoint.ts` |
+| AG-UI parallelism | Single active run | `AguiRunCoordinator` rejects overlapping `/agent` runs with HTTP 409 before SSE opens |
 | Mention dispatch | Caller-blocking | `middleware.ts` `sendTurn(..., { stream: false, blocking: true })` |
-| Cancellation | Currently anchored on task-level cancel + ACP session cancel; client-disconnect cancellation is NOT yet enforced end-to-end (gap — see `docs/streaming-and-events.md` deliberate-limits) | A2A executor + ACP host adapter |
+| Cancellation | Task-level cancel + ACP session cancel; AG-UI disconnect calls controller cancel and emits a terminal run error | A2A executor + ACP host adapter + AG-UI run session |
 
 ## What this page does NOT cover
 
@@ -3720,6 +3759,7 @@ governed by the target executor — the gateway forwards what the target emits.
 
 ---
 title: Observability
+diataxis: reference
 ---
 
 # Observability
@@ -3729,6 +3769,10 @@ How agents-js surfaces runtime behavior for debugging, monitoring, and future te
 ## Current Primitive: Logger + logStore
 
 `@agents-js/acp-host` ships a structured logging system backed by a singleton ring buffer. Every session controller, permission engine, and terminal handler emits `LogEntry` objects through the `Logger` class, which are captured by the global `logStore` for the debug panel.
+
+!!!include(_generated/acp-observability-surface.md)!!!
+
+The detailed shape of each is documented below.
 
 ### LogEntry
 
@@ -3800,7 +3844,7 @@ import { SpanLogTransport, configureLogging } from "@agents-js/acp-host";
 const spanTransport = new SpanLogTransport(100);
 configureLogging({ transports: [spanTransport] });
 
-// Later: retrieve spans
+// Retrieve spans
 const active = spanTransport.getActiveSpans();
 const completed = spanTransport.getCompletedSpans();
 ```
@@ -3809,77 +3853,17 @@ Each `Span` contains `requestId`, `sessionId`, `startedAt`, `completedAt`, and t
 
 ## Canonical Events
 
-The debug stream covers five canonical event categories:
+`ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`.
 
-### 1. Session lifecycle
+!!!include(_generated/acp-canonical-events.md)!!!
 
-Emitted by `ACPSessionController` as `ACPSessionEvent` discriminated-union types:
-
-- `status_changed` — status transitions (idle → initializing → ready → prompting → …)
-- `session_created` — new session established
-- `session_loaded` — existing session loaded
-- `session_closed` — session closed
-- `session_forked` — session branched
-- `session_resumed` — session resumed
-
-Subscribe via `controller.subscribe(listener)`. The listener receives `(event: ACPSessionEvent, state: ACPSessionState)`.
-
-### 2. Tool invocation
-
-Emitted as `tool_call_start` and `tool_call_end` events:
-
-```ts
-| { type: "tool_call_start"; toolCallId: string; toolCallName: string; parentMessageId?: string }
-| { type: "tool_call_end"; toolCallId: string }
-```
-
-The `SessionHooks.onToolCall` hook also receives a `ToolCallSummary` (`{ id, name, status }`) for each invocation.
-
-### 3. Permission decision
-
-Permission requests and resolutions flow through both the event stream and hooks:
-
-- `permission_requested` — agent requests permission, includes the `RequestPermissionRequest`
-- `permission_resolved` — user resolves the request, includes cancel state and selected scope
-- `SessionHooks.beforePermission` / `afterPermission` — lifecycle hooks for mutating or observing decisions
-
-### 4. Content streaming
-
-Text chunks accumulate in `TurnState.textChunks` during a turn. The `SessionHooks.afterPrompt` hook receives the full `textChunks` array, `stopReason`, and `durationMs` when a turn completes.
-
-### 5. Error/exception
-
-Errors surface through:
-
-- `ACPSessionEvent` type `{ type: "error"; message: string }` — transport-level errors
-- `LogEntry` with `level: "error"` and `category: "error"` — structured error logging
-- `ACPSessionState.lastError` — the most recent error message on the session state
-- `EvalTransport` — collects errors per-request into `EvalRecord.errors[]`
+`SessionHooks` provides a parallel callback surface for the prompt and permission lifecycles (see below); errors additionally surface through `LogEntry` (`level: "error"`, `category: "error"`), `ACPSessionState.lastError`, and `EvalTransport`'s per-request `errors[]` array.
 
 ## Session Hooks
 
 `SessionHooks` provides typed lifecycle callbacks for host-side instrumentation:
 
-```ts
-export interface SessionHooks {
-  beforePrompt?(content: ContentBlock[], sessionId: string | null):
-    Promise<ContentBlock[] | undefined> | ContentBlock[] | undefined;
-  afterPrompt?(params: {
-    sessionId: string | null;
-    promptContent: ContentBlock[];
-    textChunks: string[];
-    stopReason: string;
-    durationMs: number;
-    requestId: string;
-    userMessageId?: string;
-    agentMessageId?: string;
-  }): Promise<void> | void;
-  beforePermission?(request, sessionId): Promise<RequestPermissionRequest | undefined>;
-  afterPermission?(request, response, sessionId, selectedScope?): Promise<void> | void;
-  onToolCall?(tool: ToolCallSummary, sessionId: string | null): Promise<void> | void;
-  onStatusChange?(from: ACPSessionStatus, to: ACPSessionStatus): Promise<void> | void;
-}
-```
+!!!include(_generated/acp-session-hooks.md)!!!
 
 Wire hooks into `StartConfig.hooks` when creating the controller. The A2A mention middleware uses `beforePrompt` for cross-agent dispatch.
 
@@ -3908,23 +3892,14 @@ Schema at v0.1; backwards-compatible field additions expected over time.
 
 ### Record shape
 
-Each `ToolCallTrace` record carries:
+The `ToolCallTrace` interface defined in `@agents-js/tools`:
 
-| Field | Description |
-|-------|-------------|
-| `schema_version` | Semver of the schema (`"0.1.0"` today) |
-| `event_id` | ULID or UUID v4 unique to this invocation |
-| `timestamp` | ISO 8601 wall-clock start time |
-| `agent_id` | MXID-shaped identifier of the invoking agent |
-| `session_id` | ACP session id, or `null` for direct-emission calls |
-| `tool_name` | Canonical name (e.g. `"SpawnAgent"`, `"fetchContext"`) |
-| `args` / `result` | Tool input and output, with per-tool redaction applied |
-| `status` | `ok` \| `error` \| `timeout` \| `cancelled` \| `in_flight` |
-| `duration_ms` | Wall-clock elapsed time |
-| `parent_event_id` | Parent invocation for composition chains |
-| `root_event_id` | Outermost ancestor for O(1) composition traversal |
-| `error` | Populated on non-`ok` status |
-| `tags` | Free-form indexing labels |
+<<< @/../packages/tools/src/trace.ts#tool-call-trace{ts}
+
+Field-level format expectations not visible in the TypeScript types
+(e.g. `event_id` as ULID/UUIDv4, `timestamp` as ISO 8601, `agent_id`
+as MXID-shaped, `schema_version` as semver) are pinned by the schema
+spec referenced from the interface JSDoc.
 
 ### Redaction
 
@@ -3979,14 +3954,14 @@ serialized writes), `createMemorySink` (tests), and
 
 The reference browser UI (`apps/web-ui`) includes a debug panel that visualizes the `logStore` stream. It renders `LogEntry` entries filtered by category and level. See [Browser Guide](/surfaces) for setup instructions.
 
-## Roadmap
+## Telemetry Scope
 
-Planned telemetry improvements (not yet implemented):
-
-- **`TelemetryAdapter` port** — a pluggable interface for emitting structured events, modeled after `LogTransport` but with richer context (trace IDs, span links, metric counters). Will coexist with the existing `Logger`/`logStore` system.
-- **Correlation-ID propagation** — propagate request and session IDs through A2A metadata (`_meta`) and ACP session methods so multi-agent traces can be correlated end-to-end.
-- **OpenTelemetry adapter** — an optional `@agents-js/telemetry` leaf package that bridges `LogEntry` and `ACPSessionEvent` to OTel spans and logs. Recommended but not required.
-- **Event persistence** — JSONL via `createJsonlFileSink` lands today as part of tool-call-trace v0.1. SQLite-backed sinks and broader session-replay coverage are still planned.
+Current telemetry includes logger transports, browser debug records, tool-call trace sinks,
+correlation IDs on gateway control-plane events, and structural audit events for AG-UI,
+A2A tasks, registry sync, @mention dispatch, and @@dispatch. JSONL persistence via
+`createJsonlFileSink` is the durable sink shipped with tool-call-trace v0.1. Hosts that
+need OpenTelemetry, SQLite persistence, or session replay own that integration above the
+package primitives.
 
 ## Non-goals
 
@@ -4002,7 +3977,7 @@ title: Contribute
 
 # Contribute
 
-This page covers everything contributors and operators need to work inside the `agents-js` monorepo: development setup, build and test commands, release posture, the release checklist, and deploying docs from local.
+This page covers everything contributors and operators need to work inside the `agents-js` monorepo: development setup, build and test commands, release posture, and the release checklist.
 
 If you are trying to use the product first, start with [Getting Started](/getting-started), [Browser Guide](/surfaces), or [CLI Guide](/surfaces#cli).
 
@@ -4056,7 +4031,6 @@ bun run e2e:deterministic
 bun run e2e -- --runtime claude
 bun run ci             # deterministic upstream proof gate
 bun run test:docs      # TypeDoc code-block validation
-bun run docs:verify-generated  # fail if generated API docs drift from checked-in docs/api
 bun run release:preflight  # full local release/distribution contract audit
 ```
 
@@ -4137,15 +4111,9 @@ The release-defining validation surface for `agents-js` is repo-local:
 | `apps/web-ui` | Browser reference client | Proves the browser-side UX and host bridge from source. |
 | `apps/internal-gateway` | Runtime and ACP/A2A bridge | Proves runtime boot, gateway behavior, and repo-owned live flows. |
 | Package tests | Unit + integration | Prove reusable contracts package by package. |
-| Docs build + docs deploy tooling | Public docs surface | Proves that the published docs site matches the checked-in story. |
+| Static docs build | Public docs surface | Proves that the published docs site matches the checked-in story. |
 
 External consumers can still be useful corroborating evidence, but they are not the canonical release gate for this repo.
-
-### Managed Branch Flow
-
-`agents-js` is the long-lived reviewed integration lane for this repo. Keep the managed worktree on `agents-js`, push that branch for branch-local validation, and only promote `main` by fast-forwarding it to the exact validated `agents-js` tip.
-
-If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, rerun the required local gates, push the rebased `agents-js` branch, and only then fast-forward `main`. Do not use merge commits or ad hoc release branches between the two lanes.
 
 ### Release Operator Contract
 
@@ -4155,9 +4123,7 @@ If `origin/main` moves before promotion, rebase `agents-js` onto `origin/main`, 
 
 ### Docs Publication Contract
 
-The repository builds static docs with VitePress. Deployment topology is
-operator-owned: CI systems, registries, tunnels, reverse proxies, and container
-orchestration are configured outside the package contract.
+The repository builds static docs with VitePress. Deployment topology is configured outside the package contract.
 
 ### Consumption Guidance
 

@@ -137,6 +137,52 @@ const handAuthoredStatusPatterns: readonly { label: string; pattern: RegExp }[] 
   },
 ];
 
+// Bun is the workspace's *internal* toolchain (lockfile, mise pin, scripts).
+// Consumers install via `npm i -g @agents-js/cli` or `bunx`; nothing forces
+// them onto Bun. Framing the project as a "Bun toolkit" wrongly implies
+// otherwise. Likewise, this repo treats `@agents-js/cli` as published — any
+// "until it's published / not yet on npm / from a clone instead" hedging is
+// stale wording and must be removed before docs ship. README is the canonical
+// positioning source; these forbid-patterns enforce the no-regression rule.
+const userFacingForbiddenPhrases: readonly { label: string; pattern: RegExp }[] = [
+  { label: "consumer-facing 'Bun toolkit' framing", pattern: /\bBun toolkit\b/gi },
+  { label: "consumer-facing 'typed Bun' framing", pattern: /\btyped Bun\b/gi },
+  // Backtick-tolerant: the original docs/index.md hedge wrote
+  // "Until `@agents-js/cli` is published". `[^.\n]{0,40}` keeps the match
+  // inside one sentence while allowing for code-fence punctuation.
+  { label: "publication hedge", pattern: /\bUntil[^.\n]{0,40}is published\b/gi },
+  { label: "publication hedge", pattern: /\bpublished to public npm\b/gi },
+  { label: "publication hedge", pattern: /\bnot yet published\b/gi },
+  { label: "publication hedge", pattern: /\bnot yet on npm\b/gi },
+  { label: "publication hedge", pattern: /\bonce published\b/gi },
+  { label: "publication hedge", pattern: /\bwhen published\b/gi },
+  { label: "publication hedge", pattern: /\bwill be published\b/gi },
+  { label: "publication hedge", pattern: /\bpre-publication\b/gi },
+  { label: "publication hedge", pattern: /\bpending publication\b/gi },
+  {
+    label: "publication hedge",
+    pattern: /from a clone via the full-stack track instead/gi,
+  },
+];
+
+// Files where editorial drift in positioning prose actually reaches readers.
+// Contributor-facing files (AGENTS.md, CONTRIBUTING.md, docs/develop/**) are
+// exempt from these phrase rules — release runbooks may legitimately discuss
+// publication status.
+const contributorFacingPaths = new Set<string>(["AGENTS.md", "CONTRIBUTING.md"]);
+const contributorFacingPrefixes: readonly string[] = ["docs/develop/"];
+
+function isContributorFacingPath(filePath: string): boolean {
+  if (contributorFacingPaths.has(filePath)) return true;
+  return contributorFacingPrefixes.some((prefix) => filePath.startsWith(prefix));
+}
+
+// Required positioning marker — the canonical project tagline. Both README and
+// the docs landing page must contain it. README is the canonical source; the
+// docs landing page is derived. Enforced via `docs/.manifest.json` file
+// expectations (`contains`).
+export const CANONICAL_POSITIONING_MARKER = "A TypeScript library tying together";
+
 const generatedDocsPaths = new Set(["docs/llms.txt", "docs/llms-full.txt"]);
 
 // Calculated machine-readable outputs are allowed to carry exact counts.
@@ -346,6 +392,25 @@ function collectHandAuthoredStatusIssues(files: readonly TextFile[]): string[] {
     if (isGeneratedMachineReadablePath(file.path)) continue;
     const isGeneratedDoc = generatedDocsPaths.has(file.path);
     for (const { label, pattern } of handAuthoredStatusPatterns) {
+      for (const match of collectPatternMatches(file.content, pattern)) {
+        if (isGeneratedDoc) {
+          errors.push(`${file.path}: generated docs bundle still carries ${label}: ${match}`);
+        } else {
+          errors.push(`${file.path}: contains ${label}: ${match}`);
+        }
+      }
+    }
+  }
+  return errors;
+}
+
+export function collectUserFacingForbiddenIssues(files: readonly TextFile[]): string[] {
+  const errors: string[] = [];
+  for (const file of files) {
+    if (isGeneratedMachineReadablePath(file.path)) continue;
+    if (isContributorFacingPath(file.path)) continue;
+    const isGeneratedDoc = generatedDocsPaths.has(file.path);
+    for (const { label, pattern } of userFacingForbiddenPhrases) {
       for (const match of collectPatternMatches(file.content, pattern)) {
         if (isGeneratedDoc) {
           errors.push(`${file.path}: generated docs bundle still carries ${label}: ${match}`);
@@ -645,6 +710,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         liveBrowserCommand,
         "## Quick Start",
         "## Advanced Usage",
+        CANONICAL_POSITIONING_MARKER,
       ],
     },
     {
@@ -689,6 +755,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "## Hello, world",
         "## What you get",
         "[Surfaces](/surfaces)",
+        CANONICAL_POSITIONING_MARKER,
       ],
     },
     {
@@ -721,6 +788,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
   errors.push(...collectProviderHostReferenceIssues(scanFiles));
   errors.push(...collectRemovedDocPathIssues(scanFiles));
   errors.push(...collectHandAuthoredStatusIssues(scanFiles));
+  errors.push(...collectUserFacingForbiddenIssues(scanFiles));
 
   const manifestNames = await readWorkspaceManifestNames(root);
   const graphPackageNames = await readGraphPackageNames(root);

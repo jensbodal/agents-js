@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CANONICAL_POSITIONING_MARKER,
   collectFileExpectationIssues,
   collectFrontmatterTagIssues,
   collectGraphPackageIssues,
   collectPendingExtractionBreadcrumbIssues,
   collectProviderHostReferenceIssues,
   collectRemovedDocPathIssues,
+  collectUserFacingForbiddenIssues,
 } from "./docs-consistency.ts";
 
 describe("docs-consistency", () => {
@@ -246,5 +248,108 @@ describe("docs-consistency", () => {
     expect(issues).toContain(
       'docs/.manifest.json: pendingExtraction lists "ghost.md" (blocked by Phantom port) but it is not in handAuthoredPages',
     );
+  });
+
+  /**
+   * WHAT: Pin that the canonical positioning marker is the README's tagline
+   * substring — anyone changing the marker is touching the source of truth.
+   * WHY: README is canonical; docs/index.md is derived. Both are required to
+   * contain this marker via the `contains` expectation list.
+   */
+  test("canonical positioning marker is the README tagline substring", () => {
+    expect(CANONICAL_POSITIONING_MARKER).toBe("A TypeScript library tying together");
+  });
+
+  /**
+   * WHAT: Pin that 'Bun toolkit' and 'typed Bun' framing trips the gate in
+   * user-facing docs (README, docs/*.md) but not in contributor-facing files
+   * (AGENTS.md, CONTRIBUTING.md, docs/develop/**).
+   * WHY: Bun is the workspace's internal toolchain. Consumers install via
+   * `npm i -g @agents-js/cli` or `bunx`; framing the project as a "Bun
+   * toolkit" wrongly implies otherwise. This is the regression that prompted
+   * the rule.
+   */
+  test("rejects 'Bun toolkit' framing in user-facing docs", () => {
+    const issues = collectUserFacingForbiddenIssues([
+      {
+        path: "docs/index.md",
+        content: "tagline: A typed Bun toolkit for ACP runtimes over A2A.",
+      },
+      {
+        path: "README.md",
+        content: "A typed Bun toolkit for ACP runtimes over A2A.",
+      },
+      {
+        path: "AGENTS.md",
+        content: "Internal stack: this is a Bun toolkit workspace, internally.",
+      },
+      {
+        path: "docs/develop/contribute.md",
+        content: "Contributors run Bun toolkit commands locally.",
+      },
+    ]);
+
+    expect(issues).toEqual([
+      "docs/index.md: contains consumer-facing 'Bun toolkit' framing: Bun toolkit",
+      "docs/index.md: contains consumer-facing 'typed Bun' framing: typed Bun",
+      "README.md: contains consumer-facing 'Bun toolkit' framing: Bun toolkit",
+      "README.md: contains consumer-facing 'typed Bun' framing: typed Bun",
+    ]);
+  });
+
+  /**
+   * WHAT: Pin that publication-hedge phrases ("until @agents-js/cli is
+   * published", "not yet on npm", "from a clone via the full-stack track
+   * instead", etc.) trip the gate in user-facing docs.
+   * WHY: This repo treats `@agents-js/cli` as published. Hedges are stale
+   * wording from before publication and must not reach readers — this was
+   * the second concrete drift the docs audit found.
+   */
+  test("rejects publication-hedge phrases in user-facing docs", () => {
+    const issues = collectUserFacingForbiddenIssues([
+      {
+        path: "docs/index.md",
+        content:
+          "*Until `@agents-js/cli` is published to public npm, run this from a clone via the full-stack track instead.*",
+      },
+      {
+        path: "README.md",
+        content: "The CLI is not yet on npm. Once published, install globally.",
+      },
+      {
+        path: "docs/develop/contribute.md",
+        content: "Once published, run `npm view @agents-js/cli` to confirm.",
+      },
+    ]);
+
+    expect(issues).toEqual([
+      "docs/index.md: contains publication hedge: Until `@agents-js/cli` is published",
+      "docs/index.md: contains publication hedge: published to public npm",
+      "docs/index.md: contains publication hedge: from a clone via the full-stack track instead",
+      "README.md: contains publication hedge: not yet on npm",
+      "README.md: contains publication hedge: Once published",
+    ]);
+  });
+
+  /**
+   * WHAT: Pin that the generated docs bundle (`docs/llms.txt`, `docs/llms-full.txt`)
+   * is also scanned for publication hedges and reports with the
+   * "generated docs bundle still carries" prefix.
+   * WHY: Generated outputs trail the hand-authored source. If `docs:bundle`
+   * was not re-run after a fix, the gate must catch the residual phrase in
+   * the generated artifact too.
+   */
+  test("flags publication hedges in generated docs bundles distinctly", () => {
+    const issues = collectUserFacingForbiddenIssues([
+      {
+        path: "docs/llms-full.txt",
+        content: "*Until `@agents-js/cli` is published to public npm, …*",
+      },
+    ]);
+
+    expect(issues).toEqual([
+      "docs/llms-full.txt: generated docs bundle still carries publication hedge: Until `@agents-js/cli` is published",
+      "docs/llms-full.txt: generated docs bundle still carries publication hedge: published to public npm",
+    ]);
   });
 });
