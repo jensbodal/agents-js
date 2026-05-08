@@ -1,4 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { ACP_ARG_SPEC } from "../src/acp.ts";
+import { BRIDGE_ARG_SPEC } from "../src/bridge.ts";
+import { MCP_BRIDGE_ARG_SPEC, MCP_SETUP_ARG_SPEC } from "../src/mcp.ts";
+import { SEND_ARG_SPEC } from "../src/send.ts";
+import { SERVE_ARG_SPEC } from "../src/serve.ts";
 import {
   type HarnessArg,
   type HostPortArgs,
@@ -137,5 +142,96 @@ describe("ArgEntry description + valueExample contract", () => {
     if (h?.kind !== "value") throw new Error("expected --harness to be a value entry");
     expect(typeof h.description).toBe("string");
     expect(h.description?.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Per-subcommand `ARG_SPEC` constants are the inputs the
+ * `cli-command-table.md` partial generator walks. The shared-fragment
+ * tests above already pin the spread sources; these tests pin the
+ * load-bearing local entries plus a representative spread-derived entry
+ * per subcommand so a refactor that drops a description (or breaks a
+ * spread chain so descriptions are lost on assembly) fails here.
+ */
+describe("ACP_ARG_SPEC (acp subcommand)", () => {
+  test("--directory describes its constraint and exposes a path valueExample", () => {
+    const dir = ACP_ARG_SPEC["--directory"];
+    if (dir?.kind !== "value") throw new Error("expected --directory to be a value entry");
+    expect(dir.description).toMatch(/workspace directory/);
+    expect(dir.valueExample).toBe("<path>");
+  });
+
+  test("composes runtimeSelectArgs so --harness retains its description", () => {
+    const harness = ACP_ARG_SPEC["--harness"];
+    if (harness?.kind !== "value") throw new Error("expected --harness to be a value entry");
+    expect(harness.description?.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe("BRIDGE_ARG_SPEC (bridge subcommand)", () => {
+  test("composes hostPortArgs so --host and --port retain their descriptions", () => {
+    const host = BRIDGE_ARG_SPEC["--host"];
+    const port = BRIDGE_ARG_SPEC["--port"];
+    if (host?.kind !== "value") throw new Error("expected --host to be a value entry");
+    if (port?.kind !== "value") throw new Error("expected --port to be a value entry");
+    expect(host.description?.length ?? 0).toBeGreaterThan(0);
+    expect(port.description?.length ?? 0).toBeGreaterThan(0);
+    expect(port.valueExample?.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe("SERVE_ARG_SPEC (serve subcommand)", () => {
+  test("composes hostPortArgs + runtimeSelectArgs with descriptions intact", () => {
+    const host = SERVE_ARG_SPEC["--host"];
+    const harness = SERVE_ARG_SPEC["--harness"];
+    if (host?.kind !== "value") throw new Error("expected --host to be a value entry");
+    if (harness?.kind !== "value") throw new Error("expected --harness to be a value entry");
+    expect(host.description?.length ?? 0).toBeGreaterThan(0);
+    expect(harness.description?.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe("MCP_SETUP_ARG_SPEC (mcp setup subcommand)", () => {
+  test("--global describes settings.json target", () => {
+    const global = MCP_SETUP_ARG_SPEC["--global"];
+    if (global?.kind !== "flag") throw new Error("expected --global to be a flag entry");
+    expect(global.description).toMatch(/settings\.json/);
+  });
+
+  test("--claude describes the claude mcp add registration path", () => {
+    const claude = MCP_SETUP_ARG_SPEC["--claude"];
+    if (claude?.kind !== "flag") throw new Error("expected --claude to be a flag entry");
+    expect(claude.description).toMatch(/claude mcp add/);
+  });
+});
+
+describe("MCP_BRIDGE_ARG_SPEC (mcp bridge subcommand)", () => {
+  test("--url describes the gateway base URL with a valueExample", () => {
+    const url = MCP_BRIDGE_ARG_SPEC["--url"];
+    if (url?.kind !== "value") throw new Error("expected --url to be a value entry");
+    expect(url.description).toMatch(/gateway/i);
+    expect(url.valueExample).toBe("<gateway-url>");
+  });
+});
+
+describe("SEND_ARG_SPEC (send subcommand)", () => {
+  test("--url describes the serve base URL fallback with a valueExample", () => {
+    const url = SEND_ARG_SPEC["--url"];
+    if (url?.kind !== "value") throw new Error("expected --url to be a value entry");
+    expect(url.description).toMatch(/serve base URL/);
+    expect(url.valueExample).toBe("<base-url>");
+  });
+
+  test("--harness describes the routing contract with a valueExample", () => {
+    const harness = SEND_ARG_SPEC["--harness"];
+    if (harness?.kind !== "value") throw new Error("expected --harness to be a value entry");
+    expect(harness.description).toMatch(/harness id/);
+    expect(harness.valueExample).toBe("<id>");
+  });
+
+  test("--raw describes the streaming behavior", () => {
+    const raw = SEND_ARG_SPEC["--raw"];
+    if (raw?.kind !== "flag") throw new Error("expected --raw to be a flag entry");
+    expect(raw.description).toMatch(/message\.delta/);
   });
 });
