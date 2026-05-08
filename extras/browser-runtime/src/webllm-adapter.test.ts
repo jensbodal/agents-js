@@ -86,7 +86,7 @@ describe("createWebLLMAdapter", () => {
     expect(calls[0]?.temperature).toBe(0);
   });
 
-  it("decideAction includes prior actions as an assistant message when non-empty", async () => {
+  it("decideAction inlines prior actions into the user message when non-empty", async () => {
     const prior: Action[] = [{ kind: "tool", tool: "searchDocs", args: { query: "acp" } }];
     const { model, calls } = makeFakeModel(() => ({
       choices: [{ message: { content: '{"kind":"answer","answerDraft":"hi"}' } }],
@@ -95,12 +95,19 @@ describe("createWebLLMAdapter", () => {
 
     await adapter.decideAction({ sessionInput: "what is acp", prior });
 
-    const assistantMsg = calls[0]?.messages.find((m) => m.role === "assistant");
-    expect(assistantMsg?.content).toContain("searchDocs");
-    expect(assistantMsg?.content).toContain("acp");
+    // Prior must NOT be emitted as assistant — that violates WebLLM's
+    // chat-completion contract that the last message be `user` or `tool`.
+    expect(calls[0]?.messages.some((m) => m.role === "assistant")).toBe(false);
+    const userMsg = calls[0]?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("what is acp");
+    expect(userMsg?.content).toContain("searchDocs");
+    expect(userMsg?.content).toContain("acp");
+    // Last message MUST be `user` so completions accepts the request.
+    const last = calls[0]?.messages[calls[0]?.messages.length - 1];
+    expect(last?.role).toBe("user");
   });
 
-  it("decideAction omits the assistant message when prior is empty", async () => {
+  it("decideAction sends a bare user message when prior is empty", async () => {
     const { model, calls } = makeFakeModel(() => ({
       choices: [{ message: { content: '{"kind":"answer","answerDraft":"hi"}' } }],
     }));
@@ -109,6 +116,8 @@ describe("createWebLLMAdapter", () => {
     await adapter.decideAction({ sessionInput: "x", prior: [] });
 
     expect(calls[0]?.messages.some((m) => m.role === "assistant")).toBe(false);
+    const userMsg = calls[0]?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toBe("x");
   });
 
   it("decideAction returns empty string when content is missing", async () => {

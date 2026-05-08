@@ -74,11 +74,32 @@ export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
             emit({ jsonrpc: "2.0", method: "session/update", params: { kind: "cancelled" } });
             return;
           }
-          const decision = await deps.adapter.decideAction({
-            sessionInput: params.input,
-            prior,
-            signal,
-          });
+          let decision: DecideResult;
+          try {
+            decision = await deps.adapter.decideAction({
+              sessionInput: params.input,
+              prior,
+              signal,
+            });
+          } catch (err) {
+            // The model rejected the request (bad message format, context
+            // overflow, device loss, etc.). Don't surface a raw `RUN_ERROR`;
+            // emit a graceful answer chunk so the user sees a coherent reply
+            // instead of an opaque trace error. The trace still records the
+            // failure via telemetry below.
+            const reason = (err as Error).message || "unknown model error";
+            deps.telemetry.emit({ name: "decide.failure", attrs: { reason } });
+            emit({
+              jsonrpc: "2.0",
+              method: "session/update",
+              params: {
+                kind: "answer.chunk",
+                text: `I couldn't continue this run because the local model rejected the request: ${reason}. Try rephrasing the question or starting a new run.`,
+              },
+            });
+            emit({ jsonrpc: "2.0", method: "session/update", params: { kind: "answer.done" } });
+            return;
+          }
           if (signal.aborted) {
             emit({ jsonrpc: "2.0", method: "session/update", params: { kind: "cancelled" } });
             return;
@@ -121,17 +142,36 @@ export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
           }
 
           if (action.kind === "answer") {
-            for await (const chunk of deps.adapter.streamAnswer({
-              sessionInput: params.input,
-              prior,
-              signal,
-            })) {
-              if (signal.aborted) break;
+            try {
+              for await (const chunk of deps.adapter.streamAnswer({
+                sessionInput: params.input,
+                prior,
+                signal,
+              })) {
+                if (signal.aborted) break;
+                emit({
+                  jsonrpc: "2.0",
+                  method: "session/update",
+                  params: { kind: "answer.chunk", text: chunk },
+                });
+              }
+            } catch (err) {
+              // Same defense as `decideAction`: a streaming failure should
+              // produce a graceful answer rather than RUN_ERROR. Drop a
+              // closing chunk + answer.done so the UI exits the streaming
+              // state cleanly.
+              const reason = (err as Error).message || "unknown model error";
+              deps.telemetry.emit({ name: "stream.failure", attrs: { reason } });
               emit({
                 jsonrpc: "2.0",
                 method: "session/update",
-                params: { kind: "answer.chunk", text: chunk },
+                params: {
+                  kind: "answer.chunk",
+                  text: `\n\n(The local model failed mid-answer: ${reason}.)`,
+                },
               });
+              emit({ jsonrpc: "2.0", method: "session/update", params: { kind: "answer.done" } });
+              return;
             }
             // After the for-await drains, treat an aborted signal as a
             // cancel (NOT answer.done). Without this guard, a cancel that

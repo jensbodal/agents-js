@@ -281,4 +281,66 @@ describe("createMetaAgentLoop", () => {
 
     expect(secondRunSignal?.aborted).toBe(false);
   });
+
+  it("decideAction failure degrades to a graceful answer.chunk + answer.done", async () => {
+    const adapter: ModelAdapter = {
+      decideAction: async () => {
+        throw new Error("MessageOrderError: Last message should be from either `user` or `tool`.");
+      },
+      streamAnswer: async function* () {
+        yield "should not reach";
+      },
+    };
+    const tools: LocalToolRegistry = {
+      invoke: async () => ({}),
+      names: () => ["searchDocs"],
+    };
+    const tel = createInMemoryTelemetry();
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
+    const { emit, events } = emitter();
+    await runner.runPrompt({ sessionId: "s", input: "what is acp" }, emit);
+
+    // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+    const kinds = events.map((e: any) => e.params?.kind);
+    expect(kinds).toContain("answer.chunk");
+    expect(kinds).toContain("answer.done");
+    expect(kinds).not.toContain("error");
+    // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+    const chunk = events.find((e: any) => e.params?.kind === "answer.chunk");
+    // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+    expect(String((chunk as any).params.text)).toContain("MessageOrderError");
+    expect(tel.snapshot().some((e) => e.name === "decide.failure")).toBe(true);
+  });
+
+  it("streamAnswer failure mid-stream degrades to a closing chunk + answer.done", async () => {
+    const adapter: ModelAdapter = {
+      decideAction: async () => ({ raw: '{"kind":"answer","answerDraft":"hi"}' }),
+      streamAnswer: async function* () {
+        yield "partial ";
+        throw new Error("device lost");
+      },
+    };
+    const tools: LocalToolRegistry = {
+      invoke: async () => ({}),
+      names: () => ["searchDocs"],
+    };
+    const tel = createInMemoryTelemetry();
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
+    const { emit, events } = emitter();
+    await runner.runPrompt({ sessionId: "s", input: "hi" }, emit);
+
+    // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+    const kinds = events.map((e: any) => e.params?.kind);
+    expect(kinds).toContain("answer.chunk");
+    expect(kinds).toContain("answer.done");
+    expect(kinds).not.toContain("error");
+    const chunkTexts = events
+      // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+      .filter((e: any) => e.params?.kind === "answer.chunk")
+      // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+      .map((e: any) => String(e.params.text));
+    expect(chunkTexts.some((t) => t.includes("partial"))).toBe(true);
+    expect(chunkTexts.some((t) => t.includes("device lost"))).toBe(true);
+    expect(tel.snapshot().some((e) => e.name === "stream.failure")).toBe(true);
+  });
 });

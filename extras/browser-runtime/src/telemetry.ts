@@ -11,6 +11,8 @@ export const TELEMETRY_EVENT_NAMES = [
   "worker.crash",
   "fallback.used",
   "user.dropoff",
+  "decide.failure",
+  "stream.failure",
 ] as const;
 
 export type TelemetryEventName = (typeof TELEMETRY_EVENT_NAMES)[number];

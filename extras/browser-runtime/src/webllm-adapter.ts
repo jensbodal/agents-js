@@ -17,13 +17,16 @@ import type { ModelAdapter } from "./meta-agent-loop.ts";
 const ACTION_SCHEMA_JSON = JSON.stringify(ACTION_SCHEMA);
 
 /**
- * Render prior actions as the assistant's "memory" message body. Named
- * because this is a v1 hack — assistant-role JSON-string is the smallest
- * change that makes the model see its own past decisions. The proper fix
- * is to carry tool results in a typed structure and replay them via
- * tool-role messages; this helper is the seam where that change will land.
+ * Render prior actions as a footer for the user message body. Inlined into
+ * the `user` role rather than emitted as a separate `assistant` message
+ * because WebLLM (and OpenAI-compatible chat templates more broadly) reject
+ * a completions request whose last message is `assistant` — the model needs
+ * a `user` or `tool` message to know what to respond to. The proper fix
+ * carries tool results in a typed structure and replays them via `tool`-role
+ * messages; until then, this footer gives the model a hint of its own past
+ * decisions while keeping the request well-formed.
  */
-function serializePriorAsAssistant(prior: Action[]): string {
+function serializePriorForUser(prior: Action[]): string {
   return JSON.stringify(prior);
 }
 
@@ -132,13 +135,14 @@ export function createWebLLMAdapter(
   return {
     async decideAction({ sessionInput, prior, signal }) {
       bridgeSignalToInterrupt(model, signal);
-      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+      const userContent =
+        prior.length === 0
+          ? sessionInput
+          : `${sessionInput}\n\n[Previous actions you took: ${serializePriorForUser(prior)}]`;
+      const messages: Array<{ role: "system" | "user"; content: string }> = [
         { role: "system", content: decideSystemPrompt },
-        { role: "user", content: sessionInput },
+        { role: "user", content: userContent },
       ];
-      if (prior.length > 0) {
-        messages.push({ role: "assistant", content: serializePriorAsAssistant(prior) });
-      }
       const completion = await model.engine.chat.completions.create({
         messages,
         // schema must be the STRINGIFIED JSON Schema — see ACTION_SCHEMA_JSON
