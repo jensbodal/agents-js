@@ -82,7 +82,13 @@ const setSendHelp = (a: SendCommandArgs): void => {
   a.help = true;
 };
 
-const SEND_ARG_SPEC: ArgSpec<SendCommandArgs> = {
+/**
+ * Argv-parser spec for `agents-js send`. Exposed for the docs
+ * governance generator.
+ *
+ * @hostCliSubcommand
+ */
+export const SEND_ARG_SPEC: ArgSpec<SendCommandArgs> = {
   "--help": { kind: "flag", assign: setSendHelp, description: "Show this message." },
   "-h": { kind: "flag", assign: setSendHelp, description: "Show this message." },
   "--url": {

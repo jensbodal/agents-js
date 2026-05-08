@@ -25,12 +25,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  getCLISubcommandFlags,
   getDiscriminatedUnionVariants,
   getHostLifecycleMethods,
   getHostObservabilityExports,
   getHostProcessFunctions,
   getHostSurfaceExports,
   getInterfaceFieldSignatures,
+  getRuntimeRegistryMatrix,
 } from "./lib/package-introspection.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -185,6 +187,116 @@ const PARTIALS: PartialSpec[] = [
         "The `@agents-js/acp-host` observability surface is:",
         "",
         ...names.map((n) => `- \`${n}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "cli-command-table.md",
+    sources: [
+      "packages/cli/src/acp.ts",
+      "packages/cli/src/bridge.ts",
+      "packages/cli/src/serve.ts",
+      "packages/cli/src/mcp.ts",
+      "packages/cli/src/send.ts",
+      "packages/cli/src/shared-arg-specs.ts",
+    ],
+    extractionMethod:
+      "@hostCliSubcommand-tagged ArgSpec literals via ts-morph (factory spreads flattened)",
+    body() {
+      const subcommands = [
+        { module: "acp", title: "`agents-js acp`" },
+        { module: "bridge", title: "`agents-js bridge`" },
+        { module: "serve", title: "`agents-js serve`" },
+        { module: "mcp", title: "`agents-js mcp`" },
+        { module: "send", title: "`agents-js send`" },
+      ] as const;
+      const sections: string[] = ["The supported CLI subcommands and their flags are:", ""];
+      for (const { module, title } of subcommands) {
+        const flags = getCLISubcommandFlags(join(ROOT, "packages/cli/src"), module);
+        if (flags.length === 0) {
+          throw new Error(
+            `No @hostCliSubcommand flags resolved for ${module}. Either tag the ArgSpec or remove the entry from cli-command-table.md.`,
+          );
+        }
+        sections.push(`#### ${title}`);
+        sections.push("");
+        sections.push("| Flag | Kind | Description |");
+        sections.push("| --- | --- | --- |");
+        for (const f of flags) {
+          const flagCol =
+            f.kind === "value" && f.valueExample
+              ? `\`${f.flag} ${f.valueExample}\``
+              : `\`${f.flag}\``;
+          // Pipe + backtick escaping is unnecessary — the parser-side
+          // descriptions are short prose without literal pipes; if a future
+          // edit introduces one, it will surface in `bun run docs:build`'s
+          // table-validation pass and force the partial to be re-examined.
+          sections.push(`| ${flagCol} | ${f.kind} | ${f.description} |`);
+        }
+        sections.push("");
+      }
+      return sections.join("\n").replace(/\n+$/, "");
+    },
+  },
+  {
+    name: "runtime-matrix.md",
+    sources: ["packages/gateway-runtime/src/runtimes-registry.ts"],
+    extractionMethod:
+      "GATEWAY_RUNTIME_REGISTRY ObjectLiteralExpression via ts-morph (createAcpHarness call args)",
+    body() {
+      const rows = getRuntimeRegistryMatrix(
+        join(ROOT, "packages/gateway-runtime/src"),
+        "GATEWAY_RUNTIME_REGISTRY",
+      );
+      if (rows.length === 0) {
+        throw new Error(
+          "GATEWAY_RUNTIME_REGISTRY has no entries. Either restore at least one or defer this extraction.",
+        );
+      }
+      const lines = [
+        "The curated ACP runtimes wired into the gateway are:",
+        "",
+        "| Id | Display Name | Command | Description |",
+        "| --- | --- | --- | --- |",
+      ];
+      for (const r of rows) {
+        const command = r.command ? `\`${r.command}\`` : "—";
+        lines.push(`| \`${r.id}\` | ${r.displayName} | ${command} | ${r.description} |`);
+      }
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "agent-registry-schema.md",
+    sources: ["packages/a2a-client/src/registry.ts"],
+    extractionMethod: "A2AAgentEntry + ACPAgentEntry interface fields via ts-morph (source order)",
+    body() {
+      const a2a = getInterfaceFieldSignatures(
+        join(ROOT, "packages/a2a-client/src"),
+        "A2AAgentEntry",
+      );
+      const acp = getInterfaceFieldSignatures(
+        join(ROOT, "packages/a2a-client/src"),
+        "ACPAgentEntry",
+      );
+      if (a2a.length === 0 || acp.length === 0) {
+        throw new Error(
+          "Agent registry entry interfaces (A2AAgentEntry / ACPAgentEntry) have no members. Either restore them or defer this extraction.",
+        );
+      }
+      const renderField = (f: { name: string; signature: string; optional: boolean }) =>
+        `- \`${f.name}${f.optional ? "?" : ""}: ${f.signature}\``;
+      const lines = [
+        "Agent registry entries are a discriminated union on `kind`:",
+        "",
+        "**`A2AAgentEntry`** — remote A2A agents reachable over HTTP:",
+        "",
+        ...a2a.map(renderField),
+        "",
+        "**`ACPAgentEntry`** — locally spawnable ACP harnesses:",
+        "",
+        ...acp.map(renderField),
       ];
       return lines.join("\n");
     },

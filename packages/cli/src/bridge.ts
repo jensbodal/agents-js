@@ -49,7 +49,13 @@ const setBridgeHelp = (a: BridgeCommandArgs): void => {
   a.help = true;
 };
 
-const BRIDGE_ARG_SPEC: ArgSpec<BridgeCommandArgs> = {
+/**
+ * Argv-parser spec for `agents-js bridge`. Exposed for the docs
+ * governance generator (see {@link ACP_ARG_SPEC} for the same pattern).
+ *
+ * @hostCliSubcommand
+ */
+export const BRIDGE_ARG_SPEC: ArgSpec<BridgeCommandArgs> = {
   "--help": { kind: "flag", assign: setBridgeHelp, description: "Show this message." },
   "-h": { kind: "flag", assign: setBridgeHelp, description: "Show this message." },
   ...harnessArg<BridgeCommandArgs>(),

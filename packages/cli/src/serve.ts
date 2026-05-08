@@ -113,7 +113,13 @@ const setHelp = (a: ServeCommandArgs): void => {
   a.help = true;
 };
 
-const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
+/**
+ * Argv-parser spec for `agents-js serve`. Exposed for the docs
+ * governance generator.
+ *
+ * @hostCliSubcommand
+ */
+export const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
   "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
   "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
   ...runtimeSelectArgs<ServeCommandArgs>(),

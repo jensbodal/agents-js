@@ -489,6 +489,16 @@ JSON-RPC reply, `acp` fails fast with exit code `2` and a diagnostic on stderr â
 prior silent-hang failure mode. The helpers are exported as `inspectFirstChunk` and
 `formatContaminationError` from `@agents-js/cli`.
 
+### Subcommand Reference
+
+The flag tables below are extracted from the CLI parser specs themselves
+(`packages/cli/src/{acp,bridge,serve,mcp,send}.ts`); they enumerate every option the
+parser accepts on each subcommand. The narrative subsections above describe expected
+flows; this reference is the canonical list. The `client` subcommand is documented in
+its own subsection above and is not included here.
+
+!!!include(_generated/cli-command-table.md)!!!
+
 ### Protocol Context
 
 The CLI exposes all three of the repo's primary wire layers:
@@ -792,9 +802,15 @@ target descriptors:
 }
 ```
 
-Each entry is a `{ "url": "<http-endpoint>" }` object. The name is what a user types
-after `@` in a prompt. The URL must point at an A2A-compatible HTTP endpoint that
-serves an agent card at `<url>/.well-known/agent-card.json`.
+The name is what a user types after `@` in a prompt. Each entry is one of:
+
+!!!include(_generated/agent-registry-schema.md)!!!
+
+For `kind: "a2a"` entries, the URL must point at an A2A-compatible HTTP endpoint that
+serves an agent card at `<url>/.well-known/agent-card.json`. For `kind: "acp"` entries,
+the harness id selects the ACP runtime to spawn locally; see [Runtime Matrix](#runtime-matrix)
+for supported harness ids. The `kind` field defaults to `"a2a"` when omitted, for
+backward compatibility with pre-discriminator registries.
 
 ### Where The Registry Lives
 
@@ -1048,16 +1064,12 @@ surfaces.
 
 ### Supported Runtimes
 
-| Runtime    | Status                              | Command            | Ownership                      | Resolution                          | Notes |
-| ---------- | ----------------------------------- | ------------------ | ------------------------------ | ----------------------------------- | ----- |
-| `claude`   | Default validated path              | `claude-agent-acp` | Zed-maintained package         | CLI/workspace package bin, then `PATH` fallback | Default docs path and primary browser/CLI proof lane. |
-| `opencode` | Validated adapter path              | `opencode acp`     | External CLI                   | `PATH`                              | Use the clean-room profile path when local OpenCode plugins make diagnostics noisy. |
-| `gemini`   | Adapter present; validate locally   | `gemini --acp`     | External CLI                   | `PATH`                              | Requires the Gemini CLI to expose its ACP mode in the local environment. |
-| `codex`    | Adapter present; validate locally   | `codex-acp`        | Zed-maintained package         | CLI/workspace package bin, then `PATH` fallback | Uses the `codex-acp` bridge; API-key auth works for spawned contexts, while local subscription login is not portable to remote-spawned contexts. |
-| `pi`       | Adapter present; wire validation pending | `pi-acp`       | In-repo (@agents-js/pi-acp)    | workspace package bin, then `PATH` fallback | Requires the separate `pi` CLI and its local login state; do not treat as broadly validated yet. |
-| `droid`    | Adapter present; wire validation pending | `droid-acp`    | In-repo (@agents-js/droid-acp) | workspace package bin, then `PATH` fallback | Requires the separate Droid CLI and `FACTORY_API_KEY` or local Droid auth state; do not treat as broadly validated yet. |
-| `trial`    | Deterministic test fixture              | `trial-agent`  | In-repo (@agents-js/trial-agent) | workspace package bin, then `PATH` fallback | Exercises the ACP wire and tool primitives for tests; not a production runtime. |
-| custom     | Supported by ACP contract           | operator-provided  | Operator                       | operator-provided                   | Any command is acceptable if it speaks ACP over stdio. |
+!!!include(_generated/runtime-matrix.md)!!!
+
+A `custom` runtime is also supported by the ACP contract â€” any command is acceptable if it speaks
+ACP over stdio. The `mock-acp` runtime is registered only when `AGENTS_JS_ENABLE_MOCK_ACP_RUNTIME=1`
+and is intended for CI; the in-repo `trial` agent is a deterministic fixture rather than a
+production runtime.
 
 ### Behavior
 

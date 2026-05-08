@@ -97,6 +97,9 @@ audit, which doesn't need to participate in the gate.
 | [`acp-canonical-events.md`](./acp-canonical-events.md) | `packages/acp-host/src/types/session.ts` (`ACPSessionEvent` discriminated-union variants on the `type` discriminant) | [Observability → Canonical Events](../observability#canonical-events) |
 | [`acp-session-hooks.md`](./acp-session-hooks.md) | `packages/acp-host/src/types/hooks.ts` (`SessionHooks` interface members; **source order**, see Port author rule deviation below) | [Observability → Session Hooks](../observability#session-hooks) |
 | [`acp-observability-surface.md`](./acp-observability-surface.md) | `packages/acp-host/src/logger.ts` (`@hostObservability` JSDoc tags) | [Observability → Current Primitive: Logger + logStore](../observability#current-primitive-logger-logstore) |
+| [`agent-registry-schema.md`](./agent-registry-schema.md) | `packages/a2a-client/src/registry.ts` (`A2AAgentEntry` + `ACPAgentEntry` interface fields, **source order**) | [Surfaces → Agent Registry → File Format](../surfaces#file-format) |
+| [`cli-command-table.md`](./cli-command-table.md) | `packages/cli/src/{acp,bridge,serve,mcp,send}.ts`, `packages/cli/src/shared-arg-specs.ts` (`@hostCliSubcommand`-tagged `ArgSpec` literals; factory spreads flattened) | [Surfaces → CLI → Subcommand Reference](../surfaces#subcommand-reference) |
+| [`runtime-matrix.md`](./runtime-matrix.md) | `packages/gateway-runtime/src/runtimes-registry.ts` (`GATEWAY_RUNTIME_REGISTRY` `createAcpHarness` arguments) | [Surfaces → Runtime Matrix → Supported Runtimes](../surfaces#supported-runtimes) |
 
 `docs/observability.md` also transcludes the `ToolCallTrace` interface
 directly via VitePress `<<<` from
