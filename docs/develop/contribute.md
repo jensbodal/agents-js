@@ -150,7 +150,11 @@ External consumers can still be useful corroborating evidence, but they are not 
 
 ### Docs Publication Contract
 
-The repository builds static docs with VitePress. Deployment topology is configured outside the package contract.
+The repository builds static docs with VitePress and publishes them to GitHub Pages. The `Docs Deploy` workflow at `.github/workflows/docs-deploy.yml` runs on every push to `main` (and on manual `workflow_dispatch`); it executes `bun run setup --ci` followed by `bun run docs:build`, then uploads `docs/.vitepress/dist/` via `actions/upload-pages-artifact` and publishes with `actions/deploy-pages`.
+
+The canonical docs URL is `https://agents-js.bodal.dev/`. The custom-domain binding is determined by two out-of-repo settings: the GitHub Pages "Custom domain" setting (`agents-js.bodal.dev`) and a Cloudflare DNS record pointing the same hostname at `jensbodal.github.io`. Cloudflare optionally proxies the connection at the edge for CDN; the origin is GitHub Pages. The repo also ships a `docs/public/CNAME` file as artifact hygiene (so the intended hostname is documented inside the build output), but per GitHub's docs that file is not what binds the hostname when publishing via a custom Actions workflow. VitePress `base` stays at root because the site is served from a custom domain, not a project subpath.
+
+Workflow runs are visible under the repository's Actions tab; the most recent successful run determines what is live at the canonical URL.
 
 ### Consumption Guidance
 
