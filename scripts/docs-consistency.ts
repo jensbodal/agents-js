@@ -60,6 +60,11 @@ interface DependencyGraph {
   packages?: GraphPackage[];
 }
 
+interface TextFile {
+  content: string;
+  path: string;
+}
+
 const repoRoot = path.resolve(import.meta.dir, "..");
 
 // Publicly-published docs hostname. Override via env for forks / mirrors;
@@ -73,6 +78,42 @@ const liveBrowserCommand = "bun run e2e:web:live -- --runtime claude";
 // are required to contain this marker via the `contains` expectation list
 // below.
 export const CANONICAL_POSITIONING_MARKER = "A TypeScript library tying together";
+
+// Bun is the workspace's internal toolchain, not a consumer-facing product
+// requirement. Likewise, the docs should not regress into "not published yet"
+// phrasing around @agents-js/cli. These phrases are intentionally scanned only
+// in user-facing docs, not contributor/release-runbook pages.
+export const userFacingForbiddenPhrases: readonly { label: string; pattern: RegExp }[] = [
+  { label: "consumer-facing 'Bun toolkit' framing", pattern: /\bBun toolkit\b/gi },
+  { label: "consumer-facing 'typed Bun' framing", pattern: /\btyped Bun\b/gi },
+  { label: "publication hedge", pattern: /\bUntil[^.\n]{0,40}is published\b/gi },
+  { label: "publication hedge", pattern: /\bpublished to public npm\b/gi },
+  { label: "publication hedge", pattern: /\bnot yet published\b/gi },
+  { label: "publication hedge", pattern: /\bnot yet on npm\b/gi },
+  { label: "publication hedge", pattern: /\bonce published\b/gi },
+  { label: "publication hedge", pattern: /\bwhen published\b/gi },
+  { label: "publication hedge", pattern: /\bwill be published\b/gi },
+  { label: "publication hedge", pattern: /\bpre-publication\b/gi },
+  { label: "publication hedge", pattern: /\bpending publication\b/gi },
+  {
+    label: "publication hedge",
+    pattern: /from a clone via the full-stack track instead/gi,
+  },
+];
+
+const userFacingForbiddenScanPaths = [
+  "README.md",
+  "docs/index.md",
+  "docs/getting-started.md",
+  "docs/surfaces.md",
+  "docs/primitives.md",
+  "docs/protocols.md",
+  "docs/harness-guide.md",
+  "docs/streaming-and-events.md",
+  "docs/observability.md",
+  "docs/llms.txt",
+  "docs/llms-full.txt",
+] as const;
 
 async function readText(relativePath: string, root = repoRoot): Promise<string> {
   return readFile(path.join(root, relativePath), "utf8");
@@ -159,6 +200,36 @@ export function collectGraphPackageIssues(
     errors.push(`docs/public/graph.json contains non-workspace packages: ${extra.join(", ")}`);
   }
   return errors;
+}
+
+function resetPattern(pattern: RegExp): RegExp {
+  pattern.lastIndex = 0;
+  return pattern;
+}
+
+function collectPatternMatches(content: string, pattern: RegExp): string[] {
+  const matches = content.match(resetPattern(pattern));
+  return matches ? [...new Set(matches)] : [];
+}
+
+export function collectUserFacingForbiddenIssues(files: readonly TextFile[]): string[] {
+  const errors: string[] = [];
+  for (const file of files) {
+    for (const { label, pattern } of userFacingForbiddenPhrases) {
+      for (const match of collectPatternMatches(file.content, pattern)) {
+        errors.push(`${file.path}: contains ${label}: ${match}`);
+      }
+    }
+  }
+  return errors;
+}
+
+async function readUserFacingForbiddenScanFiles(root = repoRoot): Promise<TextFile[]> {
+  const files: TextFile[] = [];
+  for (const relativePath of userFacingForbiddenScanPaths) {
+    files.push({ path: relativePath, content: await readText(relativePath, root) });
+  }
+  return files;
 }
 
 async function readGraphPackageNames(root = repoRoot): Promise<string[]> {
@@ -421,6 +492,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
   const errors = await collectFileExpectationIssues(expectations, (relativePath) =>
     readText(relativePath, root),
   );
+  errors.push(...collectUserFacingForbiddenIssues(await readUserFacingForbiddenScanFiles(root)));
 
   const manifestNames = await readWorkspaceManifestNames(root);
   const graphPackageNames = await readGraphPackageNames(root);

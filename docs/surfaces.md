@@ -819,7 +819,7 @@ The two entry shapes (input form, before normalization) are:
   [Runtime Matrix](#runtime-matrix) for supported harness ids.
 
 The loader (see
-[`packages/a2a-client/src/registry.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/a2a-client/src/registry.ts))
+[`packages/a2a-client/src/registry.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/a2a-client/src/registry.ts))
 parses each entry into an `AgentEntry` discriminated union for in-memory
 use; that normalized shape carries `name` injected from the keying
 field, but users do not write `name` in the on-disk file.

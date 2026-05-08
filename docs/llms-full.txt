@@ -1199,7 +1199,7 @@ The two entry shapes (input form, before normalization) are:
   [Runtime Matrix](#runtime-matrix) for supported harness ids.
 
 The loader (see
-[`packages/a2a-client/src/registry.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/a2a-client/src/registry.ts))
+[`packages/a2a-client/src/registry.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/a2a-client/src/registry.ts))
 parses each entry into an `AgentEntry` discriminated union for in-memory
 use; that normalized shape carries `name` injected from the keying
 field, but users do not write `name` in the on-disk file.
@@ -2451,7 +2451,7 @@ the SDK/server layer, but the turn/task methods above are the core user-facing b
 
 For the full set of registered A2A schemas (request/response shapes
 and named validators), see
-[`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/validation/src/a2a.ts)
+[`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/validation/src/a2a.ts)
 (`a2aValidationSchemas`).
 
 ### Streaming behavior
@@ -3288,8 +3288,8 @@ controller, ACP session types, and process spawn helpers) and
 observability primitives). See the API reference at [/api/](/api/) for
 typed signatures, or the source directly:
 
-- [`packages/acp/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp/src)
-- [`packages/acp-host/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src)
+- [`packages/acp/src`](https://github.com/jensbodal/agents-js/tree/main/packages/acp/src)
+- [`packages/acp-host/src`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src)
 
 The companion `@agents-js/validation` surface covers ACP, A2A, runtime-manifest, JSON-RPC, and
 shared host-policy helpers.
@@ -3785,7 +3785,7 @@ in the streaming layer:)
 The ACP `SessionUpdate` discriminated union is defined by
 `@agentclientprotocol/sdk` and re-exported through
 `@agents-js/acp` (see
-[`packages/acp/src/host-surface-sdk.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp/src/host-surface-sdk.ts)).
+[`packages/acp/src/host-surface-sdk.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp/src/host-surface-sdk.ts)).
 The discriminant values that `ACPSessionController` translates to
 host events are the `sessionUpdate` field of each union member as
 defined by the SDK type.
@@ -4055,7 +4055,7 @@ Each `Span` contains `requestId`, `sessionId`, `startedAt`, `completedAt`, and t
 
 `ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`. The full variant set is the
 `type` discriminant of `ACPSessionEvent` in
-[`packages/acp-host/src/types/session.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src/types/session.ts);
+[`packages/acp-host/src/types/session.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/session.ts);
 see the API reference at [/api/](/api/) for the typed union.
 
 `SessionHooks` provides a parallel callback surface for the prompt and permission lifecycles (see below); errors additionally surface through `LogEntry` (`level: "error"`, `category: "error"`), `ACPSessionState.lastError`, and `EvalTransport`'s per-request `errors[]` array.
@@ -4065,7 +4065,7 @@ see the API reference at [/api/](/api/) for the typed union.
 `SessionHooks` provides typed lifecycle callbacks for host-side
 instrumentation. The full member set with typed signatures is the
 `SessionHooks` interface in
-[`packages/acp-host/src/types/hooks.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src/types/hooks.ts);
+[`packages/acp-host/src/types/hooks.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/hooks.ts);
 see the rendered [SessionHooks API reference](/api/) for the typed shape.
 
 Wire hooks into `StartConfig.hooks` when creating the controller. The A2A mention middleware uses `beforePrompt` for cross-agent dispatch.

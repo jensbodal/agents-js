@@ -96,7 +96,7 @@ Each `Span` contains `requestId`, `sessionId`, `startedAt`, `completedAt`, and t
 
 `ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`. The full variant set is the
 `type` discriminant of `ACPSessionEvent` in
-[`packages/acp-host/src/types/session.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src/types/session.ts);
+[`packages/acp-host/src/types/session.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/session.ts);
 see the API reference at [/api/](/api/) for the typed union.
 
 `SessionHooks` provides a parallel callback surface for the prompt and permission lifecycles (see below); errors additionally surface through `LogEntry` (`level: "error"`, `category: "error"`), `ACPSessionState.lastError`, and `EvalTransport`'s per-request `errors[]` array.
@@ -106,7 +106,7 @@ see the API reference at [/api/](/api/) for the typed union.
 `SessionHooks` provides typed lifecycle callbacks for host-side
 instrumentation. The full member set with typed signatures is the
 `SessionHooks` interface in
-[`packages/acp-host/src/types/hooks.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src/types/hooks.ts);
+[`packages/acp-host/src/types/hooks.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/hooks.ts);
 see the rendered [SessionHooks API reference](/api/) for the typed shape.
 
 Wire hooks into `StartConfig.hooks` when creating the controller. The A2A mention middleware uses `beforePrompt` for cross-agent dispatch.

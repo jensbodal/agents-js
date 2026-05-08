@@ -79,8 +79,8 @@ controller, ACP session types, and process spawn helpers) and
 observability primitives). See the API reference at [/api/](/api/) for
 typed signatures, or the source directly:
 
-- [`packages/acp/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp/src)
-- [`packages/acp-host/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src)
+- [`packages/acp/src`](https://github.com/jensbodal/agents-js/tree/main/packages/acp/src)
+- [`packages/acp-host/src`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src)
 
 The companion `@agents-js/validation` surface covers ACP, A2A, runtime-manifest, JSON-RPC, and
 shared host-policy helpers.

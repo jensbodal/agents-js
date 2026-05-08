@@ -422,7 +422,7 @@ the SDK/server layer, but the turn/task methods above are the core user-facing b
 
 For the full set of registered A2A schemas (request/response shapes
 and named validators), see
-[`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/validation/src/a2a.ts)
+[`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/validation/src/a2a.ts)
 (`a2aValidationSchemas`).
 
 ### Streaming behavior

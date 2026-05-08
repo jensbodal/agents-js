@@ -7,6 +7,7 @@ import {
   collectFrontmatterTagIssues,
   collectGraphPackageIssues,
   collectTsMorphBoundaryIssues,
+  collectUserFacingForbiddenIssues,
 } from "./docs-consistency.ts";
 
 describe("docs-consistency", () => {
@@ -25,6 +26,29 @@ describe("docs-consistency", () => {
     expect(issues).toEqual([
       "docs/public/graph.json is missing workspace packages: @agents-js/a2ui-host, @agents-js/browser-runtime",
       "docs/public/graph.json contains non-workspace packages: @agents-js/old-package",
+    ]);
+  });
+
+  /**
+   * WHAT: Pin the user-facing positioning guard named in AGENTS.md.
+   * WHY: README/docs/index positioning is canonical; consumer docs must not
+   * regress into Bun-as-product framing or unpublished-package hedges.
+   */
+  test("collectUserFacingForbiddenIssues flags Bun-toolkit framing and publication hedges", () => {
+    const issues = collectUserFacingForbiddenIssues([
+      {
+        path: "docs/index.md",
+        content: "agents-js is a Bun toolkit. Until `@agents-js/cli` is published, use a clone.",
+      },
+      {
+        path: "README.md",
+        content: "A TypeScript library tying together protocol surfaces.",
+      },
+    ]);
+
+    expect(issues).toEqual([
+      "docs/index.md: contains consumer-facing 'Bun toolkit' framing: Bun toolkit",
+      "docs/index.md: contains publication hedge: Until `@agents-js/cli` is published",
     ]);
   });
 

@@ -115,7 +115,7 @@ in the streaming layer:)
 The ACP `SessionUpdate` discriminated union is defined by
 `@agentclientprotocol/sdk` and re-exported through
 `@agents-js/acp` (see
-[`packages/acp/src/host-surface-sdk.ts`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp/src/host-surface-sdk.ts)).
+[`packages/acp/src/host-surface-sdk.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp/src/host-surface-sdk.ts)).
 The discriminant values that `ACPSessionController` translates to
 host events are the `sessionUpdate` field of each union member as
 defined by the SDK type.
