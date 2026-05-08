@@ -103,6 +103,7 @@ audit, which doesn't need to participate in the gate.
 | [`agent-registry-schema.md`](./agent-registry-schema.md) | `packages/a2a-client/src/registry.ts` (`A2AAgentEntry` + `ACPAgentEntry` interface fields, **source order**) | [Surfaces → Agent Registry → File Format](../surfaces#file-format) |
 | [`cli-command-table.md`](./cli-command-table.md) | `packages/cli/src/{acp,bridge,serve,mcp,send}.ts`, `packages/cli/src/shared-arg-specs.ts` (`@hostCliSubcommand`-tagged `ArgSpec` literals; factory spreads flattened) | [Surfaces → CLI → Subcommand Reference](../surfaces#subcommand-reference) |
 | [`runtime-matrix.md`](./runtime-matrix.md) | `packages/gateway-runtime/src/runtimes-registry.ts` (`GATEWAY_RUNTIME_REGISTRY` `createAcpHarness` arguments) | [Surfaces → Runtime Matrix → Supported Runtimes](../surfaces#supported-runtimes) |
+| [`validation-modes.md`](./validation-modes.md) | `packages/validation/src/modes.ts` `VALIDATION_MODES` const tuple (hand-listed; SOURCE-OF-TRUTH-DEBT) | [Protocols → Validation Modes](../protocols#validation-modes) |
 
 `docs/observability.md` also transcludes the `ToolCallTrace` interface
 directly via VitePress `<<<` from
@@ -276,6 +277,51 @@ or from a single discriminated union.
   `SessionUpdate` discriminated union has a clean source-of-truth path
   via `@agentclientprotocol/sdk` re-export through
   `packages/acp/src/host-surface-sdk.ts`).
+
+### Port 6 B3 — AG-UI canonical events + A2UI supported messages (protocols.md)
+
+Both `BaseEvent` (AG-UI's 27-variant discriminated union) and
+`A2uiMessageSchema` (A2UI's 4-variant union) live in upstream packages
+(`@ag-ui/core`, `@a2ui/web_core`) and are reachable from
+`@agents-js/agui-types` and `@agents-js/a2ui-types` only via `export *`
+re-exports. Local sources don't carry `TypeAliasDeclaration`s for the
+unions, so Port 3's `getDiscriminatedUnionVariants` (which uses
+`SourceFile.getTypeAlias()`) cannot find them.
+
+- **Page**: `docs/protocols.md`
+- **Sections**:
+  - `### Supported Event Types` (breadcrumb: `agui-canonical-events`)
+  - `### Supported Messages` (breadcrumb: `a2ui-supported-messages`)
+- **Blocker**: Re-exported types from external packages aren't reachable
+  via the simple `getTypeAlias` lookup pattern.
+- **Unblock criterion**: A re-export-following extractor that resolves
+  through `getExportedDeclarations()` and inspects the resolved Type via
+  the type API — the pattern Port 4's
+  `getIntersectionUnionDiscriminants` introduced for the SessionUpdate
+  case. Apply the same approach for these two unions.
+- **Workaround until then**: Both sections stay hand-authored with
+  HTML breadcrumbs + manifest entries.
+
+### Port 6 B4 catalog — A2UI catalog editorial mismatch (protocols.md)
+
+The "Catalog" section in protocols.md lists primitive identifiers
+(`acp-row`, `acp-column`, ...) that look like they correspond to the
+basic-catalog HTML primitives. The source-of-truth array
+`ACP_COMPONENT_APIS` (in `packages/a2ui-types/src/catalog/acp-catalog.ts`)
+holds higher-level surfaces (`ChatAppApi`, `TranscriptApi`,
+`MessageApi`, ...). The two lists describe different things.
+
+- **Page**: `docs/protocols.md`
+- **Section**: `### Catalog` (breadcrumb: `a2ui-catalog`)
+- **Blocker**: Editorial reconciliation needed — prose and source array
+  document divergent component sets.
+- **Unblock criterion**: Either (a) the prose is updated to document
+  `ACP_COMPONENT_APIS` (in which case the existing
+  `getArrayBasedRegistryEntries` extractor produces the right partial),
+  or (b) the source array is renamed to reflect the primitive-component
+  intent and a new array of primitives becomes the extraction target.
+- **Workaround until then**: The hand-authored prose stays, marked with
+  `<!-- pending-extraction: a2ui-catalog -->`.
 
 ### Port 1a — Package Reference table (harness-guide.md)
 

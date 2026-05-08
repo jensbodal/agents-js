@@ -378,6 +378,37 @@ const PARTIALS: PartialSpec[] = [
       return lines.join("\n");
     },
   },
+  // Deferred (Port 6 B3-defer): the A2UI Catalog section in protocols.md
+  // documents primitive component names (`acp-row`, `acp-column`, ...) that
+  // do NOT match the higher-level component surfaces in
+  // `ACP_COMPONENT_APIS` (ChatAppApi, TranscriptApi, ...). The prose and the
+  // source-of-truth array are documenting different things; extraction is
+  // deferred until the prose is reconciled or the source array is renamed
+  // to reflect what consumers actually see. The new
+  // `getArrayBasedRegistryEntries` extractor stays available for the future
+  // unblock; it has been smoke-tested against `ACP_COMPONENT_APIS` and
+  // returns the 15 high-level component names correctly.
+  {
+    // SOURCE-OF-TRUTH-DEBT: this 3-element list is hand-listed because
+    // packages/validation/src/modes.ts:1 is a `const tuple satisfies` and
+    // ts-morph extraction would be heavier than the value warrants. The
+    // canonical source is `VALIDATION_MODES` in
+    // packages/validation/src/modes.ts; if this list grows past ~5 modes
+    // or the upstream shape changes, replace this hand-list with a tuple
+    // extractor (`getConstTupleLiterals`).
+    name: "validation-modes.md",
+    sources: ["packages/validation/src/modes.ts"],
+    extractionMethod: "VALIDATION_MODES const tuple, hand-listed (SOURCE-OF-TRUTH-DEBT)",
+    body() {
+      const modes = ["strict", "loose", "filter"];
+      const lines = [
+        "The validation modes accepted by `@agents-js/validation`:",
+        "",
+        ...modes.map((m) => `- \`${m}\``),
+      ];
+      return lines.join("\n");
+    },
+  },
 ];
 
 const TIMESTAMP_LINE_RE = /^<!-- Generated at: [^\n]*-->\n?/m;

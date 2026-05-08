@@ -659,6 +659,8 @@ Clients should treat the absence of `RUN_FINISHED`/`RUN_ERROR` as an incomplete 
 
 ### Supported Event Types
 
+<!-- pending-extraction: agui-canonical-events -->
+
 The server and client implement the full canonical set from `@ag-ui/core@0.0.52` (27
 event types), plus a namespaced `CUSTOM` extension family for agents-js-specific events
 that do not map cleanly to a canonical AG-UI event.
@@ -863,6 +865,8 @@ same primitives through a published catalog.
 
 ### Supported Messages
 
+<!-- pending-extraction: a2ui-supported-messages -->
+
 The host adapter and renderer handle the four surface-lifecycle messages defined by
 `@a2ui/web_core@0.9.1-alpha.0`:
 
@@ -880,6 +884,8 @@ before it reaches the adapter or the renderer. The validator is the single gate;
 loose mode.
 
 ### Catalog
+
+<!-- pending-extraction: a2ui-catalog -->
 
 agents-js publishes one A2UI catalog: the ACP catalog. Its canonical ID is:
 
@@ -1118,9 +1124,7 @@ The registry is intentionally runtime-id keyed, and the test helper
 
 Manifest validation honors the repo-wide validation modes:
 
-- `strict`
-- `loose`
-- `filter`
+!!!include(_generated/validation-modes.md)!!!
 
 The generic schema uses those modes the same way the rest of `@agents-js/validation` does:
 

@@ -890,6 +890,93 @@ export function getFlatValidationSchemaExports(
   return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Walk the package's `src/` tree, find the named `VariableDeclaration` whose
+ * initializer is an `ArrayLiteralExpression` (possibly wrapped in
+ * `as const satisfies`) of identifier references, and return the value of
+ * `nameField` on each referenced object literal.
+ *
+ * Used for A2UI's `ACP_COMPONENT_APIS` array (see
+ * `packages/a2ui-types/src/catalog/acp-catalog.ts`): each element is an
+ * identifier (`ChatAppApi`, `TranscriptApi`, ...) referring to a local
+ * `ComponentApi` object literal in the same file. The `name` property of
+ * each object is what consumers use to register a renderer.
+ *
+ * Throws with precise diagnostics on shape mismatch (silent fallthrough
+ * forbidden). Returns names sorted alphabetically.
+ */
+export function getArrayBasedRegistryEntries(
+  packageSrcDir: string,
+  arraySymbolName: string,
+  nameField: string,
+): string[] {
+  const project = getProject();
+  const sourceFiles = collectTsFiles(packageSrcDir).map((p) => project.addSourceFileAtPath(p));
+
+  let decl: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getVariableDeclaration"]>;
+  let owningFile: ReturnType<Project["addSourceFileAtPath"]> | undefined;
+  for (const sf of sourceFiles) {
+    const candidate = sf.getVariableDeclaration(arraySymbolName);
+    if (candidate) {
+      decl = candidate;
+      owningFile = sf;
+      break;
+    }
+  }
+  if (!decl || !owningFile) {
+    for (const sf of sourceFiles) project.removeSourceFile(sf);
+    throw new Error(
+      `getArrayBasedRegistryEntries: variable ${JSON.stringify(arraySymbolName)} not found under ${packageSrcDir}.`,
+    );
+  }
+
+  const init = unwrapAssertions(decl.getInitializer());
+  if (!init || !Node.isArrayLiteralExpression(init)) {
+    for (const sf of sourceFiles) project.removeSourceFile(sf);
+    throw new Error(
+      `getArrayBasedRegistryEntries: ${arraySymbolName} initializer (after unwrapping) is ${init?.getKindName() ?? "undefined"}, expected ArrayLiteralExpression.`,
+    );
+  }
+
+  const names: string[] = [];
+  for (const element of init.getElements()) {
+    if (!Node.isIdentifier(element)) {
+      for (const sf of sourceFiles) project.removeSourceFile(sf);
+      throw new Error(
+        `getArrayBasedRegistryEntries: ${arraySymbolName} element at ${element.getStart()} is ${element.getKindName()}, expected Identifier.`,
+      );
+    }
+
+    const referencedDecl = owningFile.getVariableDeclaration(element.getText());
+    if (!referencedDecl) {
+      for (const sf of sourceFiles) project.removeSourceFile(sf);
+      throw new Error(
+        `getArrayBasedRegistryEntries: ${arraySymbolName} references ${element.getText()} which is not declared in the same file ${owningFile.getFilePath()}.`,
+      );
+    }
+
+    const refInit = unwrapAssertions(referencedDecl.getInitializer());
+    if (!refInit || !Node.isObjectLiteralExpression(refInit)) {
+      for (const sf of sourceFiles) project.removeSourceFile(sf);
+      throw new Error(
+        `getArrayBasedRegistryEntries: ${element.getText()} initializer is ${refInit?.getKindName() ?? "undefined"}, expected ObjectLiteralExpression.`,
+      );
+    }
+
+    const value = readStringLiteralProperty(refInit, nameField, element.getText());
+    names.push(value);
+  }
+
+  if (names.length === 0) {
+    for (const sf of sourceFiles) project.removeSourceFile(sf);
+    throw new Error(`getArrayBasedRegistryEntries: ${arraySymbolName} has no entries.`);
+  }
+
+  for (const sf of sourceFiles) project.removeSourceFile(sf);
+
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
 function readStringLiteralProperty(
   obj: import("ts-morph").ObjectLiteralExpression,
   key: string,
