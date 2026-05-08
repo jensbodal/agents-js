@@ -5,7 +5,7 @@ diataxis: reference
 
 # Protocols and Schema Alignment
 
-> **Status:** Beta · **Validated by:** package tests, `gateway-e2e`, browser smoke, `docs:build` dead-link gate · **Known limitations:** AG-UI run resumption, A2UI user→agent back-channel contract, third-party A2A interop
+> **Status:** Beta · **Known limitations:** AG-UI run resumption, A2UI user→agent back-channel contract, third-party A2A interop
 
 `agents-js` is built around explicit protocol and schema boundaries. This page is the canonical map
 for what the repo implements directly, what it validates, what it passes through, and where

@@ -5,7 +5,7 @@ diataxis: explanation
 
 # Primitives
 
-> **Status:** Beta · **Validated by:** package tests, `bun run check`, `docs:build` drift gates · **Known limitations:** see per-page status badges + [Streaming and Events → Deliberate limits](/streaming-and-events#deliberate-limits)
+> **Status:** Beta · **Known limitations:** see per-page status badges + [Streaming and Events → Deliberate limits](/streaming-and-events#deliberate-limits)
 
 agents-js is not a framework. It is a set of **composable primitives** — small,
 focused packages that each do one thing well. Wire them together and you get a

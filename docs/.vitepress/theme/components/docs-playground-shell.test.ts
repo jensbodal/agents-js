@@ -19,7 +19,13 @@ import type {
 import { DocsPlaygroundShell } from "./docs-playground-shell.ts";
 
 function instance(): DocsPlaygroundShell {
-  return Object.create(DocsPlaygroundShell.prototype) as DocsPlaygroundShell;
+  const inst = Object.create(DocsPlaygroundShell.prototype) as DocsPlaygroundShell;
+  // The shell's `activate()` consults `this.isConnected` after the runner
+  // factory settles to detect a load-then-disconnect race. Bun's DOM-less
+  // runtime doesn't stage that property, so default it to `true` here and
+  // let individual tests override it (the late-disconnect test does).
+  Object.defineProperty(inst, "isConnected", { value: true, configurable: true });
+  return inst;
 }
 
 function fakeRunner(
@@ -666,6 +672,66 @@ describe("DocsPlaygroundShell — activate (mock runtime happy path)", () => {
     await inst.activate();
     expect(inst.__phase).toBe("error");
     expect(inst.__errorText).toContain("not yet implemented");
+  });
+});
+
+describe("DocsPlaygroundShell — runner disposal lifecycle", () => {
+  test("dispose() is called on cachedRunner when disconnectedCallback fires", async () => {
+    const inst = instance();
+    let disposeCount = 0;
+    const runner: PromptRunner = {
+      ...fakeRunner(),
+      dispose: () => {
+        disposeCount += 1;
+      },
+    };
+    Object.defineProperty(inst, "_cachedRunner", { value: runner, writable: true });
+    Object.defineProperty(inst, "_unsubscribe", { value: null, writable: true });
+    // Bypass `super.disconnectedCallback()` which touches DOM state Bun's
+    // test runtime doesn't stage. The cleanup path lives in the prototype
+    // method body, which is what we want to exercise.
+    const proto = DocsPlaygroundShell.prototype as unknown as {
+      _cleanup: () => Promise<void>;
+    };
+    await proto._cleanup.call(inst);
+    expect(disposeCount).toBe(1);
+    expect(inst.__cachedRunner).toBeNull();
+  });
+
+  test("runner produced after element disconnect is disposed immediately", async () => {
+    // Race: the user kicks off Activate, the model download settles, and
+    // *only then* the user navigates away. The shell must dispose the
+    // freshly-loaded runner instead of caching a worker that nothing will
+    // ever release.
+    const inst = instance();
+    let disposeCount = 0;
+    const runner: PromptRunner = {
+      ...fakeRunner(),
+      dispose: () => {
+        disposeCount += 1;
+      },
+    };
+    const fakeStore = makeFakeStoreWithManifest({ runtime: "mock" });
+    Object.defineProperty(inst, "mockRunnerFactory", {
+      value: async () => runner,
+      writable: true,
+    });
+    Object.defineProperty(inst, "_phase", { value: "ready-to-activate", writable: true });
+    Object.defineProperty(inst, "_modelId", { value: null, writable: true });
+    Object.defineProperty(inst, "_errorText", { value: "", writable: true });
+    Object.defineProperty(inst, "_loadProgressText", { value: "", writable: true });
+    Object.defineProperty(inst, "_state", { value: fakeStore.getState(), writable: true });
+    Object.defineProperty(inst, "_store", { value: fakeStore, writable: true });
+    Object.defineProperty(inst, "_cachedRunner", { value: null, writable: true });
+    Object.defineProperty(inst, "_unsubscribe", { value: null, writable: true });
+    // Simulate a host that has been removed from the DOM by the time the
+    // runner factory's promise settles.
+    Object.defineProperty(inst, "isConnected", { value: false, configurable: true });
+
+    await inst.activate();
+
+    expect(disposeCount).toBe(1);
+    expect(inst.__cachedRunner).toBeNull();
   });
 });
 

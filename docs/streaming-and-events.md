@@ -5,7 +5,7 @@ diataxis: explanation
 
 # Streaming, Events, and Concurrency
 
-> **Status:** Beta · **Validated by:** `message/send`, `message/stream`, `tasks/get`, `tasks/resubscribe` package tests + `gateway-e2e` + `host-executor.test.ts` + `agui-endpoint.test.ts` · **Known limitations:** incremental `TaskArtifactUpdateEvent` append parity, ACP URL-mode elicitation, AG-UI run resumption, A2UI user→agent back-channel contract (see [Deliberate limits](#deliberate-limits))
+> **Status:** Beta · **Known limitations:** incremental `TaskArtifactUpdateEvent` append parity, ACP URL-mode elicitation, AG-UI run resumption, A2UI user→agent back-channel contract (see [Deliberate limits](#deliberate-limits))
 
 This page documents three related runtime contracts:
 

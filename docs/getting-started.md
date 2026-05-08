@@ -5,7 +5,7 @@ diataxis: tutorial
 
 # Get started
 
-> **Status:** Beta · **Validated by:** browser and CLI quickstart flows · **Contract:** [Beta Contract](/beta-contract)
+> **Status:** Beta · **Contract:** [Beta Contract](/beta-contract)
 
 By the end of this page you have a local ACP runtime running behind an A2A gateway, a live session you can talk to in a browser, AND a registry entry that other gateways will discover on the same trusted network. No code, no manual registry editing.
 
@@ -90,15 +90,3 @@ The default examples use `claude` (the Anthropic Claude Agent ACP harness). Othe
 - **Port already bound** — the launcher picks an ephemeral port; if you see `EADDRINUSE`, kill any prior `bun run dev` process and retry.
 - **Runtime not on PATH** — `bun run setup --runtime <name>` runs the repo doctor; if it can't find the harness binary, install per the runtime's own instructions and retry.
 - **Registry path** — defaults to `~/.agents-js/registry.json`. Override with `AGENTS_JS_REGISTRY=/your/path` if you want it elsewhere. The resolver lives in `packages/a2a-client/src/node-autoregister.ts`.
-
-## Contributor quickstart
-
-For contributors working on `agents-js` itself, the same quickstart commands are the minimum-command path. After the first run, the validation lanes confirm nothing is broken before opening a PR:
-
-```sh
-bun run check
-bun run test
-bun run docs:build
-```
-
-Optional: `bun run browser:smoke` (real-browser end-to-end check, not CI-gated). The happy-dom component suite in `packages/ui-components/tests` covers the same assertions without a real browser. Full contributor workflow: [Develop → Contribute](/develop/contribute).

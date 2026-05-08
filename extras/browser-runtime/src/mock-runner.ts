@@ -51,5 +51,6 @@ export function createMockRunner(options: CreateMockRunnerOptions = {}): PromptR
       }
     },
     cancel() {},
+    dispose() {},
   };
 }
