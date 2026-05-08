@@ -55,8 +55,6 @@ jobs:
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
-      - uses: actions/configure-pages@v5
-      - run: bun run setup --ci
       # docs:build internally runs: docs:api -> docs:index -> vitepress build docs.
       # No additional generation steps are required here: docs:reference and
       # docs:bundle are committed-tree artifacts gated by `bun run check` in
@@ -64,7 +62,11 @@ jobs:
       # are red on `main`, ci.yml fails on the same push; this workflow does
       # not duplicate them, but does rely on them being green to publish a
       # fresh artifact.
-      - run: bun run docs:build
+      #
+      # Keep this as a mise task so local shells, devcontainers, and Actions run
+      # the same docs deploy build proof:
+      #   mise run docs:deploy-build
+      - run: mise run docs:deploy-build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist
@@ -77,5 +79,31 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Check Pages configuration
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>pages.err; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! grep -q "HTTP 404" pages.err; then
+            cat pages.err >&2
+            exit 1
+          fi
+
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "## GitHub Pages is not enabled"
+            echo
+            echo "The docs artifact was built and uploaded, but deployment was skipped because this repository does not yet have Pages configured to build from GitHub Actions."
+            echo
+            echo "Enable Pages in repository settings, choose GitHub Actions as the source, then rerun this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/configure-pages@v5
+        if: steps.pages.outputs.enabled == 'true'
       - id: deployment
+        if: steps.pages.outputs.enabled == 'true'
         uses: actions/deploy-pages@v4
