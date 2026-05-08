@@ -29,12 +29,16 @@ export function hostPortArgs<T extends HostPortArgs>(): ArgSpec<T> {
       assign: (a, v) => {
         a.host = v;
       },
+      description: "Bind host for the A2A server (default: 127.0.0.1).",
+      valueExample: "<host>",
     },
     "--port": {
       kind: "value",
       assign: (a, v) => {
         a.port = parsePort(v);
       },
+      description: "Bind port (0 = auto-allocate).",
+      valueExample: "<port>",
     },
   };
 }
@@ -56,18 +60,23 @@ export function runtimeLogArgs<T extends RuntimeLogArgs>(): ArgSpec<T> {
       assign: (a, v) => {
         a.runtimeLogLevel = parseRuntimeLogLevel(v);
       },
+      description: "Runtime log level (debug|info|warn|error|silent).",
+      valueExample: "<level>",
     },
     "--opencode-disable-external-plugins": {
       kind: "flag",
       assign: (a) => {
         a.opencodeDisableExternalPlugins = true;
       },
+      description: "Append --pure when launching opencode.",
     },
     "--default-model": {
       kind: "value",
       assign: (a, v) => {
         a.defaultModel = v;
       },
+      description: "Default model id (AJS_DEFAULT_MODEL override).",
+      valueExample: "<id>",
     },
   };
 }
@@ -88,6 +97,8 @@ export function harnessArg<T extends HarnessArg>(): ArgSpec<T> {
       assign: (a, v) => {
         a.harness = v;
       },
+      description: "Select a curated harness or enter custom mode.",
+      valueExample: "<id|custom>",
     },
   };
 }
@@ -112,6 +123,7 @@ export function registrySyncArg<T extends RegistrySyncArg>(): ArgSpec<T> {
       assign: (a) => {
         a.registrySync = true;
       },
+      description: "Enable cross-gateway peer registry sync (default: off; A2A-only payload).",
     },
   };
 }
@@ -134,18 +146,26 @@ export function runtimeSelectArgs<T extends RuntimeSelectArgs>(): ArgSpec<T> {
       assign: (a, v) => {
         a.acpCommand = v;
       },
+      description:
+        "Custom ACP command (requires --harness custom or no --harness; mutually exclusive with curated).",
+      valueExample: "<command>",
     },
     "--acp-args-json": {
       kind: "value",
       assign: (a, v) => {
         a.acpArgsJson = v;
       },
+      description: "JSON array of custom ACP args (only valid with --acp-command).",
+      valueExample: "<json>",
     },
     "--profile": {
       kind: "value",
       assign: (a, v) => {
         a.profile = validateGatewayRuntimeProfileName(v);
       },
+      description:
+        "Optional named profile for curated runtimes (not supported with --harness custom).",
+      valueExample: "<name>",
     },
   };
 }

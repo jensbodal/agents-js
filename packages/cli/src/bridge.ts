@@ -50,8 +50,8 @@ const setBridgeHelp = (a: BridgeCommandArgs): void => {
 };
 
 const BRIDGE_ARG_SPEC: ArgSpec<BridgeCommandArgs> = {
-  "--help": { kind: "flag", assign: setBridgeHelp },
-  "-h": { kind: "flag", assign: setBridgeHelp },
+  "--help": { kind: "flag", assign: setBridgeHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setBridgeHelp, description: "Show this message." },
   ...harnessArg<BridgeCommandArgs>(),
   ...hostPortArgs<BridgeCommandArgs>(),
   ...runtimeLogArgs<BridgeCommandArgs>(),

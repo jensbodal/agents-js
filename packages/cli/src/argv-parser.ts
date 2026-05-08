@@ -35,11 +35,25 @@ import { consumeValue } from "./cli-utils.ts";
 export interface FlagEntry<TArgs> {
   kind: "flag";
   assign: (args: TArgs) => void;
+  /**
+   * One-line human description used by the docs generator when emitting
+   * the CLI command-table partial. Optional so existing call sites
+   * (and synthetic test fixtures) keep compiling unchanged.
+   */
+  description?: string;
 }
 
 export interface ValueEntry<TArgs> {
   kind: "value";
   assign: (args: TArgs, value: string) => void;
+  /** See {@link FlagEntry.description}. */
+  description?: string;
+  /**
+   * Example value rendered alongside the flag in generated docs (e.g.
+   * `<host>` for `--host`). Optional; the generator falls back to a
+   * neutral `<value>` placeholder when omitted.
+   */
+  valueExample?: string;
 }
 
 export type ArgEntry<TArgs> = FlagEntry<TArgs> | ValueEntry<TArgs>;

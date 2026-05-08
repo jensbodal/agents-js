@@ -63,14 +63,16 @@ const setAcpHelp = (a: AcpCommandArgs): void => {
 };
 
 const ACP_ARG_SPEC: ArgSpec<AcpCommandArgs> = {
-  "--help": { kind: "flag", assign: setAcpHelp },
-  "-h": { kind: "flag", assign: setAcpHelp },
+  "--help": { kind: "flag", assign: setAcpHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setAcpHelp, description: "Show this message." },
   ...runtimeSelectArgs<AcpCommandArgs>(),
   "--directory": {
     kind: "value",
     assign: (a, v) => {
       a.directory = v;
     },
+    description: "Constrain runtime to this workspace directory.",
+    valueExample: "<path>",
   },
   ...runtimeLogArgs<AcpCommandArgs>(),
 };

@@ -83,25 +83,32 @@ const setSendHelp = (a: SendCommandArgs): void => {
 };
 
 const SEND_ARG_SPEC: ArgSpec<SendCommandArgs> = {
-  "--help": { kind: "flag", assign: setSendHelp },
-  "-h": { kind: "flag", assign: setSendHelp },
+  "--help": { kind: "flag", assign: setSendHelp, description: "Show this message." },
+  "-h": { kind: "flag", assign: setSendHelp, description: "Show this message." },
   "--url": {
     kind: "value",
     assign: (a, v) => {
       a.url = v;
     },
+    description:
+      "Target serve base URL. Overrides --harness routing. Falls back to AGENTS_JS_SERVE_URL when neither is set.",
+    valueExample: "<base-url>",
   },
   "--harness": {
     kind: "value",
     assign: (a, v) => {
       a.harness = v;
     },
+    description:
+      "Route to the first registered agent whose harness id matches. A miss is a hard error. Always threaded as metadata.harness on the outbound message.",
+    valueExample: "<id>",
   },
   "--raw": {
     kind: "flag",
     assign: (a) => {
       a.raw = true;
     },
+    description: "Stream message.delta chunks to stdout as they arrive.",
   },
 };
 
