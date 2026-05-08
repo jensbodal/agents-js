@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  CANONICAL_POSITIONING_MARKER,
   collectFileExpectationIssues,
   collectFrontmatterTagIssues,
   collectGraphPackageIssues,
@@ -248,16 +247,6 @@ describe("docs-consistency", () => {
     expect(issues).toContain(
       'docs/.manifest.json: pendingExtraction lists "ghost.md" (blocked by Phantom port) but it is not in handAuthoredPages',
     );
-  });
-
-  /**
-   * WHAT: Pin that the canonical positioning marker is the README's tagline
-   * substring — anyone changing the marker is touching the source of truth.
-   * WHY: README is canonical; docs/index.md is derived. Both are required to
-   * contain this marker via the `contains` expectation list.
-   */
-  test("canonical positioning marker is the README tagline substring", () => {
-    expect(CANONICAL_POSITIONING_MARKER).toBe("A TypeScript library tying together");
   });
 
   /**

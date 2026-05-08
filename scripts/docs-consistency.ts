@@ -177,10 +177,9 @@ function isContributorFacingPath(filePath: string): boolean {
   return contributorFacingPrefixes.some((prefix) => filePath.startsWith(prefix));
 }
 
-// Required positioning marker — the canonical project tagline. Both README and
-// the docs landing page must contain it. README is the canonical source; the
-// docs landing page is derived. Enforced via `docs/.manifest.json` file
-// expectations (`contains`).
+// README is the canonical positioning source; docs/index.md is derived. Both
+// are required to contain this marker via the `contains` expectation list
+// below.
 export const CANONICAL_POSITIONING_MARKER = "A TypeScript library tying together";
 
 const generatedDocsPaths = new Set(["docs/llms.txt", "docs/llms-full.txt"]);
@@ -386,12 +385,17 @@ export function collectRemovedDocPathIssues(files: readonly TextFile[]): string[
   return errors;
 }
 
-function collectHandAuthoredStatusIssues(files: readonly TextFile[]): string[] {
+function collectLabeledPatternIssues(
+  files: readonly TextFile[],
+  patterns: readonly { label: string; pattern: RegExp }[],
+  options: { skip?: (filePath: string) => boolean } = {},
+): string[] {
   const errors: string[] = [];
   for (const file of files) {
     if (isGeneratedMachineReadablePath(file.path)) continue;
+    if (options.skip?.(file.path)) continue;
     const isGeneratedDoc = generatedDocsPaths.has(file.path);
-    for (const { label, pattern } of handAuthoredStatusPatterns) {
+    for (const { label, pattern } of patterns) {
       for (const match of collectPatternMatches(file.content, pattern)) {
         if (isGeneratedDoc) {
           errors.push(`${file.path}: generated docs bundle still carries ${label}: ${match}`);
@@ -404,23 +408,14 @@ function collectHandAuthoredStatusIssues(files: readonly TextFile[]): string[] {
   return errors;
 }
 
+function collectHandAuthoredStatusIssues(files: readonly TextFile[]): string[] {
+  return collectLabeledPatternIssues(files, handAuthoredStatusPatterns);
+}
+
 export function collectUserFacingForbiddenIssues(files: readonly TextFile[]): string[] {
-  const errors: string[] = [];
-  for (const file of files) {
-    if (isGeneratedMachineReadablePath(file.path)) continue;
-    if (isContributorFacingPath(file.path)) continue;
-    const isGeneratedDoc = generatedDocsPaths.has(file.path);
-    for (const { label, pattern } of userFacingForbiddenPhrases) {
-      for (const match of collectPatternMatches(file.content, pattern)) {
-        if (isGeneratedDoc) {
-          errors.push(`${file.path}: generated docs bundle still carries ${label}: ${match}`);
-        } else {
-          errors.push(`${file.path}: contains ${label}: ${match}`);
-        }
-      }
-    }
-  }
-  return errors;
+  return collectLabeledPatternIssues(files, userFacingForbiddenPhrases, {
+    skip: isContributorFacingPath,
+  });
 }
 
 async function readGraphPackageNames(root = repoRoot): Promise<string[]> {
