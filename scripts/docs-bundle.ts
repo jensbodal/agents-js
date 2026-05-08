@@ -21,6 +21,41 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const DOCS_DIR = join(import.meta.dir, "..", "docs");
+
+// CLI: `bun scripts/docs-bundle.ts` writes; `--check` compares the would-be
+// content against the committed files and exits non-zero on drift. The check
+// mode is wired into `bun run check` so stale `docs/llms.txt` /
+// `docs/llms-full.txt` cannot ship to the published site.
+const args = process.argv.slice(2);
+const isCheck = args.includes("--check");
+const unknownArgs = args.filter((arg) => arg !== "--check");
+if (unknownArgs.length > 0) {
+  console.error(`[docs-bundle] Unknown argument(s): ${unknownArgs.join(", ")}`);
+  console.error("Usage: bun scripts/docs-bundle.ts [--check]");
+  process.exit(2);
+}
+
+function writeOrCheck(path: string, content: string, label: string): void {
+  if (isCheck) {
+    let existing: string;
+    try {
+      existing = readFileSync(path, "utf-8");
+    } catch {
+      console.error(
+        `[docs-bundle:check] ${label} is missing at ${path}. Run \`bun run docs:bundle\` and commit the result.`,
+      );
+      process.exit(1);
+    }
+    if (existing !== content) {
+      console.error(
+        `[docs-bundle:check] ${label} at ${path} is out of date. Run \`bun run docs:bundle\` and commit the result.`,
+      );
+      process.exit(1);
+    }
+    return;
+  }
+  writeFileSync(path, content);
+}
 const PROJECT_NAME = "agents-js";
 const SUMMARY =
   "ACP runtimes over A2A — operator CLI and reusable client library for building agent surfaces.";
@@ -246,7 +281,7 @@ if (optional.length > 0) {
 }
 
 const llmsTxt = `${lines.join("\n").trimEnd()}\n`;
-writeFileSync(join(DOCS_DIR, "llms.txt"), llmsTxt);
+writeOrCheck(join(DOCS_DIR, "llms.txt"), llmsTxt, "llms.txt");
 
 // ---------------------------------------------------------------------------
 // Build llms-full.txt
@@ -262,8 +297,14 @@ for (const page of resolvedPages) {
 }
 
 const llmsFullTxt = `${fullParts.join("\n")}\n`;
-writeFileSync(join(DOCS_DIR, "llms-full.txt"), llmsFullTxt);
+writeOrCheck(join(DOCS_DIR, "llms-full.txt"), llmsFullTxt, "llms-full.txt");
 
-console.log(
-  `✓ docs-bundle: wrote llms.txt (${llmsTxt.length} bytes, ${required.length} required + ${optional.length} optional links across ${categoryOrder.length} categories) and llms-full.txt (${llmsFullTxt.length} bytes).`,
-);
+if (isCheck) {
+  console.log(
+    `✓ docs-bundle:check: llms.txt (${llmsTxt.length} bytes) and llms-full.txt (${llmsFullTxt.length} bytes) match committed content.`,
+  );
+} else {
+  console.log(
+    `✓ docs-bundle: wrote llms.txt (${llmsTxt.length} bytes, ${required.length} required + ${optional.length} optional links across ${categoryOrder.length} categories) and llms-full.txt (${llmsFullTxt.length} bytes).`,
+  );
+}

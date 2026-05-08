@@ -1,0 +1,81 @@
+name: Docs Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Hand-authored pages, VitePress config (docs/.vitepress/**), theme,
+      # and committed docs assets (llms.txt, llms-full.txt, public/).
+      - "docs/**"
+      # Source surfaces TypeDoc walks for the API reference.
+      - "packages/**/src/**"
+      - "extras/**/src/**"
+      - "apps/**/src/**"
+      # Per-package manifests — version bumps and export-list changes affect
+      # the generated readmes and API reference even when src/** is untouched.
+      - "packages/**/package.json"
+      - "extras/**/package.json"
+      - "apps/**/package.json"
+      # Docs-side scripts feeding the build chain.
+      - "scripts/build-docs-index.ts"
+      - "scripts/docs-*.ts"
+      - "scripts/generate-package-readmes.ts"
+      # TypeDoc config — affects the API reference shape.
+      - "typedoc.config.json"
+      # Root manifest (catalog versions, scripts), lockfile, toolchain pin.
+      - "package.json"
+      - "bun.lock"
+      - "mise.toml"
+      # Workflow files. Broadened from `docs-deploy.yml` to all workflows so
+      # changes that cross-affect the deploy environment (matrix-level runner
+      # changes, action-version bumps) trigger a republish on the same push.
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+# Pages best practice: queue deploys, do not cancel a deploy that is already
+# publishing. cancel-in-progress is false on purpose.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      - uses: actions/configure-pages@v5
+      - run: bun run setup --ci
+      # docs:build internally runs: docs:api -> docs:index -> vitepress build docs.
+      # No additional generation steps are required here: docs:reference and
+      # docs:bundle are committed-tree artifacts gated by `bun run check` in
+      # ci.yml (via docs:reference:check and docs:bundle:check). If those gates
+      # are red on `main`, ci.yml fails on the same push; this workflow does
+      # not duplicate them, but does rely on them being green to publish a
+      # fresh artifact.
+      - run: bun run docs:build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
