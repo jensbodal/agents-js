@@ -7,7 +7,7 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "onCreateCommand": "curl -fsSL https://mise.run | sh && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise install && ~/.local/bin/mise exec -- bun run setup",
+  "onCreateCommand": "curl -fsSL https://mise.run | sh && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise trust --all && ~/.local/bin/mise install && ~/.local/bin/mise exec -- bun run setup",
   "postCreateCommand": "~/.local/bin/mise exec -- bun install",
   "customizations": {
     "vscode": {
