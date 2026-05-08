@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/cli",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "description": "Terminal TUI and server commands for agents-js. Provides the agents-js binary with serve, client, and acp subcommands.",
   "author": "Jens Bodal",
@@ -50,6 +51,6 @@
     "@zed-industries/codex-acp": "0.12.0"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

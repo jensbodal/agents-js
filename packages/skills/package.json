@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/skills",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.",
@@ -30,6 +31,6 @@
     "test": "bun test tests"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

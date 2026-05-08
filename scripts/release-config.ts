@@ -1,4 +1,4 @@
-export const EXPECTED_PUBLISH_ACCESS = "restricted";
+export const EXPECTED_PUBLISH_ACCESS = "public";
 export const PUBLISH_SCOPE = "@agents-js";
 
 /** Env var that selects the target npm registry for `@agents-js/*` publishes. */

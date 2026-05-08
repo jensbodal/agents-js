@@ -1,65 +1,76 @@
 # @agents-js/agui-types
 
-> AG-UI core re-exports plus first-party message, reasoning, run, tool-call, and stream helpers for agents-js.
+> AG-UI core re-exports plus first-party adapters for the agents-js streaming model — text messages, tool calls, reasoning, run lifecycle, and custom events.
+
+`@agents-js/agui-types` re-exports the canonical AG-UI event schemas from
+[`@ag-ui/core`](https://www.npmjs.com/package/@ag-ui/core) and adds the
+stateful builder agents-js gateways and runtimes use to emit AG-UI event
+streams without re-implementing the open-message / tool-call dedup
+bookkeeping every time. It also pins the AG-UI core schema version it was
+built against (`AGUI_CORE_VERSION`) so consumers can assert protocol
+compatibility at startup.
 
 ## Installation
+
+```sh
+npm install @agents-js/agui-types
+```
 
 ```sh
 bun add @agents-js/agui-types
 ```
 
-## API
+## Usage
 
-<!-- Auto-generated from JSDoc -->
+Build an AG-UI event stream for a single agent run:
 
-### Functions
+```ts
+import { createAguiEventStream } from "@agents-js/agui-types";
 
-- **`createAguiEventStream`** — Create a fresh `AguiEventStream` builder. `runFinished` / `runError` close any open text message and clear the dedup sets so the same instance can be reused across runs without leaking ids.
-- **`pickAguiBaseOptionals`** — Return an object containing only the base-event optionals that are defined. Kept out of the returned event unless present so the emitted JSON stays minimal and matches the AG-UI spec's optional-abs...
-- **`toAguiCustom`**
-- **`toAguiReasoningEnd`** — Map an agents-js reasoning-end signal to the canonical AG-UI `REASONING_END` event. `messageId` is required here — the caller is expected to reuse the id returned from `toAguiReasoningStart`.
-- **`toAguiReasoningStart`** — Map an agents-js reasoning-start signal to the canonical AG-UI `REASONING_START` event, adding `messageId` if the input did not carry one.
-- **`toAguiRunError`**
-- **`toAguiRunFinished`**
-- **`toAguiTextMessageContent`** — Map an agents-js accumulated-text message delta to the canonical AG-UI `TEXT_MESSAGE_CONTENT` event with an incremental `delta`. `previousText` is the `text` field from the previous event in the sa...
-- **`toAguiTextMessageEnd`**
-- **`toAguiTextMessageStart`**
-- **`toAguiToolCallArgs`**
-- **`toAguiToolCallEnd`**
-- **`toAguiToolCallStart`**
+const stream = createAguiEventStream();
 
-### Interfaces
+for (const event of stream.textMessageStart({ messageId: "m1", role: "assistant" })) {
+  yield event;
+}
 
-- **`AgentsJsCustomInput`** — Input shape for emitting an out-of-band `CUSTOM` event. `value` is forwarded verbatim — the AG-UI schema accepts `any`.
-- **`AgentsJsMessageDeltaInput`** — Input shape emitted by agents-js for assistant text streaming. agents-js `message.delta` carries **accumulated** text (each event's `text` contains the full string so far). AG-UI's `TEXT_MESSAGE_CO...
-- **`AgentsJsReasoningInput`** — Input shape emitted by agents-js for reasoning lifecycle signals. AG-UI's `REASONING_START` / `REASONING_END` require a `messageId`. agents-js may omit it for reasoning blocks, so the adapters acce...
-- **`AgentsJsRunErrorInput`** — Input shape for signalling a run-level error.
-- **`AgentsJsRunFinishedInput`** — Input shape for signalling a successful run completion. `result` is forwarded verbatim when supplied; callers omit it for runs whose outcome is conveyed only through the preceding event stream.
-- **`AgentsJsTextMessageEndInput`** — Input shape for closing an open AG-UI text message.
-- **`AgentsJsTextMessageStartInput`** — Input shape for opening a new AG-UI text message. `role` defaults to `"assistant"` (matching the AG-UI schema default) so agents-js callers — which almost always emit assistant messages — can omit ...
-- **`AgentsJsToolCallArgsInput`** — Input shape emitted by agents-js when streaming tool-call argument chunks. agents-js uses `argsChunk`; AG-UI's canonical `TOOL_CALL_ARGS` event uses `delta`. The mapping is pure-rename.
-- **`AgentsJsToolCallEndInput`** — Input shape for closing an open AG-UI tool call.
-- **`AgentsJsToolCallStartInput`** — Input shape for opening a new AG-UI tool call. Field name `toolCallName` matches the AG-UI schema verbatim. Stream-builder callers using a different convention (e.g., `toolName`) translate at the c...
-- **`AguiBaseEventOptionals`** — Shared optional fields carried by every AG-UI event (`BaseEventSchema`). Every adapter accepts these and forwards them verbatim. Centralized here so adding a new field to the AG-UI base schema is a...
-- **`AguiEventStream`** — Stateful builder that owns the open-message + tool-call dedup lifecycle shared by every gateway/runtime that emits AG-UI events. Each method returns the `BaseEvent[]` to forward to the transport; i...
-- **`AguiEventStreamOptions`**
+let acc = "";
+for (const chunk of llmTokenStream) {
+  acc += chunk;
+  for (const event of stream.textMessageContent({ messageId: "m1", text: acc, previousText: acc.slice(0, -chunk.length) })) {
+    yield event;
+  }
+}
 
-### Constants
+for (const event of stream.textMessageEnd({ messageId: "m1" })) {
+  yield event;
+}
 
-- **`AGUI_CORE_VERSION`** — The AG-UI Core schema version this package re-exports. Read from the installed `-ui/core/package.json#version` at module load, so it stays in sync with the dependency without any manual duplication.
+for (const event of stream.runFinished({ runId: "r1" })) {
+  yield event;
+}
+```
 
-### Exports
+Translate a single agents-js signal into the canonical AG-UI shape:
 
-- **`type AgentsJsCustomInput`**
-- **`type AguiBaseEventOptionals`**
+```ts
+import { AGUI_CORE_VERSION, toAguiToolCallStart } from "@agents-js/agui-types";
 
+console.log(`emitting events compatible with ag-ui core ${AGUI_CORE_VERSION}`);
 
-## Dependencies
+const event = toAguiToolCallStart({
+  toolCallId: "tc-7",
+  toolCallName: "fetch_context",
+  parentMessageId: "m1",
+});
+transport.send(event);
+```
 
-- `@ag-ui/core`
+## Documentation
+
+Full API reference and protocol guides: <https://agents-js.bodal.dev/>.
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
 
-<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+<!-- This README is hand-maintained. -->
