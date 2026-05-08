@@ -1,5 +1,9 @@
 /**
- * docs-bundle.ts — Generates docs/llms.txt and docs/llms-full.txt
+ * docs-bundle.ts — Generates docs/public/llms.txt and docs/public/llms-full.txt
+ *
+ * Output lives under `docs/public/` so VitePress copies the bundles to the
+ * dist root (`/llms.txt`, `/llms-full.txt`); files at `docs/<name>.txt` are
+ * not copied by VitePress and would 404 on the published site.
  *
  * Follows the llmstxt.org spec:
  *  - llms.txt:  H1 project title + blockquoted summary + H2-grouped link
@@ -21,11 +25,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const DOCS_DIR = join(import.meta.dir, "..", "docs");
+const PUBLIC_DIR = join(DOCS_DIR, "public");
 
 // CLI: `bun scripts/docs-bundle.ts` writes; `--check` compares the would-be
 // content against the committed files and exits non-zero on drift. The check
-// mode is wired into `bun run check` so stale `docs/llms.txt` /
-// `docs/llms-full.txt` cannot ship to the published site.
+// mode is wired into `bun run check` so stale `docs/public/llms.txt` /
+// `docs/public/llms-full.txt` cannot ship to the published site.
 const args = process.argv.slice(2);
 const isCheck = args.includes("--check");
 const unknownArgs = args.filter((arg) => arg !== "--check");
@@ -281,7 +286,7 @@ if (optional.length > 0) {
 }
 
 const llmsTxt = `${lines.join("\n").trimEnd()}\n`;
-writeOrCheck(join(DOCS_DIR, "llms.txt"), llmsTxt, "llms.txt");
+writeOrCheck(join(PUBLIC_DIR, "llms.txt"), llmsTxt, "llms.txt");
 
 // ---------------------------------------------------------------------------
 // Build llms-full.txt
@@ -297,7 +302,7 @@ for (const page of resolvedPages) {
 }
 
 const llmsFullTxt = `${fullParts.join("\n")}\n`;
-writeOrCheck(join(DOCS_DIR, "llms-full.txt"), llmsFullTxt, "llms-full.txt");
+writeOrCheck(join(PUBLIC_DIR, "llms-full.txt"), llmsFullTxt, "llms-full.txt");
 
 if (isCheck) {
   console.log(
