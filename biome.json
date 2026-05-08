@@ -109,7 +109,8 @@
       "!docs/.vitepress/cache",
       "!docs/.vitepress/dist",
       "!docs/public/docs-index.json",
-      "!docs/public/graph.json"
+      "!docs/public/graph.json",
+      "!.claude/worktrees"
     ]
   }
 }

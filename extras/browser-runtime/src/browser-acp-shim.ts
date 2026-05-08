@@ -21,8 +21,9 @@ export interface PromptRunner {
   /**
    * Release any resources owned by this runner (e.g., a `WebWorker` and the
    * GPU memory used by an in-process `MLCEngine`). Called when the
-   * surrounding shell is torn down. Optional so the simpler mock runner can
-   * skip the no-op.
+   * surrounding shell is torn down. Optional so external implementations
+   * without disposable resources can omit it; in-tree runners still define
+   * a no-op for consistency.
    */
   dispose?(): Promise<void> | void;
 }
