@@ -526,6 +526,197 @@ function flattenSignature(raw: string): string {
   return raw.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Walk the package's `src/` tree, find the named `VariableDeclaration` whose
+ * initializer is a call of the form `toSchemaInfoMap(<source>.<key>)`, and
+ * return the `(method, schemaName)` pairs derived from the referenced object
+ * literal.
+ *
+ * Used for ACP's `Map<ACPMethod, ACPMethodSchemaInfo>` registries
+ * (`acpRequestSchemas`, `acpResponseSchemas`). The Maps are constructed at
+ * runtime from a generated artifacts object literal; the extractor resolves
+ * that indirection statically by:
+ *
+ *   1. locating the `const <mapSymbolName> = toSchemaInfoMap(<expr>);` decl,
+ *   2. reading the `PropertyAccessExpression` argument to find both the
+ *      identifier (e.g. `acpGeneratedSchemaArtifacts`) and the property name
+ *      (`requestSchemas` / `responseSchemas`),
+ *   3. resolving that identifier's declaration anywhere under
+ *      `packageSrcDir`, walking into the property's `ObjectLiteralExpression`
+ *      value, and reading each entry's `method` + `definitionName` literal
+ *      strings.
+ *
+ * Each "unexpected shape" branch throws with a precise error rather than
+ * falling through silently — silent fallthrough corrupts the partial. If a
+ * future shape change causes throws, defer the extraction the way
+ * `@hostSessionControl` was deferred (page breadcrumb + manifest entry +
+ * `_generated/README.md` Deferred extractions entry).
+ *
+ * Result is sorted by `method` for stable output.
+ */
+export function getMethodKeyedRegistryEntries(
+  packageSrcDir: string,
+  mapSymbolName: string,
+): Array<{ method: string; schemaName: string }> {
+  const project = getProject();
+  const sourceFiles = collectTsFiles(packageSrcDir).map((p) => project.addSourceFileAtPath(p));
+
+  let mapDecl: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getVariableDeclaration"]>;
+  for (const sf of sourceFiles) {
+    const candidate = sf.getVariableDeclaration(mapSymbolName);
+    if (candidate) {
+      mapDecl = candidate;
+      break;
+    }
+  }
+  if (!mapDecl) {
+    for (const sf of sourceFiles) project.removeSourceFile(sf);
+    throw new Error(
+      `getMethodKeyedRegistryEntries: variable ${JSON.stringify(mapSymbolName)} not found under ${packageSrcDir}.`,
+    );
+  }
+
+  const initializer = mapDecl.getInitializer();
+  if (!initializer || !Node.isCallExpression(initializer)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${mapSymbolName} initializer is ${initializer?.getKindName() ?? "undefined"}, expected CallExpression.`,
+    );
+  }
+
+  const args = initializer.getArguments();
+  if (args.length !== 1) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${mapSymbolName} call has ${args.length} arguments, expected 1.`,
+    );
+  }
+  const arg = args[0];
+  if (!Node.isPropertyAccessExpression(arg)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${mapSymbolName} argument is ${arg.getKindName()}, expected PropertyAccessExpression of the form <object>.<property>.`,
+    );
+  }
+
+  const sourceIdent = arg.getExpression();
+  if (!Node.isIdentifier(sourceIdent)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${mapSymbolName} argument's object expression is ${sourceIdent.getKindName()}, expected Identifier.`,
+    );
+  }
+  const sourceName = sourceIdent.getText();
+  const propertyName = arg.getName();
+
+  let sourceDecl: ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getVariableDeclaration"]>;
+  for (const sf of sourceFiles) {
+    const candidate = sf.getVariableDeclaration(sourceName);
+    if (candidate) {
+      sourceDecl = candidate;
+      break;
+    }
+  }
+  if (!sourceDecl) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${mapSymbolName} references identifier ${JSON.stringify(sourceName)}, but no matching VariableDeclaration was found under ${packageSrcDir}.`,
+    );
+  }
+
+  const sourceInitRaw = sourceDecl.getInitializer();
+  const sourceInit = unwrapAssertions(sourceInitRaw);
+  if (!sourceInit || !Node.isObjectLiteralExpression(sourceInit)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${sourceName} initializer (after unwrapping as/satisfies) is ${sourceInit?.getKindName() ?? "undefined"}, expected ObjectLiteralExpression.`,
+    );
+  }
+
+  const sourceProp = sourceInit.getProperty(propertyName);
+  if (!sourceProp) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${sourceName} has no property ${JSON.stringify(propertyName)}.`,
+    );
+  }
+  if (!Node.isPropertyAssignment(sourceProp)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${sourceName}.${propertyName} is ${sourceProp.getKindName()}, expected PropertyAssignment.`,
+    );
+  }
+  const propValue = unwrapAssertions(sourceProp.getInitializer());
+  if (!propValue || !Node.isObjectLiteralExpression(propValue)) {
+    throw new Error(
+      `getMethodKeyedRegistryEntries: ${sourceName}.${propertyName} value (after unwrapping as/satisfies) is ${propValue?.getKindName() ?? "undefined"}, expected ObjectLiteralExpression.`,
+    );
+  }
+
+  const entries: Array<{ method: string; schemaName: string }> = [];
+  for (const entry of propValue.getProperties()) {
+    if (!Node.isPropertyAssignment(entry)) {
+      throw new Error(
+        `getMethodKeyedRegistryEntries: ${sourceName}.${propertyName} contains a ${entry.getKindName()} entry at ${entry.getStart()}, expected PropertyAssignment.`,
+      );
+    }
+    const entryValue = entry.getInitializer();
+    if (!entryValue || !Node.isObjectLiteralExpression(entryValue)) {
+      throw new Error(
+        `getMethodKeyedRegistryEntries: ${sourceName}.${propertyName} entry value is ${entryValue?.getKindName() ?? "undefined"}, expected ObjectLiteralExpression.`,
+      );
+    }
+    const method = readStringLiteralProperty(entryValue, "method", `${sourceName}.${propertyName}`);
+    const schemaName = readStringLiteralProperty(
+      entryValue,
+      "definitionName",
+      `${sourceName}.${propertyName}`,
+    );
+    entries.push({ method, schemaName });
+  }
+
+  for (const sf of sourceFiles) project.removeSourceFile(sf);
+
+  return entries.sort((a, b) => a.method.localeCompare(b.method));
+}
+
+// Strip `as <T>`, `<T>` (TypeAssertion), and `satisfies <T>` wrappers from an
+// expression. Object literals carrying `as const satisfies Foo` show up as
+// `AsExpression(SatisfiesExpression(ObjectLiteralExpression))`; the inner
+// shape is what extractors care about, so this helper unwraps both forms in
+// any order and any depth. A `Node | undefined` input returns `undefined` to
+// preserve the caller's branch on missing initializers.
+function unwrapAssertions(node: Node | undefined): Node | undefined {
+  let current = node;
+  while (
+    current &&
+    (Node.isAsExpression(current) ||
+      Node.isSatisfiesExpression(current) ||
+      Node.isTypeAssertion(current) ||
+      Node.isParenthesizedExpression(current))
+  ) {
+    current = current.getExpression();
+  }
+  return current;
+}
+
+function readStringLiteralProperty(
+  obj: import("ts-morph").ObjectLiteralExpression,
+  key: string,
+  context: string,
+): string {
+  const prop = obj.getProperty(key);
+  if (!prop) {
+    throw new Error(
+      `readStringLiteralProperty: ${context} entry has no '${key}' property at ${obj.getStart()}.`,
+    );
+  }
+  if (!Node.isPropertyAssignment(prop)) {
+    throw new Error(
+      `readStringLiteralProperty: ${context} entry '${key}' is ${prop.getKindName()}, expected PropertyAssignment.`,
+    );
+  }
+  const init = prop.getInitializer();
+  if (!init || !Node.isStringLiteral(init)) {
+    throw new Error(
+      `readStringLiteralProperty: ${context} entry '${key}' value is ${init?.getKindName() ?? "undefined"}, expected StringLiteral.`,
+    );
+  }
+  return init.getLiteralValue();
+}
+
 function extractDeclarationNames(stmt: Statement): string[] {
   if (Node.isExportDeclaration(stmt)) {
     return stmt.getNamedExports().map((spec) => spec.getName());

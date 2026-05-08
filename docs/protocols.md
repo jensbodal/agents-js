@@ -243,6 +243,8 @@ The repo validates:
 - ACP responses via `validateACPResponse`
 - ACP form elicitation metadata via `ACPFormElicitationMetadata`
 
+!!!include(_generated/acp-validated-surface.md)!!!
+
 Validation supports the repo-wide modes:
 
 - `strict`

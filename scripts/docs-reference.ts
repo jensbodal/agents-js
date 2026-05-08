@@ -32,6 +32,7 @@ import {
   getHostProcessFunctions,
   getHostSurfaceExports,
   getInterfaceFieldSignatures,
+  getMethodKeyedRegistryEntries,
   getRuntimeRegistryMatrix,
 } from "./lib/package-introspection.ts";
 
@@ -169,6 +170,39 @@ const PARTIALS: PartialSpec[] = [
         const opt = f.optional ? "?" : "";
         lines.push(`- \`${f.name}${opt}: ${f.signature}\``);
       }
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-validated-surface.md",
+    sources: ["packages/validation/src/acp.ts", "packages/validation/src/generated/acp-schema.ts"],
+    extractionMethod:
+      "@hostValidator-tagged Map<ACPMethod, ACPMethodSchemaInfo> registries via ts-morph",
+    body() {
+      const reqs = getMethodKeyedRegistryEntries(
+        join(ROOT, "packages/validation/src"),
+        "acpRequestSchemas",
+      );
+      const resps = getMethodKeyedRegistryEntries(
+        join(ROOT, "packages/validation/src"),
+        "acpResponseSchemas",
+      );
+      if (reqs.length === 0 || resps.length === 0) {
+        throw new Error(
+          "acpRequestSchemas / acpResponseSchemas resolved to an empty entry list. Either restore generated artifacts or defer this extraction in _generated/README.md Deferred extractions.",
+        );
+      }
+      const lines = [
+        "The validated ACP surface in `@agents-js/validation` covers these method/schema pairings.",
+        "",
+        "ACP request and notification methods:",
+        "",
+        ...reqs.map((e) => `- \`${e.method}\` → \`${e.schemaName}\``),
+        "",
+        "ACP response methods:",
+        "",
+        ...resps.map((e) => `- \`${e.method}\` → \`${e.schemaName}\``),
+      ];
       return lines.join("\n");
     },
   },

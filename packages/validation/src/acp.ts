@@ -153,7 +153,22 @@ function toSchemaInfoMap(
   );
 }
 
+/**
+ * Method-keyed registry of ACP request and notification schemas. Built from
+ * the generated `acpGeneratedSchemaArtifacts.requestSchemas` Record so the
+ * keys stay locked to the ACP method whitelist.
+ *
+ * @hostValidator
+ */
 const acpRequestSchemas = toSchemaInfoMap(acpGeneratedSchemaArtifacts.requestSchemas);
+/**
+ * Method-keyed registry of ACP response schemas. Built from the generated
+ * `acpGeneratedSchemaArtifacts.responseSchemas` Record so each method's
+ * response shape is validated against the same SDK definition the request
+ * was paired with.
+ *
+ * @hostValidator
+ */
 const acpResponseSchemas = toSchemaInfoMap(acpGeneratedSchemaArtifacts.responseSchemas);
 const acpSchemaArtifactsCache = new Map<string, JsonSchemaValidationArtifacts>();
 
