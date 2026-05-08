@@ -97,6 +97,7 @@ audit, which doesn't need to participate in the gate.
 | [`acp-canonical-events.md`](./acp-canonical-events.md) | `packages/acp-host/src/types/session.ts` (`ACPSessionEvent` discriminated-union variants on the `type` discriminant) | [Observability → Canonical Events](../observability#canonical-events) |
 | [`acp-session-hooks.md`](./acp-session-hooks.md) | `packages/acp-host/src/types/hooks.ts` (`SessionHooks` interface members; **source order**, see Port author rule deviation below) | [Observability → Session Hooks](../observability#session-hooks) |
 | [`acp-observability-surface.md`](./acp-observability-surface.md) | `packages/acp-host/src/logger.ts` (`@hostObservability` JSDoc tags) | [Observability → Current Primitive: Logger + logStore](../observability#current-primitive-logger-logstore) |
+| [`acp-session-mapping.md`](./acp-session-mapping.md) | `packages/acp/src/host-surface-sdk.ts` (`SessionUpdate` discriminated-union of intersection types from `@agentclientprotocol/sdk`, resolved via re-export) | [Streaming → ACP Mapping](../streaming-and-events#acp-mapping) |
 | [`acp-validated-surface.md`](./acp-validated-surface.md) | `packages/validation/src/acp.ts` + `packages/validation/src/generated/acp-schema.ts` (`@hostValidator`-tagged `Map<ACPMethod, ACPMethodSchemaInfo>` registries: `acpRequestSchemas`, `acpResponseSchemas`) | [Protocols → Validated ACP Surface](../protocols#validated-acp-surface) |
 | [`a2a-server-bridge.md`](./a2a-server-bridge.md) | `packages/validation/src/a2a.ts` (`@hostValidator`-tagged `a2aValidationSchemas` flat object literal) | [Protocols → JSON-RPC over HTTP and SSE](../protocols#json-rpc-over-http-and-sse) |
 | [`agent-registry-schema.md`](./agent-registry-schema.md) | `packages/a2a-client/src/registry.ts` (`A2AAgentEntry` + `ACPAgentEntry` interface fields, **source order**) | [Surfaces → Agent Registry → File Format](../surfaces#file-format) |
@@ -243,6 +244,38 @@ and the manifest entry (`docs/.manifest.json#pendingExtraction`).
   class than the one the lifecycle partial covers); leaving them
   un-flagged correctly conveys "still hand-authored" without
   cross-referencing a specific extraction target.
+
+### Port 4 — Five Paths Table + Concurrency Boundary Summary (streaming-and-events.md)
+
+Two adjacent sections of `docs/streaming-and-events.md` — the multi-column
+"Five paths at a glance" table and the per-aspect Concurrency Boundary
+Summary table — share the same shape problem. They are editorially
+synthesized from control-flow analysis across `lane.inFlightPrompt`, the
+lane Map, `AguiRunCoordinator.active`, and the blocking-mention dispatch
+site. Code symbols can produce a names-only manifest (which the partial
+generator does for the simpler cases — see `acp-session-mapping.md`), but
+the per-row "Endpoint", "Session isolation", "In-flight slots",
+"Streaming", "Notes" columns aren't reachable from a tagged-export list
+or from a single discriminated union.
+
+- **Page**: `docs/streaming-and-events.md`
+- **Sections**:
+  - `## The five paths at a glance` (breadcrumb token: `streaming-five-paths`)
+  - `## Concurrency boundary summary` (breadcrumb token: `concurrency-boundary`)
+- **Blocker**: Multi-column table shape with semantic per-row text. No
+  tag-extractable representation in source today.
+- **Unblock criterion**: Either (a) per-column metadata in source via
+  structured JSDoc tags such as `@hostStreamPath{ endpoint, isolation,
+  slots, streaming, notes }`; (b) a sidecar metadata file with a
+  schema-validated shape; or (c) a `@concurrencyBoundary` tag on each
+  primitive paired with an extractor that emits the per-row table.
+- **Workaround until then**: Both sections are left hand-authored.
+  Each carries a `<!-- pending-extraction: <token> -->` HTML breadcrumb
+  and a section-level entry in `docs/.manifest.json#pendingExtraction`.
+  The ACP Mapping section in the same page IS extracted (the underlying
+  `SessionUpdate` discriminated union has a clean source-of-truth path
+  via `@agentclientprotocol/sdk` re-export through
+  `packages/acp/src/host-surface-sdk.ts`).
 
 ### Port 1a — Package Reference table (harness-guide.md)
 

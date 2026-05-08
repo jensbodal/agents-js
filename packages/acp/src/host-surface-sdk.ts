@@ -17,7 +17,6 @@ import {
 } from "@agentclientprotocol/sdk";
 
 /** @hostSurface */
-export { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION };
-
-/** @hostSurface */
 export type { SessionNotification, SessionUpdate };
+/** @hostSurface */
+export { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION };

@@ -112,6 +112,11 @@ in the streaming layer:)
 
 ## ACP mapping
 
+!!!include(_generated/acp-session-mapping.md)!!!
+
+`ACPSessionController` translates each of the variants above into host-side
+events and A2A status updates per the rules below.
+
 ### ACP text chunks
 
 - ACP `agent_message_chunk` text updates are accumulated per active task.
@@ -184,6 +189,8 @@ Artifact-append parity remains intentionally outside that claim.
 
 ## The five paths at a glance
 
+<!-- pending-extraction: streaming-five-paths -->
+
 | Path | Endpoint | Session isolation | In-flight slots | Streaming | Notes |
 |---|---|---|---|---|---|
 | **A2A** (`message/send`, `message/stream`, `tasks/resubscribe`) | `POST /a2a` | **Per `contextId`** — disjoint `SessionLane` per context | One in-flight prompt per lane (per-lane mutex) | Yes (SSE on `message/stream` / `tasks/resubscribe`) | Each lane gets its own controller when a `controllerFactory` is configured; otherwise lanes share a primary controller. |
@@ -248,6 +255,8 @@ direct-dispatch path **before** lane resolution. Streaming on the dispatch path 
 governed by the target executor — the gateway forwards what the target emits.
 
 ## Concurrency boundary summary
+
+<!-- pending-extraction: concurrency-boundary -->
 
 | Concurrency aspect | Bounded by | Where enforced |
 |---|---|---|

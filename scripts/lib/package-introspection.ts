@@ -444,6 +444,117 @@ export function getDiscriminatedUnionVariants(
 }
 
 /**
+ * Extract discriminant values from a union of intersection types — the
+ * pattern that the ACP SDK uses for `SessionUpdate`:
+ *
+ *   type SessionUpdate =
+ *     | (ContentChunk & { sessionUpdate: "user_message_chunk" })
+ *     | (ToolCall & { sessionUpdate: "tool_call" })
+ *     | ...
+ *
+ * Sister to {@link getDiscriminatedUnionVariants} but for the
+ * intersection-union shape AND the case where the type alias is
+ * re-exported from a dependency (so the local source file has only an
+ * `ExportSpecifier`, not a `TypeAliasDeclaration` with the union body).
+ *
+ * Resolution path: we walk `packageSrcDir`, find a source file that
+ * exports `typeName`, follow `getExportedDeclarations()` (TypeScript's
+ * intended re-export resolution — not a node_modules-path traversal) to
+ * the original `TypeAliasDeclaration`, then use the Type API
+ * (`getType()` → `isUnion()` → `getUnionTypes()` → `isIntersection()` →
+ * `getIntersectionTypes()`) to inspect the union shape. Each union
+ * member must be an intersection containing one operand that carries
+ * the discriminant property with a string-literal type.
+ *
+ * Throws on shape mismatches (no special-case fallthrough). If a future
+ * shape change causes throws, defer the extraction the way
+ * `@hostSessionControl` was deferred — do not pile on special cases.
+ */
+export function getIntersectionUnionDiscriminants(
+  packageSrcDir: string,
+  typeName: string,
+  discriminantField: string,
+): string[] {
+  const project = getProject();
+  let originDecl:
+    | ReturnType<ReturnType<Project["addSourceFileAtPath"]>["getTypeAlias"]>
+    | undefined;
+  const filesToCleanup: string[] = [];
+
+  for (const filePath of collectTsFiles(packageSrcDir)) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    filesToCleanup.push(filePath);
+    const decls = sourceFile.getExportedDeclarations().get(typeName);
+    if (decls && decls.length > 0) {
+      const candidate = decls[0];
+      // Across the resolution chain, the resolved declaration we want is a
+      // TypeAliasDeclaration. Anything else (e.g. an ExportSpecifier that
+      // didn't follow through, a VariableDeclaration) means this isn't the
+      // expected pattern.
+      if (Node.isTypeAliasDeclaration(candidate)) {
+        originDecl = candidate;
+        break;
+      }
+      throw new Error(
+        `getIntersectionUnionDiscriminants: ${typeName} resolved to ${candidate.getKindName()}, expected TypeAliasDeclaration.`,
+      );
+    }
+  }
+
+  if (!originDecl) {
+    for (const p of filesToCleanup) {
+      const sf = project.getSourceFile(p);
+      if (sf) project.removeSourceFile(sf);
+    }
+    throw new Error(
+      `getIntersectionUnionDiscriminants: no exported type alias named ${JSON.stringify(typeName)} reachable from ${packageSrcDir}.`,
+    );
+  }
+
+  // Use the Type API rather than the TypeNode API: TypeNodes from the
+  // origin's `getTypeNode()` may live in node_modules, but the resolved
+  // Type is structural and accessible through the normal type system.
+  const aliasType = originDecl.getType();
+  if (!aliasType.isUnion()) {
+    throw new Error(`getIntersectionUnionDiscriminants: ${typeName} resolved Type is not a union.`);
+  }
+
+  const variants: string[] = [];
+  for (const member of aliasType.getUnionTypes()) {
+    // The intersection check is informational — even non-intersection
+    // members can carry the discriminant directly (e.g. plain TypeLiteral
+    // members). What we require is exactly one accessible
+    // `discriminantField` property whose type is a string literal.
+    const property = member.getProperty(discriminantField);
+    if (!property) {
+      throw new Error(
+        `getIntersectionUnionDiscriminants: ${typeName} union member ${member.getText().slice(0, 80)} has no '${discriminantField}' property.`,
+      );
+    }
+    const propType = property.getValueDeclarationOrThrow().getType();
+    if (!propType.isStringLiteral()) {
+      throw new Error(
+        `getIntersectionUnionDiscriminants: ${typeName} member's '${discriminantField}' is ${propType.getText()}, expected string literal.`,
+      );
+    }
+    const value = propType.getLiteralValue();
+    if (typeof value !== "string") {
+      throw new Error(
+        `getIntersectionUnionDiscriminants: ${typeName} member's '${discriminantField}' literal value is ${typeof value}, expected string.`,
+      );
+    }
+    variants.push(value);
+  }
+
+  for (const p of filesToCleanup) {
+    const sf = project.getSourceFile(p);
+    if (sf) project.removeSourceFile(sf);
+  }
+
+  return [...new Set(variants)].sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Walk the package's `src/` tree, find the named `InterfaceDeclaration`,
  * and return its property fields as `{ name, signature, optional }` triples
  * **in source declaration order**.

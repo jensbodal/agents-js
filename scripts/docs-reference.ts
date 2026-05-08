@@ -33,6 +33,7 @@ import {
   getHostProcessFunctions,
   getHostSurfaceExports,
   getInterfaceFieldSignatures,
+  getIntersectionUnionDiscriminants,
   getMethodKeyedRegistryEntries,
   getRuntimeRegistryMatrix,
 } from "./lib/package-introspection.ts";
@@ -171,6 +172,30 @@ const PARTIALS: PartialSpec[] = [
         const opt = f.optional ? "?" : "";
         lines.push(`- \`${f.name}${opt}: ${f.signature}\``);
       }
+      return lines.join("\n");
+    },
+  },
+  {
+    name: "acp-session-mapping.md",
+    sources: ["packages/acp/src/host-surface-sdk.ts"],
+    extractionMethod:
+      "SessionUpdate intersection-union discriminants via ts-morph (re-export resolution from @agentclientprotocol/sdk)",
+    body() {
+      const variants = getIntersectionUnionDiscriminants(
+        join(ROOT, "packages/acp/src"),
+        "SessionUpdate",
+        "sessionUpdate",
+      );
+      if (variants.length === 0) {
+        throw new Error(
+          "SessionUpdate has no variants. Either restore the SDK re-export or defer this extraction.",
+        );
+      }
+      const lines = [
+        "The ACP `SessionUpdate` discriminant values that `ACPSessionController` translates to host events:",
+        "",
+        ...variants.map((v) => `- \`${v}\``),
+      ];
       return lines.join("\n");
     },
   },

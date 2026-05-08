@@ -32,6 +32,18 @@
       "section": "package-reference",
       "blockedBy": "Port 1a deferred",
       "unblockCriterion": "Concern column moves to package.json metadata or is removed entirely; vocabulary stable enough that source-derivation does not lock in a regrettable taxonomy."
+    },
+    {
+      "page": "streaming-and-events.md",
+      "section": "streaming-five-paths",
+      "blockedBy": "Port 4 deferred",
+      "unblockCriterion": "The five paths' multi-column shape (Endpoint, Session isolation, In-flight slots, Streaming, Notes) is editorially synthesized; it is not derivable from a single tagged-export list. Unblock requires either (a) per-column metadata in source via JSDoc tags such as `@hostStreamPath` with structured arguments, or (b) a sidecar metadata file with a schema-validated shape."
+    },
+    {
+      "page": "streaming-and-events.md",
+      "section": "concurrency-boundary",
+      "blockedBy": "Port 4 deferred",
+      "unblockCriterion": "Concurrency boundaries are inferred from control flow across `lane.inFlightPrompt`, lane Map, AguiRunCoordinator.active, and the blocking-mention dispatch site. Unblock requires `@concurrencyBoundary` JSDoc tags on each primitive plus an extractor that emits the per-row table."
     }
   ]
 }
