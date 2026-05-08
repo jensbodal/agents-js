@@ -111,8 +111,8 @@ const userFacingForbiddenScanPaths = [
   "docs/harness-guide.md",
   "docs/streaming-and-events.md",
   "docs/observability.md",
-  "docs/llms.txt",
-  "docs/llms-full.txt",
+  "docs/public/llms.txt",
+  "docs/public/llms-full.txt",
 ] as const;
 
 async function readText(relativePath: string, root = repoRoot): Promise<string> {

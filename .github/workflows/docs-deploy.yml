@@ -5,7 +5,8 @@ on:
     branches: [main]
     paths:
       # Hand-authored pages, VitePress config (docs/.vitepress/**), theme,
-      # and committed docs assets (llms.txt, llms-full.txt, public/).
+      # and committed docs assets (public/, including the generated
+      # public/llms.txt and public/llms-full.txt bundles).
       - "docs/**"
       # Source surfaces TypeDoc walks for the API reference.
       - "packages/**/src/**"
@@ -67,7 +68,7 @@ jobs:
       # the same docs deploy build proof:
       #   mise run docs:deploy-build
       - run: mise run docs:deploy-build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/.vitepress/dist
 
@@ -102,8 +103,8 @@ jobs:
             echo
             echo "Enable Pages in repository settings, choose GitHub Actions as the source, then rerun this workflow."
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: steps.pages.outputs.enabled == 'true'
       - id: deployment
         if: steps.pages.outputs.enabled == 'true'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -16,6 +16,6 @@
     "playground.md"
   ],
   "excludedNamespaces": ["api/"],
-  "generatedOutputs": ["llms.txt", "llms-full.txt"],
+  "generatedOutputs": ["public/llms.txt", "public/llms-full.txt"],
   "referenceIndexExempt": ["_generated/README.md"]
 }
