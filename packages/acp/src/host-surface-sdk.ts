@@ -8,7 +8,16 @@
 // `@hostSurface` tag here, and emits the names into
 // `docs/_generated/acp-host-stable-surface.md`.
 
-import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import {
+  ClientSideConnection,
+  ndJsonStream,
+  PROTOCOL_VERSION,
+  type SessionNotification,
+  type SessionUpdate,
+} from "@agentclientprotocol/sdk";
 
 /** @hostSurface */
 export { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION };
+
+/** @hostSurface */
+export type { SessionNotification, SessionUpdate };

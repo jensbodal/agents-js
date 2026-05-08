@@ -47,6 +47,8 @@ bun add @agents-js/acp
 - **`ACPControllerEvent`**
 - **`ACPWorkspaceRootPolicy`**
 - **`ExhaustionCallback`**
+- **`SessionNotification`**
+- **`SessionUpdate`**
 - **`Stream`**
 
 ### Constants
