@@ -72,9 +72,6 @@ export function buildSpawnEnv(
 
 /**
  * Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
- *
- * @hostSurface
- * @hostProcess
  */
 export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
   const { command = "opencode", args = ["acp"], env, inheritedEnvKeys } = options;
@@ -147,8 +144,8 @@ export function spawnACPAgent(options: ACPProcessOptions = {}): ACPProcess {
 
 export type { Stream };
 // `ClientSideConnection`, `ndJsonStream`, and `PROTOCOL_VERSION` are
-// re-exported from `host-surface-sdk.ts` so the `@hostSurface` tag stays
-// next to them without colliding with biome's organize-exports. Internal
-// callers still import them via the `import` block at the top of this
-// file.
+// re-exported from `host-surface-sdk.ts` so biome's organize-exports
+// rule does not merge them with the broader untagged re-exports here.
+// Internal callers still import them via the `import` block at the top
+// of this file.
 export { CLIENT_METHODS, RequestError };

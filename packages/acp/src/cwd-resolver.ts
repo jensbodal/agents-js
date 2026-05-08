@@ -15,7 +15,6 @@ export class CwdResolutionError extends Error {
   }
 }
 
-/** @hostSurface */
 export interface ACPWorkspaceRootPolicy {
   resolveWorkspaceRoot(): Promise<string> | string;
   validateCwd?(cwd: string, workspaceRoot: string): Promise<boolean> | boolean;

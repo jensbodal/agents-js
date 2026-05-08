@@ -66,8 +66,6 @@ const setAcpHelp = (a: AcpCommandArgs): void => {
  * Argv-parser spec for `agents-js acp`. Exposed as a top-level binding so
  * the docs governance generator (`scripts/docs-reference.ts`) can extract
  * the subcommand's flag table by walking the spread fragments.
- *
- * @hostCliSubcommand
  */
 export const ACP_ARG_SPEC: ArgSpec<AcpCommandArgs> = {
   "--help": { kind: "flag", assign: setAcpHelp, description: "Show this message." },

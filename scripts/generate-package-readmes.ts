@@ -13,13 +13,177 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import {
-  collectTsFiles,
-  type ExportEntry,
-  extractExportsFromFile,
-  type PkgJson,
-  readJson,
-} from "./lib/package-introspection.ts";
+import { collectTsFiles, type PkgJson, readJson } from "./lib/package-introspection.ts";
+
+// ---------------------------------------------------------------------------
+// JSDoc + export extraction (regex-based, README-only)
+// ---------------------------------------------------------------------------
+// This regex parser is the README generator's local export-discovery
+// path. It used to live alongside the docs-reference partial extractors
+// in `scripts/lib/package-introspection.ts`, but those partial extractors
+// have all migrated to ts-morph. Keeping the regex parser here scoped to
+// its only consumer keeps the wrapper module pure ts-morph and removes
+// the boundary-gate special-casing the parallel parser used to need.
+
+interface ExportEntry {
+  name: string;
+  jsdoc: string;
+  kind: "function" | "class" | "interface" | "type" | "const" | "other";
+  /** Source path the export was discovered in (used for tiebreaking). */
+  sourcePath: string;
+}
+
+function extractExportsFromFile(filePath: string): ExportEntry[] {
+  const source = readFileSync(filePath, "utf-8");
+  const lines = source.split("\n");
+  const entries: ExportEntry[] = [];
+
+  let pendingJsdoc = "";
+  let inJsdoc = false;
+
+  for (const [i, line] of lines.entries()) {
+    if (line.trimStart().startsWith("/**")) {
+      inJsdoc = true;
+      const content = line.trim().replace(/^\/\*\*\s?/, "");
+      if (line.includes("*/")) {
+        inJsdoc = false;
+        pendingJsdoc = content.replace(/\s*\*\//, "").trim();
+      } else {
+        pendingJsdoc = content;
+      }
+      continue;
+    }
+    if (inJsdoc) {
+      pendingJsdoc +=
+        " " +
+        line
+          .trim()
+          .replace(/^\*\s?/, "")
+          .replace(/\*\//, "")
+          .trim();
+      if (line.includes("*/")) {
+        inJsdoc = false;
+        pendingJsdoc = pendingJsdoc.trim();
+      }
+      continue;
+    }
+
+    if (line.trimStart().startsWith("//") || line.trim() === "") {
+      continue;
+    }
+
+    const trimmed = line.trim();
+    if (trimmed.startsWith("export ")) {
+      const { names, kind } = parseExportLine(trimmed, lines, i);
+      const isInternal = /\B@internal\b/.test(pendingJsdoc);
+      const jsdocSummary = pendingJsdoc ? cleanJsdocSummary(pendingJsdoc) : "";
+      if (!isInternal) {
+        for (const name of names) {
+          entries.push({ name, jsdoc: jsdocSummary, kind, sourcePath: filePath });
+        }
+      }
+      pendingJsdoc = "";
+    } else {
+      pendingJsdoc = "";
+    }
+  }
+
+  return entries;
+}
+
+function parseExportLine(
+  line: string,
+  _lines: string[],
+  _lineIdx: number,
+): { names: string[]; kind: ExportEntry["kind"] } {
+  const rest = line.slice("export ".length);
+
+  const reexportMatch = rest.match(/^\{([^}]+)\}/);
+  if (reexportMatch) {
+    const names = reexportMatch[1]
+      ?.split(",")
+      .map((s) =>
+        s
+          .trim()
+          .replace(/\s+as\s+\w+/, "")
+          .split(" as ")[0]
+          ?.trim(),
+      )
+      .filter(Boolean);
+    return { names, kind: "other" };
+  }
+
+  if (rest.startsWith("type ")) {
+    const inner = rest.slice("type ".length);
+    const typeReexport = inner.match(/^\{([^}]+)\}/);
+    if (typeReexport) {
+      const names = typeReexport[1]
+        ?.split(",")
+        .map((s) => s.trim().split(" as ")[0]?.trim())
+        .filter(Boolean);
+      return { names, kind: "type" };
+    }
+    const typeName = inner.match(/^(\w+)/);
+    if (typeName?.[1]) return { names: [typeName[1]], kind: "type" };
+  }
+
+  if (rest.startsWith("interface ")) {
+    const name = rest.slice("interface ".length).match(/^(\w+)/);
+    if (name?.[1]) return { names: [name[1]], kind: "interface" };
+  }
+
+  if (rest.startsWith("class ")) {
+    const name = rest.slice("class ".length).match(/^(\w+)/);
+    if (name?.[1]) return { names: [name[1]], kind: "class" };
+  }
+
+  const funcMatch = rest.match(/^(?:async\s+)?function\s+(\w+)/);
+  if (funcMatch?.[1]) return { names: [funcMatch[1]], kind: "function" };
+
+  const varMatch = rest.match(/^(?:const|let|var)\s+(\w+)/);
+  if (varMatch?.[1]) return { names: [varMatch[1]], kind: "const" };
+
+  const fallback = rest.match(/^(\w+)/);
+  if (fallback?.[1]) {
+    const word = fallback[1];
+    if (
+      word !== "type" &&
+      word !== "interface" &&
+      word !== "class" &&
+      word !== "function" &&
+      word !== "const" &&
+      word !== "let" &&
+      word !== "var" &&
+      word !== "async" &&
+      word !== "default"
+    ) {
+      return { names: [word], kind: "other" };
+    }
+  }
+
+  return { names: [], kind: "other" };
+}
+
+function cleanJsdocSummary(raw: string): string {
+  let cleaned = raw
+    .replace(/@param\s+\S+\s*/g, "")
+    .replace(/@returns?\s*/g, "")
+    .replace(/@example\s*/g, "")
+    .replace(/@deprecated\s*/g, "")
+    .replace(/@throws\s*/g, "")
+    .replace(/@see\s*/g, "")
+    .replace(/@internal\s*/g, "")
+    .replace(/@\w+\s*/g, "")
+    .replace(/\s*\/\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length > 200) {
+    cleaned = `${cleaned.slice(0, 197)}...`;
+  }
+
+  return cleaned;
+}
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PACKAGES_DIR = join(ROOT, "packages");

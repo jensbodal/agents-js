@@ -18,7 +18,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const DOCS_DIR = join(import.meta.dir, "..", "docs");
 const PROJECT_NAME = "agents-js";
@@ -101,7 +101,39 @@ const PAGES: PageEntry[] = [
 ];
 
 function readPage(filename: string): string {
-  return readFileSync(join(DOCS_DIR, filename), "utf-8");
+  const absolute = join(DOCS_DIR, filename);
+  return resolveIncludes(readFileSync(absolute, "utf-8"), dirname(absolute));
+}
+
+/**
+ * Expand `markdown-it-include` directives (`!!!include(<path>)!!!`)
+ * inside `content`, recursively, so the LLM bundle ships fully-resolved
+ * Markdown rather than literal include tokens.
+ *
+ * Path resolution mirrors VitePress's at-build-time behavior: the path
+ * inside the directive is resolved relative to the consuming file's
+ * directory. A partial may itself contain further include directives,
+ * so resolution recurses.
+ *
+ * Unresolved partials (e.g. one consuming page lists a file that doesn't
+ * exist on disk) throw rather than emitting the literal directive — the
+ * bundle's whole point is that the LLM consumer never sees an
+ * `!!!include(` substring.
+ */
+function resolveIncludes(content: string, baseDir: string): string {
+  const includePattern = /!!!include\(([^)]+)\)!!!/g;
+  return content.replace(includePattern, (_match, rawPath: string) => {
+    const includedPath = resolve(baseDir, rawPath.trim());
+    let included: string;
+    try {
+      included = readFileSync(includedPath, "utf-8");
+    } catch (err) {
+      throw new Error(
+        `[docs-bundle] cannot resolve include "${rawPath}" (resolved to ${includedPath}): ${(err as Error).message}`,
+      );
+    }
+    return resolveIncludes(included, dirname(includedPath));
+  });
 }
 
 /**

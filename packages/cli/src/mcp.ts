@@ -38,8 +38,6 @@ const setHelp = (a: McpCommandArgs): void => {
 /**
  * Top-level `agents-js mcp` flags (server-mode default). Exposed for the
  * docs governance generator.
- *
- * @hostCliSubcommand
  */
 export const MCP_ROOT_ARG_SPEC: ArgSpec<McpCommandArgs> = {
   "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
@@ -48,8 +46,6 @@ export const MCP_ROOT_ARG_SPEC: ArgSpec<McpCommandArgs> = {
 
 /**
  * `agents-js mcp setup` flags. Exposed for the docs governance generator.
- *
- * @hostCliSubcommand
  */
 export const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
   "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
@@ -72,8 +68,6 @@ export const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
 
 /**
  * `agents-js mcp bridge` flags. Exposed for the docs governance generator.
- *
- * @hostCliSubcommand
  */
 export const MCP_BRIDGE_ARG_SPEC: ArgSpec<McpCommandArgs> = {
   "--help": { kind: "flag", assign: setHelp, description: "Show this message." },

@@ -1,12 +1,7 @@
-// Tagged SDK re-exports — isolated from `connection.ts` so the
-// `@hostSurface` JSDoc marker isn't merged by biome's organize-exports
-// rule with the untagged `CLIENT_METHODS` / `RequestError` re-exports.
-//
-// This file's sole job is to re-export the `@agentclientprotocol/sdk`
-// symbols that participate in agents-js's documented stable host surface.
-// `scripts/docs-reference.ts` walks `packages/acp/src/`, finds the
-// `@hostSurface` tag here, and emits the names into
-// `docs/_generated/acp-host-stable-surface.md`.
+// Re-exports a small set of `@agentclientprotocol/sdk` symbols that
+// `@agents-js/acp` exposes as part of its host-facing surface. Kept in
+// its own file so biome's `assist/source/organizeImports` rule does not
+// merge them with the broader untagged re-exports in `connection.ts`.
 
 import {
   ClientSideConnection,
@@ -16,7 +11,5 @@ import {
   type SessionUpdate,
 } from "@agentclientprotocol/sdk";
 
-/** @hostSurface */
 export type { SessionNotification, SessionUpdate };
-/** @hostSurface */
 export { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION };

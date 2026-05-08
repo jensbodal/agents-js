@@ -73,16 +73,24 @@ For the broader standards map, see [Protocols & Schemas](/protocols).
 
 ### Stable Host Surface
 
-!!!include(_generated/acp-host-stable-surface.md)!!!
+The host-facing exports live under `packages/acp/src` (the transport
+controller, ACP session types, and process spawn helpers) and
+`packages/acp-host/src` (the session controller, host adapters, and
+observability primitives). See the API reference at [/api/](/api/) for
+typed signatures, or the source directly:
+
+- [`packages/acp/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp/src)
+- [`packages/acp-host/src`](https://github.com/jensbodal/agents-js/tree/main/pkgs/agents-js/packages/acp-host/src)
 
 The companion `@agents-js/validation` surface covers ACP, A2A, runtime-manifest, JSON-RPC, and
 shared host-policy helpers.
 
 ### Lifecycle Contract
 
-`ACPClientController` owns the ACP transport lifecycle.
-
-!!!include(_generated/acp-controller-lifecycle.md)!!!
+`ACPClientController` owns the ACP transport lifecycle. The lifecycle
+methods are `initialize`, `newSession`, `loadSession`, `prompt`,
+`cancel`, and `dispose` — see the
+[`ACPClientController` API reference](/api/) for full signatures.
 
 `ACPSessionController` composes that controller with host-level concerns:
 
@@ -146,7 +154,9 @@ launching sessions from a more specific working directory.
 
 ### Process Creation Contract
 
-!!!include(_generated/acp-process-creation.md)!!!
+The host-managed process-creation entry points are
+`createHostACPProcess` (from `@agents-js/acp-host`) and
+`spawnACPAgent` (from `@agents-js/acp`).
 
 When choosing between them:
 
@@ -421,11 +431,6 @@ For transport-level errors from `ACPClientController`, subscribe separately thro
 The `Logger` system in `@agents-js/acp-host` also emits `LogEntry` objects to the global `logStore` and any configured `LogTransport`. See [Observability](/observability) for the full logging API.
 
 ## Package Reference
-
-<!-- pending-extraction: package-reference -->
-<!-- The Concern column is editorial vocabulary, not derivable from package metadata.
-     Tracked in docs/.manifest.json#pendingExtraction; see docs/_generated/README.md
-     "Deferred extractions" for the unblock criterion. -->
 
 Each package maps to a specific harness concern:
 

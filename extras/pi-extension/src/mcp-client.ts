@@ -264,7 +264,7 @@ export class McpBridgeClient implements AgentBridge {
     const response = await this._request("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "pi-extension", version: "0.2.0-beta-3" },
+      clientInfo: { name: "pi-extension", version: "0.2.0-beta-4" },
     });
 
     if (response.error) {

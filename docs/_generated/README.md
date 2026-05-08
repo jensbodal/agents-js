@@ -91,19 +91,9 @@ audit, which doesn't need to participate in the gate.
 
 | Partial | Source of truth | Consumed by |
 |---|---|---|
-| [`acp-host-stable-surface.md`](./acp-host-stable-surface.md) | `packages/acp/src/index.ts`, `packages/acp-host/src/index.ts` (`@hostSurface` JSDoc tags) | [Harness Guide → Stable Host Surface](../harness-guide#stable-host-surface) |
-| [`acp-controller-lifecycle.md`](./acp-controller-lifecycle.md) | `packages/acp/src/controller.ts` (`@hostLifecycle` JSDoc tags on `ACPClientController` methods) | [Harness Guide → Lifecycle Contract](../harness-guide#lifecycle-contract) |
-| [`acp-process-creation.md`](./acp-process-creation.md) | `packages/acp/src/connection.ts`, `packages/acp-host/src/process.ts` (`@hostProcess` JSDoc tags) | [Harness Guide → Process Creation Contract](../harness-guide#process-creation-contract) |
-| [`acp-canonical-events.md`](./acp-canonical-events.md) | `packages/acp-host/src/types/session.ts` (`ACPSessionEvent` discriminated-union variants on the `type` discriminant) | [Observability → Canonical Events](../observability#canonical-events) |
-| [`acp-session-hooks.md`](./acp-session-hooks.md) | `packages/acp-host/src/types/hooks.ts` (`SessionHooks` interface members; **source order**, see Port author rule deviation below) | [Observability → Session Hooks](../observability#session-hooks) |
-| [`acp-observability-surface.md`](./acp-observability-surface.md) | `packages/acp-host/src/logger.ts` (`@hostObservability` JSDoc tags) | [Observability → Current Primitive: Logger + logStore](../observability#current-primitive-logger-logstore) |
-| [`acp-session-mapping.md`](./acp-session-mapping.md) | `packages/acp/src/host-surface-sdk.ts` (`SessionUpdate` discriminated-union of intersection types from `@agentclientprotocol/sdk`, resolved via re-export) | [Streaming → ACP Mapping](../streaming-and-events#acp-mapping) |
-| [`acp-validated-surface.md`](./acp-validated-surface.md) | `packages/validation/src/acp.ts` + `packages/validation/src/generated/acp-schema.ts` (`@hostValidator`-tagged `Map<ACPMethod, ACPMethodSchemaInfo>` registries: `acpRequestSchemas`, `acpResponseSchemas`) | [Protocols → Validated ACP Surface](../protocols#validated-acp-surface) |
-| [`a2a-server-bridge.md`](./a2a-server-bridge.md) | `packages/validation/src/a2a.ts` (`@hostValidator`-tagged `a2aValidationSchemas` flat object literal) | [Protocols → JSON-RPC over HTTP and SSE](../protocols#json-rpc-over-http-and-sse) |
-| [`agent-registry-schema.md`](./agent-registry-schema.md) | `packages/a2a-client/src/registry.ts` (`A2AAgentEntry` + `ACPAgentEntry` interface fields, **source order**) | [Surfaces → Agent Registry → File Format](../surfaces#file-format) |
-| [`cli-command-table.md`](./cli-command-table.md) | `packages/cli/src/{acp,bridge,serve,mcp,send}.ts`, `packages/cli/src/shared-arg-specs.ts` (`@hostCliSubcommand`-tagged `ArgSpec` literals; factory spreads flattened) | [Surfaces → CLI → Subcommand Reference](../surfaces#subcommand-reference) |
+| [`acp-validated-surface.md`](./acp-validated-surface.md) | `packages/validation/src/acp.ts` + `packages/validation/src/generated/acp-schema.ts` (`Map<ACPMethod, ACPMethodSchemaInfo>` registries: `acpRequestSchemas`, `acpResponseSchemas`, looked up by name) | [Protocols → Validated ACP Surface](../protocols#validated-acp-surface) |
+| [`cli-command-table.md`](./cli-command-table.md) | `packages/cli/src/{acp,bridge,serve,mcp,send}.ts`, `packages/cli/src/shared-arg-specs.ts` (`ArgSpec` literals on named exports; factory spreads flattened) | [Surfaces → CLI → Subcommand Reference](../surfaces#subcommand-reference) |
 | [`runtime-matrix.md`](./runtime-matrix.md) | `packages/gateway-runtime/src/runtimes-registry.ts` (`GATEWAY_RUNTIME_REGISTRY` `createAcpHarness` arguments) | [Surfaces → Runtime Matrix → Supported Runtimes](../surfaces#supported-runtimes) |
-| [`validation-modes.md`](./validation-modes.md) | `packages/validation/src/modes.ts` `VALIDATION_MODES` const tuple (hand-listed; SOURCE-OF-TRUTH-DEBT) | [Protocols → Validation Modes](../protocols#validation-modes) |
 
 `docs/observability.md` also transcludes the `ToolCallTrace` interface
 directly via VitePress `<<<` from
@@ -133,213 +123,31 @@ Future ports add entries here as they land.
   regen path on first contact with `_generated/`.
 - `scripts/docs-consistency.ts` enforces the `J-2` frontmatter validator:
   every page in `docs/.manifest.json#handAuthoredPages` carries a
-  `diataxis:` tag, and every `diataxis: reference` page contains at least
-  one include directive (with a `pendingExtraction` allowlist for
-  in-flight ports — see "Deferred extractions" below).
+  `diataxis:` tag drawn from a closed set.
 - `scripts/docs-reference.ts` imports `ts-morph` only via
   `scripts/lib/package-introspection.ts` — the boundary is enforced by a
   one-line grep gate in `scripts/docs-consistency.ts`.
 
 ## Port author rules
 
-Three load-bearing rules learned from Port 1b. Future ports MUST follow
-these unless explicitly revisiting the underlying decision:
+Two load-bearing rules for the surviving extractors:
 
-### 1. Tag placement
+### 1. Output stability via deterministic ordering
 
-`@hostSurface` (and any future port-tag) goes on the **original
-declaration**, never on a re-export. Merge into existing JSDoc as a
-`* @tag` line **inside** the same JSDoc block — never as a separate
-`/** @tag */` block. The README export-extractor obeys "second JSDoc
-shadows first," so a separate one-liner silently wipes the existing
-description on the next regen.
+Surviving extractors emit either alphabetically-sorted lists
+(`getMethodKeyedRegistryEntries` sorts by method name;
+`getRuntimeRegistryMatrix` sorts by runtime id) or per-source-module
+sections in a fixed order (`getCLISubcommandFlags`, where the consuming
+generator iterates a hard-coded list of `ArgSpec` constant names). Never
+depend on filesystem walk order or source-declaration order for
+byte-stability; the drift gate's normalization handles timestamp + SHA
+churn but cannot recover from a reordered list.
 
-```ts
-// ✅ Correct — tag merged into existing JSDoc
-/**
- * Owns the ACP transport lifecycle.
- *
- * @hostSurface
- */
-export class ACPClientController { /* ... */ }
+### 2. Throw on shape mismatch; do not fall through
 
-// ❌ Wrong — second JSDoc shadows first; description lost on next regen
-/**
- * Owns the ACP transport lifecycle.
- */
-/** @hostSurface */
-export class ACPClientController { /* ... */ }
-```
-
-### 2. Re-export-only escape hatch
-
-For symbols that must be tagged at a re-export site (e.g. SDK
-pass-throughs that the package doesn't own), put them in a small
-**re-export-only module** like `packages/acp/src/host-surface-sdk.ts`.
-Biome's `assist/source/organizeImports` will merge same-source re-export
-blocks across JSDoc boundaries; isolating tagged re-exports in their own
-file removes the merge target.
-
-The pattern is single-purpose: one file, one tag, only the re-exports
-the extractor needs. If a port can fully use direct-declaration tagging
-(rule 1), prefer that — re-export-only modules are only for the SDK
-case.
-
-### 3. Output stability
-
-Partial generators **walk all `.ts` files in the package source tree
-and sort symbol names alphabetically** before emit. Never depend on
-declaration order in source files for partial byte-stability — biome,
-formatter changes, and routine refactors all reorder source declarations.
-The drift gate's normalization rules (above) handle timestamp churn
-but cannot recover from a reordered bullet list.
-
-`getHostSurfaceExports(packageSrcDir)` in
-`scripts/lib/package-introspection.ts` is the canonical implementation
-of this pattern; future port extractors should structure themselves the
-same way.
-
-**Deliberate deviation — `getInterfaceFieldSignatures` (Port 3)**:
-interface members are emitted in **source declaration order**, not
-alphabetical. Justification: biome's `assist/source/organizeImports`
-does not reorder interface bodies, so source order is byte-stable for
-routine refactors. Alphabetical sort would scramble natural lifecycle
-pairings (e.g. `beforePrompt` next to `afterPrompt` in `SessionHooks`)
-that carry editorial value. A deliberate reorder of the interface IS
-a real change and should reflect in the partial. Apply this deviation
-only to fixed-shape interface extractors; keep alphabetical for
-symbol-list extractors that aggregate across files.
-
-## Deferred extractions
-
-Sections or pages that are intentionally not yet extracted. Each entry
-records the blocker and the unblock criterion so a future port reviewer
-sees one source of truth (this page) cross-referenced against the
-breadcrumb in the affected page (`<!-- pending-extraction: <token> -->`)
-and the manifest entry (`docs/.manifest.json#pendingExtraction`).
-
-### Port 2 — `ACPSessionController` host-session control concerns (harness-guide.md)
-
-- **Page**: `docs/harness-guide.md`
-- **Section**: `### Lifecycle Contract` — the second bullet list under
-  "`ACPSessionController` composes that controller with host-level
-  concerns" (six concept bullets: permission evaluation and
-  remembered-rule lookup, write-gate approval requests, terminal
-  session lifecycle, elicitation mediation, prompt queueing and turn
-  snapshots, optional session storage).
-- **Blocker**: Curation vocabulary not yet stable. The six concept
-  bullets are editorial groupings rather than direct method names;
-  `ACPSessionController` exposes ~15–20 public methods that map
-  unevenly to those bullets, and tagging each method with a future
-  `@hostSessionControl` would expand the rendered list 3x while losing
-  the conceptual grouping.
-- **Unblock criterion**: Either a curation vocabulary stable enough to
-  cluster ~15–20 methods into ~6 groups (e.g. an `@hostSessionControl`
-  tag accompanied by a curated grouping in the partial generator), OR
-  a product decision that the bullet-count expansion from method
-  enumeration is acceptable.
-- **Workaround until then**: The hand-authored six concept bullets in
-  `harness-guide.md` stay in place around the
-  `acp-controller-lifecycle.md` include. No breadcrumb is needed
-  because the bullets describe `ACPSessionController` (a different
-  class than the one the lifecycle partial covers); leaving them
-  un-flagged correctly conveys "still hand-authored" without
-  cross-referencing a specific extraction target.
-
-### Port 4 — Five Paths Table + Concurrency Boundary Summary (streaming-and-events.md)
-
-Two adjacent sections of `docs/streaming-and-events.md` — the multi-column
-"Five paths at a glance" table and the per-aspect Concurrency Boundary
-Summary table — share the same shape problem. They are editorially
-synthesized from control-flow analysis across `lane.inFlightPrompt`, the
-lane Map, `AguiRunCoordinator.active`, and the blocking-mention dispatch
-site. Code symbols can produce a names-only manifest (which the partial
-generator does for the simpler cases — see `acp-session-mapping.md`), but
-the per-row "Endpoint", "Session isolation", "In-flight slots",
-"Streaming", "Notes" columns aren't reachable from a tagged-export list
-or from a single discriminated union.
-
-- **Page**: `docs/streaming-and-events.md`
-- **Sections**:
-  - `## The five paths at a glance` (breadcrumb token: `streaming-five-paths`)
-  - `## Concurrency boundary summary` (breadcrumb token: `concurrency-boundary`)
-- **Blocker**: Multi-column table shape with semantic per-row text. No
-  tag-extractable representation in source today.
-- **Unblock criterion**: Either (a) per-column metadata in source via
-  structured JSDoc tags such as `@hostStreamPath{ endpoint, isolation,
-  slots, streaming, notes }`; (b) a sidecar metadata file with a
-  schema-validated shape; or (c) a `@concurrencyBoundary` tag on each
-  primitive paired with an extractor that emits the per-row table.
-- **Workaround until then**: Both sections are left hand-authored.
-  Each carries a `<!-- pending-extraction: <token> -->` HTML breadcrumb
-  and a section-level entry in `docs/.manifest.json#pendingExtraction`.
-  The ACP Mapping section in the same page IS extracted (the underlying
-  `SessionUpdate` discriminated union has a clean source-of-truth path
-  via `@agentclientprotocol/sdk` re-export through
-  `packages/acp/src/host-surface-sdk.ts`).
-
-### Port 6 B3 — AG-UI canonical events + A2UI supported messages (protocols.md)
-
-Both `BaseEvent` (AG-UI's 27-variant discriminated union) and
-`A2uiMessageSchema` (A2UI's 4-variant union) live in upstream packages
-(`@ag-ui/core`, `@a2ui/web_core`) and are reachable from
-`@agents-js/agui-types` and `@agents-js/a2ui-types` only via `export *`
-re-exports. Local sources don't carry `TypeAliasDeclaration`s for the
-unions, so Port 3's `getDiscriminatedUnionVariants` (which uses
-`SourceFile.getTypeAlias()`) cannot find them.
-
-- **Page**: `docs/protocols.md`
-- **Sections**:
-  - `### Supported Event Types` (breadcrumb: `agui-canonical-events`)
-  - `### Supported Messages` (breadcrumb: `a2ui-supported-messages`)
-- **Blocker**: Re-exported types from external packages aren't reachable
-  via the simple `getTypeAlias` lookup pattern.
-- **Unblock criterion**: A re-export-following extractor that resolves
-  through `getExportedDeclarations()` and inspects the resolved Type via
-  the type API — the pattern Port 4's
-  `getIntersectionUnionDiscriminants` introduced for the SessionUpdate
-  case. Apply the same approach for these two unions.
-- **Workaround until then**: Both sections stay hand-authored with
-  HTML breadcrumbs + manifest entries.
-
-### Port 6 B4 catalog — A2UI catalog editorial mismatch (protocols.md)
-
-The "Catalog" section in protocols.md lists primitive identifiers
-(`acp-row`, `acp-column`, ...) that look like they correspond to the
-basic-catalog HTML primitives. The source-of-truth array
-`ACP_COMPONENT_APIS` (in `packages/a2ui-types/src/catalog/acp-catalog.ts`)
-holds higher-level surfaces (`ChatAppApi`, `TranscriptApi`,
-`MessageApi`, ...). The two lists describe different things.
-
-- **Page**: `docs/protocols.md`
-- **Section**: `### Catalog` (breadcrumb: `a2ui-catalog`)
-- **Blocker**: Editorial reconciliation needed — prose and source array
-  document divergent component sets.
-- **Unblock criterion**: Either (a) the prose is updated to document
-  `ACP_COMPONENT_APIS` (in which case the existing
-  `getArrayBasedRegistryEntries` extractor produces the right partial),
-  or (b) the source array is renamed to reflect the primitive-component
-  intent and a new array of primitives becomes the extraction target.
-- **Workaround until then**: The hand-authored prose stays, marked with
-  `<!-- pending-extraction: a2ui-catalog -->`.
-
-### Port 1a — Package Reference table (harness-guide.md)
-
-- **Page**: `docs/harness-guide.md`
-- **Section**: `## Package Reference` (breadcrumb token: `package-reference`)
-- **Blocker**: Curation vocabulary not yet stable. The Concern column
-  ("Agent spawning & transport", "Network transport (server)", etc.) is
-  editorial vocabulary that does not yet have a code home; locking it
-  into `package.json#agentsJs.docsConcern` before the taxonomy
-  stabilizes risks codifying a regrettable shape. The Key Exports
-  column is partially curated and partially prose for non-TS surfaces
-  (CLI subcommand names, etc.) — full source-derivation requires the
-  CLI parser refactor scoped to Port 5.
-- **Unblock criterion**: Concern column either moves to package
-  manifest metadata (e.g. an `agentsJs.docsConcern` field) **or** is
-  removed from the table entirely; vocabulary stable enough that
-  source-derivation does not lock in a regrettable taxonomy.
-- **Workaround until then**: The hand-authored table in
-  `harness-guide.md` is left in place, marked with
-  `<!-- pending-extraction: package-reference -->`, and tracked as a
-  section-level entry in `docs/.manifest.json#pendingExtraction`.
+Each extractor walks a locked TypeScript shape and throws with a
+precise diagnostic if any branch diverges from that shape (for example,
+a non-string-literal description, a missing required property, or a
+spread of an unknown factory). Silent fallthrough corrupts the partial.
+If a future shape change causes throws, fix the source or remove the
+partial — do not pile on special cases.

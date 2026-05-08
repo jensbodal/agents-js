@@ -26,41 +26,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   getCLISubcommandFlags,
-  getDiscriminatedUnionVariants,
-  getFlatValidationSchemaExports,
-  getHostLifecycleMethods,
-  getHostObservabilityExports,
-  getHostProcessFunctions,
-  getHostSurfaceExports,
-  getInterfaceFieldSignatures,
-  getIntersectionUnionDiscriminants,
   getMethodKeyedRegistryEntries,
   getRuntimeRegistryMatrix,
 } from "./lib/package-introspection.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const GENERATED_DIR = join(ROOT, "docs/_generated");
-
-// SOURCE-OF-TRUTH-DEBT: the per-partial `intro` strings here are editorial
-// (they describe the bullet list in human language). Symbol lists are fully
-// source-derived from JSDoc tags; only these intro lines are hand-authored.
-// A future port should either move them into JSDoc on the package's
-// `index.ts` module-level comment or into the package manifest under
-// `agentsJs.docs*Intro` fields. The same debt applies to the lifecycle,
-// process-creation, and (future Port 3) observability/canonical-events
-// intros below.
-const STABLE_SURFACE_PACKAGES = [
-  {
-    pkg: "@agents-js/acp",
-    srcDir: "packages/acp/src",
-    intro: "The supported `@agents-js/acp` host-facing exports are:",
-  },
-  {
-    pkg: "@agents-js/acp-host",
-    srcDir: "packages/acp-host/src",
-    intro: "The supported `@agents-js/acp-host` orchestration surface is centered on:",
-  },
-] as const;
 
 interface PartialSpec {
   name: string;
@@ -70,140 +41,34 @@ interface PartialSpec {
   body: () => string;
 }
 
+/**
+ * Escape a single Markdown table-cell value per GitHub-flavored Markdown
+ * rules: `|` is the column separator, `\` is the escape lead-in, and a
+ * literal newline ends the row. We replace each with the standard
+ * GFM-tolerated alternatives so a description containing
+ * `debug|info|warn|error|silent` (a real choice list in CLI flag prose)
+ * renders as a single cell.
+ */
+function escapeMdTableCell(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
+}
+
+const CLI_SUBCOMMAND_SECTIONS = [
+  { argSpec: "ACP_ARG_SPEC", module: "acp", title: "`agents-js acp`" },
+  { argSpec: "BRIDGE_ARG_SPEC", module: "bridge", title: "`agents-js bridge`" },
+  { argSpec: "SERVE_ARG_SPEC", module: "serve", title: "`agents-js serve`" },
+  { argSpec: "MCP_ROOT_ARG_SPEC", module: "mcp", title: "`agents-js mcp`" },
+  { argSpec: "MCP_SETUP_ARG_SPEC", module: "mcp", title: "`agents-js mcp setup`" },
+  { argSpec: "MCP_BRIDGE_ARG_SPEC", module: "mcp", title: "`agents-js mcp bridge`" },
+  { argSpec: "SEND_ARG_SPEC", module: "send", title: "`agents-js send`" },
+] as const;
+
 const PARTIALS: PartialSpec[] = [
-  {
-    name: "acp-host-stable-surface.md",
-    sources: STABLE_SURFACE_PACKAGES.map((p) => p.srcDir),
-    extractionMethod: "@hostSurface JSDoc tags via ts-morph",
-    body() {
-      const sections: string[] = [];
-      for (const { srcDir, intro } of STABLE_SURFACE_PACKAGES) {
-        const names = getHostSurfaceExports(join(ROOT, srcDir));
-        if (names.length === 0) {
-          throw new Error(
-            `No @hostSurface exports found under ${srcDir}. Either tag at least one declaration or remove the package from STABLE_SURFACE_PACKAGES in scripts/docs-reference.ts.`,
-          );
-        }
-        const lines = [intro, "", ...names.map((n) => `- \`${n}\``)];
-        sections.push(lines.join("\n"));
-      }
-      return sections.join("\n\n");
-    },
-  },
-  {
-    name: "acp-controller-lifecycle.md",
-    sources: ["packages/acp/src"],
-    extractionMethod: "@hostLifecycle JSDoc tags via ts-morph",
-    body() {
-      const methods = getHostLifecycleMethods(join(ROOT, "packages/acp/src"));
-      if (methods.length === 0) {
-        throw new Error(
-          "No @hostLifecycle methods found under packages/acp/src. Either tag at least one method on ACPClientController or remove this entry from PARTIALS in scripts/docs-reference.ts.",
-        );
-      }
-      const lines = [
-        "The supported `ACPClientController` lifecycle methods are:",
-        "",
-        ...methods.map((n) => `- \`${n}\``),
-      ];
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "acp-process-creation.md",
-    sources: ["packages/acp/src", "packages/acp-host/src"],
-    extractionMethod: "@hostProcess JSDoc tags via ts-morph",
-    body() {
-      const acpFns = getHostProcessFunctions(join(ROOT, "packages/acp/src"));
-      const hostFns = getHostProcessFunctions(join(ROOT, "packages/acp-host/src"));
-      const all = [...acpFns, ...hostFns].sort((a, b) => a.localeCompare(b));
-      if (all.length === 0) {
-        throw new Error(
-          "No @hostProcess functions found across packages/acp/src or packages/acp-host/src. Either tag at least one function or remove this entry from PARTIALS.",
-        );
-      }
-      const lines = [
-        "The supported host-managed process-creation entry points are:",
-        "",
-        ...all.map((n) => `- \`${n}\``),
-      ];
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "acp-canonical-events.md",
-    sources: ["packages/acp-host/src/types/session.ts"],
-    extractionMethod: "ACPSessionEvent discriminated-union variants via ts-morph",
-    body() {
-      const variants = getDiscriminatedUnionVariants(
-        join(ROOT, "packages/acp-host/src"),
-        "ACPSessionEvent",
-        "type",
-      );
-      if (variants.length === 0) {
-        throw new Error(
-          "ACPSessionEvent has no variants. Either restore at least one or defer this extraction in _generated/README.md Deferred extractions.",
-        );
-      }
-      const lines = [
-        "The canonical `ACPSessionEvent` variants are:",
-        "",
-        ...variants.map((v) => `- \`${v}\``),
-      ];
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "acp-session-hooks.md",
-    sources: ["packages/acp-host/src/types/hooks.ts"],
-    extractionMethod: "SessionHooks interface fields via ts-morph (source order)",
-    body() {
-      const fields = getInterfaceFieldSignatures(
-        join(ROOT, "packages/acp-host/src"),
-        "SessionHooks",
-      );
-      if (fields.length === 0) {
-        throw new Error(
-          "SessionHooks has no members. Either restore the interface or defer this extraction.",
-        );
-      }
-      const lines = ["The `SessionHooks` interface members are:", ""];
-      for (const f of fields) {
-        const opt = f.optional ? "?" : "";
-        lines.push(`- \`${f.name}${opt}: ${f.signature}\``);
-      }
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "acp-session-mapping.md",
-    sources: ["packages/acp/src/host-surface-sdk.ts"],
-    extractionMethod:
-      "SessionUpdate intersection-union discriminants via ts-morph (re-export resolution from @agentclientprotocol/sdk)",
-    body() {
-      const variants = getIntersectionUnionDiscriminants(
-        join(ROOT, "packages/acp/src"),
-        "SessionUpdate",
-        "sessionUpdate",
-      );
-      if (variants.length === 0) {
-        throw new Error(
-          "SessionUpdate has no variants. Either restore the SDK re-export or defer this extraction.",
-        );
-      }
-      const lines = [
-        "The ACP `SessionUpdate` discriminant values that `ACPSessionController` translates to host events:",
-        "",
-        ...variants.map((v) => `- \`${v}\``),
-      ];
-      return lines.join("\n");
-    },
-  },
   {
     name: "acp-validated-surface.md",
     sources: ["packages/validation/src/acp.ts", "packages/validation/src/generated/acp-schema.ts"],
     extractionMethod:
-      "@hostValidator-tagged Map<ACPMethod, ACPMethodSchemaInfo> registries via ts-morph",
+      "Map<ACPMethod, ACPMethodSchemaInfo> registries via ts-morph (looked up by exported variable name)",
     body() {
       const reqs = getMethodKeyedRegistryEntries(
         join(ROOT, "packages/validation/src"),
@@ -215,7 +80,7 @@ const PARTIALS: PartialSpec[] = [
       );
       if (reqs.length === 0 || resps.length === 0) {
         throw new Error(
-          "acpRequestSchemas / acpResponseSchemas resolved to an empty entry list. Either restore generated artifacts or defer this extraction in _generated/README.md Deferred extractions.",
+          "acpRequestSchemas / acpResponseSchemas resolved to an empty entry list. Restore generated artifacts or remove this partial.",
         );
       }
       const lines = [
@@ -233,42 +98,6 @@ const PARTIALS: PartialSpec[] = [
     },
   },
   {
-    name: "a2a-server-bridge.md",
-    sources: ["packages/validation/src/a2a.ts"],
-    extractionMethod: "@hostValidator-tagged a2aValidationSchemas object literal via ts-morph",
-    body() {
-      const entries = getFlatValidationSchemaExports(
-        join(ROOT, "packages/validation/src"),
-        "a2aValidationSchemas",
-      );
-      const lines = [
-        "The server-side A2A bridge in `@agents-js/validation` registers these schemas:",
-        "",
-        ...entries.map((e) => `- \`${e.name}\` (${e.kind})`),
-      ];
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "acp-observability-surface.md",
-    sources: ["packages/acp-host/src"],
-    extractionMethod: "@hostObservability JSDoc tags via ts-morph",
-    body() {
-      const names = getHostObservabilityExports(join(ROOT, "packages/acp-host/src"));
-      if (names.length === 0) {
-        throw new Error(
-          "No @hostObservability exports found under packages/acp-host/src. Either tag at least one declaration or remove this entry from PARTIALS.",
-        );
-      }
-      const lines = [
-        "The `@agents-js/acp-host` observability surface is:",
-        "",
-        ...names.map((n) => `- \`${n}\``),
-      ];
-      return lines.join("\n");
-    },
-  },
-  {
     name: "cli-command-table.md",
     sources: [
       "packages/cli/src/acp.ts",
@@ -279,21 +108,14 @@ const PARTIALS: PartialSpec[] = [
       "packages/cli/src/shared-arg-specs.ts",
     ],
     extractionMethod:
-      "@hostCliSubcommand-tagged ArgSpec literals via ts-morph (factory spreads flattened)",
+      "ArgSpec literals via ts-morph, looked up by exported variable name (factory spreads flattened)",
     body() {
-      const subcommands = [
-        { module: "acp", title: "`agents-js acp`" },
-        { module: "bridge", title: "`agents-js bridge`" },
-        { module: "serve", title: "`agents-js serve`" },
-        { module: "mcp", title: "`agents-js mcp`" },
-        { module: "send", title: "`agents-js send`" },
-      ] as const;
       const sections: string[] = ["The supported CLI subcommands and their flags are:", ""];
-      for (const { module, title } of subcommands) {
-        const flags = getCLISubcommandFlags(join(ROOT, "packages/cli/src"), module);
+      for (const { argSpec, module, title } of CLI_SUBCOMMAND_SECTIONS) {
+        const flags = getCLISubcommandFlags(join(ROOT, "packages/cli/src"), module, argSpec);
         if (flags.length === 0) {
           throw new Error(
-            `No @hostCliSubcommand flags resolved for ${module}. Either tag the ArgSpec or remove the entry from cli-command-table.md.`,
+            `No flags resolved for ${argSpec} in packages/cli/src/${module}.ts. Restore the literal or remove the entry from CLI_SUBCOMMAND_SECTIONS.`,
           );
         }
         sections.push(`#### ${title}`);
@@ -305,11 +127,7 @@ const PARTIALS: PartialSpec[] = [
             f.kind === "value" && f.valueExample
               ? `\`${f.flag} ${f.valueExample}\``
               : `\`${f.flag}\``;
-          // Pipe + backtick escaping is unnecessary — the parser-side
-          // descriptions are short prose without literal pipes; if a future
-          // edit introduces one, it will surface in `bun run docs:build`'s
-          // table-validation pass and force the partial to be re-examined.
-          sections.push(`| ${flagCol} | ${f.kind} | ${f.description} |`);
+          sections.push(`| ${flagCol} | ${f.kind} | ${escapeMdTableCell(f.description)} |`);
         }
         sections.push("");
       }
@@ -328,7 +146,7 @@ const PARTIALS: PartialSpec[] = [
       );
       if (rows.length === 0) {
         throw new Error(
-          "GATEWAY_RUNTIME_REGISTRY has no entries. Either restore at least one or defer this extraction.",
+          "GATEWAY_RUNTIME_REGISTRY has no entries. Restore at least one or remove this partial.",
         );
       }
       const lines = [
@@ -339,73 +157,10 @@ const PARTIALS: PartialSpec[] = [
       ];
       for (const r of rows) {
         const command = r.command ? `\`${r.command}\`` : "—";
-        lines.push(`| \`${r.id}\` | ${r.displayName} | ${command} | ${r.description} |`);
-      }
-      return lines.join("\n");
-    },
-  },
-  {
-    name: "agent-registry-schema.md",
-    sources: ["packages/a2a-client/src/registry.ts"],
-    extractionMethod: "A2AAgentEntry + ACPAgentEntry interface fields via ts-morph (source order)",
-    body() {
-      const a2a = getInterfaceFieldSignatures(
-        join(ROOT, "packages/a2a-client/src"),
-        "A2AAgentEntry",
-      );
-      const acp = getInterfaceFieldSignatures(
-        join(ROOT, "packages/a2a-client/src"),
-        "ACPAgentEntry",
-      );
-      if (a2a.length === 0 || acp.length === 0) {
-        throw new Error(
-          "Agent registry entry interfaces (A2AAgentEntry / ACPAgentEntry) have no members. Either restore them or defer this extraction.",
+        lines.push(
+          `| \`${r.id}\` | ${escapeMdTableCell(r.displayName)} | ${command} | ${escapeMdTableCell(r.description)} |`,
         );
       }
-      const renderField = (f: { name: string; signature: string; optional: boolean }) =>
-        `- \`${f.name}${f.optional ? "?" : ""}: ${f.signature}\``;
-      const lines = [
-        "Agent registry entries are a discriminated union on `kind`:",
-        "",
-        "**`A2AAgentEntry`** — remote A2A agents reachable over HTTP:",
-        "",
-        ...a2a.map(renderField),
-        "",
-        "**`ACPAgentEntry`** — locally spawnable ACP harnesses:",
-        "",
-        ...acp.map(renderField),
-      ];
-      return lines.join("\n");
-    },
-  },
-  // Deferred (Port 6 B3-defer): the A2UI Catalog section in protocols.md
-  // documents primitive component names (`acp-row`, `acp-column`, ...) that
-  // do NOT match the higher-level component surfaces in
-  // `ACP_COMPONENT_APIS` (ChatAppApi, TranscriptApi, ...). The prose and the
-  // source-of-truth array are documenting different things; extraction is
-  // deferred until the prose is reconciled or the source array is renamed
-  // to reflect what consumers actually see. The new
-  // `getArrayBasedRegistryEntries` extractor stays available for the future
-  // unblock; it has been smoke-tested against `ACP_COMPONENT_APIS` and
-  // returns the 15 high-level component names correctly.
-  {
-    // SOURCE-OF-TRUTH-DEBT: this 3-element list is hand-listed because
-    // packages/validation/src/modes.ts:1 is a `const tuple satisfies` and
-    // ts-morph extraction would be heavier than the value warrants. The
-    // canonical source is `VALIDATION_MODES` in
-    // packages/validation/src/modes.ts; if this list grows past ~5 modes
-    // or the upstream shape changes, replace this hand-list with a tuple
-    // extractor (`getConstTupleLiterals`).
-    name: "validation-modes.md",
-    sources: ["packages/validation/src/modes.ts"],
-    extractionMethod: "VALIDATION_MODES const tuple, hand-listed (SOURCE-OF-TRUTH-DEBT)",
-    body() {
-      const modes = ["strict", "loose", "filter"];
-      const lines = [
-        "The validation modes accepted by `@agents-js/validation`:",
-        "",
-        ...modes.map((m) => `- \`${m}\``),
-      ];
       return lines.join("\n");
     },
   },
