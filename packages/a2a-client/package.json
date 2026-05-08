@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/a2a-client",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.",
@@ -44,6 +45,6 @@
     "@agents-js/validation": "0.2.0-beta-4"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

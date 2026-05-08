@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/a2ui-renderer",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "description": "Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.",
   "author": "Jens Bodal",
@@ -40,6 +41,6 @@
     "@types/bun": "catalog:"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

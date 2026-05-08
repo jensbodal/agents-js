@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/plane",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Plane (project management) webhook handler. HMAC-verified fetch handler for Plane issue events with pluggable notifier transport.",
@@ -43,6 +44,6 @@
     "@types/bun": "catalog:"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

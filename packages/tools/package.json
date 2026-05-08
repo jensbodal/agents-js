@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/tools",
   "version": "0.2.0-beta-4",
+  "private": true,
   "description": "Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.",
   "license": "MIT",
   "author": "Jens Bodal",
@@ -23,7 +24,7 @@
     }
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "scripts": {
     "build": "bunx tsdown src/index.ts src/browser.ts --format esm --dts --out-dir dist --clean",

@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/host",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.",
@@ -50,6 +51,6 @@
     "@agents-js/validation": "0.2.0-beta-4"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

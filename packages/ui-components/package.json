@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/ui-components",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "description": "Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.",
   "author": "Jens Bodal",
@@ -50,6 +51,6 @@
     "lit": "catalog:"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }

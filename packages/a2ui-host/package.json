@@ -1,6 +1,7 @@
 {
   "name": "@agents-js/a2ui-host",
   "version": "0.2.0-beta-4",
+  "private": true,
   "type": "module",
   "description": "Browser-side A2UI v0.9 host and bridge for agents-js.",
   "author": "Jens Bodal",
@@ -49,6 +50,6 @@
     "@types/bun": "catalog:"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   }
 }
