@@ -145,7 +145,6 @@ function pickPolicyField<K extends keyof DirectoryPolicy>(
   return inlineValue;
 }
 
-/** @hostSurface */
 export function resolveWorkspaceContext(
   input: ResolveWorkspaceContextInput,
 ): ResolvedWorkspaceContext {

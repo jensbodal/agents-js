@@ -17,51 +17,5 @@
   ],
   "excludedNamespaces": ["api/"],
   "generatedOutputs": ["llms.txt", "llms-full.txt"],
-  "referenceIndexExempt": ["_generated/README.md"],
-  "pendingExtraction": [
-    {
-      "page": "protocols.md",
-      "blockedBy": "Port 6"
-    },
-    {
-      "page": "observability.md",
-      "blockedBy": "Future port (canonical events + logger surface)"
-    },
-    {
-      "page": "harness-guide.md",
-      "section": "package-reference",
-      "blockedBy": "Port 1a deferred",
-      "unblockCriterion": "Concern column moves to package.json metadata or is removed entirely; vocabulary stable enough that source-derivation does not lock in a regrettable taxonomy."
-    },
-    {
-      "page": "streaming-and-events.md",
-      "section": "streaming-five-paths",
-      "blockedBy": "Port 4 deferred",
-      "unblockCriterion": "The five paths' multi-column shape (Endpoint, Session isolation, In-flight slots, Streaming, Notes) is editorially synthesized; it is not derivable from a single tagged-export list. Unblock requires either (a) per-column metadata in source via JSDoc tags such as `@hostStreamPath` with structured arguments, or (b) a sidecar metadata file with a schema-validated shape."
-    },
-    {
-      "page": "streaming-and-events.md",
-      "section": "concurrency-boundary",
-      "blockedBy": "Port 4 deferred",
-      "unblockCriterion": "Concurrency boundaries are inferred from control flow across `lane.inFlightPrompt`, lane Map, AguiRunCoordinator.active, and the blocking-mention dispatch site. Unblock requires `@concurrencyBoundary` JSDoc tags on each primitive plus an extractor that emits the per-row table."
-    },
-    {
-      "page": "protocols.md",
-      "section": "agui-canonical-events",
-      "blockedBy": "Port 6 B3 deferred",
-      "unblockCriterion": "AG-UI's `BaseEvent` discriminated union lives in `@ag-ui/core` and is reachable from `@agents-js/agui-types` only via `export *`. Local sources contain no `TypeAliasDeclaration` for the union. Unblock requires upstream to ship the union as a declared type alias in agui-types/src, OR a re-export-following extractor that resolves through `getExportedDeclarations()` (the pattern Port 4 uses for SessionUpdate)."
-    },
-    {
-      "page": "protocols.md",
-      "section": "a2ui-supported-messages",
-      "blockedBy": "Port 6 B3 deferred",
-      "unblockCriterion": "Same shape as `agui-canonical-events`: `A2uiMessageSchema` lives in `@a2ui/web_core` and is reachable through `export *` only. Unblock per the same criterion as `agui-canonical-events`."
-    },
-    {
-      "page": "protocols.md",
-      "section": "a2ui-catalog",
-      "blockedBy": "Port 6 B4 deferred (editorial mismatch)",
-      "unblockCriterion": "The Catalog section's prose lists primitive component identifiers (`acp-row`, `acp-column`, ...) that do not match the higher-level surfaces in `ACP_COMPONENT_APIS` (`ChatAppApi`, `TranscriptApi`, ...). Unblock requires either (a) reconciling the prose to document `ACP_COMPONENT_APIS` (which the existing `getArrayBasedRegistryEntries` extractor handles) or (b) renaming the source array to reflect the primitive-component intent."
-    }
-  ]
+  "referenceIndexExempt": ["_generated/README.md"]
 }

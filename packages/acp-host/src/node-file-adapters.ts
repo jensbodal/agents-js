@@ -48,8 +48,6 @@ export interface NodeFileAdapterOptions extends WorkspaceContextConfig {
  * identity root and the session cwd.
  * @param options - Optional configuration for session-scoped features and
  * explicit workspace-context overrides.
- *
- * @hostSurface
  */
 export function createNodeFileAdapters(
   workspacePath: string,

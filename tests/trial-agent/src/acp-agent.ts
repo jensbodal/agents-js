@@ -28,7 +28,7 @@ import { DEFAULT_FETCH_CONTEXT_HUB_ROOT } from "@agents-js/tools";
 import { createPromptHandler } from "./prompt-handler.ts";
 
 export const TRIAL_AGENT_NAME = "trial-agent";
-export const TRIAL_AGENT_VERSION = "0.2.0-beta-3";
+export const TRIAL_AGENT_VERSION = "0.2.0-beta-4";
 
 /**
  * Default document root used when no override is supplied. Mirrors the

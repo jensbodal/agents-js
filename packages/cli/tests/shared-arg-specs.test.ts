@@ -104,3 +104,38 @@ describe("runtimeSelectArgs", () => {
     expect(spec["--profile"]?.kind).toBe("value");
   });
 });
+
+/**
+ * Each `ArgEntry` may carry an optional `description` and (for value
+ * entries) an optional `valueExample`. Both feed
+ * `docs/_generated/cli-command-table.md` directly. These pin the
+ * representative shape so the partial generator's contract holds.
+ */
+describe("ArgEntry description + valueExample contract", () => {
+  test("hostPortArgs entries carry a non-empty description and a valueExample", () => {
+    const spec = hostPortArgs<HostPortArgs>();
+    const port = spec["--port"];
+    if (port?.kind !== "value") throw new Error("expected --port to be a value entry");
+    expect(typeof port.description).toBe("string");
+    expect(port.description?.length ?? 0).toBeGreaterThan(0);
+    expect(typeof port.valueExample).toBe("string");
+    expect(port.valueExample?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  test("runtimeLogArgs --runtime-log-level carries a description with the level set", () => {
+    const spec = runtimeLogArgs<RuntimeLogArgs>();
+    const level = spec["--runtime-log-level"];
+    if (level?.kind !== "value")
+      throw new Error("expected --runtime-log-level to be a value entry");
+    expect(level.description).toContain("debug");
+    expect(level.description).toContain("silent");
+  });
+
+  test("harnessArg --harness carries a non-empty description", () => {
+    const spec = harnessArg<HarnessArg>();
+    const h = spec["--harness"];
+    if (h?.kind !== "value") throw new Error("expected --harness to be a value entry");
+    expect(typeof h.description).toBe("string");
+    expect(h.description?.length ?? 0).toBeGreaterThan(0);
+  });
+});

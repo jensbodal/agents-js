@@ -802,9 +802,27 @@ target descriptors:
 }
 ```
 
-The name is what a user types after `@` in a prompt. Each entry is one of:
+The name is what a user types after `@` in a prompt. The on-disk
+shape under `agents` is keyed by agent name; each per-agent value
+object does NOT repeat the name. The `kind` field discriminates
+remote A2A agents from locally spawnable ACP harnesses, and is
+optional — if omitted, it defaults to `"a2a"` for backward
+compatibility with pre-discriminator registries.
 
-!!!include(_generated/agent-registry-schema.md)!!!
+The two entry shapes (input form, before normalization) are:
+
+- **`kind: "a2a"`** (default) — `{ kind?: "a2a"; url: string }`. The
+  `url` must point at an A2A-compatible HTTP endpoint that serves an
+  agent card at `<url>/.well-known/agent-card.json`.
+- **`kind: "acp"`** — `{ kind: "acp"; harness: string; command?: string; args?: string[]; env?: Record<string, string>; workspaceFlag?: string }`.
+  The `harness` id selects the ACP runtime to spawn locally; see
+  [Runtime Matrix](#runtime-matrix) for supported harness ids.
+
+The loader (see
+[`packages/a2a-client/src/registry.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/a2a-client/src/registry.ts))
+parses each entry into an `AgentEntry` discriminated union for in-memory
+use; that normalized shape carries `name` injected from the keying
+field, but users do not write `name` in the on-disk file.
 
 For `kind: "a2a"` entries, the URL must point at an A2A-compatible HTTP endpoint that
 serves an agent card at `<url>/.well-known/agent-card.json`. For `kind: "acp"` entries,

@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/reporting",
-  "version": "0.2.0-beta-3",
+  "version": "0.2.0-beta-4",
   "type": "module",
   "sideEffects": false,
   "description": "Deterministic code-review reporting: orchestrates worker envelopes and emits merged findings as markdown and JSON Canvas output.",
@@ -33,7 +33,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/gateway-runtime": "0.2.0-beta-3"
+    "@agents-js/gateway-runtime": "0.2.0-beta-4"
   },
   "publishConfig": {
     "access": "restricted"

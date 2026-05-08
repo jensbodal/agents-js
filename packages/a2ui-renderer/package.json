@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2ui-renderer",
-  "version": "0.2.0-beta-3",
+  "version": "0.2.0-beta-4",
   "type": "module",
   "description": "Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.",
   "author": "Jens Bodal",
@@ -30,8 +30,8 @@
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-js/a2ui-types": "0.2.0-beta-3",
-    "@agents-js/ui-components": "0.2.0-beta-3"
+    "@agents-js/a2ui-types": "0.2.0-beta-4",
+    "@agents-js/ui-components": "0.2.0-beta-4"
   },
   "peerDependencies": {
     "lit": "catalog:"

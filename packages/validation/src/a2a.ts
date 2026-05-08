@@ -606,8 +606,6 @@ export function validateA2AMessageSendResponseResult(
  * dispatch happens by switching on JSON-RPC `method` rather than by a
  * Map lookup, so the registry's only role is to be the canonical "what the
  * server can validate" list.
- *
- * @hostValidator
  */
 export const a2aValidationSchemas = {
   messageSendRequestSchema,

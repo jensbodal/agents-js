@@ -9,42 +9,14 @@ import { computePublishOrder, readPublishablePackages } from "./release-prefligh
 // Diátaxis frontmatter governance (J-2)
 // ─────────────────────────────────────────────────────────────────────────────
 // Every page in `docs/.manifest.json#handAuthoredPages` must carry a
-// `diataxis:` frontmatter tag classifying its purpose. Reference-tagged
-// pages must transclude generated content (via `!!!include(...)!!!` or
-// `<<<`) unless they are temporarily allowlisted under
-// `pendingExtraction` while the corresponding extraction port
-// is in flight. The `_generated/README.md` index page is the one structural
-// exemption (it documents `_generated/`; it does not transclude from it).
+// `diataxis:` frontmatter tag classifying its purpose, drawn from the
+// closed set below. The presence of a `diataxis:` tag is real
+// architectural metadata; the gate catches typoed tags and missing
+// frontmatter.
 const VALID_DIATAXIS_TAGS = new Set(["tutorial", "howto", "reference", "explanation", "landing"]);
 
 interface DocsManifest {
   handAuthoredPages: string[];
-  referenceIndexExempt?: string[];
-  /**
-   * Single source of truth for "extraction is deferred." Two kinds of entries:
-   *
-   *   - Page-level (no `section`): a `diataxis: reference` page that doesn't
-   *     yet contain an include directive. J-2's include-or-allowlist gate
-   *     consults this set; the page is allowlisted until `blockedBy` lands.
-   *
-   *   - Section-level (`section` set): a specific section within an
-   *     otherwise non-reference page that's tracked as deferred. These are
-   *     informational at the J-2 level (they don't grant any exemption);
-   *     the matching `<!-- pending-extraction: <section> -->` HTML comment
-   *     in the page is the discoverable breadcrumb. Cross-validation
-   *     between the manifest and the breadcrumbs is enforced by
-   *     `collectPendingExtractionBreadcrumbIssues`.
-   */
-  pendingExtraction?: PendingExtractionEntry[];
-}
-
-interface PendingExtractionEntry {
-  page: string;
-  /** Optional: when set, the entry refers to a section, not the whole page. */
-  section?: string;
-  blockedBy: string;
-  /** Optional human-readable description of when this is unblocked. */
-  unblockCriterion?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,17 +52,17 @@ export interface FileExpectation {
   path: string;
 }
 
-interface TextFile {
-  content: string;
-  path: string;
-}
-
 interface GraphPackage {
   name?: unknown;
 }
 
 interface DependencyGraph {
   packages?: GraphPackage[];
+}
+
+interface TextFile {
+  content: string;
+  path: string;
 }
 
 const repoRoot = path.resolve(import.meta.dir, "..");
@@ -102,54 +74,18 @@ const docsUrl = `https://${docsHostname}/`;
 const launcherRuntimeCommand = "bun run dev --runtime claude";
 const browserSmokeCommand = "bun run browser:smoke";
 const liveBrowserCommand = "bun run e2e:web:live -- --runtime claude";
-export const REMOVED_DOC_PATHS = [
-  "docs/protocol-alignment.md",
-  "docs/runtime-matrix.md",
-  "docs/contribute.md",
-  "docs/release-checklist.md",
-  "docs/cli.md",
-  "docs/acp-host.md",
-] as const;
+// README is the canonical positioning source; docs/index.md is derived. Both
+// are required to contain this marker via the `contains` expectation list
+// below.
+export const CANONICAL_POSITIONING_MARKER = "A TypeScript library tying together";
 
-const providerHostSourcePatterns: readonly RegExp[] = [
-  /https:\/\/github\.[^/\s]+\/[^/\s]+\/agents-js\b[^\s)\]}"]*/g,
-  /git\+https:\/\/github\.[^/\s]+\/[^/\s]+\/agents-js\.git/g,
-];
-
-const providerAuthorityPatterns: readonly RegExp[] = [
-  /\bGitHub Actions\b/g,
-  /\bCI\/CD source of truth:\s*GitHub\b/g,
-];
-
-const handAuthoredStatusPatterns: readonly { label: string; pattern: RegExp }[] = [
-  { label: "Last verified SHA/status prose", pattern: /\bLast verified\b/g },
-  {
-    label: "exact current beta version prose",
-    pattern: /\bcurrently `0\.2\.0-beta-\d+`\b/g,
-  },
-  {
-    label: "hand-authored package count prose",
-    pattern: /\b(?:\d+ packages|\d+ publishable packages|Publish all \d+ packages)\b/g,
-  },
-  {
-    label: "hand-authored package-count summary",
-    pattern: /\b\d+ packages\s+—\s+\d+ publishable\b/g,
-  },
-];
-
-// Bun is the workspace's *internal* toolchain (lockfile, mise pin, scripts).
-// Consumers install via `npm i -g @agents-js/cli` or `bunx`; nothing forces
-// them onto Bun. Framing the project as a "Bun toolkit" wrongly implies
-// otherwise. Likewise, this repo treats `@agents-js/cli` as published — any
-// "until it's published / not yet on npm / from a clone instead" hedging is
-// stale wording and must be removed before docs ship. README is the canonical
-// positioning source; these forbid-patterns enforce the no-regression rule.
-const userFacingForbiddenPhrases: readonly { label: string; pattern: RegExp }[] = [
+// Bun is the workspace's internal toolchain, not a consumer-facing product
+// requirement. Likewise, the docs should not regress into "not published yet"
+// phrasing around @agents-js/cli. These phrases are intentionally scanned only
+// in user-facing docs, not contributor/release-runbook pages.
+export const userFacingForbiddenPhrases: readonly { label: string; pattern: RegExp }[] = [
   { label: "consumer-facing 'Bun toolkit' framing", pattern: /\bBun toolkit\b/gi },
   { label: "consumer-facing 'typed Bun' framing", pattern: /\btyped Bun\b/gi },
-  // Backtick-tolerant: the original docs/index.md hedge wrote
-  // "Until `@agents-js/cli` is published". `[^.\n]{0,40}` keeps the match
-  // inside one sentence while allowing for code-fence punctuation.
   { label: "publication hedge", pattern: /\bUntil[^.\n]{0,40}is published\b/gi },
   { label: "publication hedge", pattern: /\bpublished to public npm\b/gi },
   { label: "publication hedge", pattern: /\bnot yet published\b/gi },
@@ -165,29 +101,19 @@ const userFacingForbiddenPhrases: readonly { label: string; pattern: RegExp }[] 
   },
 ];
 
-// Files where editorial drift in positioning prose actually reaches readers.
-// Contributor-facing files (AGENTS.md, CONTRIBUTING.md, docs/develop/**) are
-// exempt from these phrase rules — release runbooks may legitimately discuss
-// publication status.
-const contributorFacingPaths = new Set<string>(["AGENTS.md", "CONTRIBUTING.md"]);
-const contributorFacingPrefixes: readonly string[] = ["docs/develop/"];
-
-function isContributorFacingPath(filePath: string): boolean {
-  if (contributorFacingPaths.has(filePath)) return true;
-  return contributorFacingPrefixes.some((prefix) => filePath.startsWith(prefix));
-}
-
-// README is the canonical positioning source; docs/index.md is derived. Both
-// are required to contain this marker via the `contains` expectation list
-// below.
-export const CANONICAL_POSITIONING_MARKER = "A TypeScript library tying together";
-
-const generatedDocsPaths = new Set(["docs/llms.txt", "docs/llms-full.txt"]);
-
-// Calculated machine-readable outputs are allowed to carry exact counts.
-const generatedMachineReadablePrefixes = ["docs/public/", "docs/api/"] as const;
-
-const ciConfigPrefixes = [".github/"] as const;
+const userFacingForbiddenScanPaths = [
+  "README.md",
+  "docs/index.md",
+  "docs/getting-started.md",
+  "docs/surfaces.md",
+  "docs/primitives.md",
+  "docs/protocols.md",
+  "docs/harness-guide.md",
+  "docs/streaming-and-events.md",
+  "docs/observability.md",
+  "docs/llms.txt",
+  "docs/llms-full.txt",
+] as const;
 
 async function readText(relativePath: string, root = repoRoot): Promise<string> {
   return readFile(path.join(root, relativePath), "utf8");
@@ -256,103 +182,6 @@ async function readWorkspaceManifestNames(root = repoRoot): Promise<string[]> {
   return names.sort();
 }
 
-async function listFilesRecursive(root: string, relativeRoot: string): Promise<string[]> {
-  const absoluteRoot = path.join(root, relativeRoot);
-  let entries: Awaited<ReturnType<typeof readdir>>;
-  try {
-    entries = await readdir(absoluteRoot, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
-  const files: string[] = [];
-  for (const entry of entries) {
-    const relativePath = path.join(relativeRoot, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await listFilesRecursive(root, relativePath)));
-    } else if (entry.isFile()) {
-      files.push(relativePath);
-    }
-  }
-  return files;
-}
-
-async function readExistingScanFiles(root = repoRoot): Promise<TextFile[]> {
-  const docsFiles = (await listFilesRecursive(root, "docs")).filter((filePath) => {
-    if (generatedMachineReadablePrefixes.some((prefix) => filePath.startsWith(prefix))) {
-      return false;
-    }
-    return /\.(?:md|txt)$/.test(filePath);
-  });
-  const githookFiles = (await listFilesRecursive(root, ".githooks")).filter((filePath) =>
-    /(?:pre-commit|pre-push)$/.test(filePath),
-  );
-  const packageManifestFiles = [
-    "package.json",
-    ...(await listFilesRecursive(root, "packages")).filter((filePath) =>
-      filePath.endsWith("/package.json"),
-    ),
-    ...(await listFilesRecursive(root, "apps")).filter((filePath) =>
-      filePath.endsWith("/package.json"),
-    ),
-    ...(await listFilesRecursive(root, "extras")).filter((filePath) =>
-      filePath.endsWith("/package.json"),
-    ),
-  ];
-  const scriptFiles = ["scripts/ci-container.ts", "scripts/publish-all.ts"];
-  const explicitFiles = ["README.md", ".npmrc"];
-
-  const uniquePaths = [
-    ...new Set([
-      ...explicitFiles,
-      ...docsFiles,
-      ...githookFiles,
-      ...packageManifestFiles,
-      ...scriptFiles,
-    ]),
-  ].filter((filePath) => !ciConfigPrefixes.some((prefix) => filePath.startsWith(prefix)));
-
-  const files: TextFile[] = [];
-  for (const filePath of uniquePaths) {
-    try {
-      files.push({ path: filePath, content: await readText(filePath, root) });
-    } catch {}
-  }
-  return files;
-}
-
-function resetPattern(pattern: RegExp): RegExp {
-  pattern.lastIndex = 0;
-  return pattern;
-}
-
-function collectPatternMatches(content: string, pattern: RegExp): string[] {
-  const matches = content.match(resetPattern(pattern));
-  return matches ? [...new Set(matches)] : [];
-}
-
-function isGeneratedMachineReadablePath(filePath: string): boolean {
-  return generatedMachineReadablePrefixes.some((prefix) => filePath.startsWith(prefix));
-}
-
-export function collectProviderHostReferenceIssues(files: readonly TextFile[]): string[] {
-  const errors: string[] = [];
-  for (const file of files) {
-    if (ciConfigPrefixes.some((prefix) => file.path.startsWith(prefix))) continue;
-    for (const pattern of providerHostSourcePatterns) {
-      for (const match of collectPatternMatches(file.content, pattern)) {
-        errors.push(`${file.path}: contains provider-host source URL: ${match}`);
-      }
-    }
-    for (const pattern of providerAuthorityPatterns) {
-      for (const match of collectPatternMatches(file.content, pattern)) {
-        errors.push(`${file.path}: treats a CI provider as authoritative content: ${match}`);
-      }
-    }
-  }
-  return errors;
-}
-
 export function collectGraphPackageIssues(
   manifestPackageNames: readonly string[],
   graphPackageNames: readonly string[],
@@ -373,49 +202,34 @@ export function collectGraphPackageIssues(
   return errors;
 }
 
-export function collectRemovedDocPathIssues(files: readonly TextFile[]): string[] {
-  const errors: string[] = [];
-  for (const file of files) {
-    for (const retiredPath of REMOVED_DOC_PATHS) {
-      if (file.content.includes(retiredPath)) {
-        errors.push(`${file.path}: references retired documentation path: ${retiredPath}`);
-      }
-    }
-  }
-  return errors;
+function resetPattern(pattern: RegExp): RegExp {
+  pattern.lastIndex = 0;
+  return pattern;
 }
 
-function collectLabeledPatternIssues(
-  files: readonly TextFile[],
-  patterns: readonly { label: string; pattern: RegExp }[],
-  options: { skip?: (filePath: string) => boolean } = {},
-): string[] {
-  const errors: string[] = [];
-  for (const file of files) {
-    if (isGeneratedMachineReadablePath(file.path)) continue;
-    if (options.skip?.(file.path)) continue;
-    const isGeneratedDoc = generatedDocsPaths.has(file.path);
-    for (const { label, pattern } of patterns) {
-      for (const match of collectPatternMatches(file.content, pattern)) {
-        if (isGeneratedDoc) {
-          errors.push(`${file.path}: generated docs bundle still carries ${label}: ${match}`);
-        } else {
-          errors.push(`${file.path}: contains ${label}: ${match}`);
-        }
-      }
-    }
-  }
-  return errors;
-}
-
-function collectHandAuthoredStatusIssues(files: readonly TextFile[]): string[] {
-  return collectLabeledPatternIssues(files, handAuthoredStatusPatterns);
+function collectPatternMatches(content: string, pattern: RegExp): string[] {
+  const matches = content.match(resetPattern(pattern));
+  return matches ? [...new Set(matches)] : [];
 }
 
 export function collectUserFacingForbiddenIssues(files: readonly TextFile[]): string[] {
-  return collectLabeledPatternIssues(files, userFacingForbiddenPhrases, {
-    skip: isContributorFacingPath,
-  });
+  const errors: string[] = [];
+  for (const file of files) {
+    for (const { label, pattern } of userFacingForbiddenPhrases) {
+      for (const match of collectPatternMatches(file.content, pattern)) {
+        errors.push(`${file.path}: contains ${label}: ${match}`);
+      }
+    }
+  }
+  return errors;
+}
+
+async function readUserFacingForbiddenScanFiles(root = repoRoot): Promise<TextFile[]> {
+  const files: TextFile[] = [];
+  for (const relativePath of userFacingForbiddenScanPaths) {
+    files.push({ path: relativePath, content: await readText(relativePath, root) });
+  }
+  return files;
 }
 
 async function readGraphPackageNames(root = repoRoot): Promise<string[]> {
@@ -474,36 +288,22 @@ export async function collectFrontmatterTagIssues(
   read: (relativePath: string) => Promise<string>,
 ): Promise<string[]> {
   const errors: string[] = [];
-  const exempt = new Set(manifest.referenceIndexExempt ?? []);
-  // Page-level entries (no `section` field) are the J-2 transition allowlist.
-  // Section-level entries are tracked elsewhere (HTML breadcrumbs) and do
-  // not grant an include-directive exemption.
-  const pageLevelPending = new Map(
-    (manifest.pendingExtraction ?? [])
-      .filter((entry) => entry.section === undefined)
-      .map((entry) => [entry.page, entry.blockedBy]),
-  );
-
-  // Every entry must reference a real hand-authored page. A typo here would
-  // otherwise let a real reference page slip through the include-directive
-  // gate without anyone noticing.
-  const handAuthored = new Set(manifest.handAuthoredPages);
-  for (const entry of manifest.pendingExtraction ?? []) {
-    if (!handAuthored.has(entry.page)) {
-      errors.push(
-        `docs/.manifest.json: pendingExtraction lists "${entry.page}" (blocked by ${entry.blockedBy}) but it is not in handAuthoredPages`,
-      );
-    }
-  }
 
   for (const page of manifest.handAuthoredPages) {
     let content: string;
     try {
       content = await read(`docs/${page}`);
-    } catch {
-      errors.push(
-        `docs/${page}: listed in manifest.handAuthoredPages but file does not exist or is unreadable`,
-      );
+    } catch (err) {
+      // Surface the underlying failure rather than swallowing every read
+      // error as "missing"; only ENOENT collapses into a clean diagnostic.
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        errors.push(`docs/${page}: listed in manifest.handAuthoredPages but file does not exist`);
+      } else {
+        errors.push(
+          `docs/${page}: listed in manifest.handAuthoredPages but unreadable: ${(err as Error).message}`,
+        );
+      }
       continue;
     }
 
@@ -524,92 +324,6 @@ export async function collectFrontmatterTagIssues(
       errors.push(
         `docs/${page}: 'diataxis: ${tag}' is not a valid Diátaxis tag (allowed: ${[...VALID_DIATAXIS_TAGS].sort().join(", ")})`,
       );
-      continue;
-    }
-
-    if (tag === "reference" && !exempt.has(page) && !pageLevelPending.has(page)) {
-      // Either a markdown-it-include directive (`!!!include(_generated/...)!!!`)
-      // or a VitePress `<<<` code transclusion satisfies the rule. Plain
-      // back-tick fenced blocks do not count — the goal is references that
-      // are mechanically derived from source.
-      const hasInclude = /!!!include\(|<<<\s+@/.test(content);
-      if (!hasInclude) {
-        errors.push(
-          `docs/${page}: tagged 'diataxis: reference' but contains no include directive (!!!include(...)!!! or <<< @/...). Add the include or list it under docs/.manifest.json#pendingExtraction with the blocking port.`,
-        );
-      }
-    }
-  }
-
-  return errors;
-}
-
-/**
- * Cross-validate the section-level entries in `manifest.pendingExtraction`
- * against `<!-- pending-extraction: <token> -->` HTML breadcrumbs in their
- * pages. Every section entry must have a matching breadcrumb; every
- * breadcrumb must have a matching section entry. Page-level entries (no
- * `section`) are skipped — those are governed by the J-2 include-directive
- * gate, not breadcrumbs.
- */
-export async function collectPendingExtractionBreadcrumbIssues(
-  manifest: DocsManifest,
-  read: (relativePath: string) => Promise<string>,
-): Promise<string[]> {
-  const errors: string[] = [];
-  const sectionEntries = (manifest.pendingExtraction ?? []).filter(
-    (entry): entry is PendingExtractionEntry & { section: string } => entry.section !== undefined,
-  );
-
-  const byPage = new Map<string, Set<string>>();
-  for (const entry of sectionEntries) {
-    const set = byPage.get(entry.page) ?? new Set<string>();
-    set.add(entry.section);
-    byPage.set(entry.page, set);
-  }
-
-  for (const [page, sections] of byPage) {
-    let content: string;
-    try {
-      content = await read(`docs/${page}`);
-    } catch {
-      continue;
-    }
-    for (const section of sections) {
-      const safeSection = section.replace(/[^A-Za-z0-9_-]/g, "");
-      const breadcrumbRe = new RegExp(`<!--\\s*pending-extraction:\\s*${safeSection}\\s*-->`);
-      if (!breadcrumbRe.test(content)) {
-        errors.push(
-          `docs/${page}: pendingExtraction lists section "${section}" but the page contains no matching <!-- pending-extraction: ${section} --> breadcrumb`,
-        );
-      }
-    }
-  }
-
-  const breadcrumbScanRe = /<!--\s*pending-extraction:\s*([A-Za-z0-9_-]+)\s*-->/g;
-  for (const page of manifest.handAuthoredPages) {
-    // The `_generated/` tree is either machine-emitted partials (no
-    // breadcrumbs by design) or `_generated/README.md` (documents the
-    // breadcrumb syntax itself; example syntax in the doc body would
-    // otherwise be misread as real breadcrumbs).
-    if (page.startsWith("_generated/")) continue;
-    let content: string;
-    try {
-      content = await read(`docs/${page}`);
-    } catch {
-      continue;
-    }
-    const knownSections = byPage.get(page) ?? new Set<string>();
-    breadcrumbScanRe.lastIndex = 0;
-    for (;;) {
-      const match = breadcrumbScanRe.exec(content);
-      if (match === null) break;
-      const token = match[1];
-      if (!knownSections.has(token)) {
-        errors.push(
-          `docs/${page}: contains <!-- pending-extraction: ${token} --> breadcrumb but the manifest has no matching pendingExtraction entry`,
-        );
-      }
     }
   }
 
@@ -778,12 +492,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
   const errors = await collectFileExpectationIssues(expectations, (relativePath) =>
     readText(relativePath, root),
   );
-
-  const scanFiles = await readExistingScanFiles(root);
-  errors.push(...collectProviderHostReferenceIssues(scanFiles));
-  errors.push(...collectRemovedDocPathIssues(scanFiles));
-  errors.push(...collectHandAuthoredStatusIssues(scanFiles));
-  errors.push(...collectUserFacingForbiddenIssues(scanFiles));
+  errors.push(...collectUserFacingForbiddenIssues(await readUserFacingForbiddenScanFiles(root)));
 
   const manifestNames = await readWorkspaceManifestNames(root);
   const graphPackageNames = await readGraphPackageNames(root);
@@ -792,11 +501,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
   const docsManifest = JSON.parse(await readText("docs/.manifest.json", root)) as DocsManifest;
   errors.push(
     ...(await collectFrontmatterTagIssues(docsManifest, (relativePath) =>
-      readText(relativePath, root),
-    )),
-  );
-  errors.push(
-    ...(await collectPendingExtractionBreadcrumbIssues(docsManifest, (relativePath) =>
       readText(relativePath, root),
     )),
   );

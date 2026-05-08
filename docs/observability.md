@@ -11,9 +11,9 @@ How agents-js surfaces runtime behavior for debugging, monitoring, and future te
 
 `@agents-js/acp-host` ships a structured logging system backed by a singleton ring buffer. Every session controller, permission engine, and terminal handler emits `LogEntry` objects through the `Logger` class, which are captured by the global `logStore` for the debug panel.
 
-!!!include(_generated/acp-observability-surface.md)!!!
-
-The detailed shape of each is documented below.
+The observability surface centers on `Logger`, `logStore`, and the
+transports `LogTransport`, `EvalTransport`, and `SpanLogTransport`. The
+detailed shape of each is documented below.
 
 ### LogEntry
 
@@ -94,17 +94,20 @@ Each `Span` contains `requestId`, `sessionId`, `startedAt`, `completedAt`, and t
 
 ## Canonical Events
 
-`ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`.
-
-!!!include(_generated/acp-canonical-events.md)!!!
+`ACPSessionController` emits a `ACPSessionEvent` discriminated union for every host-observable transition. Subscribe via `controller.subscribe(listener)`; the listener receives `(event: ACPSessionEvent, state: ACPSessionState)`. The full variant set is the
+`type` discriminant of `ACPSessionEvent` in
+[`packages/acp-host/src/types/session.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/session.ts);
+see the API reference at [/api/](/api/) for the typed union.
 
 `SessionHooks` provides a parallel callback surface for the prompt and permission lifecycles (see below); errors additionally surface through `LogEntry` (`level: "error"`, `category: "error"`), `ACPSessionState.lastError`, and `EvalTransport`'s per-request `errors[]` array.
 
 ## Session Hooks
 
-`SessionHooks` provides typed lifecycle callbacks for host-side instrumentation:
-
-!!!include(_generated/acp-session-hooks.md)!!!
+`SessionHooks` provides typed lifecycle callbacks for host-side
+instrumentation. The full member set with typed signatures is the
+`SessionHooks` interface in
+[`packages/acp-host/src/types/hooks.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/acp-host/src/types/hooks.ts);
+see the rendered [SessionHooks API reference](/api/) for the typed shape.
 
 Wire hooks into `StartConfig.hooks` when creating the controller. The A2A mention middleware uses `beforePrompt` for cross-agent dispatch.
 

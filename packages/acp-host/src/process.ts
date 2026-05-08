@@ -133,8 +133,6 @@ function hasWorkspaceFlag(args: readonly string[], workspaceFlag: string): boole
 }
 
 /**
- * @hostSurface
- * @hostProcess
  */
 export function createHostACPProcess(
   workspaceRootPath: string,
