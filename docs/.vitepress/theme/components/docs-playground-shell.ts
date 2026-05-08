@@ -234,6 +234,25 @@ export class DocsPlaygroundShell extends LitElement {
     super.disconnectedCallback();
     this._unsubscribe?.();
     this._unsubscribe = null;
+    void this._cleanup();
+  }
+
+  /**
+   * Release any cached runner — the WebLLM `WebWorker` and the GPU memory
+   * its engine holds. Called from `disconnectedCallback` and from the
+   * post-`await` race guard in `activate()` (a runner that materializes
+   * after the host has been torn down is disposed immediately rather than
+   * orphaned).
+   */
+  private async _cleanup(): Promise<void> {
+    if (this._cachedRunner) {
+      try {
+        await this._cachedRunner.dispose?.();
+      } catch (err) {
+        console.warn("Error disposing runner:", err);
+      }
+      this._cachedRunner = null;
+    }
   }
 
   /**
@@ -271,6 +290,18 @@ export class DocsPlaygroundShell extends LitElement {
     this._loadProgressText = "";
     try {
       const runner = await this._loadRunner(runtime);
+      // Race guard: the user may have navigated away during the model
+      // download. If the host element is no longer connected to the DOM,
+      // dispose immediately rather than caching a runner that nothing will
+      // ever release.
+      if (!this.isConnected) {
+        try {
+          await runner.dispose?.();
+        } catch (err) {
+          console.warn("Error disposing runner after late disconnect:", err);
+        }
+        return;
+      }
       this._cachedRunner = runner;
       // Preserve the in-progress manifest + draft across the store rebuild.
       const prior = this._store.getState();

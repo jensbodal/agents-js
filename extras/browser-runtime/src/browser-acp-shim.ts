@@ -18,6 +18,13 @@ export interface PromptParams {
 export interface PromptRunner {
   runPrompt(params: PromptParams, emit: (msg: JsonRpcMessage) => void): Promise<void>;
   cancel(sessionId: string): void;
+  /**
+   * Release any resources owned by this runner (e.g., a `WebWorker` and the
+   * GPU memory used by an in-process `MLCEngine`). Called when the
+   * surrounding shell is torn down. Optional so the simpler mock runner can
+   * skip the no-op.
+   */
+  dispose?(): Promise<void> | void;
 }
 
 function isPromptParams(v: unknown): v is PromptParams {

@@ -4,6 +4,12 @@ import type { SupportedModelId } from "./model-picker.ts";
 export interface LocalModel {
   engine: MLCEngineInterface;
   worker: Worker;
+  /**
+   * Release the GPU memory held by `engine` and terminate the underlying
+   * `WebWorker`. Idempotent: a second call is a no-op so callers don't have
+   * to track ownership.
+   */
+  dispose(): Promise<void>;
 }
 
 export interface CreateLocalModelOptions {
@@ -25,8 +31,30 @@ export async function createLocalModelWith(
   opts: CreateLocalModelOptions = {},
 ): Promise<LocalModel> {
   const worker = workerFactory();
-  const engine = await createEngine(worker, modelId, { initProgressCallback: opts.onProgress });
-  return { engine, worker };
+  let engine: MLCEngineInterface;
+  try {
+    engine = await createEngine(worker, modelId, { initProgressCallback: opts.onProgress });
+  } catch (err) {
+    worker.terminate();
+    throw err;
+  }
+  let disposed = false;
+  return {
+    engine,
+    worker,
+    async dispose() {
+      if (disposed) return;
+      disposed = true;
+      try {
+        // `unload` is documented on `MLCEngineInterface` but optional on
+        // some adapters; tearing down anyway, so swallow.
+        await (engine as { unload?: () => Promise<void> }).unload?.();
+      } catch {
+        // intentional: tearing down anyway
+      }
+      worker.terminate();
+    },
+  };
 }
 
 export async function createLocalModel(

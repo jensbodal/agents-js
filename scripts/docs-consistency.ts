@@ -424,13 +424,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
     },
     {
       path: "docs/surfaces.md",
-      contains: [
-        browserSmokeCommand,
-        liveBrowserCommand,
-        "## Browser",
-        "## CLI",
-        "## Runtime Matrix",
-      ],
+      contains: ["## Browser", "## CLI", "## Runtime Matrix"],
     },
     {
       path: "docs/protocols.md",
@@ -484,7 +478,6 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
         "## Prove the second wire (CLI)",
         "## Prove session continuity",
         "Open URL",
-        "## Contributor quickstart",
       ],
     },
   ];

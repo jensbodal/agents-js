@@ -5,7 +5,7 @@ diataxis: howto
 
 # Harness Guide
 
-> **Status:** Beta · **Validated by:** `claude-agent-acp`, `opencode`, `gemini` reference adapters in `gateway-runtime/src/runtimes-registry.ts`; mock-acp runtime for CI determinism · **Known limitations:** no canonical runtime designation; no codex ACP runtime (codex emits JSONL, not ACP); pi-acp wire-compatibility pending
+> **Status:** Beta · **Known limitations:** no canonical runtime designation; no codex ACP runtime (codex emits JSONL, not ACP); pi-acp wire-compatibility pending
 
 This guide covers how to build a harness on agents-js — a host adapter that wraps an ACP-compatible coding agent and exposes it over protocols like A2A.
 

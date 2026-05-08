@@ -44,6 +44,9 @@ function makeFakeModel(create: (args: CreateCall) => unknown): FakeModelHandle {
     engine: fakeEngine,
     // Adapter never touches the worker; a bare object cast is sufficient.
     worker: {} as Worker,
+    // Adapter never calls dispose either; the no-op satisfies the type
+    // contract without growing the fake's surface.
+    dispose: async () => {},
   };
   return { model, calls, interruptCount };
 }

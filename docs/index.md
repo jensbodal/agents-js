@@ -55,7 +55,7 @@ agents-js serve --harness claude --port 9000
 
 The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering `/a2a` on the port. Any peer on the same trusted network can now reach it. See [Surfaces](/surfaces) and `packages/cli/README.md` for full options.
 
-For the full launcher walkthrough — clone, `bun run dev`, browser session, session-continuity proof — see [Get Started](/getting-started).
+For the full launcher walkthrough — clone, `bun run dev`, browser session, session-continuity walkthrough — see [Get Started](/getting-started).
 
 ### Library users start here
 

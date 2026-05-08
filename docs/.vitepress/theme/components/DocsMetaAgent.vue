@@ -79,7 +79,16 @@ onMounted(async () => {
     const model = await createLocalModel(modelId, { onProgress });
     const adapter = createWebLLMAdapter(model);
     const telemetry = createInMemoryTelemetry();
-    return createMetaAgentLoop({ adapter, tools, telemetry });
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry });
+    // Wire the runner's `dispose` to the model: the meta-agent loop is
+    // stateless aside from per-session abort controllers, but the underlying
+    // `LocalModel` owns the `WebWorker` and the GPU memory used by the
+    // WebLLM engine. Releasing those when the surrounding shell tears down
+    // is what `dispose()` is for.
+    return {
+      ...runner,
+      dispose: () => model.dispose(),
+    };
   };
 });
 

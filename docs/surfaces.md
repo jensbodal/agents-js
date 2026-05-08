@@ -5,7 +5,7 @@ diataxis: howto
 
 # Surfaces
 
-> **Status:** Beta · **Validated by:** `apps/web-ui` browser smoke, `apps/internal-gateway` e2e, CLI integration tests · **Known limitations:** Agent Registry is trusted-network-only (no auth, no schema validation, no ACL — see banner in [Agent Registry](#agent-registry)); third-party A2A interop pending; multi-tenant isolation is per-process only
+> **Status:** Beta · **Known limitations:** Agent Registry is trusted-network-only (no auth, no schema validation, no ACL — see banner in [Agent Registry](#agent-registry)); third-party A2A interop pending; multi-tenant isolation is per-process only
 
 The checked-in surfaces — browser shell, CLI, and multi-agent dispatch — let you run, connect to,
 and route between ACP runtimes from your local machine. This page covers the browser surface, the
@@ -74,248 +74,15 @@ When a runtime requests extra interaction, the browser app can also surface:
 - an authentication selector
 - workflow or runtime state notices
 
-### Advanced Browser Workflows
+### Browser Workflows
 
-Once the minimum path works, pick the workflow that matches what you need:
+You can run the browser interface in several ways depending on your setup:
 
-#### Integrated browser + gateway
+- **Integrated browser + gateway** (`bun run dev`): best for local development against a live runtime.
+- **Browser-only** (web UI in one terminal, gateway in another): run `vp run @agents-js/web-ui#dev` for the web UI, then `agents-js serve --harness <id>` in a second terminal — best when you want to control the gateway and browser separately.
+- **Separate processes** (CLI in one terminal, web UI in another): best when you need independent lifecycle control.
 
-```sh
-bun run dev
-bun run dev --runtime claude
-```
-
-Best for normal product use and local iteration.
-
-#### Browser-only validation
-
-```sh
-bun run browser:smoke
-```
-
-`bun run browser:smoke` is the canonical mock browser proof and writes artifacts under
-`output/playwright/browser-smoke/`.
-
-#### Live browser + real runtime validation
-
-```sh
-bun run e2e:web:live -- --runtime claude
-```
-
-Best for exercising the browser shell against a real runtime with captured artifacts.
-
-#### Separate gateway and browser
-
-```sh
-vp run @agents-js/cli#serve -- --harness claude
-vp run @agents-js/web-ui#dev
-```
-
-Best when you want to control the gateway lifecycle and the browser lifecycle independently.
-
-### Validation Checklist
-
-Use this section for contributor and operator browser validation. It separates:
-
-- deterministic checks covered by the repo-owned browser e2e lanes
-- manual browser checks for stable UI behavior
-- runtime-dependent checks that have deterministic fixture coverage in the mock browser proof
-- known product gaps discovered while reviewing the current implementation
-
-#### Automated E2E
-
-Use the deterministic mock lane when you want a quick browser validation without depending on a
-real local runtime:
-
-```sh
-bun run browser:smoke
-```
-
-Use the integrated live lane when you want the real runtime + browser proof surface:
-
-```sh
-bun run e2e:web:live -- --runtime claude
-```
-
-What the automated lanes cover:
-
-| Check | Mock browser proof (`browser:smoke`) | `e2e:web:live` |
-|---|---|---|
-| Connect dialog renders | yes | yes |
-| Default URL matches the launcher-discovered gateway URL | no | yes |
-| The printed `Open URL` preloads the discovered `?url=` target | yes | yes |
-| Connect button stays disabled until controller-driven target inspection reports the target reachable | yes | yes |
-| Connect succeeds against the target gateway | mock-backed | real runtime |
-| Connected chat layout appears | yes | yes |
-| Prompt input can send `Hello` | yes | yes |
-| Prompt input can send `What is the last message I sent?` | no | yes |
-| Transcript shows user and agent messages | yes | yes |
-| Elicitation accept / decline / cancel flows | yes | no |
-| Auth-required selection flow (single deterministic mocked method) | yes | no |
-| Status bar lifecycle changes are observed | no | yes |
-| Debug panel Card, Session, and Trace views render | partial | yes |
-| Model dropdown visibility matches advertised models | no | yes |
-| Save + reload restores URL/runtime/model preferences | yes | yes |
-| Runtime switching notice behavior is checked when available | no | yes |
-
-Artifacts are written to:
-
-- `output/e2e/web-ui-mock/`
-- `output/e2e/web-ui-live/<runtime>/`
-- `output/playwright/browser-smoke/`
-
-The live lane treats missing model/runtime metadata as a failure. Skips are only acceptable when
-the product genuinely hides the runtime selector or offers only one runtime.
-
-#### Launch Modes
-
-Choose the launch mode that matches what you are validating:
-
-| Mode | Command | When to use |
-|---|---|---|
-| Mock browser proof | `bun run browser:smoke` | Quick repo-owned validation of the browser shell |
-| Integrated live browser e2e | `bun run e2e:web:live -- --runtime claude` | Real runtime + real browser proof without shared browser tooling |
-| Real local browser check | `bun run dev` | Manual check against the printed `Open URL` from the integrated launcher |
-| Real local browser check (explicit runtime) | `bun run dev --runtime claude` | Manual check against the printed `Open URL` for a specific startup runtime |
-| Explicit runtime browser check | `vp run @agents-js/cli#serve -- --harness claude` and `vp run @agents-js/web-ui#dev` | Manual check when you want a specific runtime rather than the checked-in default |
-
-#### Stable Manual Checks
-
-These checks are grounded in the current UI and are suitable for human review.
-
-##### Connect Dialog
-
-| # | Check | Evidence |
-|---|---|---|
-| C1 | Connect dialog is visible on first load | Screenshot |
-| C2 | Default URL matches the launcher-discovered `Gateway URL` | Screenshot |
-| C3 | Connect button stays disabled with a readiness message until controller-driven target inspection succeeds | Screenshot or observation |
-| C4 | Valid connect transitions into the chat layout | Screenshot |
-| C5 | Invalid or unreachable URL keeps Connect disabled and shows a waiting message instead of an immediate red failure | Screenshot |
-| C6 | Pressing Enter in the URL input triggers connect | Observation |
-| C7 | Opening the printed `Open URL` preloads the discovered `?url=` value into the connect input and overrides stale saved state | Screenshot |
-| C7a | Opening the printed `Open URL` preserves the launcher-selected runtime on first load until the user changes it | Screenshot |
-| C8 | Local host bridge snapshots can show read-only `Runtime` metadata before connect | Screenshot |
-| C9 | Creating, updating, and reloading named profiles preserves URL/runtime/model preferences | Screenshot + reload |
-| C10 | Prompt history remains available across reload (up-arrow navigation) | Manual interaction |
-| C11 | Selecting a different runtime in the connect dialog applies live without restarting the dev server | Observation |
-| C12 | A successful runtime swap that clears queued or in-flight prompts leaves a visible notice explaining that the prompts were cleared | Observation |
-
-##### Status Bar
-
-| # | Check | Evidence |
-|---|---|---|
-| S1 | Agent name is shown after connect | Screenshot |
-| S2 | `connected` status renders as the success state | Screenshot |
-| S3 | Session ID is shown and truncates when long | Screenshot |
-| S4 | Status can move through active states such as `sending` or `waiting` during a turn | Observation |
-| S5 | The selected runtime remains visible in the connected shell when the host bridge provides it | Screenshot |
-
-##### Session Controls
-
-| # | Check | Evidence |
-|---|---|---|
-| C1 | `Model` dropdown is hidden when the runtime does not advertise models | Screenshot |
-| C2 | `Model` dropdown appears after connect when models are available | Screenshot |
-| C3 | The current model is selected in the dropdown | Screenshot |
-| C4 | Choosing a different model updates the UI after the host snapshot refresh | Observation |
-
-##### Prompt Input
-
-| # | Check | Evidence |
-|---|---|---|
-| I1 | Prompt input is available after connect | Screenshot |
-| I2 | Enter sends a message and clears the textarea | Observation |
-| I3 | Shift+Enter inserts a newline without sending | Observation |
-| I4 | Clicking Send also sends | Observation |
-| I5 | Empty input does not send | Observation |
-| I6 | Textarea auto-resizes on multi-line input up to its max height | Observation |
-
-##### Transcript
-
-| # | Check | Evidence |
-|---|---|---|
-| T1 | Empty state shows `Waiting for messages...` before the first turn | Screenshot |
-| T2 | User message renders right-aligned | Screenshot |
-| T3 | Agent message renders left-aligned with agent styling | Screenshot |
-| T4 | Streaming text can appear while the agent is responding | Screenshot or observation |
-| T5 | Transcript auto-scrolls as new content arrives | Observation |
-| T6 | If the runtime returns markdown or fenced code, the transcript renders it correctly | Screenshot or pasted reply |
-
-##### Debug Panel
-
-| # | Check | Evidence |
-|---|---|---|
-| D1 | Debug panel is visible at the bottom of the app | Screenshot |
-| D2 | Debug panel is open by default | Screenshot |
-| D3 | Card tab shows name, URL, protocol version, and streaming state | Screenshot |
-| D4 | Session tab shows status, task state, context ID, task ID, message count, pending text, and elicitation/auth state | Screenshot |
-| D5 | Trace tab shows recent debug records when activity exists | Screenshot |
-| D6 | Clicking the header collapses and re-expands the panel | Observation |
-
-##### Error Handling
-
-| # | Check | Evidence |
-|---|---|---|
-| X1 | Invalid or unreachable connect target stays in the connect dialog with Connect disabled until controller-driven inspection succeeds | Screenshot |
-| X2 | Controller-level failures after the dialog phase surface in the top-of-page error banner | Observation |
-| X3 | A subsequent successful action clears or replaces the prior top-of-page error state as expected | Observation |
-
-#### Runtime-Dependent Checks
-
-These have deterministic fixture-backed coverage in `bun run browser:smoke`. When you are
-running a manual check against a real runtime, use the same expectations once that runtime exposes the
-state natively.
-
-##### Elicitation Form
-
-| # | Check | Evidence |
-|---|---|---|
-| E1 | Form appears when the runtime requests elicitation | `browser:smoke` artifact or screenshot |
-| E2 | Supported schema field types render correctly | `browser:smoke` artifact or screenshot |
-| E3 | Required validation fires on empty accept | `browser:smoke` artifact or screenshot |
-| E4 | Accept dispatches an elicitation response | `browser:smoke` observation or manual runtime observation |
-| E5 | Decline dispatches a decline response | `browser:smoke` observation or manual runtime observation |
-| E6 | Cancel dispatches a cancel response | `browser:smoke` observation or manual runtime observation |
-
-##### Auth Selector
-
-| # | Check | Evidence |
-|---|---|---|
-| A1 | Modal overlay appears when auth is required | `browser:smoke` artifact or screenshot |
-| A2 | The offered auth method choice renders as a clickable action | `browser:smoke` artifact or screenshot |
-| A3 | Selecting a method dispatches the auth response | `browser:smoke` observation or manual runtime observation |
-
-Current deterministic coverage exercises one mocked auth method so the checked-in proof surface
-validates auth-selection dispatch and overlay behavior. A broader multi-method matrix still belongs
-to future runtime or fixture expansion.
-
-#### Known Gaps And Non-Goals
-
-These are not current pass/fail browser checks:
-
-- The first-pass prompt `What is the last message I sent?` is useful as a runtime smoke check, but
-  it is not a pure browser-shell assertion.
-- Elicitation and auth dismissal depend on controller/runtime state after dismissal, so the UI should not
-  promise immediate disappearance independent of backend behavior.
-- `bun run dev` uses the checked-in internal gateway runtime, which currently resolves to
-  `opencode`; `bun run dev --runtime <id>` overrides that startup runtime for the integrated dev
-  flow and prints a fresh discovered `Open URL` for that run.
-- Runtime switching now has an in-UI path via WS `set_runtime` in the browser reference surface:
-  verify unsupported runtimes show a clear fallback notice and successful swaps surface applied
-  runtime metadata without restarting the browser.
-- If a selected runtime is unavailable, the gateway sends a deterministic unsupported/failed state and
-  the UI should stay in a recoverable mode rather than silently failing.
-
-#### Finding Triage
-
-| Category | Definition |
-|---|---|
-| blocker | Prevents further browser review or invalidates an automated proof lane |
-| bug | Incorrect behavior, but testing can continue elsewhere |
-| unclear behavior | Unexpected result that may be intended or may be a defect |
-| blocked | Check could not be exercised because the required runtime state was unavailable |
-| passed | Behavior matched the current expected result |
+See [Profiles](#profiles) for runtime-specific launch options.
 
 ### Protocol Context
 
@@ -344,10 +111,9 @@ failing silently.
 
 If the browser path is not behaving correctly:
 
-- rerun `bun run check` and `bun run test`
-- run `bun run browser:smoke` for the canonical mock browser sanity check
-- run `bun run e2e:web:live -- --runtime claude` for a full browser + runtime proof lane
 - inspect the debug panel for card and session state
+- confirm the gateway URL printed by the launcher matches what the connect dialog is using
+- verify the chosen runtime is installed and reachable on `$PATH`
 
 ## CLI
 
@@ -993,31 +759,6 @@ Use an isolated runtime context with a profile:
 agents-js serve --harness opencode --profile clean-room
 ```
 
-### Validate A Runtime
-
-Run the targeted runtime lane:
-
-```sh
-bun run e2e:runtime -- --runtime claude
-```
-
-Run the browser + runtime lane:
-
-```sh
-bun run e2e:web:live -- --runtime claude
-```
-
-Use these when you want confidence that a runtime works through the reference surfaces, not just a
-single manual session.
-
-### Quick Browser Confidence Check
-
-```sh
-bun run browser:smoke
-```
-
-Use this when you want a fast browser sanity check with screenshots and artifacts.
-
 ### Multi-Agent Dispatch
 
 Route messages between agents using host-wired `@mentions` and `@@dispatch` directives.
@@ -1058,21 +799,14 @@ annotation the host can act on when it installs A2A mention middleware.
 
 ### Debugging Connection Or Runtime Issues
 
-If a local run is behaving strangely:
+If a local gateway is not responding:
 
-```sh
-bun run check
-bun run test
-bun run browser:smoke
-bun run e2e:runtime -- --runtime claude
-bun run e2e:web:live -- --runtime claude
-```
+- Check that the runtime is installed on your `$PATH` (e.g., `which claude`, `which opencode`).
+- Verify your environment contains required auth (e.g., `ANTHROPIC_API_KEY` for Claude).
+- Confirm the gateway URL is correct — check the printed URL or `~/.agents-js/registry.json`.
+- If connecting from a peer, verify the remote gateway's URL is reachable from your network.
 
-Common patterns:
-
-- browser issue: start with `bun run browser:smoke`
-- runtime issue: start with `bun run e2e:runtime -- --runtime <id>`
-- integrated issue: use `bun run e2e:web:live -- --runtime <id>`
+If you see "Runtime not found" or similar errors, run `agents-js setup --runtime <id>` to verify the harness is available.
 
 ## Runtime Matrix
 
@@ -1083,21 +817,14 @@ surfaces.
 
 !!!include(_generated/runtime-matrix.md)!!!
 
-A `custom` runtime is also supported by the ACP contract — any command is acceptable if it speaks
-ACP over stdio. The `mock-acp` runtime is registered only when `AGENTS_JS_ENABLE_MOCK_ACP_RUNTIME=1`
-and is intended for CI; the in-repo `trial` agent is a deterministic fixture rather than a
-production runtime.
+A `custom` runtime is also supported by the ACP contract — any command is acceptable if it speaks ACP over stdio.
 
 ### Behavior
 
 - the gateway resolves the selected runtime before boot
 - the operator CLI exposes the curated runtime selection through `serve`
-- the default CI gate runs `bun run e2e:deterministic`
-- runtime-specific flows are validated through targeted `bun run e2e:runtime -- --runtime <id>` and `bun run e2e:web:live -- --runtime <id>` runs
-- `bun run e2e:runtime -- --runtime opencode --profile clean-room` is the clean-room path when a developer's personal OpenCode config is noisy
 - curated runtimes use their normal local environment by default
 - explicit isolation or alternate launch context belongs behind `--profile <name>`, not behind hidden default behavior
-- runtime-gated CI jobs should be explicit opt-in, not part of the always-on deterministic lane
 
 ### Provenance
 
@@ -1106,19 +833,9 @@ production runtime.
 - `codex-acp` is not maintained in this repo; the published CLI depends on Zed's package, and OpenAI endorses Zed's adapter as the ACP integration path (see openai/codex#2785)
 - `pi-acp` is maintained in this repo as `@agents-js/pi-acp`; it wraps `@mariozechner/pi-coding-agent` via the native `pi --mode rpc` NDJSON stream
 - `droid-acp` is maintained in this repo as `@agents-js/droid-acp`; it wraps Factory.ai's `droid` CLI via per-turn `droid exec --output-format stream-json` invocations
-- `trial-agent` is maintained in this repo as `@agents-js/trial-agent`; it is a deterministic fixture runtime for ACP/tooling proof, not an operator runtime
+- `trial-agent` is available for testing and is not a production runtime.
 - `gemini` is not maintained in this repo
-- the repo wires the runtimes into the gateway and CLI, and the lower-level `apps/internal-gateway` workspace keeps a direct `@agents-js/acp` edge for its local gateway test harness
-
-### Local Proof Commands
-
-Use the runtime IDs from the matrix above when running live checks:
-
-```sh
-bun run e2e:runtime -- --runtime claude
-bun run e2e:web:live -- --runtime claude
-bun run e2e:runtime -- --runtime opencode --profile clean-room
-```
+- the repo wires the runtimes into the gateway and CLI.
 
 ### Auth
 
@@ -1137,7 +854,7 @@ validate auth at spawn time. If credentials are missing, the harness itself emit
 Then connect with:
 
 ```sh
-vp run @agents-js/cli#client -- --url http://127.0.0.1:<printed-port>
+agents-js client --url http://127.0.0.1:<printed-port>
 ```
 
 Use the URL printed by `serve`. The gateway does not assume a fixed port unless you pass one explicitly.
@@ -1150,7 +867,7 @@ Profiles are top-level config entries in `.agents-js/config.json` or `~/.config/
 - `--profile <name>`: use a named runtime-bound launch context with derived or overridden roots, env, and args
 - missing profiles are auto-created in the project config
 
-For curated `opencode`, profiles are the cleaner deterministic path when personal config or plugins add stdout noise around ACP startup.
+For curated `opencode`, profiles are the cleaner isolated configuration when personal config or plugins add stdout noise around ACP startup.
 
 Example:
 
@@ -1241,22 +958,16 @@ The `roots` field can override any of these paths individually when the default 
 
 #### `--profile` Flag Usage
 
-Use `--profile` with either `serve` or the runtime e2e lane:
-
 ```sh
 # Serve with a named profile
-vp run @agents-js/cli#serve -- --harness opencode --profile clean-room
-
-# Run runtime e2e with a profile
-bun run e2e:runtime -- --runtime opencode --profile clean-room
+agents-js serve --harness opencode --profile clean-room
 
 # Serve claude with a profile
-vp run @agents-js/cli#serve -- --harness claude --profile isolated-claude
+agents-js serve --harness claude --profile isolated-claude
 ```
 
 The `--profile` flag always requires a `--harness` (or explicit `--runtime`) argument. The
-profile's `runtime` field must match the selected harness. `e2e:web:live` intentionally launches
-through `bun run dev --runtime <id>` and does not accept `--profile`.
+profile's `runtime` field must match the selected harness.
 
 #### Default vs Profile Behavior
 
