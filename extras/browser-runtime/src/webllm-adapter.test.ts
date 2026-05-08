@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { MLCEngineInterface } from "@mlc-ai/web-llm";
-import { ACTION_SCHEMA, type Action } from "./action-schema.ts";
+import { ACTION_SCHEMA, type PriorEntry } from "./action-schema.ts";
 import type { LocalModel } from "./local-model.ts";
 import { createWebLLMAdapter, DEFAULT_DECIDE_SYSTEM_PROMPT } from "./webllm-adapter.ts";
 
@@ -87,7 +87,15 @@ describe("createWebLLMAdapter", () => {
   });
 
   it("decideAction inlines prior actions into the user message when non-empty", async () => {
-    const prior: Action[] = [{ kind: "tool", tool: "searchDocs", args: { query: "acp" } }];
+    const prior: PriorEntry[] = [
+      { kind: "tool", tool: "searchDocs", args: { query: "acp" } },
+      {
+        kind: "tool-result",
+        tool: "searchDocs",
+        args: { query: "acp" },
+        result: { hits: [{ heading: "Agent Client Protocol" }] },
+      },
+    ];
     const { model, calls } = makeFakeModel(() => ({
       choices: [{ message: { content: '{"kind":"answer","answerDraft":"hi"}' } }],
     }));
@@ -100,11 +108,61 @@ describe("createWebLLMAdapter", () => {
     expect(calls[0]?.messages.some((m) => m.role === "assistant")).toBe(false);
     const userMsg = calls[0]?.messages.find((m) => m.role === "user");
     expect(userMsg?.content).toContain("what is acp");
-    expect(userMsg?.content).toContain("searchDocs");
-    expect(userMsg?.content).toContain("acp");
+    expect(userMsg?.content).toContain("Context from prior steps");
+    expect(userMsg?.content).toContain("Called searchDocs");
+    expect(userMsg?.content).toContain("Result of searchDocs");
+    // The actual tool result body — without it the model can't ground its
+    // answer and falls back to training-data guesses.
+    expect(userMsg?.content).toContain("Agent Client Protocol");
     // Last message MUST be `user` so completions accepts the request.
     const last = calls[0]?.messages[calls[0]?.messages.length - 1];
     expect(last?.role).toBe("user");
+  });
+
+  it("decideAction includes prior tool-result content in the user message", async () => {
+    // Pin the load-bearing case for the whole change: a tool-result entry's
+    // `result` body reaches the model verbatim (modulo the truncation marker
+    // when present). Without this, the meta-loop's grounding contract is
+    // broken.
+    const prior: PriorEntry[] = [
+      {
+        kind: "tool-result",
+        tool: "searchDocs",
+        args: { query: "acp" },
+        result: { hits: [{ heading: "ACP", text: "Agent Client Protocol" }] },
+      },
+    ];
+    const { model, calls } = makeFakeModel(() => ({
+      choices: [{ message: { content: '{"kind":"answer","answerDraft":"hi"}' } }],
+    }));
+    const adapter = createWebLLMAdapter(model);
+
+    await adapter.decideAction({ sessionInput: "what is acp", prior });
+
+    const userMsg = calls[0]?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("Agent Client Protocol");
+    expect(userMsg?.content).toContain("Result of searchDocs");
+  });
+
+  it("decideAction marks truncated tool-result entries with the truncation tail", async () => {
+    const prior: PriorEntry[] = [
+      {
+        kind: "tool-result",
+        tool: "searchDocs",
+        args: { query: "x" },
+        result: { hits: [{ heading: "h", text: "clipped body" }] },
+        truncated: true,
+      },
+    ];
+    const { model, calls } = makeFakeModel(() => ({
+      choices: [{ message: { content: '{"kind":"answer","answerDraft":"hi"}' } }],
+    }));
+    const adapter = createWebLLMAdapter(model);
+
+    await adapter.decideAction({ sessionInput: "q", prior });
+
+    const userMsg = calls[0]?.messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("[... truncated]");
   });
 
   it("decideAction sends a bare user message when prior is empty", async () => {
@@ -163,8 +221,16 @@ describe("createWebLLMAdapter", () => {
     expect(calls[0]?.messages).toEqual([{ role: "user", content: "hi" }]);
   });
 
-  it("streamAnswer echoes prior tool calls into the user message when prior is non-empty", async () => {
-    const prior: Action[] = [{ kind: "tool", tool: "searchDocs", args: { query: "what is acp" } }];
+  it("streamAnswer echoes prior tool calls and results into the user message when prior is non-empty", async () => {
+    const prior: PriorEntry[] = [
+      { kind: "tool", tool: "searchDocs", args: { query: "what is acp" } },
+      {
+        kind: "tool-result",
+        tool: "searchDocs",
+        args: { query: "what is acp" },
+        result: { hits: [{ heading: "ACP", text: "Agent Client Protocol" }] },
+      },
+    ];
     async function* fakeStream() {
       yield { choices: [{ delta: { content: "ok" } }] };
     }
@@ -177,8 +243,38 @@ describe("createWebLLMAdapter", () => {
 
     const userContent = String(calls[0]?.messages[0]?.content ?? "");
     expect(userContent).toContain("hi");
-    expect(userContent).toContain("searchDocs");
-    expect(userContent).toContain("Prior tool calls");
+    expect(userContent).toContain("Called searchDocs");
+    expect(userContent).toContain("Result of searchDocs");
+    expect(userContent).toContain("Agent Client Protocol");
+    expect(userContent).toContain("Context from prior steps");
+  });
+
+  it("streamAnswer includes prior tool-result content in the user message", async () => {
+    const prior: PriorEntry[] = [
+      {
+        kind: "tool-result",
+        tool: "searchDocs",
+        args: { query: "acp" },
+        result: { hits: [{ heading: "ACP", text: "Agent Client Protocol" }] },
+      },
+    ];
+    async function* fakeStream() {
+      yield { choices: [{ delta: { content: "ok" } }] };
+    }
+    const { model, calls } = makeFakeModel(() => fakeStream());
+    const adapter = createWebLLMAdapter(model);
+
+    for await (const _ of adapter.streamAnswer({ sessionInput: "what is acp", prior })) {
+      /* drain */
+    }
+
+    const userContent = String(calls[0]?.messages[0]?.content ?? "");
+    expect(userContent).toContain("Agent Client Protocol");
+    expect(userContent).toContain("Result of searchDocs");
+    // streamAnswer must NOT add a system message — the contract is unchanged
+    // from before the tool-result lift; the request stays user-only.
+    expect(calls[0]?.messages.some((m) => m.role === "system")).toBe(false);
+    expect(calls[0]?.messages.length).toBe(1);
   });
 
   // ─── Cancel plumbing ─────────────────────────────────────────────────────

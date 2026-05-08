@@ -94,6 +94,27 @@ describe("createAguiEventBridge", () => {
     expect(content.delta).toBe("Did you mean X or Y?");
   });
 
+  it("tool.failed maps to TOOL_CALL_START + ARGS + END with the error in the args payload", () => {
+    // tool.failed must NOT terminate the run — it's recoverable. Mapping to
+    // the tool-call triple keeps the UI showing a tool turn happened (with
+    // the error embedded in the args delta) and lets the loop continue to
+    // the next decideAction iteration.
+    const events = bridgeAll([
+      notif({ kind: "tool.failed", tool: "searchDocs", message: "docs index offline" }),
+    ]);
+    const types = events.map((e) => e.type);
+    expect(types).toEqual([
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_ARGS,
+      EventType.TOOL_CALL_END,
+    ]);
+    const start = events[0] as { toolCallName: string };
+    expect(start.toolCallName).toBe("searchDocs");
+    const args = events[1] as { delta: string };
+    expect(args.delta).toContain("searchDocs");
+    expect(args.delta).toContain("docs index offline");
+  });
+
   it("error maps to RUN_ERROR with the message text", () => {
     const events = bridgeAll([notif({ kind: "error", message: "bad action JSON" })]);
     expect(events).toHaveLength(1);

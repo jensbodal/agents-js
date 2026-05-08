@@ -7,6 +7,7 @@ export const TELEMETRY_EVENT_NAMES = [
   "validation.failure",
   "repair.invoked",
   "tool.call",
+  "tool.failure",
   "device.lost",
   "worker.crash",
   "fallback.used",

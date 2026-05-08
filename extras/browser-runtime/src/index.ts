@@ -1,4 +1,9 @@
-export { ACTION_SCHEMA, type Action } from "./action-schema.ts";
+export {
+  ACTION_SCHEMA,
+  type Action,
+  type PriorEntry,
+  type ToolResultEntry,
+} from "./action-schema.ts";
 export {
   coerceAction,
   type ValidationIssue,

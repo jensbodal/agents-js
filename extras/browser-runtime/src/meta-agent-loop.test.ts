@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import type { PriorEntry } from "./action-schema.ts";
 import type { JsonRpcMessage } from "./browser-acp-shim.ts";
-import { createMetaAgentLoop, type ModelAdapter } from "./meta-agent-loop.ts";
+import { createMetaAgentLoop, type ModelAdapter, truncateToolResult } from "./meta-agent-loop.ts";
 import { createInMemoryTelemetry } from "./telemetry.ts";
 import type { LocalToolRegistry } from "./tool-registry.ts";
 
@@ -42,8 +43,14 @@ describe("createMetaAgentLoop", () => {
       '{"kind":"answer","answerDraft":"acp is a protocol"}',
     ];
     let n = 0;
+    const seenPriors: PriorEntry[][] = [];
     const adapter: ModelAdapter = {
-      decideAction: async () => ({ raw: decisions[n++] ?? "" }),
+      decideAction: async ({ prior }) => {
+        // Snapshot at the moment of the call; the loop mutates the same
+        // array reference between iterations.
+        seenPriors.push([...prior]);
+        return { raw: decisions[n++] ?? "" };
+      },
       streamAnswer: async function* () {
         yield "acp is a protocol";
       },
@@ -66,6 +73,148 @@ describe("createMetaAgentLoop", () => {
     expect(events.some((e: any) => e.params?.kind === "tool.invoked")).toBe(true);
     // biome-ignore lint/suspicious/noExplicitAny: event-shape access
     expect(events.some((e: any) => e.params?.kind === "answer.done")).toBe(true);
+
+    // The second decideAction must see the tool-call entry AND the
+    // tool-result entry. Without the result entry, the model has no way
+    // to ground its answer on what searchDocs actually returned.
+    expect(seenPriors.length).toBe(2);
+    expect(seenPriors[0]).toEqual([]);
+    const second = seenPriors[1] ?? [];
+    expect(second.length).toBe(2);
+    expect(second[0]?.kind).toBe("tool");
+    expect(second[1]?.kind).toBe("tool-result");
+    const resultEntry = second[1] as Extract<PriorEntry, { kind: "tool-result" }>;
+    expect(resultEntry.tool).toBe("searchDocs");
+    expect(resultEntry.result).toEqual({ hits: [{ heading: "ACP" }] });
+    expect(resultEntry.truncated).toBe(false);
+  });
+
+  it("captures tool result into prior so subsequent decideAction sees it", async () => {
+    const decisions = [
+      '{"kind":"tool","tool":"searchDocs","args":{"query":"acp"}}',
+      '{"kind":"answer","answerDraft":"done"}',
+    ];
+    let n = 0;
+    const seenPriors: PriorEntry[][] = [];
+    const adapter: ModelAdapter = {
+      decideAction: async ({ prior }) => {
+        seenPriors.push([...prior]);
+        return { raw: decisions[n++] ?? "" };
+      },
+      streamAnswer: async function* () {
+        yield "done";
+      },
+    };
+    const tools: LocalToolRegistry = {
+      invoke: async () => ({ hits: [{ heading: "Agent Client Protocol" }] }),
+      names: () => ["searchDocs"],
+    };
+    const tel = createInMemoryTelemetry();
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
+    const { emit } = emitter();
+    await runner.runPrompt({ sessionId: "s", input: "what is acp" }, emit);
+
+    const second = seenPriors[1] ?? [];
+    const resultEntry = second.find((e) => e.kind === "tool-result") as
+      | Extract<PriorEntry, { kind: "tool-result" }>
+      | undefined;
+    expect(resultEntry).toBeDefined();
+    expect(resultEntry?.result).toEqual({ hits: [{ heading: "Agent Client Protocol" }] });
+  });
+
+  it("tool failure pushes a tool-result with error and continues to next iteration", async () => {
+    const decisions = [
+      '{"kind":"tool","tool":"searchDocs","args":{"query":"acp"}}',
+      '{"kind":"answer","answerDraft":"unable to find docs, here\'s what I know"}',
+    ];
+    let n = 0;
+    const seenPriors: PriorEntry[][] = [];
+    const adapter: ModelAdapter = {
+      decideAction: async ({ prior }) => {
+        seenPriors.push([...prior]);
+        return { raw: decisions[n++] ?? "" };
+      },
+      streamAnswer: async function* () {
+        yield "fallback answer";
+      },
+    };
+    const tools: LocalToolRegistry = {
+      invoke: async () => {
+        throw new Error("docs index offline");
+      },
+      names: () => ["searchDocs"],
+    };
+    const tel = createInMemoryTelemetry();
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
+    const { emit, events } = emitter();
+    await runner.runPrompt({ sessionId: "s", input: "what is acp" }, emit);
+
+    // The run did NOT abort — the loop continued to the second decideAction
+    // and streamed an answer. Pre-fix, the catch-block emitted `error` and
+    // returned early.
+    // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+    const kinds = events.map((e: any) => e.params?.kind);
+    expect(kinds).toContain("tool.failed");
+    expect(kinds).toContain("answer.done");
+    expect(kinds).not.toContain("error");
+
+    // The second decideAction sees the failure encoded as a tool-result.
+    const second = seenPriors[1] ?? [];
+    const resultEntry = second.find((e) => e.kind === "tool-result") as
+      | Extract<PriorEntry, { kind: "tool-result" }>
+      | undefined;
+    expect(resultEntry).toBeDefined();
+    expect(resultEntry?.result).toEqual({ error: "docs index offline" });
+
+    // tool.failure telemetry fires (distinct from tool.call so dashboards
+    // can tell recoverable failures from a clean call).
+    expect(tel.snapshot().some((e) => e.name === "tool.failure")).toBe(true);
+
+    // The user-facing event carries both the tool name and the error
+    // message so the UI can render a meaningful tool turn.
+    const failed = events.find(
+      // biome-ignore lint/suspicious/noExplicitAny: event-shape access
+      (e: any) => e.params?.kind === "tool.failed",
+    ) as { params: { tool: string; message: string } } | undefined;
+    expect(failed?.params.tool).toBe("searchDocs");
+    expect(failed?.params.message).toBe("docs index offline");
+  });
+
+  it("long searchDocs body is truncated with marker before reaching prior", async () => {
+    const longBody = "a".repeat(2000);
+    const decisions = [
+      '{"kind":"tool","tool":"searchDocs","args":{"query":"x"}}',
+      '{"kind":"answer","answerDraft":"ok"}',
+    ];
+    let n = 0;
+    const seenPriors: PriorEntry[][] = [];
+    const adapter: ModelAdapter = {
+      decideAction: async ({ prior }) => {
+        seenPriors.push([...prior]);
+        return { raw: decisions[n++] ?? "" };
+      },
+      streamAnswer: async function* () {
+        yield "ok";
+      },
+    };
+    const tools: LocalToolRegistry = {
+      invoke: async () => ({ hits: [{ heading: "h", text: longBody }] }),
+      names: () => ["searchDocs"],
+    };
+    const tel = createInMemoryTelemetry();
+    const runner = createMetaAgentLoop({ adapter, tools, telemetry: tel });
+    const { emit } = emitter();
+    await runner.runPrompt({ sessionId: "s", input: "q" }, emit);
+
+    const second = seenPriors[1] ?? [];
+    const resultEntry = second.find((e) => e.kind === "tool-result") as
+      | Extract<PriorEntry, { kind: "tool-result" }>
+      | undefined;
+    expect(resultEntry).toBeDefined();
+    expect(resultEntry?.truncated).toBe(true);
+    const result = resultEntry?.result as { hits: Array<{ text: string }> };
+    expect(result.hits[0]?.text.length).toBeLessThanOrEqual(800 + " [... truncated]".length + 1);
+    expect(result.hits[0]?.text).toContain("[... truncated]");
   });
 
   it("emits validation.failure telemetry and stops on invalid decide output", async () => {
@@ -342,5 +491,44 @@ describe("createMetaAgentLoop", () => {
     expect(chunkTexts.some((t) => t.includes("partial"))).toBe(true);
     expect(chunkTexts.some((t) => t.includes("device lost"))).toBe(true);
     expect(tel.snapshot().some((e) => e.name === "stream.failure")).toBe(true);
+  });
+});
+
+describe("truncateToolResult", () => {
+  it("clips each searchDocs hit body at 800 chars and marks truncated", () => {
+    const raw = {
+      hits: [
+        { heading: "a", text: "x".repeat(801) },
+        { heading: "b", text: "short" },
+      ],
+    };
+    const { value, truncated } = truncateToolResult(raw);
+    expect(truncated).toBe(true);
+    const v = value as { hits: Array<{ text: string }> };
+    expect(v.hits[0]?.text).toContain("[... truncated]");
+    expect(v.hits[0]?.text.startsWith("x".repeat(800))).toBe(true);
+    expect(v.hits[1]?.text).toBe("short");
+  });
+
+  it("clips readCodeSnippet body at 2000 chars", () => {
+    const raw = { path: "p.ts", text: "x".repeat(2001) };
+    const { value, truncated } = truncateToolResult(raw);
+    expect(truncated).toBe(true);
+    const v = value as { text: string };
+    expect(v.text).toContain("[... truncated]");
+    expect(v.text.startsWith("x".repeat(2000))).toBe(true);
+  });
+
+  it("returns the raw value with truncated=false when nothing exceeds the budget", () => {
+    const raw = { hits: [{ heading: "h", text: "small" }] };
+    const { value, truncated } = truncateToolResult(raw);
+    expect(truncated).toBe(false);
+    expect(value).toEqual(raw);
+  });
+
+  it("passes through non-object inputs untouched", () => {
+    expect(truncateToolResult(null)).toEqual({ value: null, truncated: false });
+    expect(truncateToolResult(42)).toEqual({ value: 42, truncated: false });
+    expect(truncateToolResult("hi")).toEqual({ value: "hi", truncated: false });
   });
 });

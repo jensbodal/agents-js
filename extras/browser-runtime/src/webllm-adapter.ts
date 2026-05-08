@@ -1,4 +1,4 @@
-import { ACTION_SCHEMA, type Action } from "./action-schema.ts";
+import { ACTION_SCHEMA, type PriorEntry } from "./action-schema.ts";
 import type { LocalModel } from "./local-model.ts";
 import type { ModelAdapter } from "./meta-agent-loop.ts";
 
@@ -17,17 +17,36 @@ import type { ModelAdapter } from "./meta-agent-loop.ts";
 const ACTION_SCHEMA_JSON = JSON.stringify(ACTION_SCHEMA);
 
 /**
- * Render prior actions as a footer for the user message body. Inlined into
- * the `user` role rather than emitted as a separate `assistant` message
- * because WebLLM (and OpenAI-compatible chat templates more broadly) reject
- * a completions request whose last message is `assistant` — the model needs
- * a `user` or `tool` message to know what to respond to. The proper fix
- * carries tool results in a typed structure and replays them via `tool`-role
- * messages; until then, this footer gives the model a hint of its own past
- * decisions while keeping the request well-formed.
+ * Render `prior` (loop-synthesized history of tool calls + their results) as
+ * a plain-text footer for the user message body.
+ *
+ * Inlined into the `user` role rather than emitted as a separate `assistant`
+ * (or `tool`) message because WebLLM (and OpenAI-compatible chat templates
+ * more broadly) reject a completions request whose last message is
+ * `assistant` — the model needs a `user` or `tool` message to know what to
+ * respond to. The chat-template support for the `tool` role on small local
+ * models like Qwen 1.5B is unverified; until that's confirmed end-to-end,
+ * this single inlined footer is the safer path.
+ *
+ * `tool` and `tool-result` entries are the load-bearing cases. `answer`,
+ * `clarify`, and `error` are loop-terminal in practice (they end the run);
+ * if one ever appears in `prior` we render its raw JSON shape rather than
+ * silently dropping it.
  */
-function serializePriorForUser(prior: Action[]): string {
-  return JSON.stringify(prior);
+function serializePriorForUser(prior: PriorEntry[]): string {
+  return prior
+    .map((e) => {
+      if (e.kind === "tool") {
+        return `Called ${e.tool}(${JSON.stringify(e.args)})`;
+      }
+      if (e.kind === "tool-result") {
+        const body = JSON.stringify(e.result);
+        const tail = e.truncated ? " [... truncated]" : "";
+        return `Result of ${e.tool}: ${body}${tail}`;
+      }
+      return JSON.stringify(e);
+    })
+    .join("\n");
 }
 
 /**
@@ -96,7 +115,8 @@ Rules:
 - Pick exactly one shape. Do NOT mix fields between shapes.
 - "kind" is required and must be one of: "tool", "answer", "clarify", "error".
 - "additionalProperties: false" — only the fields listed above are allowed for each kind.
-- Use \`searchDocs\` first when the user asks a docs question; use \`readCodeSnippet\` when they ask about a specific file/symbol; reply with \`answer\` after at most one tool call.`;
+- Use \`searchDocs\` first when the user asks a docs question; use \`readCodeSnippet\` when they ask about a specific file/symbol; reply with \`answer\` after at most one tool call.
+- You will sometimes see "[Context from prior steps: ...]" appended to the user message. That context is your earlier tool calls and their results. Use it to compose your final answer; do not re-call a tool you've already called.`;
 
 export interface CreateWebLLMAdapterOptions {
   /**
@@ -138,7 +158,7 @@ export function createWebLLMAdapter(
       const userContent =
         prior.length === 0
           ? sessionInput
-          : `${sessionInput}\n\n[Previous actions you took: ${serializePriorForUser(prior)}]`;
+          : `${sessionInput}\n\n[Context from prior steps:\n${serializePriorForUser(prior)}]`;
       const messages: Array<{ role: "system" | "user"; content: string }> = [
         { role: "system", content: decideSystemPrompt },
         { role: "user", content: userContent },
@@ -154,20 +174,16 @@ export function createWebLLMAdapter(
     },
     async *streamAnswer({ sessionInput, prior, signal }) {
       bridgeSignalToInterrupt(model, signal);
-      // TODO(streamAnswer-tool-role): we currently echo prior tool *calls*
-      // (tool name + args), NOT tool results — `Action` doesn't carry a
-      // `result` field, and `meta-agent-loop.ts` invokes tools but never
-      // writes the result back into `prior`. Real fix: extend the loop to
-      // capture tool results and pass them via {role:"tool", content:...}
-      // messages here. Until then, echoing the call gives the model some
-      // contextual hint without claiming the docs were actually injected.
-      const toolCalls = prior
-        .filter((a) => a.kind === "tool")
-        .map((a) => `Called ${a.tool} with ${JSON.stringify(a.args)}`)
-        .join("\n");
-      const userContent = toolCalls
-        ? `${sessionInput}\n\n(Prior tool calls:\n${toolCalls})`
-        : sessionInput;
+      // TODO(streamAnswer-tool-role): once we've verified larger-model
+      // chat-template support for the `tool` role end-to-end, replay each
+      // `tool-result` entry as `{role: "tool", content: ..., tool_call_id}`.
+      // Inline-into-user is intentionally chosen for now because Qwen 1.5B's
+      // tool-role rendering is unverified and the WebLLM 0.2.82
+      // MessageOrderError class of bugs makes the inline path strictly safer.
+      const userContent =
+        prior.length === 0
+          ? sessionInput
+          : `${sessionInput}\n\n[Context from prior steps:\n${serializePriorForUser(prior)}]`;
       const stream = await model.engine.chat.completions.create({
         messages: [{ role: "user", content: userContent }],
         stream: true,

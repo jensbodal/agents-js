@@ -96,6 +96,23 @@ export function createAguiEventBridge(
         ] as AguiEventEnvelope[];
       }
 
+      case "tool.failed": {
+        // A recoverable tool failure — the meta-agent loop continues to the
+        // next decideAction iteration and may answer (or call a different
+        // tool). Mapping to the same start/args/end triple as `tool.invoked`
+        // keeps the UI showing a tool turn happened (with the error in the
+        // args payload) rather than terminating the run via RUN_ERROR.
+        const toolCallId = idFactory();
+        const toolName = (params.tool as string | undefined) ?? "<unknown-tool>";
+        const message = (params.message as string | undefined) ?? "tool failed";
+        const argsChunk = JSON.stringify({ tool: toolName, error: message });
+        return [
+          ...stream.toolCallStart({ toolName, toolCallId }),
+          ...stream.toolCallArgs({ toolCallId, argsChunk }),
+          ...stream.toolCallEnd({ toolCallId }),
+        ] as AguiEventEnvelope[];
+      }
+
       case "answer.chunk": {
         const text = (params.text as string | undefined) ?? "";
         return stream.textChunk({ text }) as AguiEventEnvelope[];

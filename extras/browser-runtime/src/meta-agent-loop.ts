@@ -1,4 +1,4 @@
-import type { Action } from "./action-schema.ts";
+import type { PriorEntry } from "./action-schema.ts";
 import { coerceAction } from "./action-validator.ts";
 import type { JsonRpcMessage, PromptParams, PromptRunner } from "./browser-acp-shim.ts";
 import type { Telemetry } from "./telemetry.ts";
@@ -6,6 +6,64 @@ import type { LocalToolRegistry } from "./tool-registry.ts";
 
 export interface DecideResult {
   raw: string;
+}
+
+/**
+ * Truncation budget for tool results before they're written into `prior`.
+ * Keeps the next-iteration prompt from blowing past a small local model's
+ * context window when a single `searchDocs` hit happens to embed a long
+ * passage. The marker is added inline so the model can tell its context
+ * is not verbatim.
+ */
+const PER_HIT_BODY = 800;
+const PER_SNIPPET_BODY = 2000;
+const TRUNCATION_MARK = "[... truncated]";
+
+/**
+ * Clip oversized text inside a tool result to keep the next prompt small.
+ *
+ * Two shapes are handled, matching what `default-tools.ts` actually returns:
+ * - `searchDocs` → `{ hits: [{ ..., text: "..." }, ...] }`. Each hit's `text`
+ *   is clipped to {@link PER_HIT_BODY}.
+ * - `readCodeSnippet` → `{ ..., text: "..." }`. The single `text` is clipped
+ *   to {@link PER_SNIPPET_BODY}.
+ *
+ * Anything else is returned verbatim with `truncated: false`. Returning the
+ * raw value rather than an `as any` cast keeps the type-guard local; callers
+ * see a plain `unknown`.
+ */
+export function truncateToolResult(raw: unknown): {
+  value: unknown;
+  truncated: boolean;
+} {
+  let truncated = false;
+  const clip = (s: string, n: number): string => {
+    if (s.length <= n) return s;
+    truncated = true;
+    return `${s.slice(0, n)} ${TRUNCATION_MARK}`;
+  };
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (Array.isArray(r.hits)) {
+      const hits = r.hits.map((h) => {
+        if (h && typeof h === "object" && typeof (h as { text?: unknown }).text === "string") {
+          return {
+            ...(h as object),
+            text: clip((h as { text: string }).text, PER_HIT_BODY),
+          };
+        }
+        return h;
+      });
+      return { value: { ...r, hits }, truncated };
+    }
+    if (typeof r.text === "string") {
+      return {
+        value: { ...r, text: clip(r.text, PER_SNIPPET_BODY) },
+        truncated,
+      };
+    }
+  }
+  return { value: raw, truncated };
 }
 
 /**
@@ -25,12 +83,12 @@ export interface DecideResult {
 export interface ModelAdapter {
   decideAction(input: {
     sessionInput: string;
-    prior: Action[];
+    prior: PriorEntry[];
     signal?: AbortSignal;
   }): Promise<DecideResult>;
   streamAnswer(input: {
     sessionInput: string;
-    prior: Action[];
+    prior: PriorEntry[];
     signal?: AbortSignal;
   }): AsyncIterable<string>;
 }
@@ -55,7 +113,7 @@ export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
       controllers.delete(sessionId);
     },
     async runPrompt(params: PromptParams, emit: (m: JsonRpcMessage) => void) {
-      const prior: Action[] = [];
+      const prior: PriorEntry[] = [];
       const maxToolCalls = deps.maxToolCalls ?? 3;
 
       // If a stale controller is still registered for this sessionId (e.g.
@@ -125,6 +183,14 @@ export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
             deps.telemetry.emit({ name: "tool.call", attrs: { tool: action.tool } });
             try {
               const result = await deps.tools.invoke(action.tool, action.args);
+              const { value, truncated } = truncateToolResult(result);
+              prior.push({
+                kind: "tool-result",
+                tool: action.tool,
+                args: action.args,
+                result: value,
+                truncated,
+              });
               emit({
                 jsonrpc: "2.0",
                 method: "session/update",
@@ -132,12 +198,28 @@ export function createMetaAgentLoop(deps: MetaAgentLoopDeps): PromptRunner {
               });
               continue;
             } catch (err) {
+              // Tool failures are recoverable: write the error into `prior`
+              // so the next decideAction sees the failure and can pick a
+              // different action, and emit `tool.failed` so the UI can
+              // distinguish a recoverable tool flake from a terminal run
+              // error. This loop iteration falls through to `continue`.
+              const message = (err as Error).message || "tool failed";
+              prior.push({
+                kind: "tool-result",
+                tool: action.tool,
+                args: action.args,
+                result: { error: message },
+              });
+              deps.telemetry.emit({
+                name: "tool.failure",
+                attrs: { tool: action.tool, message },
+              });
               emit({
                 jsonrpc: "2.0",
                 method: "session/update",
-                params: { kind: "error", message: (err as Error).message },
+                params: { kind: "tool.failed", tool: action.tool, message },
               });
-              return;
+              continue;
             }
           }
 
