@@ -35,6 +35,10 @@ run = "bun install"
 description = "Full semantic gate: preflight + generate + typecheck + lint + docs"
 run = "bun run check"
 
+[tasks."docs:deploy-build"]
+description = "Docs Deploy build proof: CI setup plus static docs artifact"
+run = "bun run setup --ci && bun run docs:build"
+
 [tasks."test:vp"]
 description = "vp-orchestrated test suite"
 run = "bun run test:vp"
