@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2ui-types",
-  "version": "0.3.1-rc1",
+  "version": "0.3.1",
   "type": "module",
   "sideEffects": false,
   "description": "Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.",
