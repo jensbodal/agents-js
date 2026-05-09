@@ -1,0 +1,1 @@
+export const CURRENT_A2A_PROTOCOL_VERSION = "0.3.0";

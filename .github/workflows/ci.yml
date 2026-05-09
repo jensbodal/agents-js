@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: Curated runtime to exercise in the targeted runtime/browser e2e lane
+        required: false
+        type: choice
+        options:
+          - claude
+          - opencode
+          - gemini
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # Lint + typecheck + preflight + docs gate. Same as local pre-commit
+  # (`bun run check`). Runs first so style/type drift fails fast before
+  # heavier e2e jobs.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      - run: bun run setup --ci
+      - run: bun run check
+
+  # Default deterministic upstream proof gate.
+  deterministic:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      - run: bun run setup --ci
+      - run: bun run e2e:deterministic
+
+  # Release readiness checks that do not depend on a live curated runtime.
+  release-gates:
+    runs-on: ubuntu-latest
+    needs: deterministic
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      - run: bun run setup --ci
+      - name: ACP consumer smoke test
+        env:
+          AGENTS_JS_RC_DATE: ci-${{ github.run_id }}
+        run: bun scripts/acp-external-consumer-smoke.ts
+      - run: ./node_modules/.bin/vp run @agents-js/cli#build
+
+  # Explicit opt-in runtime/browser gate. Run this manually when the selected
+  # curated runtime is intentionally available in the runner environment.
+  runtime-gates:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runtime != '' }}
+    runs-on: ubuntu-latest
+    needs: deterministic
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      - run: bun run setup --ci --runtime ${{ github.event.inputs.runtime }}
+      - run: bun run e2e:runtime -- --runtime ${{ github.event.inputs.runtime }}
+      - run: bun run e2e:web:live -- --runtime ${{ github.event.inputs.runtime }}

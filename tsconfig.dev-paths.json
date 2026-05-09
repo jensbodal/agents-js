@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@agents-js/a2a-client": ["./packages/a2a-client/src/index.ts"],
+      "@agents-js/a2a-client/node": ["./packages/a2a-client/src/node.ts"],
+      "@agents-js/a2a-client/*": ["./packages/a2a-client/src/*"],
+      "@agents-js/a2a": ["./packages/a2a/src/index.ts"],
+      "@agents-js/a2ui-host": ["./packages/a2ui-host/src/index.ts"],
+      "@agents-js/a2ui-host/acp-host": ["./packages/a2ui-host/src/acp-host/index.ts"],
+      "@agents-js/a2ui-renderer": ["./packages/a2ui-renderer/src/index.ts"],
+      "@agents-js/a2ui-types": ["./packages/a2ui-types/src/index.ts"],
+      "@agents-js/a2ui-types/catalog": ["./packages/a2ui-types/src/catalog/index.ts"],
+      "@agents-js/agui-types": ["./packages/agui-types/src/index.ts"],
+      "@agents-js/acp-host": ["./packages/acp-host/src/index.ts"],
+      "@agents-js/acp-host/editor": ["./packages/acp-host/src/editor/index.ts"],
+      "@agents-js/acp-host/*": ["./packages/acp-host/src/*"],
+      "@agents-js/acp": ["./packages/acp/src/index.ts"],
+      "@agents-js/cli": ["./packages/cli/src/index.ts"],
+      "@agents-js/gateway-runtime": ["./packages/gateway-runtime/src/index.ts"],
+      "@agents-js/mcp-bridge": ["./packages/mcp-bridge/src/index.ts"],
+      "@agents-js/policy": ["./packages/policy/src/index.ts"],
+      "@agents-js/policy/permission-types": ["./packages/policy/src/permission-types.ts"],
+      "@agents-js/policy/terminal-policy": ["./packages/policy/src/terminal-policy.ts"],
+      "@agents-js/reporting": ["./extras/reporting/src/index.ts"],
+      "@agents-js/schema-utils": ["./packages/schema-utils/src/index.ts"],
+      "@agents-js/skills": ["./packages/skills/src/index.ts"],
+      "@agents-js/ui-components": ["./packages/ui-components/src/index.ts"],
+      "@agents-js/ui-components/connect-preferences": [
+        "./packages/ui-components/src/connect-preferences-store.ts"
+      ],
+      "@agents-js/ui-components/*": ["./packages/ui-components/src/*"],
+      "@agents-js/validation": ["./packages/validation/src/index.ts"]
+    }
+  }
+}

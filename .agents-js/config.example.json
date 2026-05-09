@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "clean-room": {
+      "runtime": "opencode"
+    }
+  },
+  "serve": {
+    "selectionPolicy": "prefer-saved",
+    "host": "127.0.0.1",
+    "port": 0,
+    "harness": {
+      "kind": "curated",
+      "runtime": "opencode"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "extends": ["../../tsconfig.workspace.json", "../../tsconfig.dev-paths.json"],
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "rootDir": "."
+  },
+  "include": ["src", "tests"]
+}

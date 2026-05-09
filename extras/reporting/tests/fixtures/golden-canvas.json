@@ -1,0 +1,95 @@
+{
+  "edges": [
+    {
+      "fromNode": "n-4e34974b5978",
+      "fromSide": "right",
+      "id": "e-e71ea3f2ea04",
+      "toNode": "n-ef7df8746d09",
+      "toSide": "left"
+    },
+    {
+      "fromNode": "n-56640337b900",
+      "fromSide": "right",
+      "id": "e-923731c9c187",
+      "toNode": "n-a719ea9bec6f",
+      "toSide": "left"
+    },
+    {
+      "fromNode": "n-bd445c462b7e",
+      "fromSide": "right",
+      "id": "e-0791f060f122",
+      "toNode": "n-4e34974b5978",
+      "toSide": "left"
+    },
+    {
+      "fromNode": "n-bd445c462b7e",
+      "fromSide": "right",
+      "id": "e-544aa3502070",
+      "toNode": "n-56640337b900",
+      "toSide": "left"
+    },
+    {
+      "fromNode": "n-bd445c462b7e",
+      "fromSide": "right",
+      "id": "e-a8930bbc4b0e",
+      "toNode": "n-f68a7ea19fa7",
+      "toSide": "left"
+    }
+  ],
+  "nodes": [
+    {
+      "height": 160,
+      "id": "n-bd445c462b7e",
+      "text": "Repo: @agents-js/root\nCommit: bbbbbbbbbbbb\nProfile: agents-js\nComponents: 2\nFindings: 2",
+      "type": "text",
+      "width": 520,
+      "x": 0,
+      "y": 120
+    },
+    {
+      "height": 220,
+      "id": "n-f68a7ea19fa7",
+      "text": "Components\n- @agents-js/a2a (packages/a2a/package.json)\n- @agents-js/acp (packages/acp/package.json)",
+      "type": "text",
+      "width": 520,
+      "x": 620,
+      "y": 120
+    },
+    {
+      "height": 220,
+      "id": "n-56640337b900",
+      "text": "Severity P1\nCount: 1\nTop components: @agents-js/a2a (1)\n- Session map race",
+      "type": "text",
+      "width": 520,
+      "x": 1240,
+      "y": 120
+    },
+    {
+      "height": 220,
+      "id": "n-4e34974b5978",
+      "text": "Severity P2\nCount: 1\nTop components: n/a\n- Stale path in docs",
+      "type": "text",
+      "width": 520,
+      "x": 1240,
+      "y": 340
+    },
+    {
+      "height": 220,
+      "id": "n-a719ea9bec6f",
+      "text": "Action for P1\nSession map race\nFile: packages/a2a/src/executor.ts\nMitigate and add regression coverage.",
+      "type": "text",
+      "width": 520,
+      "x": 1860,
+      "y": 120
+    },
+    {
+      "height": 220,
+      "id": "n-ef7df8746d09",
+      "text": "Action for P2\nStale path in docs\nFile: mise.toml\nMitigate and add regression coverage.",
+      "type": "text",
+      "width": 520,
+      "x": 1860,
+      "y": 340
+    }
+  ]
+}

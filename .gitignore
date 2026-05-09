@@ -1,0 +1,114 @@
+# Using -dot-
+!_dot/
+
+# TEMP
+.obsidian/
+
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+*.tgz
+
+# _dot/ convention — visible tool configs (not committed)
+_dot/
+
+# Symlinks to _dot/ (tools expect dotfile locations)
+.opencode
+.gemini
+
+# Local tool state
+.codex/
+.pi/
+.mcp.json
+gemini-extension.json
+Procfile.docs
+
+# Claude agent runtime state (agent definitions ARE committed)
+.claude/agent-memory/
+.agents-js/config.json
+.agents-js/profiles/
+.agents-js/permission-rules.json
+.agents-js/registry.json
+_dot/a2a-sessions.json
+
+# Logs
+logs/
+*.log
+
+# Temporary
+tmp/
+.tmp/
+
+# Code coverage
+coverage/
+*.lcov
+
+# npm config — .npmrc is committed (scope only); auth lives in ~/.npmrc
+# or a local override that merges at resolution time.
+.npmrc.local
+
+# Claude Code per-session permissions artifact.
+settings.local.json
+
+# dotenv
+.env
+.env.*.local
+
+# Caches
+# (removed .eslintcache — migrated to Biome)
+.cache
+*.tsbuildinfo
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/.vitepress/.temp/
+
+# Generated docs corpus served at /docs-index.json (build artifact, mirrored
+# from packages/browser-runtime/dist/docs-index.json by build-docs-index.ts)
+docs/public/docs-index.json
+output/
+plans/
+.playwright-cli/
+.playwright-mcp/
+.mana/
+.overmind.sock
+.overmind.env
+.overmind.pids/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# claude-tmux-agents: generated team artifacts (produced by just + init-team)
+.agent-team/
+claude-team
+
+# Riptide artifacts (cloud-synced)
+.humanlayer/tasks/
+.agent-team/mq/*.db
+.agent-team/mq/*.db-shm
+.agent-team/mq/*.db-wal
+.agent-team/logs/activity.jsonl
+.agent-team/logs/mq-daemon.log
+.agent-team/mq/mq-daemon.pid
+.agent-team/memory/*/journal.md
+
+# opencode agents
+.sisyphus/
+
+# Factory mission validation artifacts (ephemeral, regenerated per mission)
+.factory/validation/
+worktrees/
+
+# Claude Code per-session runtime lock files
+scheduled_tasks.lock
+
+# Generated API docs (regenerated on every docs:build)
+docs/api/
+
+.factory/

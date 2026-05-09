@@ -1,0 +1,88 @@
+// NOTE: schema-utils symbols (extractOneOf, toFieldMetas, FieldMeta,
+// SchemaProperty) are NOT re-exported here. Consumers should import them
+// directly from @agents-js/schema-utils. Prior cross-package re-export
+// coupled ui-components's version lifecycle to schema-utils's.
+export { AcpAuthSelector } from "./acp-auth-selector.ts";
+export { AcpButton } from "./acp-button.ts";
+export { AcpChatApp } from "./acp-chat-app.ts";
+export { AcpCheckbox } from "./acp-checkbox.ts";
+export { type AcpChoiceOption, AcpChoicePicker } from "./acp-choice-picker.ts";
+export { AcpCodeBlock } from "./acp-code-block.ts";
+export { AcpColumn } from "./acp-column.ts";
+export { AcpConnectDialog } from "./acp-connect-dialog.ts";
+export { AcpDateTimeInput } from "./acp-date-time-input.ts";
+export { AcpDebugPanel } from "./acp-debug-panel.ts";
+export { AcpDivider } from "./acp-divider.ts";
+export { AcpElicitationForm } from "./acp-elicitation-form.ts";
+export {
+  AcpIcon,
+  clearIconRegistries,
+  type IconRegistry,
+  registerIconSet,
+} from "./acp-icon.ts";
+export { AcpImage } from "./acp-image.ts";
+export { acpInputStyles } from "./acp-input-styles.ts";
+export { AcpMessage } from "./acp-message.ts";
+export { AcpModal } from "./acp-modal.ts";
+export { AcpModelSelector } from "./acp-model-selector.ts";
+export { AcpPermissionModal } from "./acp-permission-modal.ts";
+export {
+  AcpPermissionModeSelector,
+  DEFAULT_PERMISSION_MODE_LABELS,
+} from "./acp-permission-mode-selector.ts";
+export { AcpPromptInput } from "./acp-prompt-input.ts";
+export { AcpRow } from "./acp-row.ts";
+export { AcpSlider } from "./acp-slider.ts";
+export { AcpStatusBar } from "./acp-status-bar.ts";
+export { AcpStreamingText } from "./acp-streaming-text.ts";
+export { AcpTextField } from "./acp-text-field.ts";
+export { acpTheme } from "./acp-theme.ts";
+export { AcpTranscript } from "./acp-transcript.ts";
+export type {
+  AgentCardLike,
+  DebugRecordLike,
+  ModelInfoLike,
+  PermissionRequestLike,
+  PlanEntryLike,
+  RuntimeInfoLike,
+  SessionModelsLike,
+  SessionStateLike,
+  TranscriptEntryLike,
+  WriteGateLike,
+} from "./acp-types.ts";
+export { statusCategory } from "./acp-utils.ts";
+export { AcpWriteGateModal } from "./acp-write-gate-modal.ts";
+export {
+  type ConnectPreferences,
+  type ConnectProfile,
+  type ConnectProfilesState,
+  clearConnectPreferences,
+  deleteConnectProfile,
+  loadConnectPreferences,
+  loadConnectProfiles,
+  saveConnectPreferences,
+  setActiveConnectProfile,
+} from "./connect-preferences-store.ts";
+export {
+  type HistoryNavResult,
+  type PromptHistoryPersistence,
+  PromptHistoryStore,
+} from "./prompt-history-store.ts";
+export { registerAllComponents } from "./register.ts";
+export { safeCustomElement } from "./safe-custom-element.ts";
+export type {
+  WorkflowActivityEntryState,
+  WorkflowActivityKind,
+  WorkflowActivityStatus,
+  WorkflowSurfaceActivityPhase,
+  WorkflowSurfaceActivityState,
+  WorkflowSurfaceComposerMode,
+  WorkflowSurfaceComposerState,
+  WorkflowSurfaceContext,
+  WorkflowSurfaceInterruptKind,
+  WorkflowSurfaceInterruptState,
+  WorkflowSurfacePlanState,
+  WorkflowSurfaceRenderState,
+  WorkflowSurfaceSeverity,
+  WorkflowSurfaceTranscriptState,
+} from "./workflow-surface.ts";

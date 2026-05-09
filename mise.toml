@@ -1,0 +1,50 @@
+[tools]
+bun = "1.3.12"
+node = "24"
+"npm:@devcontainers/cli" = "0.86.1"
+
+# Pre-push gate: check then test:vp, serialized.
+#
+# The `install` step is intentionally NOT in the ci.depends graph here:
+# .githooks/pre-push phase 1 already runs `bun install` before invoking this
+# task, and including it as a parallel sibling caused a filesystem race where
+# `bun install` mutated node_modules/@agents-js/* symlinks while `check`'s
+# typecheck was reading them.
+#
+# `check` and `test:vp` MUST run sequentially, not in parallel: `test:vp`'s
+# per-package builds invoke `tsdown --clean`, which rm -rf's
+# `packages/<pkg>/dist/` then rewrites it. `check`'s `tsgo --noEmit` reads
+# `dist/index.d.mts` from those same paths to resolve workspace deps (the
+# `tsconfig.json` chain extends `tsconfig.workspace.json`, NOT
+# `tsconfig.dev-paths.json`, so deps resolve through built artifacts not
+# source). Running them in parallel produced an intermittent "Cannot find
+# module '@agents-js/<pkg>'" TS2307 from `check` and the opaque
+# "[check] ERROR task failed" mise message that made the race look like a cache
+# transient. Live-reproduced under `MISE_VERBOSE=1`; vanishes under serialized
+# depends or `MISE_JOBS=1`.
+# Trade-off: ~3s wall-clock cost (12.5s sequential vs 9.5s parallel) for a
+# deterministic gate.
+#
+# Full CI (docs, e2e, browser smoke) runs outside this local pre-push task.
+# Invoked by .githooks/pre-push.
+
+[tasks.install]
+description = "Install workspace dependencies (keeps node_modules in sync with bun.lock)"
+run = "bun install"
+
+[tasks.check]
+description = "Full semantic gate: preflight + generate + typecheck + lint + docs"
+run = "bun run check"
+
+[tasks."docs:deploy-build"]
+description = "Docs Deploy build proof: CI setup plus static docs artifact"
+run = "bun run setup --ci && bun run docs:build"
+
+[tasks."test:vp"]
+description = "vp-orchestrated test suite"
+run = "bun run test:vp"
+
+[tasks.ci]
+description = "Pre-push gate: check then test:vp (serialized — see top of file)"
+depends = ["check"]
+depends_post = ["test:vp"]

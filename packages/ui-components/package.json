@@ -1,0 +1,56 @@
+{
+  "name": "@agents-js/ui-components",
+  "version": "0.2.0-beta-4",
+  "private": true,
+  "type": "module",
+  "description": "Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./connect-preferences": {
+      "types": "./dist/connect-preferences-store.d.mts",
+      "bun": "./src/connect-preferences-store.ts",
+      "import": "./dist/connect-preferences-store.mjs",
+      "default": "./dist/connect-preferences-store.mjs"
+    },
+    "./web-ui-glue": {
+      "bun": "./src/web-ui-glue.ts",
+      "import": "./dist/web-ui-glue.mjs",
+      "types": "./dist/web-ui-glue.d.mts",
+      "default": "./dist/web-ui-glue.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/a2ui-types": "0.2.0-beta-4",
+    "@agents-js/acp-host": "0.2.0-beta-4",
+    "@agents-js/schema-utils": "0.2.0-beta-4"
+  },
+  "peerDependencies": {
+    "lit": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

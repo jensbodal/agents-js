@@ -1,0 +1,31 @@
+{
+  "name": "@agents-js/browser-runtime",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Browser-native runtime for the docs meta-agent: WebLLM worker, JSON action loop, ACP shim",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./worker": {
+      "types": "./src/webllm-worker.ts",
+      "import": "./src/webllm-worker.ts"
+    }
+  },
+  "dependencies": {
+    "@agents-js/agui-types": "workspace:*",
+    "@agents-js/validation": "workspace:*",
+    "@mlc-ai/web-llm": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@webgpu/types": "catalog:"
+  }
+}

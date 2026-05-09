@@ -1,0 +1,26 @@
+{
+  "name": "@agents-js/web-ui",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Reference Vite/Lit web UI consuming @agents-js/ui-components against a local internal gateway.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/a2a-client": "workspace:*",
+    "@agents-js/a2ui-host": "workspace:*",
+    "@agents-js/a2ui-renderer": "workspace:*",
+    "@agents-js/a2ui-types": "workspace:*",
+    "@agents-js/acp-host": "workspace:*",
+    "@agents-js/ui-components": "workspace:*",
+    "@agents-js/validation": "workspace:*",
+    "lit": "catalog:"
+  },
+  "devDependencies": {
+    "vite": "catalog:"
+  }
+}

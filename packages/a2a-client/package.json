@@ -1,0 +1,50 @@
+{
+  "name": "@agents-js/a2a-client",
+  "version": "0.2.0-beta-4",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "bun": "./src/node.ts",
+      "import": "./dist/node.mjs",
+      "default": "./dist/node.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts src/node.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests",
+    "test:integration": "bun test tests/integration.test.ts"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
+    "@a2a-js/sdk": "catalog:",
+    "@agents-js/a2a": "0.2.0-beta-4",
+    "@agents-js/agui-types": "0.2.0-beta-4",
+    "@agents-js/validation": "0.2.0-beta-4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
