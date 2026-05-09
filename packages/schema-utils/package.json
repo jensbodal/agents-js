@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/schema-utils",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "sideEffects": false,
   "description": "Shared schema property parsing for ACP elicitation forms. Extracts field metadata from JSON Schema-like property definitions.",

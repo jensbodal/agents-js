@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/pi-acp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp": "0.2.0",
-    "@agents-js/gateway-runtime": "0.2.0"
+    "@agents-js/acp": "0.2.1",
+    "@agents-js/gateway-runtime": "0.2.1"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

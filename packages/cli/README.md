@@ -6,19 +6,21 @@
 
 ## Install
 
+**Bun is required.** The CLI's TUI depends on `@opentui/core`, which ships non-JS assets (`.scm` Tree-sitter grammars) that only Bun's loader can resolve. Running the published `dist/bin.mjs` under plain Node fails with `ERR_UNKNOWN_FILE_EXTENSION`. Install Bun first: <https://bun.com/docs/installation>.
+
 ```sh
 # Run on demand without a global install
 bunx @agents-js/cli --help
 
-# Install globally
-npm i -g @agents-js/cli
+# Install globally with Bun
+bun add -g @agents-js/cli
 agents-js --help
 
 # Or add as a workspace dependency
 bun add @agents-js/cli
 ```
 
-The npm package ships the Bun-backed `dist/bin.mjs` entrypoint as the `agents-js` executable, so Bun must be available on `PATH`. Standalone binaries are built separately with `bun run build:standalone` and are not included in the npm tarball.
+`npm`/`pnpm`/`yarn` install will download the package, but invoking the `agents-js` bin requires Bun on `PATH`. Use `bunx`/`bun add -g` for the cleanest path. Standalone single-binary artifacts (no Bun required at runtime) can be built locally with `bun run build:standalone`; they are not included in the npm tarball.
 
 ## Quick start
 

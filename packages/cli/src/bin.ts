@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { runAgentsJsCli } from "./cli.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
