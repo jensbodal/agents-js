@@ -1,23 +1,32 @@
 name: Docs Deploy
 
-# Triggered by a successful `Release` workflow run (which itself fires on tag
-# push and goes through the manual `npm-publish` environment gate). The intent
-# is "docs deploy is part of the release act, not a per-merge artifact." Manual
-# `workflow_dispatch` remains supported for emergency redeploys.
+# Triggered by a `repository_dispatch` event (`release-published`) fired by
+# the `release-please` workflow's publish job AFTER npm publish succeeds.
+# The intent is "docs deploy is part of the release act, not a per-merge
+# artifact." Manual `workflow_dispatch` remains supported for emergency
+# redeploys.
 #
-# Note on `workflow_run` triggers:
-#   - The dependent workflow ALWAYS receives the event regardless of the
-#     parent's conclusion. The `if:` guard on each job is what filters to
-#     "only when Release succeeded" — without it, this would deploy stale docs
-#     from a failed publish run.
-#   - `github.ref` inside a `workflow_run`-triggered run is the default branch
-#     (main), not the tag that triggered the parent. The parent's tag is
-#     available via `github.event.workflow_run.head_branch`.
+# Why `repository_dispatch` and not `workflow_run`:
+#   release-please runs on EVERY push to main (it's how the release PR stays
+#   current). Even when no release happens, that run "succeeds." A
+#   `workflow_run` trigger filtered on `conclusion == 'success'` would
+#   therefore fire on every main push and redeploy docs built from main HEAD,
+#   not from the released tag. That's a real cadence/cost regression AND a
+#   correctness regression — the published site would advertise APIs that
+#   aren't in any released package yet. `workflow_run` payload exposes the
+#   parent's conclusion but not its job outputs, so we can't filter on
+#   "release-please actually created a release" from this side.
+#   `repository_dispatch` lets the publish job fire the trigger only on the
+#   release-created branch of its own conditional logic, with the released
+#   tag carried in `client_payload.tag` so we can check out exactly the tree
+#   the npm artifacts came from.
+#
+# `client_payload.tag` is empty for `workflow_dispatch`, so checkout falls
+# back to the default ref (main HEAD) for emergency redeploys.
 
 on:
-  workflow_run:
-    workflows: ["Release"]
-    types: [completed]
+  repository_dispatch:
+    types: [release-published]
   workflow_dispatch:
 
 # Pages best practice: queue deploys, do not cancel a deploy that is already
@@ -33,23 +42,22 @@ permissions:
 
 jobs:
   build:
-    # On `workflow_run`, run only when the Release workflow succeeded.
-    # On `workflow_dispatch`, always run (manual override).
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # `repository_dispatch` only fires from the release-please publish job
+    # AFTER npm publish succeeds (see release.yml), so any incoming
+    # event of type `release-published` already implies a successful release.
+    # `workflow_dispatch` always runs (manual override).
     runs-on: ubuntu-latest
     steps:
-      # Pin checkout to the exact commit the parent Release workflow ran on.
-      # Without this, `actions/checkout` on `workflow_run` defaults to the
-      # repo's default branch HEAD, which can drift past the released tag if
-      # main moves between the Release workflow finishing and docs-deploy
-      # firing. We want the docs site at any given release URL to match the
-      # source tree the published artifacts came from.
+      # Pin checkout to the released tag carried in client_payload.tag.
+      # release.yml's publish job sends the dispatch with the tag it
+      # just published, which guarantees the docs we build correspond exactly
+      # to the npm artifacts on the registry. Drift-free.
       #
-      # `head_sha` is empty for `workflow_dispatch`, so checkout falls back to
-      # the dispatching ref (default branch / selected branch) automatically.
+      # `client_payload.tag` is empty for `workflow_dispatch`, so checkout
+      # falls back to the dispatching ref (default branch) for manual reruns.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.client_payload.tag }}
       - uses: jdx/mise-action@v4
       - name: Cache Bun downloads
         uses: actions/cache@v5
@@ -74,7 +82,6 @@ jobs:
 
   deploy:
     needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

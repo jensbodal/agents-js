@@ -80,6 +80,7 @@
     "bump": "bun scripts/bump.ts",
     "dashboard": "bun scripts/dep-graph-gen.ts && bun scripts/test-counts.ts && bun scripts/build-dashboard.ts",
     "release:preflight": "bun scripts/release-preflight.ts",
+    "release:dry-run": "bun scripts/release-please-dry-run.ts",
     "setup": "bun scripts/setup.ts",
     "dev": "vp run -w repo:dev",
     "e2e:gateway": "vp run --no-cache -w repo:e2e:gateway",

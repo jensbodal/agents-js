@@ -1,60 +1,87 @@
-name: Release
+name: release-please
 
-# Tag-driven publish to npm + GitHub Release.
+# release-please-driven release flow.
 #
-# Trigger: pushing a tag that matches `v*` (e.g. `v0.2.1`, `v1.0.0-beta-1`).
+# On every push to main, the release-please job either opens/updates a release
+# PR (titled "chore(main): release X.Y.Z") containing a CHANGELOG.md update and
+# a root package.json version bump (plus all 18 publishable packages/* via
+# extra-files), or — if THIS push was the merge of a release PR — creates the
+# tag and GitHub Release.
 #
-# Flow:
-#   1. `check` — full pre-publish gate (`bun run check` + `e2e:deterministic`).
-#   2. `publish` — gated by the `npm-publish` GitHub environment, which is
-#      configured with required reviewers in repo Settings → Environments.
-#      Uses OIDC Trusted Publishers (`id-token: write` + `--provenance`); each
-#      `@agents-js/*` package on npmjs.com must have a Trusted Publisher entry
-#      pointing at this workflow file (`release.yml`) and this environment
-#      (`npm-publish`). No NPM_TOKEN is stored in the repo.
-#   3. `github-release` — creates the GitHub Release page with notes from the
-#      matching `## [<version>]` section of `CHANGELOG.md`.
+# When a release is created, the publish job runs: it checks out the freshly
+# tagged commit, runs the full pre-publish gate, and publishes all 18 packages
+# to npm with OIDC + provenance via Trusted Publishers. No NPM_TOKEN secret.
 #
-# Coupling to docs deploy: `.github/workflows/docs-deploy.yml` triggers via
-# `workflow_run` on this workflow's success — see that file for details.
+# IMPORTANT: each `@agents-js/*` package on npmjs.com has a Trusted
+# Publisher entry pointing at THIS workflow file (`release.yml`) and the
+# `npm-publish` environment. The filename `release.yml` is deliberately
+# preserved across the tag-driven → release-please cutover so the existing
+# 18 TP bindings continue to authorize OIDC `npm publish --provenance`
+# without per-package re-binding on npmjs.com. Do NOT rename this file.
+#
+# Outputs from release-please-action@v5 (root component shape):
+#   - release_created (singular, NOT releases_created) — true when a release
+#     PR was just merged and the tag/Release was created in this run.
+#   - tag_name — the tag (e.g. "v0.3.2") that was created.
+# Both are top-level on the action's outputs because we use a single root
+# component ("packages": { ".": ... } in release-please-config.json).
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
+# Workflow-level permissions cover the release-please job (open release PRs,
+# create tags + GitHub Releases via GITHUB_TOKEN). The publish job overrides
+# at the job level — it does not inherit `pull-requests: write` and tightens
+# `id-token` to where it's actually needed (npm OIDC). `id-token: write` is
+# NOT granted at workflow level because the release-please job has no OIDC
+# exchange to perform.
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-please-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  check:
+  release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v4
-      - name: Cache Bun downloads
-        uses: actions/cache@v5
+      - id: release
+        uses: googleapis/release-please-action@v5
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
-      - run: bun run setup --ci
-      - run: bun run check
-      - run: bun run e2e:deterministic
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   publish:
-    needs: check
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: npm-publish
       url: https://www.npmjs.com/org/agents-js
     permissions:
-      contents: read
+      # contents: write is required for `peter-evans/repository-dispatch` to
+      # POST /repos/{owner}/{repo}/dispatches against this same repo using
+      # GITHUB_TOKEN. With contents: read the dispatch step would 403 and
+      # docs-deploy would silently never fire after a real release. Do NOT
+      # tighten back to `read`.
+      # id-token: write is required for the OIDC token exchange against the
+      # npm registry's Trusted Publisher, which authorizes `npm publish
+      # --provenance` without a long-lived NPM_TOKEN.
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Pin to the exact commit/tag release-please just created. Prevents
+          # publishing a moving-target view of main if anything else lands
+          # between release-please tagging and this job starting.
+          ref: ${{ needs.release-please.outputs.tag_name }}
       # mise-action installs Node + Bun from `mise.toml` (Node 24, Bun 1.3.12).
       # Single source of truth for the toolchain — don't layer `actions/setup-node`
       # on top, which would pull a different Node major and cause subtle
@@ -66,6 +93,7 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
       - run: bun run setup --ci
+      - run: bun run check
       - name: Publish all 18 packages with provenance
         env:
           AGENTS_JS_PUBLISH_REGISTRY: https://registry.npmjs.org/
@@ -77,78 +105,18 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun scripts/publish-all.ts --no-dry-run
 
-  github-release:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      # Bound to env so user-influenceable values never reach `run:` via
-      # `${{ }}` interpolation (workflow-injection hardening). Tag refs are
-      # git-validated and unlikely to carry shell metachars, but the env-var
-      # pattern is the safe default.
-      TAG: ${{ github.ref_name }}
-      REPO: ${{ github.repository }}
-    steps:
-      - uses: actions/checkout@v6
+      # Fire docs-deploy ONLY after a successful publish. We use
+      # repository_dispatch instead of letting docs-deploy listen on
+      # workflow_run because release-please runs on every main push (no-op
+      # runs still "succeed"), and we don't want docs to redeploy on every
+      # commit — only on actual releases. The tag is carried in
+      # client_payload so docs-deploy can check out the exact tree the npm
+      # artifacts came from.
+      # tag_name comes from release-please-action's own output (format
+      # `vX.Y.Z`), not from any user-controllable input, so direct
+      # interpolation here is safe — there's no injection surface.
+      - name: Trigger docs-deploy
+        uses: peter-evans/repository-dispatch@v4
         with:
-          fetch-depth: 0
-      - name: Extract release notes from CHANGELOG
-        id: notes
-        run: |
-          set -euo pipefail
-          version="${TAG#v}"
-          # Extract the section between `## [<version>]` and the next `## [`.
-          awk -v ver="$version" '
-            BEGIN { in_section = 0 }
-            /^## \[/ {
-              if (in_section) exit
-              if ($0 ~ "^## \\[" ver "\\]") { in_section = 1; next }
-            }
-            in_section { print }
-          ' CHANGELOG.md > /tmp/release-notes.md
-          if [ ! -s /tmp/release-notes.md ]; then
-            echo "Release-notes section for [$version] not found in CHANGELOG.md" >&2
-            echo "_No CHANGELOG entry found for v${version}._" > /tmp/release-notes.md
-          fi
-          # Persist `version` (and a derived `is_prerelease` flag) on the
-          # step's outputs object via $GITHUB_OUTPUT so the next step can
-          # consume them without shell interpolation across the boundary.
-          # Heredoc syntax (`name<<EOF ... EOF`) preserves literal text, so
-          # any future multi-line value won't be split on newlines.
-          {
-            echo "version<<EOF"
-            echo "$version"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-          # Detect a SemVer prerelease segment (anything after `-`) so the
-          # next step can mark prerelease tags accordingly. Bare `vX.Y.Z`
-          # tags get `--latest`; `vX.Y.Z-beta-1`, `-rc.2`, etc. get
-          # `--prerelease`. Glob match is sufficient — the prerelease
-          # discriminator in SemVer is the literal `-` after the patch.
-          if [ "$version" != "${version%%-*}" ]; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.notes.outputs.version }}
-          IS_PRERELEASE: ${{ steps.notes.outputs.is_prerelease }}
-        run: |
-          set -euo pipefail
-          # `--latest` vs `--prerelease` is mutually exclusive on GitHub
-          # Releases. Marking a prerelease as `--latest` would surface it on
-          # the repo landing page and to consumers tracking "the newest
-          # release" — wrong for a `-beta-N` or `-rc.N` tag.
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            release_flag="--prerelease"
-          else
-            release_flag="--latest"
-          fi
-          gh release create "$TAG" \
-            --repo "$REPO" \
-            --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.md \
-            "$release_flag"
+          event-type: release-published
+          client-payload: '{"tag":"${{ needs.release-please.outputs.tag_name }}"}'
