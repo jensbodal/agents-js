@@ -9,6 +9,21 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.3.2](https://github.com/jensbodal/agents-js/compare/v0.3.1...v0.3.2) (2026-05-09)
+
+
+### Fixed
+
+* **release:** sync internal deps + bun.lock in release-please flow ([5fb9764](https://github.com/jensbodal/agents-js/commit/5fb9764f0583e2d4e08169af2526dc2abc7b9391))
+
+
+### Internal
+
+* adopt release-please for CHANGELOG + version automation ([9e52532](https://github.com/jensbodal/agents-js/commit/9e5253239806219c7bcf86f320601ecc25bfa256))
+* release main ([490e8b6](https://github.com/jensbodal/agents-js/commit/490e8b69fcf4f03f4c72908b197d6b6767b8c638))
+* **release:** add workflow_dispatch trigger to release.yml ([da0705e](https://github.com/jensbodal/agents-js/commit/da0705e0c4193dbd61f0c5b7372eaf02a2987332))
+* **release:** reset manifest to 0.3.1 to unstick release-please ([3380660](https://github.com/jensbodal/agents-js/commit/338066063b2cd1f4d3d72a614bcbcb87acb13ddc))
+
 ## [0.3.1] - 2026-05-09
 
 ### Changed
