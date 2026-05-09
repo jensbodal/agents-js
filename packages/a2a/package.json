@@ -57,6 +57,7 @@
     "@a2a-js/sdk": "catalog:",
     "@agentclientprotocol/sdk": "catalog:",
     "@agents-js/acp": "0.2.2",
+    "@agents-js/acp-host": "0.2.2",
     "@agents-js/validation": "0.2.2"
   },
   "publishConfig": {
