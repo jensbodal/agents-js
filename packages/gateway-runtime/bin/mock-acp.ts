@@ -11,6 +11,11 @@
  * - Handles initialize, session/new, session/prompt, authenticate.
  * - Each session/prompt emits one agent_message_chunk notification then
  *   replies stopReason: "end_turn".
+ * - Opt-in streaming-text mode: when env `MOCK_ACP_STREAMING_TEXT=1`,
+ *   each session/prompt emits N single-character agent_message_chunk
+ *   notifications (one per char of MOCK_ACP_REPLY) — exercises the
+ *   per-chunk streaming-render path that 0.3.0 fixes for the CLI TUI.
+ *   Used by the Layer 3 end-to-end render test.
  * - Does NOT write to stdout before the initialize response — zero
  *   contamination guarantee required by checkContamination in runtime-e2e.ts.
  *
@@ -70,13 +75,37 @@ function createMockAgent(connection: AgentSideConnection): Agent {
 
     async prompt(params: PromptRequest): Promise<PromptResponse> {
       const { sessionId } = params;
-      await connection.sessionUpdate({
-        sessionId,
-        update: {
-          sessionUpdate: "agent_message_chunk",
-          content: { type: "text", text: MOCK_ACP_REPLY },
-        },
-      });
+      // Opt-in streaming mode (env MOCK_ACP_STREAMING_TEXT=1): emit one
+      // agent_message_chunk per character of MOCK_ACP_REPLY, sharing a
+      // stable messageId so the per-message accumulator on the consumer
+      // side stitches them. Default mode keeps the v0.2.x behavior of
+      // one big chunk for backwards compatibility with existing tests.
+      // The env-var toggle is intentional — this is a deterministic
+      // test fixture invoked by `MOCK_ACP_STREAMING_TEXT=1 bun ...`,
+      // and adding a config-file layer here would be ceremony for a
+      // single-purpose probe.
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_STREAMING_TEXT === "1") {
+        const messageId = `mock-acp-msg-${sessionId}`;
+        for (const char of MOCK_ACP_REPLY) {
+          await connection.sessionUpdate({
+            sessionId,
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              messageId,
+              content: { type: "text", text: char },
+            },
+          });
+        }
+      } else {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: MOCK_ACP_REPLY },
+          },
+        });
+      }
       return { stopReason: "end_turn" };
     },
 

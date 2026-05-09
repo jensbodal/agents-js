@@ -69,6 +69,13 @@ export function createClientApp(
     transcript.update(state);
     inspector.update(state);
     inputBar.update(state);
+    // Flush a frame after every controller event. `@opentui/core`'s
+    // `CliRenderer` runs a 30 FPS frame-loop; without an explicit flush,
+    // 25+ synchronous `message.delta` events arrive in <1 ms and only the
+    // final state lands in the painted frame, making streaming responses
+    // appear as a single snap-in render. `intermediateRender()` is the
+    // renderer's documented escape hatch for immediate-mode-style updates.
+    renderer.intermediateRender();
   });
 
   return {
