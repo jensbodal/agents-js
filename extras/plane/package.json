@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/plane",
-  "version": "0.3.1-rc1",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -38,7 +38,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/gateway-runtime": "0.3.1-rc1"
+    "@agents-js/gateway-runtime": "0.3.1"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2a-client",
-  "version": "0.3.1-rc1",
+  "version": "0.3.1",
   "type": "module",
   "sideEffects": false,
   "description": "A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.",
@@ -57,9 +57,9 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
     "@a2a-js/sdk": "catalog:",
-    "@agents-js/a2a": "0.3.1-rc1",
-    "@agents-js/agui-types": "0.3.1-rc1",
-    "@agents-js/validation": "0.3.1-rc1"
+    "@agents-js/a2a": "0.3.1",
+    "@agents-js/agui-types": "0.3.1",
+    "@agents-js/validation": "0.3.1"
   },
   "publishConfig": {
     "access": "public"
