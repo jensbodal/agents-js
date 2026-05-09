@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentCard } from "@a2a-js/sdk";
-import { validateAgentCard } from "@agents-js/validation";
+import { validateAgentCard } from "@agents-js/validation/a2a";
 import { summarizeCapabilities } from "./target.ts";
 import type { ResolvedAgentTarget } from "./types.ts";
 

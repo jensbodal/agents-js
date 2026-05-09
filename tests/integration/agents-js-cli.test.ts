@@ -4,11 +4,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-const compiledCliPath = new URL("../../packages/cli/dist/agents-js", import.meta.url).pathname;
-const cliModulePath = new URL("../../packages/cli/dist/cli.mjs", import.meta.url).pathname;
+const cliModulePath = new URL("../../packages/cli/dist/bin.mjs", import.meta.url).pathname;
 const bunCommand = Bun.which("bun") ?? "bun";
 const mockAgentPath = path.join(process.cwd(), "tests/mock-acp-agent.cjs");
-let cliCommandPromise: Promise<string[]> | undefined;
 
 async function allocatePort(): Promise<number> {
   const server = Bun.serve({
@@ -40,26 +38,8 @@ async function waitForServer(port: number, timeoutMs: number): Promise<void> {
   throw new Error(`Timed out waiting for server on port ${port}`);
 }
 
-async function resolveCliCommand(): Promise<string[]> {
-  if (!cliCommandPromise) {
-    cliCommandPromise = (async () => {
-      const probe = Bun.spawn({
-        cmd: [compiledCliPath, "--help"],
-        stdout: "ignore",
-        stderr: "ignore",
-        stdin: "ignore",
-        env: process.env,
-      });
-      const exitCode = await probe.exited;
-      if (exitCode === 0) {
-        return [compiledCliPath];
-      }
-
-      return [bunCommand, cliModulePath];
-    })();
-  }
-
-  return await cliCommandPromise;
+function resolveCliCommand(): string[] {
+  return [bunCommand, cliModulePath];
 }
 
 async function withTempWorkspace(fn: (cwd: string) => Promise<void>) {

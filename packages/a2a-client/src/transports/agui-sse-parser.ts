@@ -1,5 +1,5 @@
 import type { BaseEvent } from "@agents-js/agui-types";
-import { validateAguiEvent } from "@agents-js/validation";
+import { validateAguiEvent } from "@agents-js/validation/agui";
 import { AGUIStreamError } from "./agui-errors.ts";
 
 /**

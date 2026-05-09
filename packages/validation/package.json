@@ -36,10 +36,45 @@
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     },
+    "./a2a": {
+      "types": "./dist/a2a.d.mts",
+      "import": "./dist/a2a.mjs",
+      "default": "./dist/a2a.mjs"
+    },
+    "./a2a-metadata": {
+      "types": "./dist/a2a-metadata.d.mts",
+      "import": "./dist/a2a-metadata.mjs",
+      "default": "./dist/a2a-metadata.mjs"
+    },
+    "./a2ui": {
+      "types": "./dist/a2ui.d.mts",
+      "import": "./dist/a2ui.mjs",
+      "default": "./dist/a2ui.mjs"
+    },
+    "./acp": {
+      "types": "./dist/acp.d.mts",
+      "import": "./dist/acp.mjs",
+      "default": "./dist/acp.mjs"
+    },
+    "./agui": {
+      "types": "./dist/agui.d.mts",
+      "import": "./dist/agui.mjs",
+      "default": "./dist/agui.mjs"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.mts",
+      "import": "./dist/errors.mjs",
+      "default": "./dist/errors.mjs"
+    },
     "./loader": {
       "types": "./dist/loader.d.mts",
       "import": "./dist/loader.mjs",
       "default": "./dist/loader.mjs"
+    },
+    "./registry": {
+      "types": "./dist/registry.d.mts",
+      "import": "./dist/registry.mjs",
+      "default": "./dist/registry.mjs"
     }
   },
   "files": [
@@ -51,7 +86,7 @@
     "agents-validate": "dist/cli.mjs"
   },
   "scripts": {
-    "build": "bunx tsdown src/index.ts src/cli.ts src/loader.ts --format esm --dts --out-dir dist --clean",
+    "build": "bunx tsdown src/index.ts src/a2a.ts src/a2a-metadata.ts src/a2ui.ts src/acp.ts src/agui.ts src/cli.ts src/errors.ts src/loader.ts src/registry.ts --format esm --dts --out-dir dist --clean",
     "generate:acp": "bun ./scripts/generate-acp-schema.ts",
     "generate:acp:check": "bun ./scripts/generate-acp-schema.ts --check",
     "prepack": "bun run build",

@@ -187,15 +187,13 @@ async function verifyInstalledCli(tempDir: string): Promise<void> {
   const manifest = (await Bun.file(path.join(installedCliPath, "package.json")).json()) as {
     bin?: Record<string, string>;
   };
-  if (manifest.bin?.["agents-js"] !== "dist/agents-js") {
-    throw new Error('[cli-package-smoke] Expected installed CLI bin to point at "dist/agents-js".');
+  if (manifest.bin?.["agents-js"] !== "dist/bin.mjs") {
+    throw new Error('[cli-package-smoke] Expected installed CLI bin to point at "dist/bin.mjs".');
   }
 
-  const distCliPath = path.join(installedCliPath, "dist", "agents-js");
+  const distCliPath = path.join(installedCliPath, "dist", "bin.mjs");
   if (!(await Bun.file(distCliPath).exists())) {
-    throw new Error(
-      "[cli-package-smoke] Expected dist/agents-js to exist in the installed package.",
-    );
+    throw new Error("[cli-package-smoke] Expected dist/bin.mjs to exist in the installed package.");
   }
 
   const installedBinPath = path.join(tempDir, "node_modules", ".bin", "agents-js");
@@ -214,22 +212,17 @@ async function verifyInstalledCli(tempDir: string): Promise<void> {
   const helpOutput =
     helpExitCode === 0
       ? helpStdout
-      : helpExitCode === 137
-        ? await runCommand(
-            ["bun", path.join(installedCliPath, "dist", "cli.mjs"), "--help"],
-            tempDir,
-          )
-        : (() => {
-            throw new Error(
-              [
-                `[cli-package-smoke] Command failed (${helpExitCode}): ${installedBinPath} --help`,
-                helpStdout.trim(),
-                helpStderr.trim(),
-              ]
-                .filter(Boolean)
-                .join("\n"),
-            );
-          })();
+      : (() => {
+          throw new Error(
+            [
+              `[cli-package-smoke] Command failed (${helpExitCode}): ${installedBinPath} --help`,
+              helpStdout.trim(),
+              helpStderr.trim(),
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          );
+        })();
 
   if (!helpOutput.includes("agents-js")) {
     throw new Error("[cli-package-smoke] Installed CLI did not print help output.");
@@ -313,9 +306,9 @@ export async function main(): Promise<void> {
     const packedCliBin = (packedCliManifest.bin as Record<string, string> | undefined)?.[
       "agents-js"
     ];
-    if (packedCliBin !== "dist/agents-js") {
+    if (packedCliBin !== "dist/bin.mjs") {
       throw new Error(
-        '[cli-package-smoke] Packed CLI manifest did not point "agents-js" at dist/agents-js.',
+        '[cli-package-smoke] Packed CLI manifest did not point "agents-js" at dist/bin.mjs.',
       );
     }
 

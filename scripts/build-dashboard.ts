@@ -111,7 +111,7 @@ function describeLayer(index: number, total: number): { title: string; desc: str
   if (index === total - 1) {
     return {
       title: `Layer ${index} — Top-level entrypoint and test fixtures`,
-      desc: "CLI binary and any test-fixture packages that close the dep chain.",
+      desc: "CLI package and any test-fixture packages that close the dep chain.",
     };
   }
   return {
