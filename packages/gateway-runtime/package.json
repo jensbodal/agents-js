@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/gateway-runtime",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "sideEffects": false,
   "description": "Gateway runtime config, env parsing, runtime registry/detection, install descriptors, and sub-session spawn helpers.",

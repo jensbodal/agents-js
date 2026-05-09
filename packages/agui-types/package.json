@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/agui-types",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "sideEffects": false,
   "description": "AG-UI core re-exports plus first-party message, reasoning, run, tool-call, and stream helpers for agents-js.",

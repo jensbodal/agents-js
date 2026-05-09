@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/acp-host",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "sideEffects": false,
   "description": "Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.",
