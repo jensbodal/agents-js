@@ -10,7 +10,7 @@ import {
   ACP_ELICITATION_RESPONSE_METADATA_KEY,
   buildACPFormElicitationMetadata,
   isACPElicitationResponseMetadata,
-} from "@agents-js/validation";
+} from "@agents-js/validation/a2a-metadata";
 
 export interface ACPA2ATaskMetadata {
   authRequired?: {

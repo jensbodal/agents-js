@@ -11,6 +11,8 @@
 // Running from source (`bun src/cli.ts --version`) shows:
 //   agents-js 0.2.0-beta-3 (source)
 
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { $ } from "bun";
 
 const sha = (await $`git rev-parse --short HEAD`.text()).trim();
@@ -20,15 +22,19 @@ const dirtyResult = await $`git diff --quiet HEAD -- . ':!dist' ':!node_modules'
 const dirty = dirtyResult.exitCode === 0 ? "false" : "true";
 
 const date = new Date().toISOString();
+const outputPath = Bun.env.AGENTS_JS_STANDALONE_OUTFILE ?? "artifacts/agents-js";
+
+await mkdir(dirname(outputPath), { recursive: true });
 
 console.log(`Building agents-js binary: sha=${sha} dirty=${dirty} date=${date}`);
 
 const build = await $`bun build \
   --compile \
+  --minify \
   --define __AGENTS_JS_BUILD_SHA__="\"${sha}\"" \
   --define __AGENTS_JS_BUILD_DIRTY__="\"${dirty}\"" \
   --define __AGENTS_JS_BUILD_DATE__="\"${date}\"" \
-  --outfile dist/agents-js \
+  --outfile ${outputPath} \
   src/cli.ts`.nothrow();
 
 if (build.exitCode !== 0) {
@@ -37,4 +43,4 @@ if (build.exitCode !== 0) {
 }
 
 // Existing sign step — relative to this package dir.
-await $`bun ../../scripts/sign-cli-bin.ts dist/agents-js`;
+await $`bun ../../scripts/sign-cli-bin.ts ${outputPath}`;

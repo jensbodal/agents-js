@@ -22,7 +22,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "bun build --bundle --outfile dist/extension.js --target node src/node-entry.ts",
+    "build": "bun build --bundle --minify --outfile dist/extension.js --target node src/node-entry.ts",
     "test": "bun test tests"
   },
   "dependencies": {

@@ -1,8 +1,8 @@
 # @agents-js/cli
 
-> The `agents-js` binary: serve, bridge, and proxy ACP runtimes; talk to A2A agents; expose registered agents as MCP tools.
+> The `agents-js` executable: serve, bridge, and proxy ACP runtimes; talk to A2A agents; expose registered agents as MCP tools.
 
-`agents-js` is a single-binary CLI for running and interacting with ACP-compatible coding agents (claude, codex, opencode, ...) over the A2A protocol. It bundles seven subcommands covering the full lifecycle: spinning up a gateway, proxying stdio, sending one-shot prompts, exposing agents as MCP tools, and managing the shared agent registry.
+`agents-js` is a CLI for running and interacting with ACP-compatible coding agents (claude, codex, opencode, ...) over the A2A protocol. It bundles seven subcommands covering the full lifecycle: spinning up a gateway, proxying stdio, sending one-shot prompts, exposing agents as MCP tools, and managing the shared agent registry.
 
 ## Install
 
@@ -18,7 +18,7 @@ agents-js --help
 bun add @agents-js/cli
 ```
 
-The package ships a precompiled standalone binary at `bin/agents-js`.
+The npm package ships the Bun-backed `dist/bin.mjs` entrypoint as the `agents-js` executable, so Bun must be available on `PATH`. Standalone binaries are built separately with `bun run build:standalone` and are not included in the npm tarball.
 
 ## Quick start
 
@@ -266,7 +266,7 @@ Exit codes are exported as named constants from `packages/cli/src/exit-codes.ts`
 
 ## Library API
 
-The `@agents-js/cli` package primarily ships the `agents-js` binary; the `runAgentsJsCli` entry and per-subcommand `parse*` / `run*` helpers plus their dependency-injection interfaces are exposed for embedders who want to invoke a subcommand programmatically (e.g. inside a test harness or a higher-level wrapper). The full type surface is documented in the typedoc output at <https://agents-js.bodal.dev/api/>.
+The `@agents-js/cli` package primarily ships the `agents-js` executable; the `runAgentsJsCli` entry and per-subcommand `parse*` / `run*` helpers plus their dependency-injection interfaces are exposed for embedders who want to invoke a subcommand programmatically (e.g. inside a test harness or a higher-level wrapper). The full type surface is documented in the typedoc output at <https://agents-js.bodal.dev/api/>.
 
 ## License
 

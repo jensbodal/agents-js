@@ -1,11 +1,14 @@
-import type { ACPAuthRequiredMetadata, ACPFormElicitationMetadata } from "@agents-js/validation";
+import type {
+  ACPAuthRequiredMetadata,
+  ACPFormElicitationMetadata,
+} from "@agents-js/validation/a2a-metadata";
 import {
   ACP_AUTH_REQUIRED_METADATA_KEY,
   ACP_ELICITATION_METADATA_KEY,
   ACP_ELICITATION_RESPONSE_METADATA_KEY,
   isACPAuthRequiredMetadata,
   isACPFormElicitationMetadata,
-} from "@agents-js/validation";
+} from "@agents-js/validation/a2a-metadata";
 import type {
   A2AAuthRequiredState,
   ACPA2AElicitation,

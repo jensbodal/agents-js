@@ -2,7 +2,7 @@
   "name": "@agents-js/cli",
   "version": "0.2.0",
   "type": "module",
-  "description": "Terminal TUI and server commands for agents-js. Provides the agents-js binary with serve, client, and acp subcommands.",
+  "description": "Terminal TUI and server commands for agents-js. Provides the agents-js executable with serve, client, and acp subcommands.",
   "author": "Jens Bodal",
   "license": "MIT",
   "repository": {
@@ -43,12 +43,12 @@
     "package.json"
   ],
   "bin": {
-    "agents-js": "dist/agents-js"
+    "agents-js": "dist/bin.mjs"
   },
   "scripts": {
-    "build": "bun run build:pkg && bun run build:bin",
-    "build:pkg": "bunx tsdown src/index.ts src/cli.ts --format esm --dts --out-dir dist --clean",
-    "build:bin": "bun scripts/build-bin.ts",
+    "build": "bun run build:pkg",
+    "build:pkg": "bunx tsdown src/index.ts src/cli.ts src/bin.ts --format esm --dts --out-dir dist --clean",
+    "build:standalone": "bun scripts/build-bin.ts",
     "client": "bun src/cli.ts client",
     "prepack": "bun run build",
     "serve": "bun src/cli.ts serve",

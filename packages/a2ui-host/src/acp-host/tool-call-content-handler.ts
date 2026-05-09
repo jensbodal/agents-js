@@ -1,7 +1,7 @@
 import type { ToolCallContent } from "@agentclientprotocol/sdk";
 import { A2UI_META_KEY, type A2uiMessage } from "@agents-js/a2ui-types";
 import type { Logger, ToolCallContentHandler } from "@agents-js/acp-host";
-import { validateA2uiMessage } from "@agents-js/validation";
+import { validateA2uiMessage } from "@agents-js/validation/a2ui";
 import type { HostSurfaceAdapter } from "./host-surface-adapter.ts";
 import { SurfaceSession } from "./surface-session.ts";
 

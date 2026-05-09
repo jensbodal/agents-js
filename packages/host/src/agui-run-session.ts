@@ -15,7 +15,7 @@
 import type { ACPSessionEvent } from "@agents-js/acp-host";
 import type { BaseEvent } from "@agents-js/agui-types";
 import { EventType } from "@agents-js/agui-types";
-import { validateAguiEvent } from "@agents-js/validation";
+import { validateAguiEvent } from "@agents-js/validation/agui";
 import { createTranslatorState, translateAcpEvent } from "./acp-to-agui-translator.ts";
 import type { GatewayHostController } from "./host-session.ts";
 

@@ -2,7 +2,7 @@ import pkg from "../package.json";
 
 /**
  * Build-time constants injected by `bun build --compile --define ...`
- * in `packages/cli/package.json:build:bin`. When running from source via
+ * in `packages/cli/package.json:build:standalone`. When running from source via
  * `bun src/cli.ts`, these are undefined and we fall back to the "dev"
  * source-mode banner.
  */

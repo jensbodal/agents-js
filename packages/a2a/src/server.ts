@@ -6,11 +6,11 @@ import {
   JsonRpcTransportHandler,
 } from "@a2a-js/sdk/server";
 import {
-  ValidationError,
   validateA2AMessageSendResponseResult,
   validateA2ARequest,
   validateA2AResponse,
-} from "@agents-js/validation";
+} from "@agents-js/validation/a2a";
+import { ValidationError } from "@agents-js/validation/errors";
 import { type GatewayAgentCard, mapCapabilities } from "./discovery.ts";
 import { HTTP_STATUS } from "./http-status.ts";
 import { type A2ALogger, createConsoleLogger } from "./logger.ts";
