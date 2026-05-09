@@ -108,8 +108,8 @@ describe("@agents-js/cli package output", () => {
       };
       const packedFiles = await runCommand(["tar", "-tf", tarballPath], packageDir, commandEnv);
 
-      expect(packedManifest.bin?.["agents-js"]).toBe("dist/agents-js");
-      expect(packedFiles).toContain("package/dist/cli.mjs");
+      expect(packedManifest.bin?.["agents-js"]).toBe("dist/bin.mjs");
+      expect(packedFiles).toContain("package/dist/bin.mjs");
       expect(packedManifest.dependencies?.["@zed-industries/claude-agent-acp"]).toBe("0.23.1");
       expect(packedManifest.dependencies?.["@zed-industries/codex-acp"]).toBe("0.12.0");
       expect(

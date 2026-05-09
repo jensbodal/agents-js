@@ -117,7 +117,7 @@ vp run    # prints every package script in the workspace
 
 `bun run build` uses the repo-owned build launcher. If all tracked outputs already exist, it runs a cached recursive `vp` build. If any tracked output is missing, it forces an uncached recursive rebuild so package script cache replay cannot mask missing artifacts.
 
-Tracked outputs include package `dist/` entrypoints, the compiled CLI binary, and the web app production build.
+Tracked outputs include package `dist/` entrypoints and the web app production build. The standalone CLI artifact is generated only by the CLI package's explicit standalone build script.
 
 ## Release Posture
 

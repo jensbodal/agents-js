@@ -6,7 +6,7 @@ import type {
 } from "@agents-js/a2ui-types";
 import { AcpCatalog, type Catalog, MessageProcessor } from "@agents-js/a2ui-types";
 import type { Logger } from "@agents-js/acp-host";
-import { getBasicCatalog } from "@agents-js/validation";
+import { getBasicCatalog } from "@agents-js/validation/a2ui";
 import type { HostSurfaceAdapter } from "./host-surface-adapter.ts";
 
 export interface SurfaceSessionOptions {

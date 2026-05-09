@@ -15,7 +15,7 @@ import {
   JsonRpcTransportFactory,
   RestTransportFactory,
 } from "@a2a-js/sdk/client";
-import { validateAgentCard } from "@agents-js/validation";
+import { validateAgentCard } from "@agents-js/validation/a2a";
 import { createDebugFetch, type FetchLike } from "./debug.ts";
 import {
   type NormalizedAgentTargetInput,

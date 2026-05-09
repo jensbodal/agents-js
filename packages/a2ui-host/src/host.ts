@@ -17,7 +17,7 @@
  */
 import type { A2uiMessage, Catalog, ComponentApi, SurfaceGroupModel } from "@agents-js/a2ui-types";
 import { ACP_CATALOG_ID, AcpCatalog, MessageProcessor } from "@agents-js/a2ui-types";
-import { getBasicCatalog, validateA2uiMessage } from "@agents-js/validation";
+import { getBasicCatalog, validateA2uiMessage } from "@agents-js/validation/a2ui";
 import { render, type TemplateResult } from "lit";
 
 /**

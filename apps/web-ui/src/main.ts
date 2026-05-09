@@ -26,7 +26,7 @@ import {
   shouldClearStaleSessionHash,
   shouldRepairSavedRuntimeRestore,
 } from "@agents-js/ui-components/web-ui-glue";
-import { validateA2uiMessage } from "@agents-js/validation";
+import { validateA2uiMessage } from "@agents-js/validation/a2ui";
 import { runDemo } from "./a2ui-demo.ts";
 
 const app = document.getElementById("app");

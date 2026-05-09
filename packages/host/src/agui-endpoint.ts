@@ -19,7 +19,7 @@
 import { HTTP_STATUS } from "@agents-js/a2a";
 import type { RunAgentInput } from "@agents-js/agui-types";
 import { EventType } from "@agents-js/agui-types";
-import { validateRunAgentInput } from "@agents-js/validation";
+import { validateRunAgentInput } from "@agents-js/validation/agui";
 import { AguiRunBusyError, AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { enqueueAguiEvent, runAguiSession } from "./agui-run-session.ts";
 import type { AuditEmitter } from "./audit.ts";

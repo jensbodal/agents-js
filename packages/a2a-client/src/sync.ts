@@ -40,7 +40,7 @@ import {
   validateWireAgentRegistryRecord,
   type WireAgentRegistryRecord,
   WireAgentRegistryRecordSchema,
-} from "@agents-js/validation";
+} from "@agents-js/validation/registry";
 import {
   readAgentRegistryRecords,
   resolveSharedAgentRegistryPath,

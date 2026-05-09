@@ -42,7 +42,7 @@ try {
 Type-guard a streaming AG-UI event without throwing:
 
 ```ts
-import { isAguiEvent } from "@agents-js/validation";
+import { isAguiEvent } from "@agents-js/validation/agui";
 
 for await (const chunk of stream) {
   if (isAguiEvent(chunk)) {
@@ -50,6 +50,19 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+For browser or extension bundles, prefer the narrowest subpath export:
+
+```ts
+import { validateAgentCard } from "@agents-js/validation/a2a";
+import { validateA2uiMessage } from "@agents-js/validation/a2ui";
+import { validateACPEnvelope } from "@agents-js/validation/acp";
+import { validateRunAgentInput } from "@agents-js/validation/agui";
+```
+
+The root `@agents-js/validation` entrypoint remains supported for compatibility,
+but it exposes every validator and can pull more protocol code into bundled
+consumers.
 
 ### `agents-validate` CLI
 
