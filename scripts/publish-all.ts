@@ -63,7 +63,7 @@ interface PackageResult {
   dirName: string;
   manifestName: string;
   version: string;
-  status: "published" | "would-publish" | "skipped";
+  status: "published" | "would-publish" | "skipped" | "failed";
   detail?: string;
 }
 
@@ -459,7 +459,9 @@ function printSummary(results: PackageResult[], options: CliOptions): void {
         ? "PUBLISHED"
         : result.status === "would-publish"
           ? "DRY-RUN"
-          : "SKIPPED";
+          : result.status === "failed"
+            ? "FAILED"
+            : "SKIPPED";
     const detail = result.detail ? `  (${result.detail})` : "";
     console.log(`  [${tag}] ${result.manifestName}@${result.version}${detail}`);
   }
@@ -468,13 +470,24 @@ function printSummary(results: PackageResult[], options: CliOptions): void {
       acc[r.status] += 1;
       return acc;
     },
-    { published: 0, "would-publish": 0, skipped: 0 } as Record<PackageResult["status"], number>,
+    { published: 0, "would-publish": 0, skipped: 0, failed: 0 } as Record<
+      PackageResult["status"],
+      number
+    >,
   );
   console.log(
     `\n${results.length} package(s) processed: ` +
-      `${counts.published} published, ${counts["would-publish"]} dry-run, ${counts.skipped} skipped` +
+      `${counts.published} published, ${counts["would-publish"]} dry-run, ${counts.skipped} skipped, ${counts.failed} failed` +
       (options.dryRun ? "  (dry-run mode — pass --no-dry-run to publish)" : ""),
   );
+  if (counts.failed > 0) {
+    console.log("\nFailed packages:");
+    for (const result of results) {
+      if (result.status === "failed") {
+        console.log(`  - ${result.manifestName}: ${result.detail ?? "(no detail)"}`);
+      }
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -542,6 +555,11 @@ async function main(): Promise<void> {
       `${options.skipBuild ? ", skip-build" : ""}`,
   );
 
+  // Continue past per-package failures and report all results at the end.
+  // Stop-at-first-error left a partially-published batch with no view of
+  // remaining packages' state; CI runs especially benefit from a full
+  // failure list (e.g. a Trusted-Publisher gap surfaces all missing
+  // packages in one run instead of forcing per-tag iteration).
   const results: PackageResult[] = [];
   for (let i = 0; i < targets.length; i += 1) {
     const dirName = targets[i];
@@ -551,12 +569,29 @@ async function main(): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`\nFAILED in packages/${dirName}: ${message}`);
-      printSummary(results, options);
-      process.exit(1);
+      let manifestName = dirName;
+      let manifestVersion = "unknown";
+      try {
+        const manifest = await readManifest(path.join(packagesRoot, dirName));
+        manifestName = manifest.name;
+        manifestVersion = manifest.version;
+      } catch {
+        // best-effort: if even reading package.json fails, fall back to dir name
+      }
+      results.push({
+        dirName,
+        manifestName,
+        version: manifestVersion,
+        status: "failed",
+        detail: message.split("\n")[0],
+      });
     }
   }
 
   printSummary(results, options);
+  if (results.some((r) => r.status === "failed")) {
+    process.exit(1);
+  }
 }
 
 if (import.meta.main) {

@@ -9,6 +9,14 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.3.1-rc1] - 2026-05-09
+
+Verification prerelease for the tag-driven Trusted-Publishers + OIDC publish workflow shipped in [#16](https://github.com/jensbodal/agents-js/pull/16). No functional changes from `0.3.0`. Publishes under the `rc` dist-tag — `latest` continues to resolve to `0.3.0`.
+
+### Internal
+
+- **`scripts/publish-all.ts`: continue past per-package failures and report all results at the end** (was: stop at first error). CI runs benefit from a complete failure list — surfacing all packages still missing Trusted-Publisher config in one workflow run instead of forcing per-tag iteration. Exit code is still non-zero if any package failed; only the loop semantics changed.
+
 ## [0.3.0] - 2026-05-09
 
 ### Fixed

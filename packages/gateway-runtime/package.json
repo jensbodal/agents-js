@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/gateway-runtime",
-  "version": "0.3.0",
+  "version": "0.3.1-rc1",
   "type": "module",
   "sideEffects": false,
   "description": "Gateway runtime config, env parsing, runtime registry/detection, install descriptors, and sub-session spawn helpers.",
@@ -53,8 +53,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/a2a": "0.3.0",
-    "@agents-js/acp": "0.3.0"
+    "@agents-js/a2a": "0.3.1-rc1",
+    "@agents-js/acp": "0.3.1-rc1"
   },
   "publishConfig": {
     "access": "public"
