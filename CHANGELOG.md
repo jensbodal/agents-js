@@ -9,6 +9,23 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.3.0] - 2026-05-09
+
+### Fixed
+
+- **`@agents-js/cli`: streaming render now paints incrementally.** Fixes [#19](https://github.com/jensbodal/agents-js/issues/19). Pre-fix, `bunx @agents-js/cli serve --harness claude` + `client` would advertise `streaming: yes` but the agent's reply snapped in all at once on completion. Root cause: `@opentui/core`'s `CliRenderer` runs at 30 FPS; the controller fires 25+ `message.delta` events synchronously in <1 ms (faster than the ~33 ms frame interval), so all transcript mutations land inside the same frame and only the final one paints. Fix calls `renderer.intermediateRender()` from the controller-event subscriber in `createClientApp` — opentui's documented escape-hatch for forcing a frame outside the natural cadence. The wire and `A2AClientController` were never broken; both correctly stream ~25 incremental deltas with monotonic `pendingAgentText`. Two earlier diagnoses (executor burst-emission; missing shared translator abstraction) turned out to be wrong; the actual gap was the renderer's frame loop.
+
+### Refactored
+
+- **`@agents-js/acp-host`: new `AcpStreamingTranslator` shared abstraction.** Owns the canonical "ACP `SessionNotification` → typed sink call" translation for the streaming-shaped `SessionUpdate` variants (`agent_message_chunk`, `agent_thought_chunk`, `tool_call`, `tool_call_update`). Sink-pattern API decouples the translator from output formats. AG-UI translator (`packages/host/src/acp-to-agui-translator.ts`) now routes `agent_message_chunk` events through this shared translator instead of inline; non-streaming variants (plan, mode, commands, config, usage, session_info) keep their existing per-consumer paths. No public API breakage; pre-1.0 internal-shape consolidation. v0.3.0 minor bump signals the architectural rearrangement.
+
+### Added
+
+- **Deterministic streaming-render test coverage** (no LLM, no real ACP harness):
+  - **Layer 1** — `packages/acp-host/tests/streaming-translator.test.ts` (10 unit tests). `RecordingAcpStreamingSink` test double captures sink calls for assertion across text deltas, thought deltas, tool calls, parallel-translator isolation, and ignored non-streaming variants.
+  - **Layer 3** — `packages/cli/tests/client-streaming-render.test.ts` end-to-end gate. Spawns `mock-acp` in streaming mode, drives a real `A2AClientController.sendTurn`, asserts the wire delivers >1 `message.delta` events with monotonic cumulative text and a prefix-invariant `pendingAgentText`.
+- **`mock-acp` streaming-text mode** (`MOCK_ACP_STREAMING_TEXT=1`): emits one `agent_message_chunk` per character of `MOCK_ACP_REPLY`. Used by the Layer 3 gate; useful for any future streaming smoke against deterministic input.
+
 ## [0.2.2] - 2026-05-09
 
 ### Fixed
