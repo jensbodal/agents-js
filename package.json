@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/root",
-  "version": "0.3.0",
+  "version": "0.3.1-rc1",
   "agentsJs": {
     "externalSDKs": {
       "@agentclientprotocol/claude-agent-acp": "0.33.1",
