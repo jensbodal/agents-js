@@ -66,9 +66,9 @@ interface VersionsConfig {
   externalSDKs: Record<string, string>;
 }
 
-const claudeAgentPackageName = "@zed-industries/claude-agent-acp";
+const claudeAgentPackageName = "@agentclientprotocol/claude-agent-acp";
 const codexAgentPackageName = "@zed-industries/codex-acp";
-const claudeRuntimeInstallPattern = /"@zed-industries\/claude-agent-acp":\s*"([^"]+)"/g;
+const claudeRuntimeInstallPattern = /"@agentclientprotocol\/claude-agent-acp":\s*"([^"]+)"/g;
 const codexRuntimeInstallPattern = /"@zed-industries\/codex-acp":\s*"([^"]+)"/g;
 
 function normalizeRegistry(value: string): string {

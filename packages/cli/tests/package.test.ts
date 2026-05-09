@@ -110,8 +110,8 @@ describe("@agents-js/cli package output", () => {
 
       expect(packedManifest.bin?.["agents-js"]).toBe("dist/bin.mjs");
       expect(packedFiles).toContain("package/dist/bin.mjs");
-      expect(packedManifest.dependencies?.["@zed-industries/claude-agent-acp"]).toBe("0.23.1");
-      expect(packedManifest.dependencies?.["@zed-industries/codex-acp"]).toBe("0.12.0");
+      expect(packedManifest.dependencies?.["@agentclientprotocol/claude-agent-acp"]).toBe("0.33.1");
+      expect(packedManifest.dependencies?.["@zed-industries/codex-acp"]).toBe("0.14.0");
       expect(
         Object.values(packedManifest.dependencies ?? {}).some((value) =>
           value.startsWith("workspace:"),

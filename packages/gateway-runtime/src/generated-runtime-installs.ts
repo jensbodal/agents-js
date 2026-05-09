@@ -4,11 +4,11 @@
  */
 
 export const EXTERNAL_RUNTIME_INSTALL_VERSIONS = Object.freeze({
-  "@zed-industries/claude-agent-acp": "0.23.1",
-  "@zed-industries/codex-acp": "0.12.0",
+  "@agentclientprotocol/claude-agent-acp": "0.33.1",
+  "@zed-industries/codex-acp": "0.14.0",
 } as const);
 
-export const CLAUDE_AGENT_ACP_PACKAGE_NAME = "@zed-industries/claude-agent-acp";
+export const CLAUDE_AGENT_ACP_PACKAGE_NAME = "@agentclientprotocol/claude-agent-acp";
 export const CLAUDE_AGENT_ACP_VERSION =
   EXTERNAL_RUNTIME_INSTALL_VERSIONS[CLAUDE_AGENT_ACP_PACKAGE_NAME];
 

@@ -25,7 +25,7 @@ import type {
 } from "./profiles/types.ts";
 
 export interface GatewayRuntimeInstall {
-  owner: "external" | "zed" | "custom" | "agents-js";
+  owner: "external" | "zed" | "agentclientprotocol" | "custom" | "agents-js";
   packageName?: string;
   packageBinPath?: string;
   version?: string;
@@ -320,14 +320,15 @@ const gatewayRuntimeRegistry = {
   claude: createAcpHarness({
     id: "claude",
     displayName: "Claude ACP",
-    description: "Zed's Claude ACP runtime published as @zed-industries/claude-agent-acp.",
+    description:
+      "Claude ACP runtime published as @agentclientprotocol/claude-agent-acp (the upstream-canonical home of the package previously published as @zed-industries/claude-agent-acp).",
     command: "claude-agent-acp",
     install: {
-      owner: "zed",
+      owner: "agentclientprotocol",
       packageName: CLAUDE_AGENT_ACP_PACKAGE_NAME,
       version: CLAUDE_AGENT_ACP_VERSION,
       installHint:
-        'Use the published @agents-js/cli package, or install "@zed-industries/claude-agent-acp" on PATH.',
+        'Use the published @agents-js/cli package, or install "@agentclientprotocol/claude-agent-acp" on PATH.',
     },
     resolvesFromWorkspaceBin: true,
     // claude-agent-acp reads ANTHROPIC_API_KEY from the inherited env.

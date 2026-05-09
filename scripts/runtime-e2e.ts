@@ -30,7 +30,7 @@ const supportedRuntimes = new Set<GatewayRuntimeId>(listGatewayRuntimeIds());
 
 /**
  * Harness binaries for externally-published ACP adapters
- * (`@zed-industries/claude-agent-acp`, `@zed-industries/codex-acp`) are
+ * (`@agentclientprotocol/claude-agent-acp`, `@zed-industries/codex-acp`) are
  * declared as workspace deps of `apps/internal-gateway` — NOT of the
  * repo root. Under Bun's isolated workspace install they land in
  * `apps/internal-gateway/node_modules/.bin/`, not in the root

@@ -21,7 +21,7 @@
     "@agents-js/host": "workspace:*",
     "@agents-js/pi-acp": "workspace:*",
     "@agents-js/plane": "workspace:*",
-    "@zed-industries/claude-agent-acp": "0.23.1",
-    "@zed-industries/codex-acp": "0.12.0"
+    "@agentclientprotocol/claude-agent-acp": "0.33.1",
+    "@zed-industries/codex-acp": "0.14.0"
   }
 }
