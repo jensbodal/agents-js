@@ -51,11 +51,77 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      # Checkout main solely so the post-release sync step can install Bun
+      # via mise-action (reads `mise.toml`). release-please-action itself
+      # operates against the GitHub API and does not need a checkout.
+      - uses: actions/checkout@v6
+      # Install Bun pinned to the version in `mise.toml` (1.3.12). Same
+      # toolchain as the publish + ci jobs — using `curl bun.sh/install`
+      # here would float to an unpinned Bun and could regenerate bun.lock
+      # in a way that the publish job's pinned Bun then rejects under
+      # `--frozen-lockfile`.
+      - uses: jdx/mise-action@v4
+
       - id: release
         uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # release-please bumps each `packages/*/package.json#version` via
+      # extra-files, but it cannot follow that bump through to:
+      #   1. cross-package `dependencies."@agents-js/*"` references inside
+      #      `packages/*` and `extras/*` package.jsons, and
+      #   2. the bun.lock workspace entries that crystallize those versions.
+      # Without this step, the release PR ships package.json#version=X but
+      # leaves dependencies pinned at X-1 and bun.lock referencing X-1, so
+      # `bun install --frozen-lockfile` in the publish job blows up and
+      # `release:preflight` flags the dep-version mismatch.
+      #
+      # `scripts/bump.ts` reads the root package.json#version and propagates
+      # it to every internal manifest (version + cross-package deps), then
+      # runs `bun install` to refresh the lockfile. Push the result onto the
+      # release PR branch.
+      #
+      # No-op when no PR was opened/updated (the post-merge run that creates
+      # the tag has empty `steps.release.outputs.pr`).
+      - name: Sync internal deps + bun.lock onto release PR branch
+        if: ${{ steps.release.outputs.pr }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          PR_BRANCH=$(printf '%s' "$PR_JSON" | jq -r '.headBranchName')
+          if [ -z "$PR_BRANCH" ] || [ "$PR_BRANCH" = "null" ]; then
+            echo "release-please did not expose a headBranchName; skipping sync"
+            exit 0
+          fi
+          echo "Syncing internal deps + bun.lock onto release PR branch: $PR_BRANCH"
+
+          WORK=$(mktemp -d)
+          git clone --depth=1 --branch "$PR_BRANCH" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$WORK"
+          cd "$WORK"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # bun is already on PATH from `jdx/mise-action@v4` above (pinned
+          # to mise.toml's bun version). bump.ts propagates root version →
+          # every internal manifest's version + cross-package deps, then
+          # runs `bun install` to sync bun.lock. Idempotent.
+          bun scripts/bump.ts
+
+          if git diff --quiet; then
+            echo "no drift after bump.ts; PR branch is already in sync"
+            exit 0
+          fi
+
+          git add -A
+          git commit -m "chore: sync internal deps + bun.lock for release"
+          git push origin "$PR_BRANCH"
 
   publish:
     needs: release-please

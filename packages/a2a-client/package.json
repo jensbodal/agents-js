@@ -57,9 +57,9 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
     "@a2a-js/sdk": "catalog:",
-    "@agents-js/a2a": "0.3.1",
-    "@agents-js/agui-types": "0.3.1",
-    "@agents-js/validation": "0.3.1"
+    "@agents-js/a2a": "0.3.2",
+    "@agents-js/agui-types": "0.3.2",
+    "@agents-js/validation": "0.3.2"
   },
   "publishConfig": {
     "access": "public"

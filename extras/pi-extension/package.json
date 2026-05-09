@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/pi-extension",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Pi CLI extension that bridges Pi tool calls to A2A agents over MCP or direct A2A transport.",
@@ -27,9 +27,9 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
-    "@agents-js/a2a": "0.3.1",
-    "@agents-js/a2a-client": "0.3.1",
-    "@agents-js/a2ui-types": "0.3.1",
+    "@agents-js/a2a": "0.3.2",
+    "@agents-js/a2a-client": "0.3.2",
+    "@agents-js/a2ui-types": "0.3.2",
     "@sinclair/typebox": "catalog:"
   },
   "devDependencies": {

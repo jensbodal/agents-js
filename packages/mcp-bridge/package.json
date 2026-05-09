@@ -47,8 +47,8 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/a2a-client": "0.3.1",
-    "@agents-js/skills": "0.3.1",
+    "@agents-js/a2a-client": "0.3.2",
+    "@agents-js/skills": "0.3.2",
     "@modelcontextprotocol/sdk": "catalog:",
     "zod": "catalog:"
   },
