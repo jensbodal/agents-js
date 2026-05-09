@@ -1,36 +1,23 @@
 name: Docs Deploy
 
+# Triggered by a successful `Release` workflow run (which itself fires on tag
+# push and goes through the manual `npm-publish` environment gate). The intent
+# is "docs deploy is part of the release act, not a per-merge artifact." Manual
+# `workflow_dispatch` remains supported for emergency redeploys.
+#
+# Note on `workflow_run` triggers:
+#   - The dependent workflow ALWAYS receives the event regardless of the
+#     parent's conclusion. The `if:` guard on each job is what filters to
+#     "only when Release succeeded" — without it, this would deploy stale docs
+#     from a failed publish run.
+#   - `github.ref` inside a `workflow_run`-triggered run is the default branch
+#     (main), not the tag that triggered the parent. The parent's tag is
+#     available via `github.event.workflow_run.head_branch`.
+
 on:
-  push:
-    branches: [main]
-    paths:
-      # Hand-authored pages, VitePress config (docs/.vitepress/**), theme,
-      # and committed docs assets (public/, including the generated
-      # public/llms.txt and public/llms-full.txt bundles).
-      - "docs/**"
-      # Source surfaces TypeDoc walks for the API reference.
-      - "packages/**/src/**"
-      - "extras/**/src/**"
-      - "apps/**/src/**"
-      # Per-package manifests — version bumps and export-list changes affect
-      # the generated readmes and API reference even when src/** is untouched.
-      - "packages/**/package.json"
-      - "extras/**/package.json"
-      - "apps/**/package.json"
-      # Docs-side scripts feeding the build chain.
-      - "scripts/build-docs-index.ts"
-      - "scripts/docs-*.ts"
-      - "scripts/generate-package-readmes.ts"
-      # TypeDoc config — affects the API reference shape.
-      - "typedoc.config.json"
-      # Root manifest (catalog versions, scripts), lockfile, toolchain pin.
-      - "package.json"
-      - "bun.lock"
-      - "mise.toml"
-      # Workflow files. Broadened from `docs-deploy.yml` to all workflows so
-      # changes that cross-affect the deploy environment (matrix-level runner
-      # changes, action-version bumps) trigger a republish on the same push.
-      - ".github/workflows/**"
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
 
 # Pages best practice: queue deploys, do not cancel a deploy that is already
@@ -46,10 +33,23 @@ permissions:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    # On `workflow_run`, run only when the Release workflow succeeded.
+    # On `workflow_dispatch`, always run (manual override).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      # Pin checkout to the exact commit the parent Release workflow ran on.
+      # Without this, `actions/checkout` on `workflow_run` defaults to the
+      # repo's default branch HEAD, which can drift past the released tag if
+      # main moves between the Release workflow finishing and docs-deploy
+      # firing. We want the docs site at any given release URL to match the
+      # source tree the published artifacts came from.
+      #
+      # `head_sha` is empty for `workflow_dispatch`, so checkout falls back to
+      # the dispatching ref (default branch / selected branch) automatically.
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: jdx/mise-action@v4
       - name: Cache Bun downloads
         uses: actions/cache@v5
@@ -74,7 +74,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
