@@ -1,0 +1,16 @@
+# Root bun configuration.
+#
+# [test] pathIgnorePatterns excludes `_dot/` from bare `bun test` discovery.
+# `_dot/` holds operator-facing tooling (visible dotfile convention per
+# `.gitignore`) and git subtrees like `_dot/subtrees/claude-tmux-agents`,
+# which are standalone projects with their own `package.json` and deps. They
+# must NOT be part of the agents-js workspace test walk: their deps are not
+# installed here (not in `workspaces: ["packages/*", "apps/*"]`), so bare
+# `bun test` otherwise errors out on missing `@clack/prompts`, `zod`, etc.
+#
+# The `package.json` "test" script already scopes positionally
+# (`bun test ./tests ./packages ./apps`), so this setting only affects bare
+# `bun test` invocations from the worktree root — e.g. agent verification
+# runs that don't go through the npm script.
+[test]
+pathIgnorePatterns = ["**/_dot/**"]

@@ -1,0 +1,48 @@
+{
+  "name": "@agents-js/trial-agent",
+  "version": "0.2.0-beta-4",
+  "private": true,
+  "type": "module",
+  "description": "Real-ACP isolation harness for @agents-js/tools. Minimal stdio ACP server that dispatches each session/prompt to a @agents-js/tools primitive (fetchContext / findTools) or runs the D readiness-gate assertions. Used to validate that the tools surface works through an actual ACP wire before exposing it to production agents.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "browser": "./src/browser.ts",
+      "bun": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./bin/trial-agent.ts": "./bin/trial-agent.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "package.json"
+  ],
+  "bin": {
+    "trial-agent": "bin/trial-agent.ts"
+  },
+  "scripts": {
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
+    "@agents-js/acp": "workspace:*",
+    "@agents-js/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "_comment": "Per-package validation status for output/agents-js-dashboard.html. Hand-authored. Status enum: pending | validating | tests-audited | live-validated | refactored | blocked. tests-audited = tests reviewed against the package's contract and pass; live-validated = also exercised on a real path by a live probe. The dashboard generator (scripts/build-dashboard.ts) reads this file plus docs/public/graph.json plus output/test-counts.json. Test counts and dep edges are auto-derived; only status + notes are authored here.",
+  "_release_readiness_scope": "The dashboard models per-package test posture and dependency topology. It does NOT model app/operator-surface release readiness — AG-UI primary run path, registry sync default-off, workspace trust gate, dispatch cancelability metadata, A2UI back-channel, and correlation/audit are all gated by `bun run release:preflight` (scripts/release-preflight.ts auditReleaseReadinessDefaults). Treat a green dashboard + a green preflight + the e2e/browser smoke suites as the trio for restricted-beta readiness; this dashboard alone is necessary but not sufficient.",
+  "packages": {
+    "@agents-js/policy": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). errors.test.ts: structural assertions (server-error range + distinct codes; INVALID_PARAMS pinned to JSON-RPC spec). browser.test.ts: narrow-surface guard."
+    },
+    "@agents-js/agui-types": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke (mock-acp + gateway + web-ui + Playwright, 2026-05-04). 5 files cover purpose: adapters (29), event-stream (14), no-collision, version, import-surface. No changes."
+    },
+    "@agents-js/a2ui-types": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke (mock-acp + gateway + web-ui + Playwright, 2026-05-04). catalog.test.ts parametrizes 15 ACP_COMPONENT_APIS. Wire-format constant duplication removed: cross-package compat is enforced by import, not re-asserted literals."
+    },
+    "@agents-js/schema-utils": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke — elicitation form (ui-components/acp-elicitation-form.ts) uses toFieldMetas (2026-05-04). Both public functions covered by 13 cases. No additions."
+    },
+    "@agents-js/skills": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via load/registry/conformance tests — loadSkill+listSkills against real fixture directories on disk (2026-05-04). Fixture suites cover load/validate/registry/conformance. constants.test.ts is BOUNDARY tests parameterized by NAME_MAX_LENGTH/DESCRIPTION_MAX_LENGTH — change the constant, tests follow."
+    },
+    "@agents-js/acp": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 98 tests across 7 files. Added cwd-resolver.test.ts (9 cases) pinning the 4 distinct CwdResolutionError codes — controller tests only covered cwd_outside_workspace_root transitively. createErrorAwareReadable transitively covered via spawnACPAgent error-stream tests; consoleLogSink trivial."
+    },
+    "@agents-js/validation": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 229 tests across 14 files. Tight test-to-source mapping; tests use ACP_METHOD_WHITELIST/BASIC_CATALOG_ID imports rather than re-asserting literals. zodObjectWithMode covered transitively via modes.test.ts (6 high-level validators × strict/loose/filter). Fixtures in tests/fixtures + acp-samples.ts parameterizes request/response cases."
+    },
+    "@agents-js/a2a": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 99 tests across 8 files. Added acp-task-metadata.test.ts (14 cases) — round-trip contract for auth-required + elicitation-response continuation across the A2A wire. Found and fixed a test-side spec mismatch (action enum is accept|decline|cancel per ACP, not reject)."
+    },
+    "@agents-js/acp-host": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 411 tests across 25 files. Heavy existing coverage. env-policy.test.ts already pins D3's generic injection (defaults, secret-key merging, integration with buildMinimalEnv). Added browser.test.ts (2 cases) — narrow-surface guard matching the policy/browser.test.ts pattern; prevents accidental Node-only re-export into the browser-safe entry."
+    },
+    "@agents-js/browser-runtime": {
+      "status": "pending",
+      "notes": "Private browser runtime package. Not part of the publishable beta package set; dashboard keeps it visible until its package tests are audited."
+    },
+    "@agents-js/a2a-client": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 411 tests across 35 files. Granular session-* tests by concern (agui-events, message-delta, run-lifecycle, tool-call-lifecycle, reasoning, custom-events). RFC 6902 json-patch error edges covered via scrutiny-fixes.test.ts; happy paths transitive via session reducers. acp-state metadata covered by elicitation-resume + auth-required. AG-UI bridge via agui-a2a-adapter. No additions."
+    },
+    "@agents-js/a2ui-host": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke (mock-acp + gateway + web-ui + Playwright, 2026-05-04). 47 tests across 4 files. host.test.ts has dedicated A2uiBridge describe block (~30 cases). createA2uiToolCallContentHandler exercised via 4 ACPSessionController integration tests in host-surface-adapter.test.ts. hmr-regression.test.ts pins a previously-fixed regression. No additions."
+    },
+    "@agents-js/gateway-runtime": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 151 tests across 12 files. Added config.test.ts (14 cases) — parse validation, merge precedence (project>user for serve/extraBinPaths, USER>project for profile env keys as a security pin), write/load round-trip. The config file is the user-facing contract and previously had no direct unit tests despite being consumed by internal-gateway and runtime-e2e."
+    },
+    "@agents-js/ui-components": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke (mock-acp + gateway + web-ui + Playwright, 2026-05-04). 508 tests across 41 files. Components have dedicated test files; remaining untested src files are either trivial (types/styles/register/index) or transitively covered via acp-chat-app.test.ts (plan-panel, overlay-stack, chat-app-profiles). ws-state-mapper covered via ws-client.test.ts. No additions warranted."
+    },
+    "@agents-js/a2ui-renderer": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via browser-smoke (mock-acp + gateway + web-ui + Playwright, 2026-05-04). 26 tests across 2 files. dispatch.test.ts pins ACP_BINDINGS completeness against the catalog and parametrizes through every component type, exercising the 13 binding functions in acp-bindings.ts transitively. surface-view.test.ts covers the surface-tree renderer."
+    },
+    "@agents-js/host": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via codex serve+send round-trip (2026-05-04). 133 tests across 13 files. Added agent-registry.test.ts (6 cases) — silent-fallback contract, kind=a2a/acp shape validation, ZWSP name stripping. agui-run-session/runtime-profile-env transitively covered via agui-endpoint and host-session tests respectively."
+    },
+    "@agents-js/mcp-bridge": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via 'agents-js mcp' stdio probe — initialize + tools/list (2026-05-04). 32 tests across 3 files. 1:1 src-to-test mapping for discovery/server/registry-adapter. index.ts is re-exports only. No additions."
+    },
+    "@agents-js/tools": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via spawn-agent.integration.test.ts — spawns real trial-agent ACP subprocess on this HEAD (2026-05-04). 121 tests across 11 files. Added browser.test.ts narrow-surface guard (Node-only memory primitives must not leak into browser bundles). builtins covered via find-tools.test.ts. Each primitive (search-docs, search-memories, sigil-registry, spawn-agent) has its own dedicated test."
+    },
+    "@agents-js/droid-acp": {
+      "status": "live-validated",
+      "notes": "ACP initialize handshake probe. Uses runAcpWrapperBinary."
+    },
+    "@agents-js/pi-acp": {
+      "status": "live-validated",
+      "notes": "ACP initialize handshake probe. Uses runAcpWrapperBinary."
+    },
+    "@agents-js/pi-extension": {
+      "status": "pending",
+      "notes": "Extras package with a manifest-declared extension build artifact. Dashboard keeps it visible until its package tests are audited."
+    },
+    "@agents-js/plane": {
+      "status": "tests-audited",
+      "notes": "11 tests across 3 files. Covers matrix-transport, mount, webhook. env/logger transitively covered. Extras package — non-core SDK surface."
+    },
+    "@agents-js/reporting": {
+      "status": "tests-audited",
+      "notes": "15 tests across 6 files (determinism, failures, golden, integration-jsonl, merge, schema). Lower coverage relative to file count, but extras package with no internal consumers — not on the core SDK release path."
+    },
+    "@agents-js/cli": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via 'agents-js acp --harness codex' stdio proxy probe (2026-05-04). Live on HEAD via codex serve+send round-trip (2026-05-04). 334 tests across 21 files. Subcommand-level coverage (acp/bridge/mcp/send/serve/registry/inspector). shared-arg-specs.test.ts and exit-codes.test.ts pin the surfaces called out as recent work. argv-parser/runtime-resolution/serve-config/serve-prompts transitively covered via cli.test.ts and runtimes.test.ts."
+    },
+    "@agents-js/trial-agent": {
+      "status": "live-validated",
+      "notes": "Live on HEAD via tools/spawn-agent.integration.test.ts — spawned and driven through ACP on this HEAD (2026-05-04). 30 tests across 4 files. 1:1 src-to-test mapping (acp-agent, prompt-handler, readiness-gates, plus integration). browser.ts is a hard-throw placeholder by design (server-only package); no test warranted."
+    }
+  }
+}

@@ -1,0 +1,38 @@
+export type {
+  ActivitySurfaceState,
+  ComposerSurfaceState,
+  InterruptActionState,
+  InterruptSurfaceState,
+  PlanSurfaceState,
+  ToolBlockSurfaceState,
+  TranscriptSurfaceState,
+  WorkflowActivityEntryState,
+  WorkflowActivityKind,
+  WorkflowActivityPhase,
+  WorkflowActivityStatus,
+  WorkflowComposerMode,
+  WorkflowErrorSummary,
+  WorkflowInterruptBlocker,
+  WorkflowPendingPermissionLike,
+  WorkflowPendingWriteGateLike,
+  WorkflowPlanEntryState,
+  WorkflowSessionStateLike,
+  WorkflowStatusOverride,
+  WorkflowSurfaceContext,
+  WorkflowSurfaceSeverity,
+  WorkflowSurfaceState,
+  WorkflowToolCallLike,
+  WorkflowToolCallStats,
+  WorkflowToolGroupSummary,
+  WorkflowTurnStateLike,
+} from "./types/workflow-surface.ts";
+export type { WorkflowCopyMap } from "./workflow-copy.ts";
+export { defaultWorkflowCopy, resolveWorkflowCopy } from "./workflow-copy.ts";
+export {
+  collectToolCallStats,
+  deriveWorkflowSurfaceState,
+  describeWorkflowError,
+  formatToolCallStatus,
+  getTrailingToolBlockStats,
+  summarizeToolGroup,
+} from "./workflow-surfaces.ts";

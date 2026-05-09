@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "handAuthoredPages": [
+    "_generated/README.md",
+    "architecture.md",
+    "beta-contract.md",
+    "index.md",
+    "getting-started.md",
+    "surfaces.md",
+    "primitives.md",
+    "harness-guide.md",
+    "protocols.md",
+    "protocols-primer.md",
+    "streaming-and-events.md",
+    "observability.md",
+    "playground.md"
+  ],
+  "excludedNamespaces": ["api/"],
+  "generatedOutputs": ["public/llms.txt", "public/llms-full.txt"],
+  "referenceIndexExempt": ["_generated/README.md"]
+}

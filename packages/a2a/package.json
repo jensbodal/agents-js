@@ -1,0 +1,48 @@
+{
+  "name": "@agents-js/a2a",
+  "version": "0.2.0-beta-4",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./audit": {
+      "types": "./dist/audit.d.mts",
+      "bun": "./src/audit.ts",
+      "import": "./dist/audit.mjs",
+      "default": "./dist/audit.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts src/audit.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "catalog:",
+    "@agentclientprotocol/sdk": "catalog:",
+    "@agents-js/acp": "0.2.0-beta-4",
+    "@agents-js/validation": "0.2.0-beta-4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

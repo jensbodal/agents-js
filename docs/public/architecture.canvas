@@ -1,0 +1,109 @@
+{
+  "nodes": [
+    {
+      "id": "host",
+      "type": "group",
+      "x": 50,
+      "y": 20,
+      "width": 1000,
+      "height": 280,
+      "label": "HOST LAYER",
+      "color": "brand"
+    },
+    {
+      "id": "host-resp",
+      "type": "text",
+      "x": 80,
+      "y": 80,
+      "width": 440,
+      "height": 200,
+      "text": "## Owns the conversation\n\n- Owns the human's conversation (UI state, input rendering, scroll, session history)\n- Runs `beforePrompt` middleware (mention dispatch, vault context, audit)\n- Enforces permissions and user consent\n- Decides *what* prompt the agent ultimately sees",
+      "color": "brand"
+    },
+    {
+      "id": "host-examples",
+      "type": "text",
+      "x": 560,
+      "y": 80,
+      "width": 460,
+      "height": 200,
+      "text": "## Examples\n\n- `obsidian-acp-plugin` (SessionView + ACPSessionController)\n- a future IDE plugin\n- a future Matrix bot"
+    },
+    {
+      "id": "gateway",
+      "type": "group",
+      "x": 50,
+      "y": 380,
+      "width": 1000,
+      "height": 280,
+      "label": "GATEWAY LAYER",
+      "color": "warning"
+    },
+    {
+      "id": "gateway-resp",
+      "type": "text",
+      "x": 80,
+      "y": 440,
+      "width": 440,
+      "height": 200,
+      "text": "## Pure protocol bridge\n\n- A2A ↔ ACP, and nothing more\n- Session pool keyed by A2A `contextId`\n- Translates A2A task lifecycle ↔ ACP session lifecycle\n- NO middleware, NO prompt rewriting, NO @mention expansion\n- NO opinions about what the host is trying to accomplish",
+      "color": "warning"
+    },
+    {
+      "id": "gateway-examples",
+      "type": "text",
+      "x": 560,
+      "y": 440,
+      "width": 460,
+      "height": 200,
+      "text": "## Example\n\n- `apps/internal-gateway` (what it should be)"
+    },
+    {
+      "id": "agent",
+      "type": "group",
+      "x": 50,
+      "y": 740,
+      "width": 1000,
+      "height": 280,
+      "label": "REMOTE AGENT LAYER",
+      "color": "success"
+    },
+    {
+      "id": "agent-resp",
+      "type": "text",
+      "x": 80,
+      "y": 800,
+      "width": 440,
+      "height": 200,
+      "text": "## Just an ACP process\n\n- Be an ACP process. That is the whole spec.\n- Does not know about A2A\n- Does not know about @mentions\n- Does not know which host dispatched it",
+      "color": "success"
+    },
+    {
+      "id": "agent-examples",
+      "type": "text",
+      "x": 560,
+      "y": 800,
+      "width": 460,
+      "height": 200,
+      "text": "## Examples\n\n- `claude-agent-acp`\n- any other ACP-compliant agent"
+    }
+  ],
+  "edges": [
+    {
+      "id": "host-to-gateway",
+      "fromNode": "host",
+      "toNode": "gateway",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "A2A over HTTP / Matrix / WS / in-process"
+    },
+    {
+      "id": "gateway-to-agent",
+      "fromNode": "gateway",
+      "toNode": "agent",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "ACP stdio / WS"
+    }
+  ]
+}

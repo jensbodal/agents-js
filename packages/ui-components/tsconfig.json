@@ -1,0 +1,8 @@
+{
+  "extends": ["../../tsconfig.workspace.json", "../../tsconfig.dev-paths.json"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"]
+}

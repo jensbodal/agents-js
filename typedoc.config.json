@@ -1,0 +1,40 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["packages/*/src/index.ts"],
+  "entryPointStrategy": "expand",
+  "tsconfig": "typedoc.tsconfig.json",
+  "out": "docs/api",
+  "cleanOutputDir": true,
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "readme": "none",
+  "hideBreadcrumbs": true,
+  "excludeExternals": true,
+  "excludeProtected": true,
+  "sanitizeComments": true,
+  "useHTMLEncodedBrackets": true,
+  "visibilityFilters": {
+    "inherited": false,
+    "external": false,
+    "protected": false,
+    "private": false
+  },
+  "validation": {
+    "invalidLink": false,
+    "invalidPath": true,
+    "notExported": true,
+    "notDocumented": false,
+    "rewrittenLink": true,
+    "unusedMergeModuleWith": true
+  },
+  "externalSymbolLinkMappings": {
+    "@agentclientprotocol/sdk": {
+      "Agent": "https://agentclientprotocol.com/protocol/initialization"
+    },
+    "@lit/reactive-element": {
+      "PropertyDeclaration": "https://lit.dev/docs/v2/api/ReactiveElement/#PropertyDeclaration"
+    },
+    "lit": {
+      "css": "https://lit.dev/docs/components/styles/#adding-styles-to-your-component"
+    }
+  }
+}

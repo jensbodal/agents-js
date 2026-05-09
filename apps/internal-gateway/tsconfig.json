@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.workspace.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@agents-js/a2a-client": ["../../packages/a2a-client/src/index.ts"],
+      "@agents-js/a2a-client/node": ["../../packages/a2a-client/src/node.ts"],
+      "@agents-js/a2a": ["../../packages/a2a/src/index.ts"],
+      "@agents-js/acp-host": ["../../packages/acp-host/src/index.ts"],
+      "@agents-js/acp-host/*": ["../../packages/acp-host/src/*"],
+      "@agents-js/a2ui-host/acp-host": ["../../packages/a2ui-host/src/acp-host/index.ts"],
+      "@agents-js/acp-host/testing": ["../../packages/acp-host/src/testing.ts"],
+      "@agents-js/acp": ["../../packages/acp/src/index.ts"],
+      "@agents-js/cli": ["../../packages/cli/src/index.ts"],
+      "@agents-js/gateway-runtime": ["../../packages/gateway-runtime/src/index.ts"],
+      "@agents-js/host": ["../../packages/host/src/index.ts"],
+      "@agents-js/policy": ["../../packages/policy/src/index.ts"],
+      "@agents-js/reporting": ["../../extras/reporting/src/index.ts"],
+      "@agents-js/schema-utils": ["../../packages/schema-utils/src/index.ts"],
+      "@agents-js/ui-components": ["../../packages/ui-components/src/index.ts"],
+      "@agents-js/validation": ["../../packages/validation/src/index.ts"],
+      "@agents-js/agui-types": ["../../packages/agui-types/src/index.ts"]
+    }
+  },
+  "include": ["."]
+}

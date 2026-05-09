@@ -1,0 +1,50 @@
+{
+  "name": "@agents-js/pi-acp",
+  "version": "0.2.0-beta-4",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "In-repo ACP adapter for Mario Zechner's Pi coding agent (@mariozechner/pi-coding-agent). Wraps the native 'pi --mode rpc' NDJSON stream as an ACP AgentSideConnection.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "bin": {
+    "pi-acp": "dist/pi-acp"
+  },
+  "scripts": {
+    "build": "bun run build:pkg && bun run build:bin",
+    "build:pkg": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "build:bin": "bun scripts/build-bin.ts",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
+    "@agents-js/acp": "workspace:*",
+    "@agents-js/gateway-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "kind": "message",
+    "messageId": "msg-2",
+    "role": "agent",
+    "parts": [{ "kind": "text", "text": "Hello from agent" }]
+  }
+}
