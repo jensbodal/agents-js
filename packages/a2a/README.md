@@ -97,7 +97,6 @@ bun add @agents-js/a2a
 - `@a2a-js/sdk`
 - `@agentclientprotocol/sdk`
 - `@agents-js/acp`
-- `@agents-js/acp-host`
 - `@agents-js/validation`
 
 ## License

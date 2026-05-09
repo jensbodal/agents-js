@@ -531,17 +531,8 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
 
     await agentTask;
 
-    // Each agent_message_chunk now publishes one Message event carrying
-    // cumulative text — provider's createDeltaAccumulator computes
-    // per-chunk message.delta on the client side. Two chunks = two
-    // Message events, with cumulative texts "Hello " and "Hello world".
-    const messageEvents = events.filter((e) => e.kind === "message");
-    expect(messageEvents).toHaveLength(2);
-    expect(messageEvents[0]?.parts?.[0]?.text).toBe("Hello ");
-    expect(messageEvents[1]?.parts?.[0]?.text).toBe("Hello world");
-    // First-valid-wins: both Message events carry the first valid messageId.
-    expect(messageEvents[0]?.messageId).toBe(firstId);
-    expect(messageEvents[1]?.messageId).toBe(firstId);
+    // Streaming execution publishes task snapshots and status updates, not bare A2A messages.
+    expect(events.filter((e) => e.kind === "message")).toHaveLength(0);
     expect(events.filter((e) => e.kind === "task").length).toBeGreaterThanOrEqual(1);
 
     const task = getPublishedTask(events);
