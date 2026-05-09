@@ -15,6 +15,7 @@ bun add @agents-js/acp-host
 ### Classes
 
 - **`ACPSessionController`** — High-level session orchestrator for ACP agent communication. This is the top-level **Provider** for host applications. It composes an {ACPClientController} with host-level concerns: permission eval...
+- **`AcpStreamingTranslator`** — Stateful per-session translator. Instantiate one per ACP session. The translator does no I/O and holds no transport handles — it's a pure data transformer with private accumulator state. Tests shou...
 - **`CapabilityCache`** — Parses and caches agent capabilities from InitializeResponse. Provides boolean helpers for capability-gating UI and behavior. "Advertised" flags reflect what the CLIENT advertises to the agent. The...
 - **`EvalTransport`** — `LogTransport` that captures per-prompt evaluation records (prompt content, response, stop reason, errors) for offline regression suites.
 - **`Logger`** — Structured console logger with category prefixes. Provides debug visibility for session lifecycle, permissions, and errors. All log calls are also pushed to the global logStore for the debug panel.
@@ -109,6 +110,7 @@ bun add @agents-js/acp-host
 ### Interfaces
 
 - **`ACPSessionState`**
+- **`AcpStreamingSink`** — Sink contract: consumers implement these methods to receive translated streaming events. Methods are invoked synchronously; the sink owns any downstream async dispatch (e.g. publishing on an event ...
 - **`ActivitySurfaceState`**
 - **`AgentConfig`**
 - **`ApplyDefaultsResult`**
@@ -170,13 +172,16 @@ bun add @agents-js/acp-host
 - **`TerminalHandlers`**
 - **`TerminalManagerOptions`**
 - **`TerminalWorkspaceContext`**
+- **`TextDeltaCall`** — Argument shape for `AcpStreamingSink.onTextDelta` and `onThoughtDelta`. Both `delta` (incremental text added by this chunk) and `cumulativeText` (running total per `messageId`) are surfaced so sink...
 - **`TextDescriptor`** — A text block rendered as markdown
 - **`ToolBlockSurfaceState`**
 - **`ToolCallContentHandler`**
 - **`ToolCallContentHandlerContext`**
 - **`ToolCallContentInfo`**
 - **`ToolCallInfo`**
+- **`ToolCallStartCall`** — Argument shape for `AcpStreamingSink.onToolCallStart`.
 - **`ToolCallSummary`**
+- **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`.
 - **`TranscriptSurfaceState`**
 - **`TurnState`**
 - **`WorkflowActivityEntryState`**
