@@ -29,6 +29,10 @@ name: release-please
 on:
   push:
     branches: [main]
+  # Manual trigger for re-scanning when release-please gets stuck (e.g.
+  # an `autorelease: pending` label left dangling on a previously merged
+  # PR, or any case where the natural push cadence won't cycle the scan).
+  workflow_dispatch:
 
 # Workflow-level permissions cover the release-please job (open release PRs,
 # create tags + GitHub Releases via GITHUB_TOKEN). The publish job overrides
@@ -46,6 +50,12 @@ concurrency:
 
 jobs:
   release-please:
+    # workflow_dispatch can be invoked against any branch from the UI;
+    # gate to main so a manual run can't accidentally execute with a
+    # non-main toolchain (mise.toml), config (release-please-config.json),
+    # or scripts (scripts/bump.ts). For push events this is always main
+    # already (the trigger filter is `branches: [main]`).
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
