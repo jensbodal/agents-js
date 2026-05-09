@@ -36,8 +36,33 @@ export interface AgentBridge {
  * are intentionally `unknown` — callers must narrow before use.
  */
 export interface PiHost {
-  on(event: string, handler: (event: unknown, ctx: unknown) => void | Promise<void>): void;
+  on(event: string, handler: (event: unknown, ctx: unknown) => unknown | Promise<unknown>): void;
   registerTool(tool: PiToolRegistration): void;
+  sendMessage?(message: PiCustomMessage, options?: PiSendMessageOptions): void | Promise<void>;
+  sendUserMessage?(
+    content: string | PiContentBlock[],
+    options?: PiSendUserMessageOptions,
+  ): void | Promise<void>;
+}
+
+export type PiContentBlock =
+  | { type: "text"; text: string }
+  | { type: string; [key: string]: unknown };
+
+export interface PiCustomMessage {
+  customType: string;
+  content: string;
+  display?: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface PiSendMessageOptions {
+  deliverAs?: "steer" | "followUp" | "nextTurn";
+  triggerTurn?: boolean;
+}
+
+export interface PiSendUserMessageOptions {
+  deliverAs?: "steer" | "followUp";
 }
 
 /**

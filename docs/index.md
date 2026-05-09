@@ -23,7 +23,7 @@ features:
   - title: A2A as the network contract
     details: Gateways speak JSON-RPC 2.0 over HTTP/SSE. Each gateway auto-registers in ~/.agents-js/registry.json and syncs with peers on the same trusted network — no central server.
   - title: Mention vs dispatch, not magic
-    details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through the gateway directly (no policy gate). Two distinct surfaces, both deterministic."
+    details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through a direct-dispatch host such as the gateway or native Pi peer mode (no policy gate). Two distinct surfaces, both deterministic."
   - title: A2UI declarative surfaces
     details: Agents emit UI as data; renderers (web-ui, Obsidian) bind it to native components. No agent-side DOM. No surface-side prompt logic.
   - title: Bridge into any MCP host

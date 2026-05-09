@@ -1,5 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
+import { pathToFileURL } from "node:url";
 import { runAcpCommand } from "./acp.ts";
 import { runBridgeCommand } from "./bridge.ts";
 import { runClientCommand } from "./client/command.ts";
@@ -94,7 +95,7 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
   return 64;
 }
 
-if (import.meta.main) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const exitCode = await runAgentsJsCli(process.argv.slice(2));
     if (exitCode !== EXIT_OK) {

@@ -1024,7 +1024,7 @@ Obsidian plugin integration is not part of the `agents-js` package surface.
 ### Known Limitations
 
 This is a compliant implementation of the A2UI surface lifecycle. These
-capabilities are outside the beta contract:
+capabilities are outside the current release scope:
 
 - **Opaque back-channel.** A2UI v0.9 does not standardize a user → agent event format.
   agents-js carries events through the `agents-js.a2ui.surface_event` namespace without
@@ -1035,7 +1035,7 @@ capabilities are outside the beta contract:
   validation time.
 - **Single surface per session.** The current baseline assumes one active surface per ACP
   session. Multi-surface composition — including surface stacking, overlays, and
-  independent lifecycles in one session — is outside the beta contract.
+  independent lifecycles in one session — is outside the current release scope.
 
 ### Related Packages
 

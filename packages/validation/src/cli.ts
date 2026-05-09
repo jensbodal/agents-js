@@ -1,5 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
+import { pathToFileURL } from "node:url";
 import {
   type ACPMethod,
   isValidationMode,
@@ -253,7 +254,7 @@ export async function runValidationCli(argv: string[]): Promise<number> {
   }
 }
 
-if (import.meta.main) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const exitCode = await runValidationCli(process.argv.slice(2));
   process.exit(exitCode);
 }

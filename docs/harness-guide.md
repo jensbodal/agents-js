@@ -285,7 +285,8 @@ Sharp edges to know:
 - **Registry is re-read on every resolve.** No caching. The shared registry does not need a
   restart when you edit `~/.agents-js/registry.json`.
 - **`@@dispatch` directives are skipped.** The middleware explicitly returns early when the prompt
-  starts with `@@`, leaving those for the gateway's `HostA2AExecutor` to handle. See
+  starts with `@@`, leaving those for direct-dispatch hosts such as the gateway's
+  `HostA2AExecutor` or native Pi peer mode's `input` hook to handle. See
   [Multi-agent patterns](/surfaces#multi-agent-patterns) for the full
   comparison.
 
@@ -455,4 +456,4 @@ Each package maps to a specific harness concern:
 | `@agents-js/a2ui-host` | A2UI DOM host | `MessageProcessor` per mount, hot-reload-safe attach/detach |
 | `@agents-js/a2ui-renderer` | A2UI renderer | Maps A2UI component trees onto `acp-*` Lit primitives |
 | `@agents-js/reporting` | Code review reporting | Markdown and JSON Canvas output |
-| `@agents-js/pi-extension` | Pi CLI extension | Registers A2A agents as Pi tools via MCP bridge or in-process `a2a-client` |
+| `@agents-js/pi-extension` | Pi CLI extension | Registers A2A agents as Pi tools and can expose the native Pi TUI as an A2A peer |

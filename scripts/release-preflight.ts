@@ -275,25 +275,62 @@ export async function readPublishablePackages(rootDir: string): Promise<AuditedP
   return collected.flat().filter((pkg) => pkg.manifest.private !== true);
 }
 
+export async function readAllInternalPackages(rootDir: string): Promise<AuditedPackage[]> {
+  const scopes = ["packages", "extras", "tests"] as const;
+  const collected = await Promise.all(
+    scopes.map(async (scope) => {
+      const scopeDir = path.join(rootDir, scope);
+      const dirs = await readdir(scopeDir, { withFileTypes: true });
+      const audited = await Promise.all(
+        dirs
+          .filter((entry) => entry.isDirectory())
+          .map(async (entry): Promise<AuditedPackage | undefined> => {
+            const manifestPath = path.join(scopeDir, entry.name, "package.json");
+            try {
+              const manifest = JSON.parse(
+                await readFile(manifestPath, "utf8"),
+              ) as PublishablePackageManifest;
+              return {
+                dirName: entry.name,
+                manifest,
+                manifestPath,
+              } satisfies AuditedPackage;
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                return undefined;
+              }
+              throw error;
+            }
+          }),
+      );
+      return audited.filter((pkg): pkg is AuditedPackage => pkg !== undefined);
+    }),
+  );
+
+  return collected.flat().filter((pkg) => pkg.manifest.name?.startsWith(`${PUBLISH_SCOPE}/`));
+}
+
 async function loadVersionsConfig(rootDir: string): Promise<VersionsConfig> {
-  const raw = JSON.parse(
-    await readFile(path.join(rootDir, ".versions.json"), "utf8"),
-  ) as Partial<VersionsConfig>;
-  const release = raw.release?.trim();
-  const claudeAgentVersion = raw.externalSDKs?.[claudeAgentPackageName]?.trim();
-  const codexAgentVersion = raw.externalSDKs?.[codexAgentPackageName]?.trim();
+  const rootManifestPath = path.join(rootDir, "package.json");
+  const raw = JSON.parse(await readFile(rootManifestPath, "utf8")) as {
+    version?: string;
+    agentsJs?: { externalSDKs?: Record<string, string> };
+  };
+  const release = raw.version?.trim();
+  const claudeAgentVersion = raw.agentsJs?.externalSDKs?.[claudeAgentPackageName]?.trim();
+  const codexAgentVersion = raw.agentsJs?.externalSDKs?.[codexAgentPackageName]?.trim();
 
   if (!release) {
-    throw new Error(`.versions.json is missing a non-empty "release" value.`);
+    throw new Error('package.json is missing a "version" value.');
   }
   if (!claudeAgentVersion) {
     throw new Error(
-      `.versions.json is missing externalSDKs.${JSON.stringify(claudeAgentPackageName)}.`,
+      `package.json is missing agentsJs.externalSDKs[${JSON.stringify(claudeAgentPackageName)}].`,
     );
   }
   if (!codexAgentVersion) {
     throw new Error(
-      `.versions.json is missing externalSDKs.${JSON.stringify(codexAgentPackageName)}.`,
+      `package.json is missing agentsJs.externalSDKs[${JSON.stringify(codexAgentPackageName)}].`,
     );
   }
 
@@ -315,7 +352,7 @@ function collectConfiguredVersionIssues(
 
   if (pkg.manifest.version !== configuredReleaseVersion) {
     issues.push(
-      `${pkg.manifestPath}: version=${pkg.manifest.version} does not match .versions.json release ${configuredReleaseVersion}`,
+      `${pkg.manifestPath}: version=${pkg.manifest.version} does not match package.json release ${configuredReleaseVersion}`,
     );
   }
 
@@ -327,7 +364,7 @@ function collectConfiguredVersionIssues(
     }
     if (spec !== configuredReleaseVersion) {
       issues.push(
-        `${pkg.manifest.name}: ${blockName}.${dependencyName}=${spec} does not match .versions.json release ${configuredReleaseVersion}`,
+        `${pkg.manifest.name}: ${blockName}.${dependencyName}=${spec} does not match package.json release ${configuredReleaseVersion}`,
       );
     }
   }
@@ -357,7 +394,7 @@ async function collectExternalSdkVersionIssues(
       }
       if (actualVersion !== expectedVersion) {
         issues.push(
-          `${path.relative(rootDir, manifestPath)}: dependencies.${packageName}=${actualVersion} does not match .versions.json externalSDKs.${JSON.stringify(packageName)}=${expectedVersion}`,
+          `${path.relative(rootDir, manifestPath)}: dependencies.${packageName}=${actualVersion} does not match package.json agentsJs.externalSDKs.${JSON.stringify(packageName)}=${expectedVersion}`,
         );
       }
     }
@@ -387,7 +424,7 @@ async function collectExternalSdkVersionIssues(
     const actualVersion = matches[0]?.[1];
     if (actualVersion !== expectedVersion) {
       issues.push(
-        `${path.relative(rootDir, runtimePath)}: ${label} runtime version=${actualVersion} does not match .versions.json externalSDKs.${JSON.stringify(packageName)}=${expectedVersion}`,
+        `${path.relative(rootDir, runtimePath)}: ${label} runtime version=${actualVersion} does not match package.json agentsJs.externalSDKs.${JSON.stringify(packageName)}=${expectedVersion}`,
       );
     }
   }
@@ -437,7 +474,6 @@ const RELEASE_GAP_LANGUAGE_SCAN_PATHS = [
   "apps/web-ui/src/a2ui-demo.ts",
   "apps/web-ui/src/main.ts",
   "docs/architecture.md",
-  "docs/beta-contract.md",
   "docs/develop/playground-smoke.md",
   "docs/observability.md",
   "docs/protocols.md",

@@ -127,7 +127,7 @@ All publishable package `package.json` files ship on one beta train. Patch incre
 
 Everything documented in this site is in the release claim. Bugs get fixed in the next patch. There are no per-package tier labels (Stable / RC / Preview / Experimental). The single status is **beta**.
 
-The publication gate: a patch should not ship with an unacknowledged regression in the declared beta workflow. See [Beta Contract](/beta-contract) for the canonical contract definition and [Package Map](/primitives#package-map) for the per-package list.
+The publication gate: a patch should not ship with an unacknowledged regression in the declared beta workflow. See [CHANGELOG](/CHANGELOG) for shipped changes and [Package Map](/primitives#package-map) for the per-package list.
 
 ### Canonical Proof Surfaces
 
@@ -184,4 +184,4 @@ These are the working expectations, not gates that promote a package between tie
 
 ## Release statement
 
-The user-facing release statement is the [Beta Contract](/beta-contract).
+The user-facing release statement lives in the [CHANGELOG](/CHANGELOG).
