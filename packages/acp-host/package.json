@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/acp-host",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "sideEffects": false,
   "description": "Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.",
@@ -74,8 +74,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp": "0.2.0",
-    "@agents-js/policy": "0.2.0"
+    "@agents-js/acp": "0.2.1",
+    "@agents-js/policy": "0.2.1"
   },
   "publishConfig": {
     "access": "public"

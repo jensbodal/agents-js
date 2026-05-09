@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Terminal TUI and server commands for agents-js. Provides the agents-js executable with serve, client, and acp subcommands.",
   "author": "Jens Bodal",
@@ -23,7 +23,6 @@
     "agents-js"
   ],
   "engines": {
-    "node": ">=20.19.0",
     "bun": ">=1.3.11"
   },
   "main": "dist/index.mjs",
@@ -55,13 +54,13 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/a2a-client": "0.2.0",
-    "@agents-js/acp": "0.2.0",
-    "@agents-js/acp-host": "0.2.0",
-    "@agents-js/a2a": "0.2.0",
-    "@agents-js/gateway-runtime": "0.2.0",
-    "@agents-js/mcp-bridge": "0.2.0",
-    "@agents-js/schema-utils": "0.2.0",
+    "@agents-js/a2a-client": "0.2.1",
+    "@agents-js/acp": "0.2.1",
+    "@agents-js/acp-host": "0.2.1",
+    "@agents-js/a2a": "0.2.1",
+    "@agents-js/gateway-runtime": "0.2.1",
+    "@agents-js/mcp-bridge": "0.2.1",
+    "@agents-js/schema-utils": "0.2.1",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentui/core": "0.1.99",
     "@zed-industries/claude-agent-acp": "0.23.1",

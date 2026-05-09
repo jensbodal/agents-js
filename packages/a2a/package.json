@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2a",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "sideEffects": false,
   "description": "A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.",
@@ -56,8 +56,8 @@
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp": "0.2.0",
-    "@agents-js/validation": "0.2.0"
+    "@agents-js/acp": "0.2.1",
+    "@agents-js/validation": "0.2.1"
   },
   "publishConfig": {
     "access": "public"
