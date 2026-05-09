@@ -1,10 +1,10 @@
 {
   "name": "@agents-js/root",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "agentsJs": {
     "externalSDKs": {
-      "@zed-industries/claude-agent-acp": "0.23.1",
-      "@zed-industries/codex-acp": "0.12.0"
+      "@agentclientprotocol/claude-agent-acp": "0.33.1",
+      "@zed-industries/codex-acp": "0.14.0"
     }
   },
   "private": true,

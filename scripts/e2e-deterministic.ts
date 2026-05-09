@@ -48,7 +48,7 @@ function printUsage(): void {
  */
 const REAL_RUNTIME_SKIP_MARKER =
   "[e2e:deterministic] dev-runtime smoke gate SKIPPED " +
-  "— install opencode (https://opencode.ai) or ensure @zed-industries/claude-agent-acp " +
+  "— install opencode (https://opencode.ai) or ensure @agentclientprotocol/claude-agent-acp " +
   "is workspace-installed to enable this gate.";
 
 const REAL_RUNTIME_PREFERENCE: readonly GatewayRuntimeId[] = ["opencode", "claude"];

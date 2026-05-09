@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
-const claudeAgentPackageName = "@zed-industries/claude-agent-acp";
+const claudeAgentPackageName = "@agentclientprotocol/claude-agent-acp";
 const codexAgentPackageName = "@zed-industries/codex-acp";
 const packageDirs = {
   policy: path.join(repoRoot, "packages", "policy"),
@@ -85,8 +85,8 @@ async function createFakeClaudeAgentTarball(artifactDir: string): Promise<string
       path.join(packageDir, "package.json"),
       `${JSON.stringify(
         {
-          name: "@zed-industries/claude-agent-acp",
-          version: "0.23.1",
+          name: "@agentclientprotocol/claude-agent-acp",
+          version: "0.33.1",
           private: true,
           type: "module",
           bin: {
@@ -319,12 +319,12 @@ export async function main(): Promise<void> {
         "[cli-package-smoke] Packed CLI manifest still contains workspace:* dependencies.",
       );
     }
-    if (cliDependencies[claudeAgentPackageName] !== "0.23.1") {
+    if (cliDependencies[claudeAgentPackageName] !== "0.33.1") {
       throw new Error(
-        "[cli-package-smoke] Packed CLI manifest is missing the expected @zed-industries/claude-agent-acp dependency.",
+        "[cli-package-smoke] Packed CLI manifest is missing the expected @agentclientprotocol/claude-agent-acp dependency.",
       );
     }
-    if (cliDependencies[codexAgentPackageName] !== "0.11.1") {
+    if (cliDependencies[codexAgentPackageName] !== "0.14.0") {
       throw new Error(
         "[cli-package-smoke] Packed CLI manifest is missing the expected @zed-industries/codex-acp dependency.",
       );

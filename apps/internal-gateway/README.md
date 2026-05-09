@@ -21,13 +21,13 @@ The dev app's default runtime is selected in `apps/internal-gateway/gateway.conf
 | Runtime ID | Display Name | Ownership                                             | Resolution                                                                                          |
 | ---------- | ------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `opencode` | OpenCode ACP | External CLI                                          | Resolved from `PATH`                                                                                |
-| `claude`   | Claude ACP   | Zed-maintained via `@zed-industries/claude-agent-acp` | Resolved from `PATH`, then falls back to `apps/internal-gateway/node_modules/.bin/claude-agent-acp` |
+| `claude`   | Claude ACP   | Upstream via `@agentclientprotocol/claude-agent-acp` (formerly `@zed-industries/claude-agent-acp`) | Resolved from `PATH`, then falls back to `apps/internal-gateway/node_modules/.bin/claude-agent-acp` |
 | `gemini`   | Gemini ACP   | External CLI                                          | Resolved from `PATH`                                                                                |
 
 ## Runtime Provenance
 
 - `opencode` is an external ACP-capable CLI. This repo expects `opencode` to already be installed and available on `PATH`.
-- `claude` uses Zed's external ACP runtime package: `@zed-industries/claude-agent-acp`.
+- `claude` uses the upstream-canonical ACP runtime package `@agentclientprotocol/claude-agent-acp` (the same package previously published as `@zed-industries/claude-agent-acp`; the canonical home moved to the `agentclientprotocol` org).
 - `claude-agent-acp` is not maintained in this repo. It is an external runtime that this gateway can launch.
 
 ## How Resolution Works

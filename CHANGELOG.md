@@ -9,6 +9,17 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.2.2] - 2026-05-09
+
+### Fixed
+
+- **Migrated claude harness to `@agentclientprotocol/claude-agent-acp@0.33.1`** (was `@zed-industries/claude-agent-acp@0.23.1`). The package's canonical home moved to the `agentclientprotocol` GitHub org and is now ~10 minor versions ahead of the legacy `@zed-industries/claude-agent-acp` line on npm (which is frozen at 0.23.1). Fixes [#17](https://github.com/jensbodal/agents-js/issues/17): `bunx @agents-js/cli@0.2.0/0.2.1 serve --harness claude` errored with `Invalid permissions.defaultMode: auto.` on first message because the old version's `resolvePermissionMode()` didn't include `auto` in its alias table and threw on unknown values. The new version includes `auto` and is now lenient (logs an error and falls back to `default` instead of throwing). **0.2.0 and 0.2.1 are broken on the serve flow; users must upgrade to 0.2.2.**
+
+### Internal
+
+- Bumped `@zed-industries/codex-acp` 0.12.0 → 0.14.0 (existing scope still canonical for codex; `@agentclientprotocol/codex-acp` is pre-stable at 0.0.x).
+- Extended `GatewayRuntimeInstall.owner` union to include `"agentclientprotocol"`.
+
 ## [0.2.1] - 2026-05-09
 
 ### Fixed

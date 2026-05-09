@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/trial-agent",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Real-ACP isolation harness for @agents-js/tools. Minimal stdio ACP server that dispatches each session/prompt to a @agents-js/tools primitive (fetchContext / findTools) or runs the D readiness-gate assertions. Used to validate that the tools surface works through an actual ACP wire before exposing it to production agents.",
@@ -36,8 +36,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp": "0.2.1",
-    "@agents-js/tools": "0.2.1"
+    "@agents-js/acp": "0.2.2",
+    "@agents-js/tools": "0.2.2"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

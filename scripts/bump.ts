@@ -19,7 +19,7 @@ const runtimeInstallsPath = path.join(
   "src",
   "generated-runtime-installs.ts",
 );
-const claudeAgentPackageName = "@zed-industries/claude-agent-acp";
+const claudeAgentPackageName = "@agentclientprotocol/claude-agent-acp";
 const codexAgentPackageName = "@zed-industries/codex-acp";
 
 interface VersionsConfig {

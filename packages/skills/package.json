@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/skills",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "sideEffects": false,
   "description": "TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.",
