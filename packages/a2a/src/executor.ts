@@ -14,6 +14,7 @@ import {
   RequestError,
   type Stream,
 } from "@agents-js/acp";
+import { type AcpStreamingSink, AcpStreamingTranslator } from "@agents-js/acp-host";
 import { buildACPA2ATaskMetadata, extractACPA2AContinuationMetadata } from "./acp-task-metadata.ts";
 import { isACPAuthRequiredError, withAuthRetry } from "./executor-auth.ts";
 import { buildStatusUpdate, buildTerminalTask, nowIso } from "./executor-events.ts";
@@ -85,6 +86,15 @@ type PendingElicitationRequest = PendingResolver<CreateElicitationResponse> & {
 };
 
 type ActiveTaskState = {
+  /**
+   * Per-task running concatenation of agent-message text. Mirrored from
+   * the `AcpStreamingTranslator`'s cumulative text via the executor's
+   * sink so the terminal-task `finalText` (line ~343) and the buffer-cap
+   * test (`maxTextBufferSize`) stay backed by executor-owned state.
+   * Translator owns the per-`messageId` accumulation; the sink truncates
+   * to `maxTextBufferSize` here to enforce the executor-level policy.
+   */
+  agentMessageText: string;
   contextId: string;
   currentAgentMessageId?: string;
   eventBus: ExecutionEventBus;
@@ -92,8 +102,10 @@ type ActiveTaskState = {
   pendingElicitation?: PendingElicitationRequest;
   runPromise?: Promise<void>;
   sessionId?: string;
+  /** One translator per active ACP session-bound task. Constructed lazily
+   *  the first time a streaming sessionUpdate arrives. */
+  streamingTranslator?: AcpStreamingTranslator;
   taskId: string;
-  textBuffer: string;
 };
 
 function createDeferred<T>(): PendingResolver<T> {
@@ -167,30 +179,13 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         if (!task) {
           return;
         }
-
-        const update = params.update;
-        if (update.sessionUpdate !== "agent_message_chunk" || update.content.type !== "text") {
-          return;
+        // Lazy-instantiate the translator on first streaming event so the
+        // executor doesn't pay translator-state cost for tasks that never
+        // stream text (e.g. ones that fail before any chunk).
+        if (!task.streamingTranslator) {
+          task.streamingTranslator = new AcpStreamingTranslator();
         }
-
-        const chunkMessageId = extractValidAgentMessageId(
-          (update as { messageId?: unknown }).messageId,
-        );
-        if (!task.currentAgentMessageId && chunkMessageId) {
-          task.currentAgentMessageId = chunkMessageId;
-        }
-
-        const chunk = update.content.text || "";
-        const remaining = this.maxTextBufferSize - task.textBuffer.length;
-        if (remaining > 0) {
-          task.textBuffer += remaining >= chunk.length ? chunk : chunk.slice(0, remaining);
-        }
-        this.publishStatusUpdate(task, {
-          state: "working",
-          text: task.textBuffer,
-          final: false,
-          messageId: task.currentAgentMessageId,
-        });
+        task.streamingTranslator.feed(params, this.createSink(task));
       },
       extMethod: async (method, params) => {
         if (method !== CLIENT_METHODS.elicitation_create) {
@@ -288,10 +283,10 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     }
 
     const task: ActiveTaskState = {
+      agentMessageText: "",
       contextId: context.contextId,
       eventBus,
       taskId: context.taskId,
-      textBuffer: "",
     };
     this.activeTasks.set(context.taskId, task);
 
@@ -340,7 +335,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
 
       const result = await this.runPromptWithRecovery(task, sessionId, userText);
       const finalState = mapStopReasonToTaskState(result.stopReason);
-      const finalText = task.textBuffer || "Prompt completed.";
+      const finalText = task.agentMessageText || "Prompt completed.";
       this.publishTask(
         task,
         buildTerminalTask(task.taskId, task.contextId, normalizedUserMessage, {
@@ -464,6 +459,70 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     options: Parameters<typeof buildStatusUpdate>[2],
   ): void {
     task.eventBus.publish(buildStatusUpdate(task.taskId, task.contextId, options));
+  }
+
+  /**
+   * Build the streaming sink for a task. Each `agent_message_chunk`
+   * results in one published `Message` event carrying *cumulative* text;
+   * the A2A client provider's `createDeltaAccumulator`
+   * (`packages/a2a-client/src/provider.ts:194-207`) computes per-chunk
+   * deltas from those by comparing successive `Message.parts[].text`
+   * values per `messageId`.
+   *
+   * Tool-call and thought variants are intentionally not emitted from
+   * the executor today — the previous inline handler dropped them, and
+   * routing them through the sink without a corresponding A2A wire
+   * shape would expand scope beyond the streaming-render fix.
+   */
+  private createSink(task: ActiveTaskState): AcpStreamingSink {
+    return {
+      onTextDelta: ({ messageId, delta }) => {
+        // First-valid-wins: only adopt the chunk's messageId once. Empty
+        // / malformed ids fall through and the terminal-task path
+        // synthesizes a UUID at finish time.
+        const validMessageId = extractValidAgentMessageId(messageId);
+        if (!task.currentAgentMessageId && validMessageId) {
+          task.currentAgentMessageId = validMessageId;
+        }
+        // Mirror the incremental delta onto the executor-owned task
+        // state, capped at `maxTextBufferSize`. This is the source of
+        // truth for `finalText` (terminal task) and is preserved across
+        // ACP `messageId` boundaries (the previous executor used a
+        // single flat buffer; preserving that semantics keeps existing
+        // history-shape tests passing). Cap-policy is applied here, in
+        // the executor sink — the translator stays pure.
+        const remaining = this.maxTextBufferSize - task.agentMessageText.length;
+        if (remaining > 0) {
+          task.agentMessageText += remaining >= delta.length ? delta : delta.slice(0, remaining);
+        }
+
+        // Publish ONE `Message` event per chunk carrying the executor's
+        // currently-accumulated text. Provider's delta accumulator
+        // (`packages/a2a-client/src/provider.ts:194-207`) consumes these
+        // and emits per-chunk `message.delta` events to client
+        // subscribers. Each chunk is its own event (not collapsed into a
+        // single TaskStatusUpdateEvent burst), so the SSE encoder
+        // flushes between chunks and the TUI paints incrementally.
+        const wireMessageId = task.currentAgentMessageId ?? validMessageId ?? crypto.randomUUID();
+        const message: Message = {
+          kind: "message",
+          role: "agent",
+          messageId: wireMessageId,
+          parts: [{ kind: "text", text: task.agentMessageText }],
+          taskId: task.taskId,
+          contextId: task.contextId,
+        };
+        task.eventBus.publish(message);
+      },
+      // Thought-chunk and tool-call notifications are dropped to preserve
+      // the existing executor's surface. Routing them through to A2A
+      // requires picking a wire shape (Message vs status-update with
+      // structured parts) that's out of scope for the streaming-render
+      // fix; the AG-UI consumer handles them via its own path.
+      onThoughtDelta: () => {},
+      onToolCallStart: () => {},
+      onToolCallUpdate: () => {},
+    };
   }
 
   private getActiveTaskBySessionId(sessionId: string): ActiveTaskState | undefined {
