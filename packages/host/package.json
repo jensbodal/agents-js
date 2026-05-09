@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/host",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "sideEffects": false,
   "description": "Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.",
