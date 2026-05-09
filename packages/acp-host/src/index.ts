@@ -7,6 +7,17 @@ export {
   type FileSnapshot,
 } from "./atomic-write.ts";
 
+// -- ACP streaming translator -------------------------------------------------
+// Shared by `@agents-js/a2a` (executor) and `@agents-js/host` (AG-UI handler)
+// for the streaming-shaped subset of `SessionUpdate` notifications.
+export {
+  type AcpStreamingSink,
+  AcpStreamingTranslator,
+  type TextDeltaCall,
+  type ToolCallStartCall,
+  type ToolCallUpdateCall,
+} from "./streaming-translator.ts";
+
 // -- Classes ------------------------------------------------------------------
 
 // -- SDK re-exports -----------------------------------------------------------
