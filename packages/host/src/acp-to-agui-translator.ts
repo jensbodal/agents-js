@@ -16,7 +16,7 @@
  */
 
 import { A2UI_SURFACE_EVENT_NAME } from "@agents-js/a2ui-types";
-import type { ACPSessionEvent } from "@agents-js/acp-host";
+import { type ACPSessionEvent, AcpStreamingTranslator } from "@agents-js/acp-host";
 import type { AguiEventStream, BaseEvent } from "@agents-js/agui-types";
 import { createAguiEventStream } from "@agents-js/agui-types";
 
@@ -32,11 +32,23 @@ import { createAguiEventStream } from "@agents-js/agui-types";
 export interface TranslatorState {
   /** Stateful AG-UI event-stream builder shared across translator calls. */
   stream: AguiEventStream;
+  /**
+   * Shared streaming-event translator. Owns the canonical ACP
+   * `SessionNotification` → typed sink-call mapping for streaming
+   * variants (`agent_message_chunk`, `agent_thought_chunk`). The AG-UI
+   * translator delegates to it and maps each sink call to a
+   * `state.stream.textChunk(...)` emission.
+   *
+   * Same translator class is used by `@agents-js/a2a`'s executor —
+   * single source of truth for ACP streaming semantics.
+   */
+  acpTranslator: AcpStreamingTranslator;
 }
 
 export function createTranslatorState(): TranslatorState {
   return {
     stream: createAguiEventStream(),
+    acpTranslator: new AcpStreamingTranslator(),
   };
 }
 
@@ -89,9 +101,34 @@ export function translateAcpEvent(event: ACPSessionEvent, state: TranslatorState
         // ACP `agent_message_chunk.content.text` carries the *delta*, not
         // accumulated text — the builder's `toAguiTextMessageContent`
         // defaults `previousText=""`, so the value passes through verbatim.
+        //
+        // When `messageId` is present we route through the shared
+        // `AcpStreamingTranslator` so the per-message accumulation contract
+        // is enforced in one place (same translator the A2A executor uses).
+        // When it's absent we fall through to a direct `textChunk(...)`
+        // emission so the `AguiEventStream` builder can synthesize its own
+        // messageId — the translator deliberately drops unidentifiable
+        // chunks rather than fabricating an id.
+        if (observedMessageId !== undefined) {
+          const out: BaseEvent[] = [];
+          state.acpTranslator.feed(event.notification, {
+            onTextDelta: ({ messageId, delta }) => {
+              out.push(...state.stream.textChunk({ text: delta, messageId }));
+            },
+            // Thought / tool-call notifications still flow through their
+            // own ACPSessionEvent paths in this translator (they don't
+            // arrive as `agent_message_chunk`); these stubs are unreachable
+            // for `agent_message_chunk` input but keep the sink contract
+            // satisfied without `as any` casts.
+            onThoughtDelta: () => {},
+            onToolCallStart: () => {},
+            onToolCallUpdate: () => {},
+          });
+          return out;
+        }
         return state.stream.textChunk({
           text: update.content.text ?? "",
-          messageId: observedMessageId,
+          messageId: undefined,
         });
       }
       // Other session_update sub-variants (plan/mode/info/commands) are
