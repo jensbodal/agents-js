@@ -25,7 +25,8 @@
  * place.
  */
 
-import { access, readdir, stat } from "node:fs/promises";
+import { access, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { PUBLISH_REGISTRY_ENV, resolvePublishRegistry } from "./release-config.ts";
 import { auditReleaseSurface } from "./release-preflight.ts";
@@ -286,29 +287,78 @@ async function publishPackage(
   tag: string | undefined,
   registry: string,
 ): Promise<void> {
-  const args = ["publish", "--registry", registry];
-  if (tag) {
-    args.push("--tag", tag);
-  }
-  const proc = Bun.spawn(["npm", ...args], {
-    cwd: packageDir,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    const detail = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
-    throw new PublishError(
-      `npm publish failed (exit ${exitCode}) for ${dirName}\n${detail}`,
-      dirName,
-    );
-  }
-  const tail = stdout.trim().split("\n").slice(-3).join("\n");
-  if (tail) {
-    console.log(indent(tail));
+  const tmpDir = await mkdtemp(path.join(tmpdir(), `agents-js-publish-${dirName}-`));
+  try {
+    // STEP 1: bun pm pack materializes catalog: refs and produces a tarball.
+    // npm's own pack does NOT resolve `catalog:` references, which is why we
+    // pre-pack with bun and then hand the resulting tarball to npm publish.
+    const packProc = Bun.spawn(["bun", "pm", "pack", "--destination", tmpDir], {
+      cwd: packageDir,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const packStderr = await new Response(packProc.stderr).text();
+    if ((await packProc.exited) !== 0) {
+      throw new PublishError(`bun pm pack failed for ${dirName}\n${packStderr}`, dirName);
+    }
+
+    const tarballs = (await readdir(tmpDir)).filter((n) => n.endsWith(".tgz"));
+    if (tarballs.length !== 1) {
+      throw new PublishError(
+        `expected one tarball in ${tmpDir}, found ${tarballs.length}`,
+        dirName,
+      );
+    }
+    const tarballPath = path.join(tmpDir, tarballs[0]);
+
+    // STEP 1b: assert the packed tarball does not still contain `catalog:`
+    // refs. If bun's pack ever stops resolving catalog refs (or a manifest
+    // form slips past), we want the publish to fail loudly rather than ship a
+    // broken package.json to the registry.
+    const extractProc = Bun.spawn(["tar", "-xzOf", tarballPath, "package/package.json"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const pkgJsonText = await new Response(extractProc.stdout).text();
+    if ((await extractProc.exited) !== 0) {
+      throw new PublishError(
+        `failed to read package.json from packed tarball for ${dirName}`,
+        dirName,
+      );
+    }
+    if (pkgJsonText.includes("catalog:")) {
+      throw new PublishError(`packed tarball still contains catalog: refs for ${dirName}`, dirName);
+    }
+
+    // STEP 2: npm publish <tarball> — npm consumes the tarball as-is, so
+    // anything resolved at pack time (catalog refs, file lists) is what ships.
+    const args = ["publish", tarballPath, "--registry", registry];
+    if (tag) {
+      args.push("--tag", tag);
+    }
+    const proc = Bun.spawn(["npm", ...args], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) {
+      const detail = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
+      throw new PublishError(
+        `npm publish failed (exit ${exitCode}) for ${dirName}\n${detail}`,
+        dirName,
+      );
+    }
+    const tail = stdout.trim().split("\n").slice(-3).join("\n");
+    if (tail) {
+      console.log(indent(tail));
+    }
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 

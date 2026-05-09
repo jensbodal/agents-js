@@ -1,5 +1,5 @@
 /**
- * Generated from `.versions.json` by `scripts/bump.ts`.
+ * Generated from the root `package.json` (`agentsJs.externalSDKs`) by `scripts/bump.ts`.
  * Do not edit manually.
  */
 

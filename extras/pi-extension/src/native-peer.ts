@@ -1,0 +1,978 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { hostname as osHostname } from "node:os";
+import type { AgentCard, Message } from "@a2a-js/sdk";
+import {
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+  JsonRpcTransportHandler,
+} from "@a2a-js/sdk/server";
+import {
+  buildAgentCard,
+  buildAgentCardBaseUrl,
+  buildStatusUpdate,
+  buildTerminalTask,
+  CURRENT_A2A_PROTOCOL_VERSION,
+  DEFAULT_MAX_REQUEST_BODY_SIZE,
+  type ExecutionEventBus,
+  getMessageText,
+  type InitializableExecutor,
+  nowIso,
+  type RequestContext,
+} from "@agents-js/a2a";
+import {
+  A2AClientProvider,
+  type A2AEvent,
+  extractLatestAgentText,
+  extractMessageText,
+  parseAgentMentions,
+  parseDispatchDirective,
+  stripMention,
+} from "@agents-js/a2a-client";
+import {
+  autoRegister,
+  readAgentRegistryRecords,
+  resolveSharedAgentRegistryPath,
+} from "@agents-js/a2a-client/node";
+import pkg from "../package.json";
+import type { PiCustomMessage, PiHost } from "./types.ts";
+
+const NATIVE_MESSAGE_TYPE = "agents-js.native-pi";
+const DEFAULT_HOST = "127.0.0.1";
+const DEFAULT_PORT = 0;
+const DEFAULT_TURN_TIMEOUT_MS = 5 * 60 * 1000;
+const EXTENSION_PROMPT_MARK_LIMIT = 64;
+const JSON_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Content-Type": "application/json",
+};
+const SSE_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+  "Content-Type": "text/event-stream",
+  "X-Accel-Buffering": "no",
+};
+
+type Logger = Pick<Console, "error" | "log" | "warn">;
+
+export interface NativePiPeerOptions {
+  env?: Record<string, string | undefined>;
+  logger?: Logger;
+}
+
+export interface NativePiPeerHandle {
+  enabled: boolean;
+  getUrl(): string | null;
+  name?: string;
+  stop(): Promise<void>;
+}
+
+interface NativePiPeerConfig {
+  host: string;
+  name: string;
+  port: number;
+  registryPath: string;
+  timeoutMs: number;
+}
+
+interface NativeServerHandle {
+  port: number;
+  stop(): Promise<void>;
+  url: string;
+}
+
+interface PendingPiTurn {
+  clear(): void;
+  reject(error: Error): void;
+  resolve(text: string): void;
+  textBuffer: string;
+}
+
+interface JsonRpcEnvelope {
+  id?: null | number | string;
+  jsonrpc?: string;
+  method?: string;
+  params?: unknown;
+}
+
+function isObject(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null;
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function readNativeConfig(env: Record<string, string | undefined>): NativePiPeerConfig | null {
+  if (env.AGENTS_JS_PI_NATIVE !== "1") {
+    return null;
+  }
+
+  const name = env.AGENTS_JS_PI_NAME?.trim();
+  if (!name) {
+    throw new Error("AGENTS_JS_PI_NAME is required when AGENTS_JS_PI_NATIVE=1.");
+  }
+
+  const rawPort = env.AGENTS_JS_PI_PORT?.trim() || String(DEFAULT_PORT);
+  const port = Number.parseInt(rawPort, 10);
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+    throw new Error(`Invalid AGENTS_JS_PI_PORT: ${rawPort}`);
+  }
+
+  const rawTimeout = env.AGENTS_JS_PI_TURN_TIMEOUT_MS?.trim();
+  const timeoutMs =
+    rawTimeout === undefined || rawTimeout === ""
+      ? DEFAULT_TURN_TIMEOUT_MS
+      : Number.parseInt(rawTimeout, 10);
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`Invalid AGENTS_JS_PI_TURN_TIMEOUT_MS: ${rawTimeout}`);
+  }
+
+  return {
+    host: env.AGENTS_JS_PI_HOST?.trim() || DEFAULT_HOST,
+    name,
+    port,
+    registryPath: resolveSharedAgentRegistryPath({
+      env: env as NodeJS.ProcessEnv,
+    }),
+    timeoutMs,
+  };
+}
+
+function extractEventText(event: unknown, key: "prompt" | "text"): string | null {
+  if (!isObject(event)) {
+    return null;
+  }
+  const value = event[key];
+  return typeof value === "string" ? value : null;
+}
+
+function extractSource(event: unknown): string | null {
+  if (!isObject(event)) {
+    return null;
+  }
+  const source = event.source;
+  return typeof source === "string" ? source : null;
+}
+
+function collectText(input: unknown, out: string[] = []): string[] {
+  if (input === null || input === undefined) {
+    return out;
+  }
+  if (typeof input === "string") {
+    out.push(input);
+    return out;
+  }
+  if (Array.isArray(input)) {
+    for (const value of input) {
+      collectText(value, out);
+    }
+    return out;
+  }
+  if (!isObject(input)) {
+    return out;
+  }
+  if (
+    (input.type === "text" || input.kind === "text") &&
+    typeof input.text === "string" &&
+    input.text.length > 0
+  ) {
+    out.push(input.text);
+    return out;
+  }
+  for (const value of Object.values(input)) {
+    collectText(value, out);
+  }
+  return out;
+}
+
+function extractAssistantMessageText(message: unknown): string {
+  if (!isObject(message)) {
+    return "";
+  }
+  const role = message.role;
+  if (role !== undefined && role !== "assistant" && role !== "agent") {
+    return "";
+  }
+  return collectText(message.content ?? message.parts ?? message).join("");
+}
+
+function extractAssistantTextFromAgentEnd(event: unknown): string {
+  if (!isObject(event) || !Array.isArray(event.messages)) {
+    return "";
+  }
+  for (let index = event.messages.length - 1; index >= 0; index -= 1) {
+    const text = extractAssistantMessageText(event.messages[index]);
+    if (text.trim().length > 0) {
+      return text;
+    }
+  }
+  return "";
+}
+
+function extractMessageUpdateDelta(event: unknown): string {
+  if (!isObject(event)) {
+    return "";
+  }
+
+  const assistantEvent = event.assistantMessageEvent;
+  if (isObject(assistantEvent)) {
+    const eventType = assistantEvent.type;
+    const delta = assistantEvent.delta;
+    if (eventType === "text_delta" && typeof delta === "string") {
+      return delta;
+    }
+  }
+
+  const delta = event.delta;
+  return typeof delta === "string" ? delta : "";
+}
+
+function extractErrorEventText(event: unknown): string {
+  if (!isObject(event)) {
+    return "Native Pi turn failed.";
+  }
+  for (const key of ["message", "error", "reason"] as const) {
+    const value = event[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+    if (isObject(value) && typeof value.message === "string" && value.message.trim().length > 0) {
+      return value.message;
+    }
+  }
+  return "Native Pi turn failed.";
+}
+
+function createPiMessage(content: string, details?: Record<string, unknown>): PiCustomMessage {
+  return {
+    customType: NATIVE_MESSAGE_TYPE,
+    content,
+    display: true,
+    ...(details ? { details } : {}),
+  };
+}
+
+async function displayPiMessage(
+  pi: PiHost,
+  logger: Logger,
+  content: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  if (pi.sendMessage) {
+    await pi.sendMessage(createPiMessage(content, details));
+    return;
+  }
+  // Pi owns stdout for the TUI; route the fallback to stderr.
+  logger.error(`[agents-js/native-pi] ${content}`);
+}
+
+function formatDirectReply(agentName: string, response: string): string {
+  return [`A2A direct reply from ${agentName}:`, "", response || "(no response)"].join("\n");
+}
+
+function formatDelegationContext(
+  responses: Array<{ agentName: string; prompt: string; response: string }>,
+): string {
+  const blocks = responses.map(({ agentName, prompt, response }) =>
+    [
+      `--- ${agentName} ---`,
+      `Prompt: ${prompt || "(empty)"}`,
+      "",
+      response || "(no response)",
+    ].join("\n"),
+  );
+  return ["A2A peer context for this turn:", "", ...blocks].join("\n");
+}
+
+// Keyed by raw prompt text since the Pi event surface lacks a stable
+// message id. Bounded to prevent unbounded growth if before_agent_start
+// never fires for a marked prompt (cancel/reject upstream).
+function markPrompt(map: Map<string, number>, prompt: string): void {
+  if (!map.has(prompt) && map.size >= EXTENSION_PROMPT_MARK_LIMIT) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) {
+      map.delete(oldest);
+    }
+  }
+  map.set(prompt, (map.get(prompt) ?? 0) + 1);
+}
+
+function consumePromptMark(map: Map<string, number>, prompt: string): boolean {
+  const count = map.get(prompt) ?? 0;
+  if (count <= 0) {
+    return false;
+  }
+  if (count === 1) {
+    map.delete(prompt);
+  } else {
+    map.set(prompt, count - 1);
+  }
+  return true;
+}
+
+function normalizeUserMessage(message: Message): Message {
+  return {
+    ...message,
+    kind: "message",
+  };
+}
+
+function isAsyncGeneratorResponse(input: unknown): input is AsyncGenerator<unknown> {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    Symbol.asyncIterator in input &&
+    typeof (input as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function"
+  );
+}
+
+function extractRequestId(input: unknown): null | number | string {
+  if (!isObject(input)) {
+    return null;
+  }
+  const id = input.id;
+  return typeof id === "string" || typeof id === "number" || id === null ? id : null;
+}
+
+async function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  const declared = req.headers["content-length"];
+  if (typeof declared === "string" && Number(declared) > maxBytes) {
+    throw new RequestTooLargeError(maxBytes);
+  }
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBytes) {
+      throw new RequestTooLargeError(maxBytes);
+    }
+    chunks.push(buf);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  return raw.length > 0 ? JSON.parse(raw) : {};
+}
+
+function writeJson(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, JSON_HEADERS);
+  res.end(JSON.stringify(body));
+}
+
+function writeJsonRpcError(
+  res: ServerResponse,
+  requestId: null | number | string,
+  code: number,
+  message: string,
+  options: { data?: unknown; status?: number } = {},
+): void {
+  const error: { code: number; message: string; data?: unknown } = { code, message };
+  if (options.data !== undefined) {
+    error.data = options.data;
+  }
+  writeJson(res, options.status ?? 200, {
+    jsonrpc: "2.0",
+    id: requestId,
+    error,
+  });
+}
+
+async function writeSse(res: ServerResponse, stream: AsyncGenerator<unknown>): Promise<void> {
+  res.writeHead(200, SSE_HEADERS);
+  try {
+    for await (const event of stream) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  } finally {
+    res.end();
+  }
+}
+
+async function startNativeA2AServer(options: {
+  card: AgentCard;
+  executor: InitializableExecutor;
+  host: string;
+  logger: Logger;
+  port: number;
+}): Promise<NativeServerHandle> {
+  await options.executor.initialize();
+  const requestHandler = new DefaultRequestHandler(
+    options.card,
+    new InMemoryTaskStore(),
+    options.executor,
+  );
+  const transportHandler = new JsonRpcTransportHandler(requestHandler);
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, JSON_HEADERS);
+      res.end();
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/.well-known/agent-card.json") {
+      writeJson(res, 200, options.card);
+      return;
+    }
+
+    if (req.method !== "POST") {
+      writeJson(res, 404, { error: "Not Found" });
+      return;
+    }
+
+    let body: unknown;
+    try {
+      body = await readRequestBody(req, DEFAULT_MAX_REQUEST_BODY_SIZE);
+    } catch (error) {
+      if (error instanceof RequestTooLargeError) {
+        writeJsonRpcError(res, null, -32600, "Request body too large", {
+          data: { maxBytes: error.maxBytes },
+          status: 413,
+        });
+        return;
+      }
+      writeJsonRpcError(res, null, -32700, "Parse error");
+      return;
+    }
+
+    const requestId = extractRequestId(body);
+    try {
+      const result = await transportHandler.handle(body as JsonRpcEnvelope);
+      if (isAsyncGeneratorResponse(result)) {
+        await writeSse(res, result);
+        return;
+      }
+      writeJson(res, 200, result);
+    } catch (error) {
+      options.logger.error("[agents-js/native-pi] Error processing request:", formatError(error));
+      writeJsonRpcError(res, requestId, -32603, "Internal error");
+    }
+  });
+
+  const { port, host } = options;
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, host, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  const actualPort = isObject(address) && typeof address.port === "number" ? address.port : port;
+  const url = buildAgentCardBaseUrl(actualPort, host);
+  options.card.url = url;
+
+  return {
+    port: actualPort,
+    url,
+    async stop() {
+      await closeServer(server);
+    },
+  };
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+class NativePiBusyError extends Error {
+  constructor() {
+    super("Native Pi session is busy; only one inbound A2A turn is supported at a time.");
+    this.name = "NativePiBusyError";
+  }
+}
+
+class RequestTooLargeError extends Error {
+  constructor(public readonly maxBytes: number) {
+    super(`Request body exceeds ${maxBytes} bytes.`);
+    this.name = "RequestTooLargeError";
+  }
+}
+
+class NativePiTurnRunner {
+  private agentActive = false;
+  private pending: PendingPiTurn | null = null;
+
+  constructor(
+    private readonly pi: PiHost,
+    private readonly timeoutMs: number,
+  ) {}
+
+  attach(): void {
+    const failPendingTurn = (event: unknown) => {
+      const pending = this.pending;
+      if (!pending) {
+        // User-typed turn (no inbound A2A pending) can still leave agentActive
+        // set after agent_start. Clear it so the peer doesn't strand "busy".
+        this.agentActive = false;
+        return;
+      }
+      this.pending = null;
+      this.agentActive = false;
+      pending.clear();
+      pending.reject(new Error(extractErrorEventText(event)));
+    };
+
+    this.pi.on("agent_start", () => {
+      this.agentActive = true;
+    });
+
+    this.pi.on("message_update", (event: unknown) => {
+      const delta = extractMessageUpdateDelta(event);
+      if (delta && this.pending) {
+        this.pending.textBuffer += delta;
+      }
+    });
+
+    this.pi.on("message_end", (event: unknown) => {
+      if (!this.pending || this.pending.textBuffer.trim().length > 0) {
+        return;
+      }
+      if (!isObject(event)) {
+        return;
+      }
+      const text = extractAssistantMessageText(event.message);
+      if (text.trim().length > 0) {
+        this.pending.textBuffer = text;
+      }
+    });
+
+    this.pi.on("agent_end", (event: unknown) => {
+      this.agentActive = false;
+      const pending = this.pending;
+      if (!pending) {
+        return;
+      }
+      this.pending = null;
+      pending.clear();
+      const finalText = pending.textBuffer || extractAssistantTextFromAgentEnd(event);
+      pending.resolve(finalText || "(no response)");
+    });
+
+    this.pi.on("agent_error", failPendingTurn);
+    this.pi.on("error", failPendingTurn);
+    this.pi.on("extension_error", failPendingTurn);
+  }
+
+  readonly extensionOriginPrompts = new Map<string, number>();
+
+  isBusy(): boolean {
+    return this.pending !== null || this.agentActive;
+  }
+
+  async runPrompt(text: string, signal?: AbortSignal): Promise<string> {
+    if (!this.pi.sendUserMessage) {
+      throw new Error("Pi host does not expose sendUserMessage().");
+    }
+    if (this.isBusy()) {
+      throw new NativePiBusyError();
+    }
+    if (signal?.aborted) {
+      throw new Error("Native Pi turn aborted.");
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      let pending: PendingPiTurn;
+
+      const onAbort = () => {
+        if (this.pending !== pending) {
+          return;
+        }
+        this.pending = null;
+        this.agentActive = false;
+        pending.reject(new Error("Native Pi turn aborted."));
+      };
+
+      const timer = setTimeout(() => {
+        if (this.pending === pending) {
+          this.pending = null;
+          this.agentActive = false;
+        }
+        pending.reject(
+          new Error(`Timed out waiting for native Pi turn after ${this.timeoutMs}ms.`),
+        );
+      }, this.timeoutMs);
+
+      pending = {
+        textBuffer: "",
+        clear: () => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onAbort);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onAbort);
+          reject(error);
+        },
+        resolve: (value) => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+      };
+      this.pending = pending;
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      Promise.resolve(this.pi.sendUserMessage(text)).catch((error: unknown) => {
+        if (this.pending === pending) {
+          this.pending = null;
+          this.agentActive = false;
+        }
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
+      });
+    });
+  }
+}
+
+class NativePiExecutor implements InitializableExecutor {
+  private readonly inflight = new Map<string, { contextId: string; controller: AbortController }>();
+
+  constructor(
+    private readonly name: string,
+    private readonly turnRunner: NativePiTurnRunner,
+  ) {}
+
+  async initialize() {
+    return {
+      protocolVersion: 1,
+      agentInfo: {
+        name: this.name,
+        version: pkg.version,
+      },
+      agentCapabilities: {
+        loadSession: false,
+        mcpCapabilities: { http: false, sse: false },
+        promptCapabilities: { image: false },
+      },
+    };
+  }
+
+  async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+    const userMessage = normalizeUserMessage(context.userMessage);
+    eventBus.publish({
+      kind: "task",
+      id: context.taskId,
+      contextId: context.contextId,
+      status: { state: "submitted", timestamp: nowIso() },
+      history: [userMessage],
+    });
+
+    if (this.turnRunner.isBusy()) {
+      eventBus.publish(
+        buildTerminalTask(context.taskId, context.contextId, userMessage, {
+          state: "failed",
+          text: "Native Pi session is busy; retry after the current turn finishes.",
+        }),
+      );
+      eventBus.finished();
+      return;
+    }
+
+    const controller = new AbortController();
+    this.inflight.set(context.taskId, { contextId: context.contextId, controller });
+
+    eventBus.publish(
+      buildStatusUpdate(context.taskId, context.contextId, {
+        state: "working",
+        final: false,
+      }),
+    );
+
+    try {
+      const prompt = getMessageText(userMessage);
+      const responseText = await this.turnRunner.runPrompt(prompt, controller.signal);
+      eventBus.publish(
+        buildTerminalTask(context.taskId, context.contextId, userMessage, {
+          state: controller.signal.aborted ? "canceled" : "completed",
+          text: responseText || "(no response)",
+        }),
+      );
+    } catch (error) {
+      eventBus.publish(
+        buildTerminalTask(context.taskId, context.contextId, userMessage, {
+          state: controller.signal.aborted ? "canceled" : "failed",
+          text: formatError(error),
+        }),
+      );
+    } finally {
+      this.inflight.delete(context.taskId);
+      eventBus.finished();
+    }
+  }
+
+  async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {
+    const entry = this.inflight.get(taskId);
+    if (entry) {
+      entry.controller.abort();
+      eventBus.publish(
+        buildStatusUpdate(taskId, entry.contextId, {
+          state: "canceled",
+          final: true,
+          text: "Native Pi task canceled.",
+        }),
+      );
+      eventBus.finished();
+      return;
+    }
+    // Task not in flight (already terminal or never started). Publish a
+    // terminal canceled signal anyway so the SDK's post-cancel store check
+    // passes; the SDK ignores the contextId here.
+    eventBus.publish(
+      buildStatusUpdate(taskId, crypto.randomUUID(), {
+        state: "canceled",
+        final: true,
+        text: "Native Pi task cancellation requested (no in-flight turn).",
+      }),
+    );
+    eventBus.finished();
+  }
+}
+
+class NativeDispatchClient {
+  private readonly contexts = new Map<string, string>();
+  private readonly provider = new A2AClientProvider();
+
+  constructor(private readonly registryPath: string) {}
+
+  async dispatch(agentName: string, message: string): Promise<string> {
+    const records = await readAgentRegistryRecords({ configPath: this.registryPath });
+    const record = records.find(
+      (candidate) => candidate.kind === "a2a" && candidate.name === agentName,
+    );
+    if (!record?.url) {
+      throw new Error(`No A2A agent named "${agentName}" is registered.`);
+    }
+
+    let latestText = "";
+    const unsubscribe = this.provider.subscribe((event: A2AEvent) => {
+      if (event.type === "message.delta") {
+        latestText = event.text;
+      } else if (event.type === "message.completed") {
+        latestText = event.text;
+      } else if (event.type === "task.updated") {
+        latestText = extractLatestAgentText(event.task) || latestText;
+      }
+    });
+
+    try {
+      const target = await this.provider.connect({ url: record.url });
+      const contextId = this.contexts.get(agentName) ?? crypto.randomUUID();
+      this.contexts.set(agentName, contextId);
+      const canStream = target.capabilities.supportsStreaming;
+      const result = await this.provider.sendTurn(target, message, {
+        contextId,
+        stream: canStream,
+        blocking: !canStream,
+      });
+      const finalText =
+        result.kind === "message" ? extractMessageText(result) : extractLatestAgentText(result);
+      return finalText || latestText || "(no response)";
+    } finally {
+      unsubscribe();
+    }
+  }
+}
+
+export function installNativePeerBridge(
+  pi: PiHost,
+  options: NativePiPeerOptions = {},
+): NativePiPeerHandle {
+  const logger = options.logger ?? console;
+  let config: NativePiPeerConfig | null = null;
+
+  try {
+    // biome-ignore lint/style/noProcessEnv: native Pi mode is configured by documented launch environment variables.
+    config = readNativeConfig(options.env ?? process.env);
+  } catch (error) {
+    logger.error("[agents-js/native-pi] Invalid native peer configuration:", formatError(error));
+    return {
+      enabled: false,
+      getUrl: () => null,
+      async stop() {},
+    };
+  }
+
+  if (!config) {
+    return {
+      enabled: false,
+      getUrl: () => null,
+      async stop() {},
+    };
+  }
+
+  const turnRunner = new NativePiTurnRunner(pi, config.timeoutMs);
+  turnRunner.attach();
+  const dispatcher = new NativeDispatchClient(config.registryPath);
+  const executor = new NativePiExecutor(config.name, turnRunner);
+  const card = buildAgentCard({
+    name: config.name,
+    description: `Native Pi TUI peer ${config.name}`,
+    capabilities: {
+      "text-to-text": {},
+      streaming: false,
+    },
+  });
+
+  let serverHandle: NativeServerHandle | null = null;
+
+  pi.on("session_start", async () => {
+    if (serverHandle) {
+      return;
+    }
+    try {
+      serverHandle = await startNativeA2AServer({
+        card,
+        executor,
+        host: config.host,
+        logger,
+        port: config.port,
+      });
+      await autoRegister({
+        name: config.name,
+        kind: "a2a",
+        url: serverHandle.url,
+        configPath: config.registryPath,
+        gatewayId: osHostname(),
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+        description: card.description,
+        healthCheckUrl: `${serverHandle.url}/.well-known/agent-card.json`,
+      });
+      await displayPiMessage(
+        pi,
+        logger,
+        `Native Pi A2A peer "${config.name}" listening at ${serverHandle.url}`,
+        { name: config.name, url: serverHandle.url },
+      );
+    } catch (error) {
+      logger.error("[agents-js/native-pi] Failed to start native peer:", formatError(error));
+      await displayPiMessage(
+        pi,
+        logger,
+        `Native Pi A2A peer failed to start: ${formatError(error)}`,
+        { name: config.name },
+      );
+    }
+  });
+
+  pi.on("input", async (event: unknown) => {
+    const text = extractEventText(event, "text");
+    if (!text) {
+      return { action: "continue" };
+    }
+
+    if (extractSource(event) === "extension") {
+      markPrompt(turnRunner.extensionOriginPrompts, text);
+      return { action: "continue" };
+    }
+
+    const directive = parseDispatchDirective(text);
+    if (!directive) {
+      return { action: "continue" };
+    }
+
+    try {
+      const response = await dispatcher.dispatch(directive.agentName, directive.payload);
+      await displayPiMessage(pi, logger, formatDirectReply(directive.agentName, response), {
+        agentName: directive.agentName,
+        mode: "dispatch",
+      });
+    } catch (error) {
+      await displayPiMessage(
+        pi,
+        logger,
+        `A2A dispatch to ${directive.agentName} failed: ${formatError(error)}`,
+        { agentName: directive.agentName, mode: "dispatch" },
+      );
+    }
+
+    return { action: "handled" };
+  });
+
+  pi.on("before_agent_start", async (event: unknown) => {
+    const prompt = extractEventText(event, "prompt");
+    if (!prompt) {
+      return undefined;
+    }
+
+    if (consumePromptMark(turnRunner.extensionOriginPrompts, prompt)) {
+      return undefined;
+    }
+
+    const mentions = parseAgentMentions(prompt);
+    if (mentions.length === 0) {
+      return undefined;
+    }
+
+    const seen = new Set<string>();
+    const uniqueMentions = mentions.filter((m) => {
+      if (seen.has(m.agentName)) return false;
+      seen.add(m.agentName);
+      return true;
+    });
+    const settled = await Promise.allSettled(
+      uniqueMentions.map(async (mention) => {
+        const peerPrompt = stripMention(prompt, mention).trim();
+        return {
+          agentName: mention.agentName,
+          prompt: peerPrompt,
+          response: await dispatcher.dispatch(mention.agentName, peerPrompt),
+        };
+      }),
+    );
+    const responses = settled.map((r, i) => {
+      const mention = uniqueMentions[i];
+      const peerPrompt = stripMention(prompt, mention).trim();
+      return r.status === "fulfilled"
+        ? r.value
+        : {
+            agentName: mention.agentName,
+            prompt: peerPrompt,
+            response: `Delegation failed: ${formatError(r.reason)}`,
+          };
+    });
+
+    return {
+      message: createPiMessage(formatDelegationContext(responses), {
+        mode: "mention",
+        agents: responses.map((response) => response.agentName),
+      }),
+    };
+  });
+
+  pi.on("session_shutdown", async () => {
+    if (!serverHandle) {
+      return;
+    }
+    try {
+      await serverHandle.stop();
+    } finally {
+      serverHandle = null;
+    }
+  });
+
+  return {
+    enabled: true,
+    name: config.name,
+    getUrl: () => serverHandle?.url ?? null,
+    async stop() {
+      if (serverHandle) {
+        await serverHandle.stop();
+        serverHandle = null;
+      }
+    },
+  };
+}

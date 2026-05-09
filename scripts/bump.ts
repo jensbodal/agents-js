@@ -5,12 +5,11 @@ import path from "node:path";
 import {
   type DependencyBlockName,
   type PublishablePackageManifest,
-  readPublishablePackages,
+  readAllInternalPackages,
   versionManagedInternalDependencyBlocks,
 } from "./release-preflight.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
-const versionsPath = path.join(repoRoot, ".versions.json");
 const internalGatewayManifestPath = path.join(repoRoot, "apps", "internal-gateway", "package.json");
 const cliManifestPath = path.join(repoRoot, "packages", "cli", "package.json");
 const runtimeInstallsPath = path.join(
@@ -64,29 +63,33 @@ function printUsageAndExit(code: number): never {
   console.log(`Usage: bun scripts/bump.ts [options]
 
 Options:
-  --check    Verify tracked versions match .versions.json without writing.
+  --check    Verify tracked versions match package.json without writing.
   -h, --help Show this message.
 `);
   process.exit(code);
 }
 
 async function loadVersionsConfig(): Promise<VersionsConfig> {
-  const raw = JSON.parse(await readFile(versionsPath, "utf8")) as Partial<VersionsConfig>;
-  const release = raw.release?.trim();
-  const claudeAgentVersion = raw.externalSDKs?.[claudeAgentPackageName]?.trim();
-  const codexAgentVersion = raw.externalSDKs?.[codexAgentPackageName]?.trim();
+  const rootManifestPath = path.join(repoRoot, "package.json");
+  const raw = JSON.parse(await readFile(rootManifestPath, "utf8")) as {
+    version?: string;
+    agentsJs?: { externalSDKs?: Record<string, string> };
+  };
+  const release = raw.version?.trim();
+  const claudeAgentVersion = raw.agentsJs?.externalSDKs?.[claudeAgentPackageName]?.trim();
+  const codexAgentVersion = raw.agentsJs?.externalSDKs?.[codexAgentPackageName]?.trim();
 
   if (!release) {
-    throw new Error(`.versions.json is missing a non-empty "release" value.`);
+    throw new Error('package.json is missing a "version" value.');
   }
   if (!claudeAgentVersion) {
     throw new Error(
-      `.versions.json is missing externalSDKs.${JSON.stringify(claudeAgentPackageName)}.`,
+      `package.json is missing agentsJs.externalSDKs[${JSON.stringify(claudeAgentPackageName)}].`,
     );
   }
   if (!codexAgentVersion) {
     throw new Error(
-      `.versions.json is missing externalSDKs.${JSON.stringify(codexAgentPackageName)}.`,
+      `package.json is missing agentsJs.externalSDKs[${JSON.stringify(codexAgentPackageName)}].`,
     );
   }
 
@@ -145,7 +148,7 @@ function renderRuntimeInstallsSource(
   codexExpectedVersion: string,
 ): string {
   return `/**
- * Generated from \`.versions.json\` by \`scripts/bump.ts\`.
+ * Generated from the root \`package.json\` (\`agentsJs.externalSDKs\`) by \`scripts/bump.ts\`.
  * Do not edit manually.
  */
 
@@ -214,7 +217,7 @@ async function updateRuntimeVersion(
 
   if (check) {
     issues.push(
-      `${path.relative(repoRoot, runtimeInstallsPath)}: generated external ACP runtime install versions do not match .versions.json (claude=${claudeExpectedVersion}, codex=${codexExpectedVersion})`,
+      `${path.relative(repoRoot, runtimeInstallsPath)}: generated external ACP runtime install versions do not match package.json agentsJs.externalSDKs (claude=${claudeExpectedVersion}, codex=${codexExpectedVersion})`,
     );
   }
 
@@ -251,10 +254,10 @@ async function main(): Promise<void> {
   const config = await loadVersionsConfig();
   const changedFiles = new Set<string>();
   const issues: string[] = [];
-  const publishablePackages = await readPublishablePackages(repoRoot);
-  const knownPackageNames = new Set(publishablePackages.map((pkg) => pkg.manifest.name));
+  const internalPackages = await readAllInternalPackages(repoRoot);
+  const knownPackageNames = new Set(internalPackages.map((pkg) => pkg.manifest.name));
 
-  for (const pkg of publishablePackages) {
+  for (const pkg of internalPackages) {
     const mismatches = recordManifestMismatches(
       pkg.manifestPath,
       pkg.manifest,
@@ -350,7 +353,7 @@ async function main(): Promise<void> {
 
   if (options.check) {
     console.log("[bump] OK");
-    console.log("- all tracked version surfaces match .versions.json");
+    console.log("- all tracked version surfaces match package.json");
     return;
   }
 

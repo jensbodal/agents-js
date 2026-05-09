@@ -25,10 +25,11 @@ import {
 } from "@agentclientprotocol/sdk";
 import { extractPromptText } from "@agents-js/acp";
 import { DEFAULT_FETCH_CONTEXT_HUB_ROOT } from "@agents-js/tools";
+import pkg from "../package.json";
 import { createPromptHandler } from "./prompt-handler.ts";
 
 export const TRIAL_AGENT_NAME = "trial-agent";
-export const TRIAL_AGENT_VERSION = "0.2.0-beta-4";
+export const TRIAL_AGENT_VERSION: string = pkg.version;
 
 /**
  * Default document root used when no override is supplied. Mirrors the

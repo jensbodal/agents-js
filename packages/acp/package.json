@@ -1,12 +1,27 @@
 {
   "name": "@agents-js/acp",
-  "version": "0.2.0-beta-4",
-  "private": true,
+  "version": "0.2.0",
   "type": "module",
   "sideEffects": false,
   "description": "Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.",
   "author": "Jens Bodal",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jensbodal/agents-js.git",
+    "directory": "packages/acp"
+  },
+  "homepage": "https://agents-js.bodal.dev/",
+  "bugs": {
+    "url": "https://github.com/jensbodal/agents-js/issues"
+  },
+  "keywords": [
+    "acp",
+    "agent-client-protocol",
+    "stdio",
+    "ndjson",
+    "client"
+  ],
   "engines": {
     "node": ">=20.19.0",
     "bun": ">=1.3.11"
@@ -28,11 +43,12 @@
   ],
   "scripts": {
     "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "prepack": "bun run build",
     "test": "bun test tests"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/policy": "0.2.0-beta-4"
+    "@agents-js/policy": "0.2.0"
   },
   "publishConfig": {
     "access": "public"

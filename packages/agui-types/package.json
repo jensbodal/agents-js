@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/agui-types",
-  "version": "0.2.0-beta-4",
+  "version": "0.2.0",
   "type": "module",
   "sideEffects": false,
   "description": "AG-UI core re-exports plus first-party message, reasoning, run, tool-call, and stream helpers for agents-js.",
@@ -43,6 +43,7 @@
   ],
   "scripts": {
     "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "prepack": "bun run build",
     "test": "bun test tests"
   },
   "dependencies": {

@@ -113,7 +113,6 @@ export default withMermaid(
               { text: "Home", link: "/" },
               { text: "Getting Started", link: "/getting-started" },
               { text: "Playground", link: "/playground" },
-              { text: "Beta Contract", link: "/beta-contract" },
               { text: "Protocols Primer", link: "/protocols-primer" },
               { text: "Surfaces", link: "/surfaces" },
             ],
