@@ -234,7 +234,7 @@ async function verifyPackDryRun(
   dirName: string,
   manifest: PackageManifest,
 ): Promise<void> {
-  const proc = Bun.spawn(["npm", "pack", "--json", "--dry-run"], {
+  const proc = Bun.spawn(["npm", "pack", "--json", "--dry-run", "--ignore-scripts"], {
     cwd: packageDir,
     stdin: "ignore",
     stdout: "pipe",
