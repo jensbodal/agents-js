@@ -6,6 +6,7 @@
  */
 import { Type } from "@sinclair/typebox";
 import { DirectClient } from "./direct-client.ts";
+import { installNativePeerBridge } from "./native-peer.ts";
 import {
   type AgentBridge,
   type AgentTool,
@@ -16,6 +17,7 @@ import {
 } from "./types.ts";
 
 export default function agentsJsBridge(pi: PiHost): void {
+  installNativePeerBridge(pi);
   let bridge: AgentBridge | null = null;
   let discoveredTools: AgentTool[] = [];
 

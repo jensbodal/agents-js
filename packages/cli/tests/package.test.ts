@@ -90,7 +90,9 @@ describe("@agents-js/cli package output", () => {
         packageDir,
         commandEnv,
       );
-      const [result] = JSON.parse(packOutput) as Array<{ filename: string }>;
+      const jsonMatch = packOutput.match(/^\[\s*\n[\s\S]*\n\]$/m);
+      if (!jsonMatch) throw new Error("npm pack returned no JSON array");
+      const [result] = JSON.parse(jsonMatch[0]) as Array<{ filename: string }>;
       if (!result) throw new Error("npm pack returned no entries");
       const tarballPath = path.join(artifactDir, result.filename);
 

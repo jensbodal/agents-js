@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { DirectClient } from "./direct-client.ts";
+import { installNativePeerBridge } from "./native-peer.ts";
 import {
   type AgentBridge,
   type AgentTool,
@@ -15,8 +16,10 @@ import {
  * Registers A2A agents as Pi tools using either:
  * - **Bridge mode** (default): spawns `agents-js mcp` as MCP subprocess
  * - **Direct mode** (`AGENTS_JS_PI_MODE=direct`): imports @agents-js/a2a-client in-process
+ * - **Native peer mode** (`AGENTS_JS_PI_NATIVE=1`): exposes the live Pi TUI as an A2A agent
  */
 export default function agentsJsBridge(pi: PiHost): void {
+  const nativePeer = installNativePeerBridge(pi);
   let bridge: AgentBridge | null = null;
   let discoveredTools: AgentTool[] = [];
 
@@ -25,7 +28,7 @@ export default function agentsJsBridge(pi: PiHost): void {
       // biome-ignore lint/style/noProcessEnv: runtime mode selection
       const mode = process.env.AGENTS_JS_PI_MODE;
 
-      if (mode === "direct") {
+      if (mode === "direct" || nativePeer.enabled) {
         bridge = new DirectClient();
       } else {
         const { McpBridgeClient } = await import("./mcp-client.ts");

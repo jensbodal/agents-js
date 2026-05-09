@@ -5,7 +5,7 @@ diataxis: tutorial
 
 # Get started
 
-> **Status:** Beta · **Contract:** [Beta Contract](/beta-contract)
+> **Status:** Beta · **Stability commitments:** [CHANGELOG](/CHANGELOG)
 
 By the end of this page you have a local ACP runtime running behind an A2A gateway, a live session you can talk to in a browser, AND a registry entry that other gateways will discover on the same trusted network. No code, no manual registry editing.
 
@@ -52,7 +52,7 @@ The same gateway answers any MCP host (Claude Code, Cursor, Zed) via `@agents-js
 - `bun run dev` ran the launcher, which spawned the ACP runtime, the A2A gateway, and the reference web UI.
 - The gateway **auto-registered** itself into `~/.agents-js/registry.json` and started a periodic peer sync — see [Surfaces → Agent Registry](/surfaces#agent-registry) for the trust posture and how to add a peer machine.
 - The browser, CLI, and any MCP host all reach the same ACP session because A2A is the network surface the gateway speaks.
-- The registry made the gateway **discoverable to peers on the same trusted network**; it did **not** make it public-internet-safe — that's a separate hardening track in the [Beta Contract](/beta-contract).
+- The registry made the gateway **discoverable to peers on the same trusted network**; it did **not** make it public-internet-safe — that's a separate hardening track.
 
 ## Prove session continuity (operator validation)
 
@@ -77,7 +77,7 @@ The [Playground](/playground) page runs a local docs agent entirely in your brow
 - I want to understand the seven protocols → [Protocols Primer](/protocols-primer)
 - I want to drive it from a different host (Obsidian plugin, custom desktop) → [Surfaces](/surfaces)
 - I want to embed ACP in my own app → [Harness Guide](/harness-guide)
-- I want to know exactly what beta means here → [Beta Contract](/beta-contract)
+- I want to know what shipped in this release → [CHANGELOG](/CHANGELOG)
 - I want a peer agent on my trusted network to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)
 - I want to try it in my browser → [Playground](/playground)
 

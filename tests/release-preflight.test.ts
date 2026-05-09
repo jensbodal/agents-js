@@ -12,7 +12,6 @@ import {
 } from "../scripts/release-preflight.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
-const versionsPath = path.join(repoRoot, ".versions.json");
 
 function makePackage(dirName: string, manifest: AuditedPackage["manifest"]): AuditedPackage {
   return {
@@ -123,8 +122,14 @@ registry=https://registry.npmjs.org/
   });
 
   test("the current repo passes release audit without requiring local npm credentials", async () => {
-    const configuredVersions = JSON.parse(await readFile(versionsPath, "utf8")) as {
-      release: string;
+    const rootManifestPath = path.join(repoRoot, "package.json");
+    const rootManifest = JSON.parse(await readFile(rootManifestPath, "utf8")) as {
+      version: string;
+      agentsJs: { externalSDKs: Record<string, string> };
+    };
+    const configuredVersions = {
+      release: rootManifest.version,
+      externalSDKs: rootManifest.agentsJs.externalSDKs,
     };
     const result = await auditReleaseSurface({
       repoRoot,

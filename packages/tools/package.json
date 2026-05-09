@@ -1,10 +1,24 @@
 {
   "name": "@agents-js/tools",
-  "version": "0.2.0-beta-4",
-  "private": true,
+  "version": "0.2.0",
   "description": "Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.",
   "license": "MIT",
   "author": "Jens Bodal",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jensbodal/agents-js.git",
+    "directory": "packages/tools"
+  },
+  "homepage": "https://agents-js.bodal.dev/",
+  "bugs": {
+    "url": "https://github.com/jensbodal/agents-js/issues"
+  },
+  "keywords": [
+    "agent",
+    "tools",
+    "tracing",
+    "gateway"
+  ],
   "files": [
     "dist",
     "src",
@@ -28,6 +42,7 @@
   },
   "scripts": {
     "build": "bunx tsdown src/index.ts src/browser.ts --format esm --dts --out-dir dist --clean",
+    "prepack": "bun run build",
     "test": "bun test tests"
   },
   "engines": {
@@ -35,6 +50,6 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "@agents-js/gateway-runtime": "0.2.0-beta-4"
+    "@agents-js/gateway-runtime": "0.2.0"
   }
 }

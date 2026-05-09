@@ -346,16 +346,17 @@ registry file but follow completely different code paths:
 | | `@mention` | `@@dispatch` |
 |---|---|---|
 | **Syntax** | `@agent-name` anywhere in the prompt | `@@agent-name` at the start of the prompt |
-| **Where it runs** | Any host with `beforePrompt` middleware | Gateway only (`HostA2AExecutor`) |
-| **What happens** | Middleware intercepts, dispatches, prepends response, then the local agent sees both | Gateway forwards the entire message to the named agent — no local agent involved |
+| **Where it runs** | Hosts with a delegation hook: `beforePrompt` middleware or native Pi `before_agent_start` | Direct-dispatch hosts: gateway `HostA2AExecutor` or native Pi `input` hook |
+| **What happens** | Host dispatches to mentioned peers, frames the peer response, then the local agent sees both | Host forwards the payload to the named agent and suppresses local agent processing |
 | **Multiple targets** | Yes — all unique `@name` tokens dispatch in parallel via `Promise.allSettled` | No — one `@@` directive per message |
-| **Response framing** | Wrapped in `<a2a-delegation-response>` XML tags and prepended to the user's prompt | Returned directly as the A2A task result |
-| **Code entry point** | `createA2AMentionMiddleware()` in `packages/a2a-client/src/middleware.ts` | `HostA2AExecutor.executeDirectDispatch()` in `apps/internal-gateway/host-executor.ts` |
+| **Response framing** | `<a2a-delegation-response>` in ACP host middleware; visible peer context in native Pi | Returned or displayed directly |
+| **Code entry point** | `createA2AMentionMiddleware()` in `packages/a2a-client/src/middleware.ts`; native Pi peer mode in `extras/pi-extension/src/native-peer.ts` | `HostA2AExecutor.executeDirectDispatch()` in `apps/internal-gateway/host-executor.ts`; native Pi peer mode in `extras/pi-extension/src/native-peer.ts` |
 
 A key implementation detail: when the `@mention` middleware sees a prompt that starts
 with `@@`, it returns early without dispatching (see `parseDispatchDirective()` check in
-`middleware.ts`). This ensures `@@dispatch` directives are never double-handled — only
-the gateway's `HostA2AExecutor` processes them.
+`middleware.ts`). This ensures `@@dispatch` directives are never double-handled by the
+mention-delegation path. The reference gateway handles them in `HostA2AExecutor`;
+native Pi peer mode handles them in Pi's `input` hook before Pi starts a local turn.
 
 ### How `@mention` Dispatch Works
 
@@ -408,36 +409,43 @@ happens when User A types `@bob-reviewer please look at this diff`:
 10. **User A reads the final answer** in their host's UI, with the delegated content
     incorporated inline.
 
+Native Pi peer mode uses the same user-facing shape inside Pi's own TUI. The Pi
+extension handles `@agent-name ...` in Pi's `before_agent_start` hook, dispatches the
+payload to the named A2A peer, injects the peer answer as visible context, and then lets
+Pi's local model compose the final response.
+
 ### How `@@dispatch` Works
 
-`@@dispatch` is a gateway-only feature. When a user sends a message to a gateway
-that starts with `@@agent-name`, the gateway forwards the entire message to the
-named agent without involving the local ACP runtime at all.
+`@@dispatch` is a direct-dispatch feature. The reference gateway implements it in
+`HostA2AExecutor`; native Pi peer mode implements it in Pi's `input` hook. In both
+cases, a message that starts with `@@agent-name` is forwarded to the named agent without
+involving the local model.
 
-1. **The gateway receives the A2A request.** The user's message arrives at the
-   gateway's `HostA2AExecutor.execute()` method.
+1. **The direct-dispatch host receives the turn.** In the gateway path, the user's
+   message arrives at `HostA2AExecutor.execute()`. In native Pi peer mode, Pi calls the
+   extension's `input` hook before starting a local turn.
 
-2. **The executor parses the `@@` directive** using `parseDispatchDirective()` from
+2. **The host parses the `@@` directive** using `parseDispatchDirective()` from
    `packages/a2a-client/src/mention-parser.ts`. The regex requires `@@` at the start
    of the message (with optional leading whitespace): `^\s*@@([a-zA-Z0-9]...)`.
 
-3. **It looks up the agent** in the registry via `loadRegistryFromDisk()`, which
-   reads `~/.agents-js/registry.json` synchronously. If the agent name is not found,
-   the gateway returns an error listing available agents.
+3. **It looks up the agent** in the registry. The gateway uses `loadRegistryFromDisk()`;
+   native Pi peer mode reads the same `~/.agents-js/registry.json` path through the A2A
+   client helpers. If the agent name is not found, the host reports an error listing
+   available agents.
 
 4. **It dispatches the payload** (everything after `@@agent-name`) to the target
-   agent's URL via A2A `message/send` with `stream: false`. Unlike `@mention`,
-   `@@dispatch` does not set `blocking: true` — the dispatch uses the default
-   A2A semantics.
+   agent's URL via A2A `message/send` with `stream: false`.
 
-5. **The response is returned directly** as the A2A task result, with metadata
-   tagging it as a dispatch (`agents-js.dispatch` in task metadata). There is no
-   `<a2a-delegation-response>` framing because there is no local agent to frame
-   the answer for.
+5. **The response is returned or displayed directly.** The gateway returns the target
+   answer as the A2A task result, with metadata tagging it as a dispatch
+   (`agents-js.dispatch` in task metadata). Native Pi peer mode displays the peer answer
+   in Pi via `pi.sendMessage(...)` and returns `handled` from the `input` hook so Pi's
+   local model does not run.
 
 **When to use `@@dispatch`**: Use it when you want to route a message to a specific
 agent deterministically, without your local agent processing or composing around the
-answer. It is a direct pipe — the gateway acts as a router, not a mediator.
+answer. It is a direct pipe — the host acts as a router, not a mediator.
 
 **When to use `@mention`**: Use it when you want your local agent to incorporate
 the remote agent's answer into its own response. The mention flow is richer — the
@@ -451,6 +459,9 @@ local agent sees the delegation result and can reason about it.
 - **User B** sees their agent answering what looks like a normal incoming A2A turn
   in their own host's UI. They don't need to know that a human on the other side
   is driving the request indirectly.
+- **Native Pi peer mode** keeps both sides visible in Pi. Pi B receives the inbound
+  A2A prompt in its TUI; Pi A either displays the `@@` peer answer directly or injects
+  the `@` peer answer as context before Pi A composes its own reply.
 
 ### Surfacing Delegation Progress In The Host UI
 
@@ -547,6 +558,11 @@ peer's `GET /.well-known/agents-js-registry.json`, merge in their entries (tagge
 gateways to pull from. Override the sync interval with
 `AGENTS_JS_SYNC_INTERVAL_MS=<ms>`.
 
+Native Pi peer mode uses the same registry file for local demos. When launched with
+`AGENTS_JS_PI_NATIVE=1`, `@agents-js/pi-extension` registers `AGENTS_JS_PI_NAME` at the
+localhost endpoint selected by `AGENTS_JS_PI_PORT`. Set `AGENTS_JS_REGISTRY` on every
+Pi process if you want an isolated demo registry.
+
 The static-file editing flow below still works — it's how you bootstrap the first
 peer URL into a fresh `registry.json` before the auto-sync chain takes over.
 
@@ -622,6 +638,9 @@ There are two registry implementations, both reading the same file:
 The gateway's `@@dispatch` path uses its own `loadRegistryFromDisk()` helper
 (`apps/internal-gateway/agent-registry.ts`), which is synchronous and re-reads
 on every call.
+
+Native Pi peer mode reads the same registry file through the A2A client helpers for
+both `@` and `@@` directives, and writes its own entry during Pi session startup.
 
 Practical consequence: you can edit `~/.agents-js/registry.json` in your editor while
 a host is running, and the next prompt that uses a new mention will see the update
@@ -759,9 +778,10 @@ Use an isolated runtime context with a profile:
 agents-js serve --harness opencode --profile clean-room
 ```
 
-### Multi-Agent Dispatch
+### Multi-Agent Dispatch With Gateways
 
-Route messages between agents using host-wired `@mentions` and `@@dispatch` directives.
+Route messages between gateway-hosted agents using host-wired `@mentions` and
+`@@dispatch` directives.
 
 **1. Set up the agent registry** at `~/.agents-js/registry.json`:
 
@@ -797,6 +817,35 @@ agents-js client --url http://localhost:3001
 The `@@` prefix consumes the full message for direct forwarding. The single `@` prefix is an
 annotation the host can act on when it installs A2A mention middleware.
 
+### Two Native Pi Peers
+
+Use this recipe when Pi itself is the primary operator surface. Start two Pi TUI
+processes from the repo root:
+
+```sh
+AGENTS_JS_PI_NATIVE=1 AGENTS_JS_PI_NAME=pi-a AGENTS_JS_PI_PORT=3101 pi -e ./extras/pi-extension/src/index.ts
+AGENTS_JS_PI_NATIVE=1 AGENTS_JS_PI_NAME=pi-b AGENTS_JS_PI_PORT=3102 pi -e ./extras/pi-extension/src/index.ts
+```
+
+Each process registers its localhost A2A endpoint in `~/.agents-js/registry.json`. In
+Pi A, type:
+
+```text
+@pi-b review this plan in one sentence
+@@pi-b answer directly: what is the smallest next step?
+```
+
+The `@pi-b` prompt sends the request to Pi B, injects Pi B's answer as visible context,
+and lets Pi A compose the final response. The `@@pi-b` prompt sends the request to Pi B,
+shows Pi B's answer directly in Pi A, and skips Pi A's local model turn.
+
+`agents-js client` and the web UI can still connect as secondary drivers or observers:
+
+```sh
+agents-js client --url http://127.0.0.1:3101
+agents-js client --url http://127.0.0.1:3102
+```
+
 ### Debugging Connection Or Runtime Issues
 
 If a local gateway is not responding:
@@ -805,6 +854,10 @@ If a local gateway is not responding:
 - Verify your environment contains required auth (e.g., `ANTHROPIC_API_KEY` for Claude).
 - Confirm the gateway URL is correct — check the printed URL or `~/.agents-js/registry.json`.
 - If connecting from a peer, verify the remote gateway's URL is reachable from your network.
+- For native Pi peer mode, confirm Pi is logged in to its provider and `AGENTS_JS_PI_PORT`
+  is not already in use.
+- If `@@dispatch` returns `agent_not_found`, check spelling and the `AGENTS_JS_REGISTRY`
+  path used by the gateway or native Pi process.
 
 If you see "Runtime not found" or similar errors, run `agents-js setup --runtime <id>` to verify the harness is available.
 

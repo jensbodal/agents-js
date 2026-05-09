@@ -78,7 +78,7 @@ detailed responsibilities of each layer follow below.
 
 ## Package Map
 
-> All publishable packages ship on the same beta train. Bugs are bugs — they get fixed in the next patch. There is no separate tier split per package. See [Beta Contract](/beta-contract) for the canonical statement of what beta means.
+> All publishable packages ship on the same beta train. Bugs are bugs — they get fixed in the next patch. There is no separate tier split per package. See the [CHANGELOG](/CHANGELOG) for shipped changes.
 
 | Layer | Package | What it does |
 |-------|---------|--------------|
@@ -104,7 +104,7 @@ detailed responsibilities of each layer follow below.
 | **Surface** | `@agents-js/a2ui-host` | DOM-side A2UI host + bridge — one `MessageProcessor` per mount, hot-reload-safe attach/detach |
 | **Surface** | `@agents-js/a2ui-renderer` | Maps A2UI component trees onto the `acp-*` Lit primitives in `@agents-js/ui-components` |
 | **Surface** | `@agents-js/reporting` | Code-review reporting — markdown and JSON Canvas output |
-| **Surface** | `@agents-js/pi-extension` | Pi CLI extension — registers A2A agents as Pi tools via MCP bridge or in-process `a2a-client` |
+| **Surface** | `@agents-js/pi-extension` | Pi CLI extension — registers A2A agents as Pi tools and can expose the native Pi TUI as an A2A peer |
 
 ## Ports & Adapters
 

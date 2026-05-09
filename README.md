@@ -109,14 +109,14 @@ Register agents in `~/.agents-js/registry.json`:
 }
 ```
 
-Then use directives in any prompt sent through the reference gateway:
+Then use directives in any prompt sent through a host that wires them:
 
 ```
 @@slack-agent post summary to #releases     # dispatch — entire message forwarded
 @docs-agent what changed in v0.2?           # mention — inline agent reference
 ```
 
-`@@dispatch` is part of the reference gateway executor path. Single-`@` mentions are a host opt-in middleware behavior — the checked-in gateway wires it by default; embedders opt in through `createA2AMentionMiddleware(...)`.
+`@@dispatch` is part of direct-dispatch hosts such as the reference gateway and native Pi peer mode. Single-`@` mentions are a host opt-in middleware behavior — the checked-in gateway wires it by default, embedders opt in through `createA2AMentionMiddleware(...)`, and native Pi peer mode wires the same user-facing directives inside Pi.
 
 ## Bridging agents into MCP
 
@@ -180,7 +180,7 @@ Extras are opt-in integrations with specific external tools or environments. The
 |---------|-------|-----------|
 | `@agents-js/plane` | Protocol | HMAC-verified Plane webhook handler with pluggable notifier transport. |
 | `@agents-js/reporting` | Surface | Code-review reporting — markdown and JSON Canvas output. |
-| `@agents-js/pi-extension` | Surface | Pi CLI extension that bridges Pi tool calls to A2A agents. |
+| `@agents-js/pi-extension` | Surface | Pi CLI extension that bridges Pi tool calls to A2A agents and exposes native Pi as an A2A peer. |
 | `@agents-js/droid-acp` | Adapter | ACP adapter for Factory.ai's Droid CLI. |
 | `@agents-js/pi-acp` | Adapter | ACP adapter for Mario Zechner's Pi coding agent. |
 | `@agents-js/browser-runtime` | Adapter | Browser-native runtime for the docs meta-agent (WebLLM worker, ACP shim). |

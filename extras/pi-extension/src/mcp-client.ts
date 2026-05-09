@@ -1,3 +1,4 @@
+import pkg from "../package.json";
 import type { AgentBridge, AgentTool, ProgressCallback } from "./types.ts";
 
 /**
@@ -264,7 +265,7 @@ export class McpBridgeClient implements AgentBridge {
     const response = await this._request("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "pi-extension", version: "0.2.0-beta-4" },
+      clientInfo: { name: "pi-extension", version: pkg.version },
     });
 
     if (response.error) {
