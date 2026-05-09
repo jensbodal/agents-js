@@ -9,13 +9,6 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
-## [0.3.2](https://github.com/jensbodal/agents-js/compare/v0.3.1...v0.3.2) (2026-05-09)
-
-
-### Internal
-
-* adopt release-please for CHANGELOG + version automation ([9e52532](https://github.com/jensbodal/agents-js/commit/9e5253239806219c7bcf86f320601ecc25bfa256))
-
 ## [0.3.1] - 2026-05-09
 
 ### Changed
