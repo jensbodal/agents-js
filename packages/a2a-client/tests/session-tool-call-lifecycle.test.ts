@@ -58,8 +58,8 @@ describe("tool_call.end event — type definition", () => {
   });
 });
 
-describe("tool_call lifecycle events — reducer pass-through", () => {
-  test("reducer passes tool_call.start through without state mutation", () => {
+describe("tool_call lifecycle events — reducer state tracking", () => {
+  test("reducer adds tool_call.start to activeToolCalls without disturbing turn fields", () => {
     const initial = createInitialSessionState({
       status: "waiting",
       contextId: "ctx-1",
@@ -73,15 +73,20 @@ describe("tool_call lifecycle events — reducer pass-through", () => {
       toolCallName: "web_search",
     });
 
-    // Pass-through: state identity preserved
-    expect(next).toBe(initial);
+    // Tool-call lifecycle now tracked on session state — reducer must
+    // surface the active call so the TUI's active-action line can render.
+    expect(next).not.toBe(initial);
+    expect(next.activeToolCalls).toHaveLength(1);
+    expect(next.activeToolCalls[0]?.toolCallId).toBe("tc-1");
+    expect(next.activeToolCalls[0]?.toolName).toBe("web_search");
+    // Existing turn fields are preserved — only the tool-call slice changes.
     expect(next.status).toBe("waiting");
     expect(next.contextId).toBe("ctx-1");
     expect(next.taskId).toBe("task-1");
     expect(next.pendingAgentText).toBe("working...");
   });
 
-  test("reducer passes tool_call.end through without state mutation", () => {
+  test("reducer moves tool_call.end from activeToolCalls to completedToolCalls", () => {
     const initial = createInitialSessionState({
       status: "waiting",
       contextId: "ctx-1",
@@ -89,16 +94,26 @@ describe("tool_call lifecycle events — reducer pass-through", () => {
       pendingAgentText: "working...",
     });
 
-    const next = reduceA2ASessionState(initial, {
+    const afterStart = reduceA2ASessionState(initial, {
+      type: "tool_call.start",
+      toolCallId: "tc-1",
+      toolCallName: "web_search",
+    });
+    const afterEnd = reduceA2ASessionState(afterStart, {
       type: "tool_call.end",
       toolCallId: "tc-1",
+      status: "completed",
     });
 
-    expect(next).toBe(initial);
-    expect(next.status).toBe("waiting");
-    expect(next.contextId).toBe("ctx-1");
-    expect(next.taskId).toBe("task-1");
-    expect(next.pendingAgentText).toBe("working...");
+    expect(afterEnd.activeToolCalls).toHaveLength(0);
+    expect(afterEnd.completedToolCalls).toHaveLength(1);
+    expect(afterEnd.completedToolCalls[0]?.toolCallId).toBe("tc-1");
+    expect(afterEnd.completedToolCalls[0]?.status).toBe("completed");
+    // Existing turn fields are preserved.
+    expect(afterEnd.status).toBe("waiting");
+    expect(afterEnd.contextId).toBe("ctx-1");
+    expect(afterEnd.taskId).toBe("task-1");
+    expect(afterEnd.pendingAgentText).toBe("working...");
   });
 });
 
@@ -160,8 +175,10 @@ describe("tool_call lifecycle — full start → args → end sequence", () => {
       state = reduceA2ASessionState(state, event);
     }
 
-    // All lifecycle events are pass-through
-    expect(state).toBe(initial);
+    // After full lifecycle: tool moved from active to completed.
+    expect(state.activeToolCalls).toHaveLength(0);
+    expect(state.completedToolCalls).toHaveLength(1);
+    expect(state.completedToolCalls[0]?.toolCallId).toBe("tc-1");
     expect(state.status).toBe("waiting");
     expect(state.contextId).toBe("ctx-1");
     expect(state.taskId).toBe("task-1");

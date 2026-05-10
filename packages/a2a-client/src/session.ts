@@ -1,7 +1,13 @@
 import type { Message, Task } from "@a2a-js/sdk";
 import { extractAcpAuthRequiredMetadata, extractAcpElicitationMetadata } from "./acp-state.ts";
 import { applyJsonPatch } from "./json-patch.ts";
-import type { A2AEvent, A2ASessionState, DebugRecord, TranscriptEntry } from "./types.ts";
+import type {
+  A2AEvent,
+  A2ASessionState,
+  ActiveToolCall,
+  DebugRecord,
+  TranscriptEntry,
+} from "./types.ts";
 import { randomUuid } from "./uuid.ts";
 
 const TERMINAL_TASK_STATES = new Set(["completed", "failed", "canceled", "rejected", "unknown"]);
@@ -106,6 +112,13 @@ export function createInitialSessionState(
     resumableTaskId: overrides.resumableTaskId,
     activeElicitation: overrides.activeElicitation,
     activeAuth: overrides.activeAuth,
+    pendingThoughtText: overrides.pendingThoughtText,
+    activeToolCalls: overrides.activeToolCalls ?? [],
+    completedToolCalls: overrides.completedToolCalls ?? [],
+    currentPlan: overrides.currentPlan ?? null,
+    availableCommands: overrides.availableCommands ?? [],
+    currentMode: overrides.currentMode,
+    lastUsage: overrides.lastUsage,
   };
 }
 
@@ -146,6 +159,11 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
       return {
         ...state,
         status: "sending",
+        // Reset per-turn agent-event state so a new turn starts clean.
+        // Tool calls in flight at the boundary are dropped (harness
+        // is responsible for terminating them before turn switch).
+        pendingThoughtText: undefined,
+        activeToolCalls: [],
         transcript: event.suppressTranscriptEntry
           ? state.transcript
           : appendTranscriptEntry(state.transcript, {
@@ -161,6 +179,12 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
         ...state,
         status: "waiting",
         pendingAgentText: event.text,
+        // First visible response token = thinking phase complete.
+        // Clearing here drives the TUI's active-action line back to
+        // either an active tool call (if one is still running) or
+        // empty (if not) — matches the standard "current action"
+        // pattern (Claude Code, Codex CLI).
+        pendingThoughtText: undefined,
         contextId: event.contextId ?? state.contextId,
         taskId: event.taskId ?? state.taskId,
         resumableTaskId: event.taskId ?? state.resumableTaskId,
@@ -284,18 +308,6 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
       return event.state;
     case "custom":
       return state;
-    case "reasoning.start":
-    case "reasoning.message.start":
-    case "reasoning.message.content":
-    case "reasoning.message.end":
-    case "reasoning.message.chunk":
-    case "reasoning.end":
-    case "reasoning.encrypted":
-      return state;
-    case "tool_call.start":
-    case "tool_call.args":
-    case "tool_call.end":
-      return state;
     case "run.started":
     case "run.finished":
     case "run.error":
@@ -339,5 +351,80 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
       // events" — the reducer leaves session state untouched; consumers
       // that care render directly off the event stream.
       return state;
+    case "reasoning.message.chunk": {
+      const previous = state.pendingThoughtText ?? "";
+      return {
+        ...state,
+        pendingThoughtText: previous + event.text,
+      };
+    }
+    case "reasoning.start":
+    case "reasoning.message.start":
+    case "reasoning.message.content":
+    case "reasoning.message.end":
+    case "reasoning.end":
+    case "reasoning.encrypted":
+      // Lifecycle / non-incremental reasoning events — `reasoning.message.chunk`
+      // already drives the active accumulator. Leaving these as no-ops keeps
+      // the reducer focused on the streaming-text contract.
+      return state;
+    case "tool_call.start": {
+      const startedAt = Date.now();
+      const next: ActiveToolCall = {
+        toolCallId: event.toolCallId,
+        toolName: event.toolCallName,
+        status: "in_progress",
+        startedAt,
+      };
+      // De-dup against the rare case where a harness re-emits the same
+      // toolCallId (translator-level idempotency keeps this from happening
+      // for well-behaved harnesses, but defensive at the reducer layer).
+      const filtered = state.activeToolCalls.filter((c) => c.toolCallId !== event.toolCallId);
+      return { ...state, activeToolCalls: [...filtered, next] };
+    }
+    case "tool_call.args":
+      // Argument streaming is rendered separately if the harness supplies
+      // it; reducer state tracks high-level lifecycle only.
+      return state;
+    case "tool_call.end": {
+      const matched = state.activeToolCalls.find((c) => c.toolCallId === event.toolCallId);
+      const remaining = state.activeToolCalls.filter((c) => c.toolCallId !== event.toolCallId);
+      const finalized: ActiveToolCall | null = matched
+        ? { ...matched, status: event.status ?? "completed" }
+        : {
+            // Synthesize an entry if `tool_call.start` was missed (some
+            // harnesses skip intermediate updates) so the transcript
+            // history still records the call.
+            toolCallId: event.toolCallId,
+            toolName: "",
+            status: event.status ?? "completed",
+            startedAt: Date.now(),
+          };
+      return {
+        ...state,
+        activeToolCalls: remaining,
+        completedToolCalls: finalized
+          ? [...state.completedToolCalls, finalized]
+          : state.completedToolCalls,
+      };
+    }
+    case "plan.updated":
+      return { ...state, currentPlan: event.entries };
+    case "commands.updated":
+      return { ...state, availableCommands: event.commands };
+    case "mode.changed":
+      return {
+        ...state,
+        currentMode: { modeId: event.modeId },
+      };
+    case "usage.updated":
+      return {
+        ...state,
+        lastUsage: {
+          size: event.size,
+          used: event.used,
+          ...(event.cost !== undefined ? { cost: event.cost } : {}),
+        },
+      };
   }
 }

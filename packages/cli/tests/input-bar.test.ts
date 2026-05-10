@@ -16,6 +16,10 @@ function makeElicitationState(
     transcript: [],
     status: "input_required",
     debugRecords: [],
+    activeToolCalls: [],
+    completedToolCalls: [],
+    currentPlan: null,
+    availableCommands: [],
     activeElicitation: {
       message,
       mode: "form",

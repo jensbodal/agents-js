@@ -90,18 +90,20 @@ describe("reasoning events — type definitions (VAL-AGUI-017)", () => {
   });
 });
 
-describe("reasoning events — reducer pass-through (VAL-AGUI-018)", () => {
-  const reasoningEvents: A2AEvent[] = [
+describe("reasoning events — reducer state tracking (VAL-AGUI-018)", () => {
+  // Most reasoning lifecycle events remain no-ops at the reducer layer —
+  // only `reasoning.message.chunk` accumulates text into pendingThoughtText
+  // (the field that drives the TUI's "thinking..." active-action line).
+  const passThroughEvents: A2AEvent[] = [
     { type: "reasoning.start" },
     { type: "reasoning.message.start", messageId: "rmsg-1" },
     { type: "reasoning.message.content", text: "thinking..." },
     { type: "reasoning.message.end", messageId: "rmsg-1" },
-    { type: "reasoning.message.chunk", text: "chunk" },
     { type: "reasoning.end" },
     { type: "reasoning.encrypted", data: "enc-data" },
   ];
 
-  for (const event of reasoningEvents) {
+  for (const event of passThroughEvents) {
     test(`reducer passes through ${event.type} without state mutation`, () => {
       const initial = createInitialSessionState({
         status: "waiting",
@@ -113,10 +115,35 @@ describe("reasoning events — reducer pass-through (VAL-AGUI-018)", () => {
 
       const next = reduceA2ASessionState(initial, event);
 
-      // Reasoning events are pass-through: state identity preserved
+      // Lifecycle events are pass-through: state identity preserved
       expect(next).toBe(initial);
     });
   }
+
+  test("reasoning.message.chunk accumulates into pendingThoughtText", () => {
+    const initial = createInitialSessionState({
+      status: "waiting",
+      contextId: "ctx-1",
+      taskId: "task-1",
+    });
+
+    const after1 = reduceA2ASessionState(initial, {
+      type: "reasoning.message.chunk",
+      text: "first ",
+    });
+    expect(after1.pendingThoughtText).toBe("first ");
+
+    const after2 = reduceA2ASessionState(after1, {
+      type: "reasoning.message.chunk",
+      text: "second",
+    });
+    expect(after2.pendingThoughtText).toBe("first second");
+
+    // Other state fields untouched.
+    expect(after2.status).toBe("waiting");
+    expect(after2.contextId).toBe("ctx-1");
+    expect(after2.taskId).toBe("task-1");
+  });
 
   test("reasoning events do not corrupt state fields", () => {
     const initial = createInitialSessionState({
@@ -130,9 +157,10 @@ describe("reasoning events — reducer pass-through (VAL-AGUI-018)", () => {
       ],
     });
 
-    // Run all reasoning events in sequence
+    // Run lifecycle reasoning events in sequence (excluding `message.chunk`,
+    // which has its own state-mutation contract covered separately).
     let state = initial;
-    for (const event of reasoningEvents) {
+    for (const event of passThroughEvents) {
       state = reduceA2ASessionState(state, event);
     }
 
@@ -389,7 +417,10 @@ describe("AG-UI field alignment", () => {
     expect(event.messageId).toBe("rmsg-1");
 
     const initial = createInitialSessionState({ status: "waiting" });
-    expect(reduceA2ASessionState(initial, event)).toBe(initial);
+    const next = reduceA2ASessionState(initial, event);
+    // chunk now drives `pendingThoughtText` — no longer a no-op pass-through.
+    expect(next).not.toBe(initial);
+    expect(next.pendingThoughtText).toBe("partial");
   });
 
   test("reasoning.encrypted accepts spec-shaped fields alongside data", () => {
@@ -437,13 +468,13 @@ describe("reducer exhaustiveness — all event types handled (VAL-AGUI-025)", ()
   test("reducer handles all A2AEvent variants without error", () => {
     const initial = createInitialSessionState({ status: "connected" });
 
-    // All 7 reasoning events
+    // Reasoning lifecycle events (excluding `message.chunk` which now drives
+    // pendingThoughtText accumulation — covered separately below).
     for (const event of [
       { type: "reasoning.start" } as A2AEvent,
       { type: "reasoning.message.start", messageId: "r1" } as A2AEvent,
       { type: "reasoning.message.content", text: "think" } as A2AEvent,
       { type: "reasoning.message.end", messageId: "r1" } as A2AEvent,
-      { type: "reasoning.message.chunk", text: "chunk" } as A2AEvent,
       { type: "reasoning.end" } as A2AEvent,
       { type: "reasoning.encrypted", data: "enc" } as A2AEvent,
     ]) {
@@ -451,7 +482,18 @@ describe("reducer exhaustiveness — all event types handled (VAL-AGUI-025)", ()
       expect(result).toBe(initial); // pass-through
     }
 
-    // tool_call.args
+    // reasoning.message.chunk now mutates state by accumulating into
+    // pendingThoughtText — assert the new behavior, not pass-through.
+    const chunkResult = reduceA2ASessionState(initial, {
+      type: "reasoning.message.chunk",
+      text: "thinking",
+    } as A2AEvent);
+    expect(chunkResult).not.toBe(initial);
+    expect(chunkResult.pendingThoughtText).toBe("thinking");
+
+    // tool_call.args remains a pass-through (high-level lifecycle is
+    // tracked via tool_call.start/end; argument streaming has no
+    // session-state slice).
     const argsResult = reduceA2ASessionState(initial, {
       type: "tool_call.args",
       toolCallId: "tc-1",

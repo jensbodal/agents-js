@@ -1,20 +1,27 @@
 /**
- * Shared ACP-streaming translator.
+ * Shared ACP→consumer event translator.
  *
  * Owns the canonical "ACP `SessionNotification` → typed sink call"
- * translation for the streaming-shaped subset of `SessionUpdate` variants
- * (`agent_message_chunk`, `agent_thought_chunk`, `tool_call`,
- * `tool_call_update`). Two consumers feed it via different sinks:
+ * translation for ACP `SessionUpdate` variants the consumers care
+ * about: `agent_message_chunk`, `agent_thought_chunk`, `tool_call`,
+ * `tool_call_update`, `plan`, `available_commands_update`,
+ * `current_mode_update`, and `usage_update`. Two consumers feed it
+ * via different sinks:
  *
  *   - **A2A executor** (`@agents-js/a2a/src/executor.ts`) — sink emits
- *     A2A `Message` events per chunk so the wire delivers per-token
- *     deltas. Replaces the previous burst-emitting buffer in v0.2.x
- *     that all-at-once-rendered the response on the CLI TUI.
+ *     A2A `TaskStatusUpdateEvent`s with `state: "working"` and a
+ *     `metadata.kind` discriminator (see `@agents-js/a2a/wire-kinds`).
+ *     `Message` events are not used because `@a2a-js/sdk`'s server
+ *     `events()` AsyncGenerator treats any `Message` as terminal,
+ *     which would end the stream prematurely on the first non-text
+ *     event. The TaskStatusUpdate path is non-terminal.
  *
  *   - **AG-UI handler** (`@agents-js/host/src/acp-to-agui-translator.ts`)
- *     — sink emits AG-UI `BaseEvent`s, delegating non-streaming session
- *     updates back to the existing AG-UI translator surface so we don't
- *     re-implement plan / mode / config translation here.
+ *     — sink emits AG-UI `BaseEvent`s. The AG-UI consumer was
+ *     historically served by `ACPSessionController` for non-streaming
+ *     variants and continues that pattern; the streaming-translator
+ *     callbacks for plan/commands/mode/usage exist on the AG-UI side
+ *     as no-op stubs to satisfy the sink contract.
  *
  * Per ACP spec
  * (https://agentclientprotocol.com/protocol/prompt-turn#3-agent-reports-output)
@@ -23,16 +30,23 @@
  * computing and surfacing the cumulative text so sinks that need either
  * shape get both without re-deriving.
  *
- * State: per-instance `messageId → cumulativeText` map, scoped per
- * session. One translator instance per ACP session.
+ * State: per-instance `messageId → cumulativeText` maps for both
+ * message and thought streams, scoped per session. Plan / commands /
+ * mode / usage variants carry full state on each notification — the
+ * translator forwards them stateless. One translator instance per
+ * ACP session.
  *
- * Non-streaming `SessionUpdate` variants (plan, current_mode_update,
- * available_commands_update, config_option_update, usage_update,
- * session_info_update) are explicitly *not* translated here — they're
- * handled by consumer-specific paths so this module stays focused on
- * the streaming-render contract.
+ * Variants intentionally NOT translated: `config_option_update`,
+ * `session_info_update`, `user_message_chunk`. The first two are
+ * consumer-state concerns; the third is an echo of input the
+ * consumer already has.
  */
-import type { SessionNotification } from "@agentclientprotocol/sdk";
+import type {
+  AvailableCommand,
+  Cost,
+  PlanEntry,
+  SessionNotification,
+} from "@agentclientprotocol/sdk";
 
 /**
  * Argument shape for `AcpStreamingSink.onTextDelta` and
@@ -71,6 +85,45 @@ export interface ToolCallUpdateCall {
   rawLocations?: unknown;
 }
 
+/** Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan`
+ *  notifications always carry the FULL set of entries — consumers
+ *  replace plan state wholesale on receipt. Entries reuse the SDK's
+ *  typed `PlanEntry` so `priority` is the proper `PlanEntryPriority`
+ *  string enum and `status` is the proper `PlanEntryStatus`. */
+export interface PlanUpdateCall {
+  entries: PlanEntry[];
+}
+
+/** Argument shape for `AcpStreamingSink.onAvailableCommandsUpdate`.
+ *  Carries the FULL set of commands available from the harness via
+ *  the SDK's typed `AvailableCommand` shape (preserves
+ *  description, input schema, and any extension metadata). */
+export interface AvailableCommandsUpdateCall {
+  commands: AvailableCommand[];
+}
+
+/** Argument shape for `AcpStreamingSink.onModeChange`.
+ *  ACP `current_mode_update` notifications only carry `currentModeId`
+ *  (the available-modes list lives in initial session metadata, not
+ *  on transitions). Receivers that want labels/descriptions look up
+ *  `modes` from session state. */
+export interface ModeChangeCall {
+  currentModeId: string;
+}
+
+/** Argument shape for `AcpStreamingSink.onUsageUpdate`. */
+export interface UsageUpdateCall {
+  /** Total context window size in tokens. */
+  size: number;
+  /** Tokens used so far in this session. */
+  used: number;
+  /** Cumulative session cost. Reuses the SDK's `Cost` type
+   *  (`{ amount, currency }`) so multi-currency values are
+   *  preserved end-to-end. `null` is a valid harness signal for
+   *  "no-cost session"; `undefined` means the field was omitted. */
+  cost?: Cost | null;
+}
+
 /**
  * Sink contract: consumers implement these methods to receive translated
  * streaming events. Methods are invoked synchronously; the sink owns any
@@ -86,6 +139,14 @@ export interface AcpStreamingSink {
   onToolCallStart(input: ToolCallStartCall): void;
   /** Fired once per `tool_call_update` notification (status / content updates). */
   onToolCallUpdate(input: ToolCallUpdateCall): void;
+  /** Fired once per `plan` notification with the full updated entry list. */
+  onPlanUpdate(input: PlanUpdateCall): void;
+  /** Fired once per `available_commands_update` notification with the full set. */
+  onAvailableCommandsUpdate(input: AvailableCommandsUpdateCall): void;
+  /** Fired once per `current_mode_update` notification. */
+  onModeChange(input: ModeChangeCall): void;
+  /** Fired once per `usage_update` notification with token-budget telemetry. */
+  onUsageUpdate(input: UsageUpdateCall): void;
 }
 
 /**
@@ -138,42 +199,66 @@ export class AcpStreamingTranslator {
         return;
       }
       case "tool_call": {
-        const toolCall = update as unknown as {
-          toolCallId?: string;
-          id?: string;
-          title?: string;
-          status?: string;
-        };
-        const toolCallId = toolCall.toolCallId ?? toolCall.id ?? "";
-        if (!toolCallId) return;
+        // Inside this branch TypeScript narrows `update` to the SDK's
+        // `ToolCallNotification` shape, so `toolCallId` / `title` /
+        // `status` are typed without casts. (`id`/`title` legacy
+        // fallbacks are no longer needed — the SDK doesn't expose them
+        // and pre-spec harnesses are out of scope.)
+        if (!update.toolCallId) return;
         sink.onToolCallStart({
-          toolCallId,
-          title: toolCall.title ?? "",
-          status: toolCall.status,
+          toolCallId: update.toolCallId,
+          title: update.title ?? "",
+          ...(update.status !== undefined ? { status: update.status } : {}),
         });
         return;
       }
       case "tool_call_update": {
-        const toolCall = update as unknown as {
-          toolCallId?: string;
-          id?: string;
-          status?: string;
-          content?: unknown;
-          rawLocations?: unknown;
-        };
-        const toolCallId = toolCall.toolCallId ?? toolCall.id ?? "";
-        if (!toolCallId) return;
+        if (!update.toolCallId) return;
+        // ACP allows `null` status (= no-change). Treat as "no status
+        // surface to executor" and let the receiver's progress/end
+        // gate decide off the prior in-memory state.
+        const status = update.status ?? undefined;
         sink.onToolCallUpdate({
-          toolCallId,
-          status: toolCall.status,
-          content: toolCall.content,
-          rawLocations: toolCall.rawLocations,
+          toolCallId: update.toolCallId,
+          ...(status !== undefined ? { status } : {}),
+          ...(update.content != null ? { content: update.content } : {}),
+          ...(update.locations != null ? { rawLocations: update.locations } : {}),
         });
         return;
       }
-      // Non-streaming variants are intentionally ignored. Consumers that
-      // need plan / mode / commands / config / usage / session_info
-      // forwarding handle those via their own paths.
+      case "plan": {
+        // ACP spec requires `entries: PlanEntry[]`. Forward the SDK's
+        // typed shape directly so consumers receive proper
+        // `priority: PlanEntryPriority` and `status: PlanEntryStatus`
+        // string enums instead of widened strings.
+        sink.onPlanUpdate({ entries: update.entries });
+        return;
+      }
+      case "available_commands_update": {
+        sink.onAvailableCommandsUpdate({ commands: update.availableCommands });
+        return;
+      }
+      case "current_mode_update": {
+        if (!update.currentModeId) return;
+        sink.onModeChange({ currentModeId: update.currentModeId });
+        return;
+      }
+      case "usage_update": {
+        // Forward the structured `Cost` shape from the SDK
+        // (`{ amount, currency }`) verbatim. `null` is a valid harness
+        // signal for "no cost"; `undefined` means the field was omitted
+        // and we drop it from the call so consumers can distinguish.
+        sink.onUsageUpdate({
+          size: update.size,
+          used: update.used,
+          ...(update.cost !== undefined ? { cost: update.cost } : {}),
+        });
+        return;
+      }
+      // Remaining variants (config_option_update, session_info_update,
+      // user_message_chunk) are intentionally ignored — config + session
+      // info are consumer-state concerns handled elsewhere; user_message_chunk
+      // is an echo of input the consumer already has.
       default:
         return;
     }

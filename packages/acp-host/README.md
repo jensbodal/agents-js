@@ -114,6 +114,7 @@ bun add @agents-js/acp-host
 - **`ActivitySurfaceState`**
 - **`AgentConfig`**
 - **`ApplyDefaultsResult`**
+- **`AvailableCommandsUpdateCall`** — Argument shape for `AcpStreamingSink.onAvailableCommandsUpdate`. Carries the FULL set of commands available from the harness via the SDK's typed `AvailableCommand` shape (preserves description, inp...
 - **`BuildMinimalEnvInput`**
 - **`CodeDescriptor`** — A code block with language annotation
 - **`CompletedToolCallSnapshot`**
@@ -151,6 +152,7 @@ bun add @agents-js/acp-host
 - **`McpToolDefinition`**
 - **`McpToolInputSchema`**
 - **`McpToolsListResult`**
+- **`ModeChangeCall`** — Argument shape for `AcpStreamingSink.onModeChange`. ACP `current_mode_update` notifications only carry `currentModeId` (the available-modes list lives in initial session metadata, not on transition...
 - **`ModeSyncResult`**
 - **`NodeFileAdapterOptions`**
 - **`NormalizedAgentName`**
@@ -161,6 +163,7 @@ bun add @agents-js/acp-host
 - **`PermissionEvaluationContext`**
 - **`PlanEntryInfo`**
 - **`PlanSurfaceState`**
+- **`PlanUpdateCall`** — Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan` notifications always carry the FULL set of entries — consumers replace plan state wholesale on receipt. Entries reuse the SDK's typed ...
 - **`RenderHint`** — Metadata hint that can be attached to ACP session_update _meta fields to suggest structured rendering for tool call outputs.
 - **`ResolvedHostEnvPolicy`** — Resolved view of {HostEnvPolicyInput} with defaults applied.
 - **`ResolvedWorkspaceContext`**
@@ -184,6 +187,7 @@ bun add @agents-js/acp-host
 - **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`.
 - **`TranscriptSurfaceState`**
 - **`TurnState`**
+- **`UsageUpdateCall`** — Argument shape for `AcpStreamingSink.onUsageUpdate`.
 - **`WorkflowActivityEntryState`**
 - **`WorkflowCopyMap`** — Type-safe interface for all workflow surface UI copy strings. Consumers may supply a partial override to customize any subset of strings.
 - **`WorkflowErrorSummary`**

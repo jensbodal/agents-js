@@ -73,6 +73,7 @@ bun add @agents-js/a2a-client
 - **`A2AAbortStreamEvent`** — Send/resume stream was aborted by an `AbortSignal` mid-flight. Emitted when the abort fires after the streaming connection opened but before it reaches a terminal task state. Distinguishes user-ini...
 - **`A2AAgentEntry`** — A registry entry describing a remote A2A agent reachable over HTTP.
 - **`A2AAuthRequiredState`** — Lightweight typed view of an active auth-required prompt for UI consumers. Each `authMethods[]` entry carries the protocol-level method id alongside optional human-presentable fields. `link` is the...
+- **`A2AAvailableCommandsUpdatedEvent`** — The set of slash-commands currently available from the harness. Replaces state wholesale on receipt.
 - **`A2ACancellationFailedEvent`** — Remote-side `cancelTask` rejected. The corresponding `error` event carries the underlying transport message; this event lets consumers distinguish cancellation-failure from a generic operation error.
 - **`A2ACancellationRequestedEvent`** — Local cancellation was requested by the caller. Useful for UI consumers that want to render a "canceling..." state before a remote-cancel result (`cancellation.succeeded` / `cancellation.failed`) l...
 - **`A2ACancellationSucceededEvent`** — Remote-side `cancelTask` completed successfully. UI consumers can use this to confirm to the user that the remote agent actually accepted the cancellation, vs falling back to local-only teardown (w...
@@ -89,6 +90,8 @@ bun add @agents-js/a2a-client
 - **`A2AMessageDeltaEvent`** — A partial message update. **Note on `text` vs `delta` semantics:** - `text` carries the **accumulated** message text (all content so far). - `delta` (AG-UI spec alias) carries the **incremental** c...
 - **`A2AMessageEndEvent`**
 - **`A2AMessageStartEvent`** — Signals the start of a new message. The `role` union is widened beyond the AG-UI spec to keep `"agent"` as an agents-js-local alias for `"assistant"` (pre-existing semantics). All spec values (`"de...
+- **`A2AModeChangedEvent`** — Mode transition reported by the harness (e.g. plan→execute, model swap). ACP `current_mode_update` carries only the new `modeId`; the available-modes list lives in session metadata.
+- **`A2APlanUpdatedEvent`** — The agent's structured todo-list. ACP `plan` notifications always carry the FULL set of entries; receivers replace state wholesale.
 - **`A2AReasoningEncryptedEvent`** — Encrypted reasoning payload. `data` is the agents-js legacy field carrying the encrypted value. The AG-UI spec shape uses `subtype`, `entityId`, and `encryptedValue`. When an emitter populates the ...
 - **`A2AReasoningEndEvent`**
 - **`A2AReasoningMessageChunkEvent`** — Streams an incremental reasoning chunk. Emitters should populate both `text` (agents-js legacy) and `delta` (AG-UI spec alias) with the same value during the transition window.
@@ -118,10 +121,12 @@ bun add @agents-js/a2a-client
 - **`A2AToolCallStartEvent`** — Marks the start of a tool call. Emitted once per `toolCallId` before any `tool_call.args` or `tool_call.end` event.
 - **`A2ATransport`** — Transport interface for A2A protocol I/O. This is the **Transport** port in the Ports & Adapters architecture. The default implementation is {SdkA2ATransport} (HTTP/SSE via the A2A SDK). Implement ...
 - **`A2ATurnStartedEvent`**
+- **`A2AUsageUpdatedEvent`** — Token-budget telemetry. `size` = total context window tokens, `used` = consumed so far, `cost` = structured `Cost` from the SDK (`{ amount, currency }`) preserved verbatim — `null` is a valid harne...
 - **`ACPA2AElicitation`**
 - **`ACPA2AElicitationResponse`**
 - **`ACPA2AElicitationSchema`**
 - **`ACPAgentEntry`** — A registry entry describing a locally spawnable ACP harness.
+- **`ActiveToolCall`** — Snapshot of a single in-flight or recently-completed tool call. Mirrored on session state so the TUI can render an inline status row that swaps in place as the call progresses.
 - **`AdaptedTarget`** — Result of a successful adapt flow.
 - **`AdaptTargetContext`** — Context passed to TargetAdapter hooks during card adaptation.
 - **`AdaptTargetOptions`** — Options for adaptTarget. Allows injecting a custom fetch for testing.
