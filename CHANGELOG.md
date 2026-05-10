@@ -9,6 +9,19 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.3.3](https://github.com/jensbodal/agents-js/compare/v0.3.2...v0.3.3) (2026-05-10)
+
+
+### Added
+
+* **a2a-client:** receive surface for ACP ToolCall rich payload ([e35e96f](https://github.com/jensbodal/agents-js/commit/e35e96f2787cf4819b2136bd68793846c3123a85))
+* **a2a/cli:** surface ACP thought/tool/plan/commands/mode/usage events ([a2db9fa](https://github.com/jensbodal/agents-js/commit/a2db9fa7a28ea8f4397b72f3469498131e12f295))
+* **a2a:** forward ACP ToolCall rich payload on the wire ([6a1dd50](https://github.com/jensbodal/agents-js/commit/6a1dd50595c3a759bfe1564e896d349c0af2202f))
+* **acp-host,a2a,a2a-client:** surface ACP session_info_update end-to-end ([61f4988](https://github.com/jensbodal/agents-js/commit/61f4988c8f0a5449199512f6205a8d7b9a4b4577))
+* **cli:** plan pane + mode/usage header badges + slash-cmd hint ([241aef0](https://github.com/jensbodal/agents-js/commit/241aef029f337f99cac501d31e6414bba208e248))
+* **ui-components:** integrate acp-tool-call-detail into acp-transcript ([3fd9d63](https://github.com/jensbodal/agents-js/commit/3fd9d638e3f0e8706bb12c34563e48d452cc5f41))
+* **ui-components:** tool-call detail rendering primitives ([f4352bb](https://github.com/jensbodal/agents-js/commit/f4352bb2035ea48c585301a5bafc719a2e92c399))
+
 ## [0.3.2](https://github.com/jensbodal/agents-js/compare/v0.3.1...v0.3.2) (2026-05-09)
 
 
