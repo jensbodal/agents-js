@@ -147,6 +147,7 @@ const AGUI_STREAM_EVENT_TYPES = new Set([
   "reasoning.end",
   "reasoning.encrypted",
   "tool_call.start",
+  "tool_call.progress",
   "tool_call.args",
   "tool_call.end",
   "run.started",
@@ -337,22 +338,45 @@ export class A2AClientProvider {
           type: "tool_call.start",
           toolCallId: md.toolCallId,
           toolCallName: md.toolName,
+          ...(md.status !== undefined ? { status: md.status } : {}),
+          ...(md.toolKind !== undefined ? { toolKind: md.toolKind } : {}),
+          ...(md.content !== undefined ? { content: md.content } : {}),
+          ...(md.locations !== undefined ? { locations: md.locations } : {}),
+          ...(md.rawInput !== undefined ? { rawInput: md.rawInput } : {}),
+          ...(md.rawOutput !== undefined ? { rawOutput: md.rawOutput } : {}),
         });
         return true;
       }
-      case "tool-call-progress":
-        // Non-terminal tool-call status transitions don't have a
-        // first-class client event yet; consumers that want to render
-        // intermediate progress can subscribe to `task.status.updated`
-        // and inspect `metadata.kind === "tool-call-progress"`. Holding
-        // off on a dedicated typed event until UI demand emerges.
+      case "tool-call-progress": {
+        // Non-terminal status transitions and payload-only updates
+        // both arrive here. Forward as a first-class client event so
+        // receivers can render intermediate progress (status badges,
+        // mid-call diff updates) without subscribing to the raw
+        // `task.status.updated` stream.
+        if (!md.toolCallId) return true;
+        this.emit({
+          type: "tool_call.progress",
+          toolCallId: md.toolCallId,
+          ...(md.status !== undefined ? { status: md.status } : {}),
+          ...(md.toolKind !== undefined ? { toolKind: md.toolKind } : {}),
+          ...(md.content !== undefined ? { content: md.content } : {}),
+          ...(md.locations !== undefined ? { locations: md.locations } : {}),
+          ...(md.rawInput !== undefined ? { rawInput: md.rawInput } : {}),
+          ...(md.rawOutput !== undefined ? { rawOutput: md.rawOutput } : {}),
+        });
         return true;
+      }
       case "tool-call-end": {
         if (!md.toolCallId) return true;
         this.emit({
           type: "tool_call.end",
           toolCallId: md.toolCallId,
           status: md.status,
+          ...(md.toolKind !== undefined ? { toolKind: md.toolKind } : {}),
+          ...(md.content !== undefined ? { content: md.content } : {}),
+          ...(md.locations !== undefined ? { locations: md.locations } : {}),
+          ...(md.rawInput !== undefined ? { rawInput: md.rawInput } : {}),
+          ...(md.rawOutput !== undefined ? { rawOutput: md.rawOutput } : {}),
         });
         return true;
       }

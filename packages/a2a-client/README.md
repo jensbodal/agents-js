@@ -118,8 +118,9 @@ bun add @agents-js/a2a-client
 - **`A2ATaskStatusUpdatedEvent`**
 - **`A2ATaskUpdatedEvent`**
 - **`A2AToolCallArgsEvent`** — Incremental JSON argument chunk for a tool call. Emitters should populate both `argsChunk` (agents-js legacy) and `delta` (AG-UI spec alias) with the same value during the transition window.
-- **`A2AToolCallEndEvent`** — Marks the end of a tool call. Emitted once per `toolCallId` after all `tool_call.args` events and when the underlying tool call reaches a terminal state (completed or failed).
-- **`A2AToolCallStartEvent`** — Marks the start of a tool call. Emitted once per `toolCallId` before any `tool_call.args` or `tool_call.end` event.
+- **`A2AToolCallEndEvent`** — Marks the end of a tool call. Emitted once per `toolCallId` after all `tool_call.args` events and when the underlying tool call reaches a terminal state (completed or failed). Carries the final ACP...
+- **`A2AToolCallProgressEvent`** — Non-terminal mid-call update. ACP `tool_call_update` notifications carry status transitions (`pending` → `in_progress`) and/or payload mutations (content/locations/raw I/O) without ending the call....
+- **`A2AToolCallStartEvent`** — Marks the start of a tool call. Emitted once per `toolCallId` before any `tool_call.args` or `tool_call.end` event. Carries the full ACP `ToolCall` payload forwarded from the wire so receivers can ...
 - **`A2ATransport`** — Transport interface for A2A protocol I/O. This is the **Transport** port in the Ports & Adapters architecture. The default implementation is {SdkA2ATransport} (HTTP/SSE via the A2A SDK). Implement ...
 - **`A2ATurnStartedEvent`**
 - **`A2AUsageUpdatedEvent`** — Token-budget telemetry. `size` = total context window tokens, `used` = consumed so far, `cost` = structured `Cost` from the SDK (`{ amount, currency }`) preserved verbatim — `null` is a valid harne...
@@ -127,7 +128,7 @@ bun add @agents-js/a2a-client
 - **`ACPA2AElicitationResponse`**
 - **`ACPA2AElicitationSchema`**
 - **`ACPAgentEntry`** — A registry entry describing a locally spawnable ACP harness.
-- **`ActiveToolCall`** — Snapshot of a single in-flight or recently-completed tool call. Mirrored on session state so the TUI can render an inline status row that swaps in place as the call progresses.
+- **`ActiveToolCall`** — Snapshot of a single in-flight or recently-completed tool call. Mirrored on session state so the TUI can render an inline status row that swaps in place as the call progresses. Optional fields mirr...
 - **`AdaptedTarget`** — Result of a successful adapt flow.
 - **`AdaptTargetContext`** — Context passed to TargetAdapter hooks during card adaptation.
 - **`AdaptTargetOptions`** — Options for adaptTarget. Allows injecting a custom fetch for testing.
