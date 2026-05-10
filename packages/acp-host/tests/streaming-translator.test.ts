@@ -225,9 +225,149 @@ describe("AcpStreamingTranslator", () => {
         } as unknown as SessionNotification["update"],
       };
       t.feed(notification, sink);
-      expect(sink.toolCallUpdates).toEqual([
-        { toolCallId: "tc1", status: "completed", content: undefined, rawLocations: undefined },
-      ]);
+      expect(sink.toolCallUpdates).toEqual([{ toolCallId: "tc1", status: "completed" }]);
+    });
+
+    test("forwards full ACP ToolCall payload (kind/content/locations/rawInput/rawOutput) on tool_call", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const content = [
+        { type: "content" as const, content: { type: "text" as const, text: "hello" } },
+      ];
+      const locations = [{ path: "/repo/src/index.ts", line: 42 }];
+      const rawInput = { path: "/repo/src/index.ts" };
+      const rawOutput = "file contents";
+      const notification: SessionNotification = {
+        sessionId: "s1",
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "tc1",
+          title: "Read file",
+          status: "in_progress",
+          kind: "read",
+          content,
+          locations,
+          rawInput,
+          rawOutput,
+        } as unknown as SessionNotification["update"],
+      };
+      t.feed(notification, sink);
+      expect(sink.toolCallStarts).toHaveLength(1);
+      const recorded = sink.toolCallStarts[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      expect(recorded.toolCallId).toBe("tc1");
+      expect(recorded.title).toBe("Read file");
+      expect(recorded.status).toBe("in_progress");
+      expect(recorded.toolKind).toBe("read");
+      expect(recorded.content).toEqual(content);
+      expect(recorded.locations).toEqual(locations);
+      expect(recorded.rawInput).toEqual(rawInput);
+      expect(recorded.rawOutput).toBe("file contents");
+    });
+
+    test("forwards updated ACP fields on tool_call_update", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const content = [
+        {
+          type: "diff" as const,
+          path: "/repo/src/foo.ts",
+          oldText: "old",
+          newText: "new",
+        },
+      ];
+      const locations = [{ path: "/repo/src/foo.ts" }];
+      const notification: SessionNotification = {
+        sessionId: "s1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc1",
+          status: "completed",
+          kind: "edit",
+          content,
+          locations,
+          rawInput: { path: "/repo/src/foo.ts" },
+          rawOutput: { applied: true },
+        } as unknown as SessionNotification["update"],
+      };
+      t.feed(notification, sink);
+      expect(sink.toolCallUpdates).toHaveLength(1);
+      const recorded = sink.toolCallUpdates[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      expect(recorded.status).toBe("completed");
+      expect(recorded.toolKind).toBe("edit");
+      expect(recorded.content).toEqual(content);
+      expect(recorded.locations).toEqual(locations);
+      expect(recorded.rawInput).toEqual({ path: "/repo/src/foo.ts" });
+      expect(recorded.rawOutput).toEqual({ applied: true });
+    });
+
+    test("forwards null as explicit clear for content/locations on tool_call_update", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const notification: SessionNotification = {
+        sessionId: "s1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc1",
+          content: null,
+          locations: null,
+        } as unknown as SessionNotification["update"],
+      };
+      t.feed(notification, sink);
+      const recorded = sink.toolCallUpdates[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      // null = "explicit clear" per ACP spec, distinct from undefined
+      // ("no change"). Receivers MUST be able to tell the two apart.
+      expect(recorded.content).toBeNull();
+      expect(recorded.locations).toBeNull();
+      expect(recorded).not.toHaveProperty("status");
+    });
+
+    test("omits status on tool_call_update when harness doesn't include it", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const notification: SessionNotification = {
+        sessionId: "s1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc1",
+          rawOutput: { partial: "result" },
+        } as unknown as SessionNotification["update"],
+      };
+      t.feed(notification, sink);
+      const recorded = sink.toolCallUpdates[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      // Payload-only update with no status — sink call must not
+      // synthesize a default status; receivers preserve prior value.
+      expect(recorded).not.toHaveProperty("status");
+      expect(recorded.rawOutput).toEqual({ partial: "result" });
+    });
+
+    test("omits ACP fields when notification omits them", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const notification: SessionNotification = {
+        sessionId: "s1",
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "tc1",
+          title: "Bare",
+        } as unknown as SessionNotification["update"],
+      };
+      t.feed(notification, sink);
+      const recorded = sink.toolCallStarts[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      expect(recorded).not.toHaveProperty("toolKind");
+      expect(recorded).not.toHaveProperty("content");
+      expect(recorded).not.toHaveProperty("locations");
+      expect(recorded).not.toHaveProperty("rawInput");
+      expect(recorded).not.toHaveProperty("rawOutput");
     });
   });
 

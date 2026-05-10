@@ -46,6 +46,9 @@ import type {
   Cost,
   PlanEntry,
   SessionNotification,
+  ToolCallContent,
+  ToolCallLocation,
+  ToolKind,
 } from "@agentclientprotocol/sdk";
 
 /**
@@ -72,17 +75,52 @@ export interface ToolCallStartCall {
   title: string;
   /** Initial status. Typically `"pending"` or `"in_progress"`. */
   status?: string;
+  /** ACP `ToolCall.kind` — category (read/edit/execute/think/...). Renamed
+   *  to `toolKind` so it doesn't collide with discriminator `kind` fields
+   *  on downstream metadata envelopes. */
+  toolKind?: ToolKind;
+  /** ACP `ToolCall.content` — content blocks the harness produced at start
+   *  (text/image/audio/resource_link/resource/diff/terminal). Carried
+   *  unchanged so consumers can render the proper variant. */
+  content?: ToolCallContent[];
+  /** ACP `ToolCall.locations` — file paths + optional line numbers for
+   *  "follow-along" features. */
+  locations?: ToolCallLocation[];
+  /** ACP `ToolCall.rawInput` — the unredacted args sent to the tool.
+   *  Schema-typed as `unknown` because tools define their own input
+   *  shapes. */
+  rawInput?: unknown;
+  /** ACP `ToolCall.rawOutput` — the unredacted output. Optional at
+   *  start because most tools haven't produced output yet, but some
+   *  harnesses populate eagerly. */
+  rawOutput?: unknown;
 }
 
-/** Argument shape for `AcpStreamingSink.onToolCallUpdate`. */
+/** Argument shape for `AcpStreamingSink.onToolCallUpdate`.
+ *
+ *  Mirrors the ACP `ToolCallUpdate` shape with three-state semantics
+ *  for `content` / `locations`: `undefined` = no change, `null` =
+ *  explicit clear, value = replacement. `status` and `toolKind` use
+ *  two-state semantics (absent vs present) — the SDK admits `null`
+ *  for status but its meaning ("no change") is equivalent to absence
+ *  on the wire, so the translator normalizes to `undefined`. */
 export interface ToolCallUpdateCall {
   toolCallId: string;
-  /** Updated status. `"completed"` / `"failed"` indicate terminal states. */
+  /** Updated status. `"completed"` / `"failed"` indicate terminal
+   *  states; absent means the harness sent a payload-only update.
+   *  Receivers preserve their prior status when this is absent. */
   status?: string;
-  /** Optional updated content blocks (e.g. tool result diffs). */
-  content?: unknown;
-  /** Optional updated locations metadata. */
-  rawLocations?: unknown;
+  /** Replacement content blocks per ACP `ToolCallUpdate.content`. */
+  content?: ToolCallContent[] | null;
+  /** Replacement locations per ACP `ToolCallUpdate.locations`. Renamed
+   *  from the prior `rawLocations` to match the SDK's typed shape. */
+  locations?: ToolCallLocation[] | null;
+  /** Updated tool kind. ACP allows mid-call kind transitions (rare). */
+  toolKind?: ToolKind;
+  /** Updated raw args — ACP allows mid-call replacement. */
+  rawInput?: unknown;
+  /** Updated raw output. Most commonly populated on terminal status. */
+  rawOutput?: unknown;
 }
 
 /** Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan`
@@ -200,29 +238,43 @@ export class AcpStreamingTranslator {
       }
       case "tool_call": {
         // Inside this branch TypeScript narrows `update` to the SDK's
-        // `ToolCallNotification` shape, so `toolCallId` / `title` /
-        // `status` are typed without casts. (`id`/`title` legacy
-        // fallbacks are no longer needed — the SDK doesn't expose them
-        // and pre-spec harnesses are out of scope.)
+        // `ToolCallNotification` shape, so all `ToolCall` fields are
+        // typed without casts. The translator forwards the full set
+        // (kind, content, locations, rawInput, rawOutput) so consumers
+        // can render rich tool-call detail. Each is conditionally
+        // included so receivers can distinguish "harness omitted" from
+        // "harness sent empty".
         if (!update.toolCallId) return;
         sink.onToolCallStart({
           toolCallId: update.toolCallId,
           title: update.title ?? "",
           ...(update.status !== undefined ? { status: update.status } : {}),
+          ...(update.kind !== undefined ? { toolKind: update.kind } : {}),
+          ...(update.content !== undefined ? { content: update.content } : {}),
+          ...(update.locations !== undefined ? { locations: update.locations } : {}),
+          ...(update.rawInput !== undefined ? { rawInput: update.rawInput } : {}),
+          ...(update.rawOutput !== undefined ? { rawOutput: update.rawOutput } : {}),
         });
         return;
       }
       case "tool_call_update": {
         if (!update.toolCallId) return;
-        // ACP allows `null` status (= no-change). Treat as "no status
-        // surface to executor" and let the receiver's progress/end
-        // gate decide off the prior in-memory state.
-        const status = update.status ?? undefined;
+        // The ACP SDK distinguishes three states for content / locations:
+        // omitted (`undefined`) = no change, `null` = explicit clear,
+        // value = replacement. Those forward through to the sink as
+        // `T[] | null | undefined`. Status and kind use two-state
+        // semantics — the SDK admits `null` (= "no change" by spec)
+        // but its meaning is equivalent to absence on the wire, so we
+        // normalize `null` to `undefined` here. Receivers don't need
+        // to special-case null for these fields.
         sink.onToolCallUpdate({
           toolCallId: update.toolCallId,
-          ...(status !== undefined ? { status } : {}),
-          ...(update.content != null ? { content: update.content } : {}),
-          ...(update.locations != null ? { rawLocations: update.locations } : {}),
+          ...(typeof update.status === "string" ? { status: update.status } : {}),
+          ...(update.content !== undefined ? { content: update.content } : {}),
+          ...(update.locations !== undefined ? { locations: update.locations } : {}),
+          ...(update.kind != null ? { toolKind: update.kind } : {}),
+          ...(update.rawInput !== undefined ? { rawInput: update.rawInput } : {}),
+          ...(update.rawOutput !== undefined ? { rawOutput: update.rawOutput } : {}),
         });
         return;
       }

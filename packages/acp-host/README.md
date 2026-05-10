@@ -184,7 +184,7 @@ bun add @agents-js/acp-host
 - **`ToolCallInfo`**
 - **`ToolCallStartCall`** — Argument shape for `AcpStreamingSink.onToolCallStart`.
 - **`ToolCallSummary`**
-- **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`.
+- **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`. Mirrors the ACP `ToolCallUpdate` shape with three-state semantics for `content` / `locations`: `undefined` = no change, `null` = explicit cle...
 - **`TranscriptSurfaceState`**
 - **`TurnState`**
 - **`UsageUpdateCall`** — Argument shape for `AcpStreamingSink.onUsageUpdate`.

@@ -62,9 +62,9 @@ bun add @agents-js/a2a
 - **`ServeACPOverA2AHandle`**
 - **`ServeACPOverA2AOptions`**
 - **`ThoughtMetadata`** — Metadata for an `agent_thought_chunk` ACP notification. The `delta` is the incremental text added by this chunk; `cumulativeText` is the running concatenation per `messageId`.
-- **`ToolCallEndMetadata`** — Metadata for a terminal tool-call transition (`completed` / `failed`). Receivers move the call from active to completed.
-- **`ToolCallProgressMetadata`** — Metadata for a non-terminal tool-call status transition (e.g. `pending` → `in_progress`). Receivers should update the active tool's displayed status WITHOUT moving it to completed.
-- **`ToolCallStartMetadata`** — Metadata for the initial registration of a tool call.
+- **`ToolCallEndMetadata`** — Metadata for a terminal tool-call transition (`completed` / `failed`). Receivers move the call from active to completed. Carries the full final ACP `ToolCall` payload so receivers don't need to ret...
+- **`ToolCallProgressMetadata`** — Metadata for a non-terminal tool-call status transition (e.g. `pending` → `in_progress`) or a payload-only update (content / locations / raw I/O) without a status change. Receivers should update th...
+- **`ToolCallStartMetadata`** — Metadata for the initial registration of a tool call. Carries the full ACP `ToolCall` payload so receivers can render rich detail (diff/terminal content, file locations, raw input/output, tool kind...
 - **`UniversalA2AServerOptions`**
 - **`UsageMetadata`** — Metadata for a `usage_update` notification — token-budget telemetry. `cost` reuses the SDK's `Cost` type (`{ amount: number; currency: string }`) so structured multi-currency values are preserved e...
 
@@ -91,7 +91,10 @@ bun add @agents-js/a2a
 - **`Task`**
 - **`TaskStatus`**
 - **`TaskStatusUpdateEvent`**
+- **`ToolCallContent`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
 - **`ToolCallEndStatus`** — Terminal status values for tool-call-end metadata. ACP defines `pending` / `in_progress` as non-terminal and `completed` / `failed` as terminal. We accept any string here so receivers see what the ...
+- **`ToolCallLocation`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ToolKind`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
 
 ### Constants
 
