@@ -55,35 +55,47 @@ describe("CLI client ACP event fan-out — end-to-end", () => {
   test("translates all non-text ACP variants to typed client events with SDK-shaped payloads", async () => {
     const previousCwd = process.cwd();
     const tempCwd = mkdtempSync(path.join(tmpdir(), "agents-js-acp-fanout-"));
-    process.chdir(tempCwd);
 
-    // Spawn mock-acp with every non-text flag on. One prompt exercises
-    // every wire-kind in a single round-trip — small enough to debug
-    // when a single variant regresses.
-    const acp = spawnACPAgent({
-      command: Bun.which("bun") ?? "bun",
-      args: ["run", mockAcpBinPath],
-      env: {
-        ...process.env,
-        MOCK_ACP_THOUGHT_CHUNKS: "1",
-        MOCK_ACP_TOOL_CALLS: "1",
-        MOCK_ACP_PLAN_UPDATES: "1",
-        MOCK_ACP_AVAILABLE_COMMANDS: "1",
-        MOCK_ACP_MODE_CHANGES: "1",
-        MOCK_ACP_USAGE_UPDATES: "1",
-      },
-    });
-
-    const gatewayCard = buildAgentCard({
-      name: "acp-event-fanout-gateway",
-      description: "Layer 3 ACP event fan-out test gateway",
-      capabilities: { "text-to-text": {} },
-    });
-    const serverWrapper = new UniversalA2AServer(new ACPtoA2AExecutor(acp.stream), gatewayCard);
-    const server = await serverWrapper.start(0);
-    const baseUrl = `http://127.0.0.1:${server.port}`;
+    // Acquired before any throwable setup; nullable so the cleanup
+    // block at the bottom can guard each individually. If
+    // `spawnACPAgent` throws, `serverWrapper.start` never runs and
+    // `server` stays null — same for `acp`. Without this layout an
+    // early throw would leak the child process and leave the
+    // working directory changed for subsequent tests.
+    let acp: ReturnType<typeof spawnACPAgent> | null = null;
+    let server: Awaited<ReturnType<UniversalA2AServer["start"]>> | null = null;
+    let chdirApplied = false;
 
     try {
+      process.chdir(tempCwd);
+      chdirApplied = true;
+
+      // Spawn mock-acp with every non-text flag on. One prompt exercises
+      // every wire-kind in a single round-trip — small enough to debug
+      // when a single variant regresses.
+      acp = spawnACPAgent({
+        command: Bun.which("bun") ?? "bun",
+        args: ["run", mockAcpBinPath],
+        env: {
+          ...process.env,
+          MOCK_ACP_THOUGHT_CHUNKS: "1",
+          MOCK_ACP_TOOL_CALLS: "1",
+          MOCK_ACP_PLAN_UPDATES: "1",
+          MOCK_ACP_AVAILABLE_COMMANDS: "1",
+          MOCK_ACP_MODE_CHANGES: "1",
+          MOCK_ACP_USAGE_UPDATES: "1",
+        },
+      });
+
+      const gatewayCard = buildAgentCard({
+        name: "acp-event-fanout-gateway",
+        description: "Layer 3 ACP event fan-out test gateway",
+        capabilities: { "text-to-text": {} },
+      });
+      const serverWrapper = new UniversalA2AServer(new ACPtoA2AExecutor(acp.stream), gatewayCard);
+      server = await serverWrapper.start(0);
+      const baseUrl = `http://127.0.0.1:${server.port}`;
+
       const controller = new A2AClientController();
       const observed: A2AEvent[] = [];
       controller.subscribe((event) => {
@@ -169,9 +181,11 @@ describe("CLI client ACP event fan-out — end-to-end", () => {
       // NOT dropped. This is the schema-derived-types contract from #23.
       expect(lastUsage?.cost).toEqual({ amount: 0.18, currency: "USD" });
     } finally {
-      server.stop();
-      acp.kill();
-      process.chdir(previousCwd);
+      server?.stop();
+      acp?.kill();
+      if (chdirApplied) {
+        process.chdir(previousCwd);
+      }
     }
   }, 30_000);
 });

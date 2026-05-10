@@ -4,6 +4,7 @@ import { createClientActiveAction } from "./active-action.ts";
 import { createClientHeader } from "./header.ts";
 import { createClientInputBar } from "./input-bar.ts";
 import { createClientInspector } from "./inspector.ts";
+import { createClientPlanPane } from "./plan-pane.ts";
 import { createClientTranscriptView } from "./transcript.ts";
 
 export interface ClientApp {
@@ -23,6 +24,7 @@ export function createClientApp(
   options: ClientAppOptions,
 ): ClientApp {
   const header = createClientHeader(renderer);
+  const planPane = createClientPlanPane(renderer);
   const transcript = createClientTranscriptView(renderer);
   const inspector = createClientInspector(renderer, options.raw);
   const activeAction = createClientActiveAction(renderer);
@@ -62,6 +64,11 @@ export function createClientApp(
     backgroundColor: "#0f1117",
   });
   root.add(header.root);
+  // Plan pane sits between header and body so the plan stays visible
+  // above the transcript without scrolling. Pane collapses to 0
+  // height when there's no plan, so this position is free when
+  // unused.
+  root.add(planPane.root);
   root.add(body);
   root.add(activeAction.root);
   root.add(inputBar.root);
@@ -69,6 +76,7 @@ export function createClientApp(
 
   const unsubscribe = controller.subscribe((_event, state) => {
     header.update(state);
+    planPane.update(state);
     transcript.update(state);
     inspector.update(state);
     activeAction.update(state);
@@ -94,6 +102,7 @@ export function createClientApp(
     start() {
       const state = controller.getState();
       header.update(state);
+      planPane.update(state);
       transcript.update(state);
       inspector.update(state);
       activeAction.update(state);

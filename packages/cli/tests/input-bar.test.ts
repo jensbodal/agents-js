@@ -517,4 +517,87 @@ describe("input-bar oneOf support", () => {
     await inputBar.submit("valid");
     expect(response).toEqual({ action: "accept", content: { pick: "valid" } });
   });
+
+  describe("slash-command suggestion hint", () => {
+    function makeStateWithCommands(): A2ASessionState {
+      return {
+        sessionId: "s1",
+        transcript: [],
+        status: "connected",
+        debugRecords: [],
+        activeToolCalls: [],
+        completedToolCalls: [],
+        currentPlan: null,
+        availableCommands: [
+          { name: "/think", description: "Toggle thinking" },
+          { name: "/plan", description: "Switch to plan mode" },
+          { name: "/help", description: "Show help" },
+        ],
+      };
+    }
+
+    test("shows matching commands when input starts with /", async () => {
+      const { renderer, mockInput, renderOnce, captureCharFrame } = await createTestRenderer({
+        width: 80,
+        height: 4,
+      });
+
+      const inputBar = createClientInputBar(renderer, async () => {});
+      renderer.root.add(inputBar.root);
+      inputBar.focus();
+      inputBar.update(makeStateWithCommands());
+      await renderOnce();
+
+      await mockInput.typeText("/t");
+      await renderOnce();
+
+      const frame = captureCharFrame();
+      // Matching command surfaced inline as hint with description.
+      expect(frame).toContain("/think");
+      expect(frame).toContain("Toggle thinking");
+      // Non-matching commands not shown.
+      expect(frame).not.toContain("Switch to plan mode");
+    });
+
+    test("hides hint when input doesn't start with /", async () => {
+      const { renderer, mockInput, renderOnce, captureCharFrame } = await createTestRenderer({
+        width: 80,
+        height: 4,
+      });
+
+      const inputBar = createClientInputBar(renderer, async () => {});
+      renderer.root.add(inputBar.root);
+      inputBar.focus();
+      inputBar.update(makeStateWithCommands());
+      await renderOnce();
+
+      await mockInput.typeText("hello");
+      await renderOnce();
+
+      const frame = captureCharFrame();
+      expect(frame).not.toContain("Toggle thinking");
+      expect(frame).not.toContain("Switch to plan mode");
+    });
+
+    test("does nothing when availableCommands is empty (no harness signal)", async () => {
+      const { renderer, mockInput, renderOnce, captureCharFrame } = await createTestRenderer({
+        width: 80,
+        height: 4,
+      });
+
+      const inputBar = createClientInputBar(renderer, async () => {});
+      inputBar.update({
+        ...makeStateWithCommands(),
+        availableCommands: [],
+      });
+      await renderOnce();
+
+      await mockInput.typeText("/think");
+      await renderOnce();
+
+      const frame = captureCharFrame();
+      // No hint surfaces when the harness hasn't reported any commands.
+      expect(frame).not.toContain("Toggle thinking");
+    });
+  });
 });
