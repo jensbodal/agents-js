@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2a",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "sideEffects": false,
   "description": "A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.",
