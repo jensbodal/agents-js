@@ -32,8 +32,8 @@ describe("AcpChatApp", () => {
     expect(AcpChatApp.elementProperties.get("defaultUrl")?.type).toBe(String);
   });
 
-  test("has 17 element properties (2 public + 15 state)", () => {
-    expect(AcpChatApp.elementProperties.size).toBe(17);
+  test("has 18 element properties (2 public + 16 state)", () => {
+    expect(AcpChatApp.elementProperties.size).toBe(18);
   });
 
   test("consolidated _view state is registered", () => {
@@ -53,6 +53,7 @@ describe("AcpChatApp", () => {
       "_selectedModelId",
       "_runtimeNotice",
       "_workflowSurface",
+      "_currentToolCalls",
       "_hasSavedPreferences",
       "_savedPreferences",
       "_profiles",
@@ -116,6 +117,81 @@ describe("AcpChatApp internal state", () => {
     expect(app._view.transcript).toEqual([]);
     expect(app._view.plan).toEqual([]);
     expect(app._view.lastError).toBe("");
+  });
+});
+
+describe("AcpChatApp transcript merge (Layer D)", () => {
+  // The wire path Layer C established: HostState.currentTurn.toolCalls
+  // arrives at acp-chat-app as `_currentToolCalls`. The chat-app merges
+  // those into `_view.transcript` (text messages) so <acp-transcript>
+  // sees a single TranscriptEntryLike[] array with both kinds.
+
+  test("returns the message stream verbatim when no tool calls are active", () => {
+    const app = new AcpChatApp() as AcpChatApp & {
+      _view: { transcript: unknown[] };
+      _currentToolCalls: unknown[];
+      _renderedTranscript: unknown[];
+    };
+    app._view = {
+      ...app._view,
+      transcript: [
+        { id: "m1", role: "user", text: "hi" },
+        { id: "m2", role: "agent", text: "hello" },
+      ],
+    } as typeof app._view;
+    app._currentToolCalls = [];
+    expect(app._renderedTranscript).toHaveLength(2);
+    // Same array reference — no allocation when there's nothing to merge.
+    expect(app._renderedTranscript).toBe(app._view.transcript);
+  });
+
+  test("memoizes the merged array — repeat reads return the same reference", () => {
+    // Streaming `pendingText` triggers many renders that don't touch the
+    // transcript or tool-calls inputs. The getter must return a stable
+    // reference across those reads so <acp-transcript> doesn't see a
+    // spurious change and re-render its child rows.
+    const app = new AcpChatApp() as AcpChatApp & {
+      _view: { transcript: unknown[] };
+      _currentToolCalls: unknown[];
+      _renderedTranscript: unknown[];
+    };
+    app._view = {
+      ...app._view,
+      transcript: [{ id: "m1", role: "user", text: "x" }],
+    } as typeof app._view;
+    app._currentToolCalls = [{ toolCallId: "tc-1", toolName: "read", status: "in_progress" }];
+    const first = app._renderedTranscript;
+    const second = app._renderedTranscript;
+    expect(second).toBe(first);
+    // Mutating the tool-calls reference invalidates the cache.
+    app._currentToolCalls = [...app._currentToolCalls];
+    expect(app._renderedTranscript).not.toBe(first);
+  });
+
+  test("appends active tool calls as `kind: 'tool_call'` entries after messages", () => {
+    const app = new AcpChatApp() as AcpChatApp & {
+      _view: { transcript: unknown[] };
+      _currentToolCalls: unknown[];
+      _renderedTranscript: Array<{ id: string; kind?: string }>;
+    };
+    app._view = {
+      ...app._view,
+      transcript: [{ id: "m1", role: "user", text: "read package.json" }],
+    } as typeof app._view;
+    app._currentToolCalls = [
+      {
+        toolCallId: "tc-1",
+        toolName: "read",
+        status: "in_progress",
+      },
+    ];
+    const rendered = app._renderedTranscript;
+    expect(rendered).toHaveLength(2);
+    expect(rendered[0]?.id).toBe("m1");
+    expect(rendered[1]).toMatchObject({
+      id: "tool:tc-1",
+      kind: "tool_call",
+    });
   });
 });
 
