@@ -55,6 +55,9 @@ export type {
   SessionModelsLike,
   SessionStateLike,
   TranscriptEntryLike,
+  TranscriptMessageEntryLike,
+  TranscriptToolCallEntryLike,
+  TranscriptToolCallEntryPayload,
   WriteGateLike,
 } from "./acp-types.ts";
 export { statusCategory } from "./acp-utils.ts";

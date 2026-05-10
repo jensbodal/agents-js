@@ -163,4 +163,50 @@ describe("AcpTranscript", () => {
     expect(instance._elapsedSeconds).toBe(0);
     expect(instance._wasThinking).toBe(false);
   });
+
+  test("accepts mixed message + tool_call transcript entries at runtime", () => {
+    // Runtime-only smoke: ensures the property accessor handles both
+    // discriminated-union variants. The compile-time drift check
+    // lives at packages/ui-components/src/__type-tests__/transcript-entry-types.ts
+    // (src/ so it's covered by `bun run typecheck`; tests/ is not).
+    const instance = new AcpTranscript();
+    instance.transcript = [
+      { id: "m1", role: "user", text: "hi" },
+      {
+        id: "t1",
+        kind: "tool_call",
+        toolCall: {
+          toolCallId: "tc1",
+          toolName: "read",
+          status: "completed",
+          toolKind: "read",
+        },
+      },
+      { id: "m2", role: "agent", text: "done" },
+    ];
+    expect(instance.transcript).toHaveLength(3);
+    expect(instance.transcript[1]?.kind).toBe("tool_call");
+  });
+
+  test("auto-scroll-to-user-message ignores tool_call entries at the end", () => {
+    // The "user just sent — reset _userScrolledUp" behavior fires
+    // only on user-message entries; a trailing tool_call should NOT
+    // yank the scroll lock. Otherwise tool-call activity arriving
+    // after the user scrolled up would jump them down.
+    const instance = new AcpTranscript();
+    (instance as unknown as { _userScrolledUp: boolean })._userScrolledUp = true;
+    instance.transcript = [
+      { id: "m1", role: "user", text: "hi" },
+      {
+        id: "t1",
+        kind: "tool_call",
+        toolCall: { toolCallId: "tc1", toolName: "read", status: "in_progress" },
+      },
+    ];
+    // Stub scrollToBottom so the call doesn't blow up without a real DOM.
+    (instance as unknown as { _scrollToBottom: () => void })._scrollToBottom = () => {};
+    instance.updated(new Map([["transcript", []]]));
+    // _userScrolledUp should remain true because the last entry is a tool_call.
+    expect((instance as unknown as { _userScrolledUp: boolean })._userScrolledUp).toBe(true);
+  });
 });
