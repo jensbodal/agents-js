@@ -16,6 +16,23 @@
  *   notifications (one per char of MOCK_ACP_REPLY) — exercises the
  *   per-chunk streaming-render path that 0.3.0 fixes for the CLI TUI.
  *   Used by the Layer 3 end-to-end render test.
+ * - Opt-in non-text-event modes (each independent of the others):
+ *     - `MOCK_ACP_THOUGHT_CHUNKS=1` — emits 5 agent_thought_chunk
+ *       notifications before the visible response. Exercises the
+ *       executor → translator → provider thought.delta fan-out path.
+ *     - `MOCK_ACP_TOOL_CALLS=1` — emits a tool_call (status:
+ *       in_progress) followed after the visible response by a
+ *       tool_call_update with status: completed. Exercises the
+ *       tool-call-start / tool-call-progress / tool-call-end gating.
+ *     - `MOCK_ACP_PLAN_UPDATES=1` — emits a plan notification with a
+ *       3-entry SDK-typed PlanEntry list (high/medium/low priority).
+ *     - `MOCK_ACP_AVAILABLE_COMMANDS=1` — emits an
+ *       available_commands_update with two commands.
+ *     - `MOCK_ACP_MODE_CHANGES=1` — emits a current_mode_update.
+ *     - `MOCK_ACP_USAGE_UPDATES=1` — emits a usage_update with
+ *       structured Cost (`{ amount: 0.18, currency: "USD" }`).
+ *   These flags are independent and composable, e.g. set both
+ *   THOUGHT_CHUNKS and TOOL_CALLS to exercise both paths in one turn.
  * - Does NOT write to stdout before the initialize response — zero
  *   contamination guarantee required by checkContamination in runtime-e2e.ts.
  *
@@ -75,15 +92,90 @@ function createMockAgent(connection: AgentSideConnection): Agent {
 
     async prompt(params: PromptRequest): Promise<PromptResponse> {
       const { sessionId } = params;
-      // Opt-in streaming mode (env MOCK_ACP_STREAMING_TEXT=1): emit one
+
+      // Opt-in non-text events (PRE-text). Each flag is independent
+      // and composable so a single test can exercise more than one
+      // wire-shape branch in one prompt. Env-var toggles are
+      // intentional — the mock is a deterministic test fixture
+      // invoked by `MOCK_ACP_*=1 bun ...`, and adding a config-file
+      // layer here would be ceremony for single-purpose probes.
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_AVAILABLE_COMMANDS === "1") {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "available_commands_update",
+            availableCommands: [
+              { name: "/think", description: "Toggle thinking" },
+              { name: "/plan", description: "Switch to plan mode" },
+            ],
+          },
+        });
+      }
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_PLAN_UPDATES === "1") {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "plan",
+            entries: [
+              { content: "step 1", priority: "high", status: "completed" },
+              { content: "step 2", priority: "medium", status: "in_progress" },
+              { content: "step 3", priority: "low", status: "pending" },
+            ],
+          },
+        });
+      }
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_MODE_CHANGES === "1") {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "current_mode_update",
+            currentModeId: "execute",
+          },
+        });
+      }
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_THOUGHT_CHUNKS === "1") {
+        const thoughtId = `mock-acp-thought-${sessionId}`;
+        for (const piece of ["First, ", "I'm ", "thinking ", "about ", "this. "]) {
+          await connection.sessionUpdate({
+            sessionId,
+            update: {
+              sessionUpdate: "agent_thought_chunk",
+              messageId: thoughtId,
+              content: { type: "text", text: piece },
+            },
+          });
+        }
+      }
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      const toolCallsEnabled = process.env.MOCK_ACP_TOOL_CALLS === "1";
+      const toolCallId = toolCallsEnabled ? `mock-tc-${sessionId}` : "";
+      if (toolCallsEnabled) {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId,
+            title: "Read",
+            kind: "read",
+            status: "in_progress",
+          },
+        });
+      }
+
+      // Opt-in streaming text (env MOCK_ACP_STREAMING_TEXT=1): emit one
       // agent_message_chunk per character of MOCK_ACP_REPLY, sharing a
       // stable messageId so the per-message accumulator on the consumer
       // side stitches them. Default mode keeps the v0.2.x behavior of
       // one big chunk for backwards compatibility with existing tests.
-      // The env-var toggle is intentional — this is a deterministic
-      // test fixture invoked by `MOCK_ACP_STREAMING_TEXT=1 bun ...`,
-      // and adding a config-file layer here would be ceremony for a
-      // single-purpose probe.
       // biome-ignore lint/style/noProcessEnv: see comment above
       if (process.env.MOCK_ACP_STREAMING_TEXT === "1") {
         const messageId = `mock-acp-msg-${sessionId}`;
@@ -106,6 +198,34 @@ function createMockAgent(connection: AgentSideConnection): Agent {
           },
         });
       }
+
+      // Opt-in non-text events (POST-text). Tool-call terminal status
+      // and final usage update arrive after the visible response, mirroring
+      // how real harnesses report cost + completion at turn end.
+      if (toolCallsEnabled) {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId,
+            status: "completed",
+          },
+        });
+      }
+
+      // biome-ignore lint/style/noProcessEnv: see comment above
+      if (process.env.MOCK_ACP_USAGE_UPDATES === "1") {
+        await connection.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "usage_update",
+            size: 200_000,
+            used: 12_345,
+            cost: { amount: 0.18, currency: "USD" },
+          },
+        });
+      }
+
       return { stopReason: "end_turn" };
     },
 
