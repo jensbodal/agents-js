@@ -24,6 +24,7 @@ bun add @agents-js/ui-components
 - **`AcpConnectDialog`**
 - **`AcpDateTimeInput`**
 - **`AcpDebugPanel`**
+- **`AcpDiffBlock`**
 - **`AcpDivider`**
 - **`AcpElicitationForm`**
 - **`AcpIcon`**
@@ -40,7 +41,10 @@ bun add @agents-js/ui-components
 - **`AcpSlider`**
 - **`AcpStatusBar`**
 - **`AcpStreamingText`**
+- **`AcpTerminalEmbed`**
 - **`AcpTextField`**
+- **`AcpToolCallDetail`**
+- **`AcpToolKindIcon`**
 - **`AcpTranscript`**
 - **`AcpWriteGateModal`**
 - **`ChatAppProfileManager`**
@@ -84,6 +88,7 @@ bun add @agents-js/ui-components
 ### Interfaces
 
 - **`AcpChoiceOption`**
+- **`AcpToolCallDetailData`** — Mirrors the shape of `ActiveToolCall` from the `agents-js/a2a-client` package without taking a runtime dependency on it — keeps `ui-components` framework-agnostic. Consumers can pass an `ActiveTool...
 - **`AgentCardLike`** — Unified agent card shape — covers preview, snapshot, and view uses.
 - **`BrowserLaunchConfig`**
 - **`ChatAppDerivedState`**
@@ -161,6 +166,7 @@ bun add @agents-js/ui-components
 
 ## Dependencies
 
+- `@agentclientprotocol/sdk`
 - `@agents-js/a2ui-types`
 - `@agents-js/acp-host`
 - `@agents-js/schema-utils`

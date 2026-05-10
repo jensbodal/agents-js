@@ -60,6 +60,7 @@
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
     "@agents-js/a2ui-types": "0.3.2",
     "@agents-js/acp-host": "0.3.2",
     "@agents-js/schema-utils": "0.3.2"

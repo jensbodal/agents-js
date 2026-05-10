@@ -12,6 +12,7 @@ export { AcpColumn } from "./acp-column.ts";
 export { AcpConnectDialog } from "./acp-connect-dialog.ts";
 export { AcpDateTimeInput } from "./acp-date-time-input.ts";
 export { AcpDebugPanel } from "./acp-debug-panel.ts";
+export { AcpDiffBlock } from "./acp-diff-block.ts";
 export { AcpDivider } from "./acp-divider.ts";
 export { AcpElicitationForm } from "./acp-elicitation-form.ts";
 export {
@@ -35,8 +36,14 @@ export { AcpRow } from "./acp-row.ts";
 export { AcpSlider } from "./acp-slider.ts";
 export { AcpStatusBar } from "./acp-status-bar.ts";
 export { AcpStreamingText } from "./acp-streaming-text.ts";
+export { AcpTerminalEmbed } from "./acp-terminal-embed.ts";
 export { AcpTextField } from "./acp-text-field.ts";
 export { acpTheme } from "./acp-theme.ts";
+export {
+  AcpToolCallDetail,
+  type AcpToolCallDetailData,
+} from "./acp-tool-call-detail.ts";
+export { AcpToolKindIcon } from "./acp-tool-kind-icon.ts";
 export { AcpTranscript } from "./acp-transcript.ts";
 export type {
   AgentCardLike,
