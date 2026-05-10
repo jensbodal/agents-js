@@ -660,6 +660,18 @@ export class ACPtoA2AExecutor implements AgentExecutor {
           ...(cost !== undefined ? { cost } : {}),
         });
       },
+
+      onSessionInfoUpdate: ({ title, updatedAt }) => {
+        // ACP `SessionInfoUpdate` three-state fields forwarded
+        // unchanged. `null` (explicit clear) and string (replacement)
+        // both reach the wire; `undefined` (no change) is dropped from
+        // the metadata so receivers can distinguish clear from absence.
+        publishMetadata({
+          kind: "session-info-updated",
+          ...(title !== undefined ? { title } : {}),
+          ...(updatedAt !== undefined ? { updatedAt } : {}),
+        });
+      },
     };
   }
 

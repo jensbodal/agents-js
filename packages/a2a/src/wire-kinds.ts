@@ -45,7 +45,8 @@ export type AgentEventKind =
   | "plan"
   | "commands"
   | "mode-changed"
-  | "usage";
+  | "usage"
+  | "session-info-updated";
 
 /** Metadata for an `agent_thought_chunk` ACP notification.
  *  The `delta` is the incremental text added by this chunk;
@@ -211,6 +212,21 @@ export interface UsageMetadata {
   cost?: Cost | null;
 }
 
+/** Metadata for a `session_info_update` notification — the harness
+ *  mutating session-level metadata (title, last-activity timestamp).
+ *  Three-state per field: `undefined` = no change, `null` = explicit
+ *  clear, string = replacement. Receivers merge over their prior
+ *  state; an absent field preserves the existing value. */
+export interface SessionInfoUpdatedMetadata {
+  kind: "session-info-updated";
+  /** Human-readable session title set by the harness. `null` clears
+   *  the existing title; absent means no change. */
+  title?: string | null;
+  /** ISO 8601 timestamp of last activity. `null` clears; absent
+   *  means no change. */
+  updatedAt?: string | null;
+}
+
 /** Discriminated union of all agent-event metadata shapes that ride
  *  on `TaskStatusUpdateEvent.metadata`. Use this as the type for
  *  `metadata` when emitting a non-text agent event. */
@@ -222,7 +238,8 @@ export type AgentEventMetadata =
   | PlanMetadata
   | CommandsMetadata
   | ModeChangedMetadata
-  | UsageMetadata;
+  | UsageMetadata
+  | SessionInfoUpdatedMetadata;
 
 /** Re-export the SDK schema types we ride on so consumers don't
  *  need to take a separate dependency on `@agentclientprotocol/sdk`
@@ -244,6 +261,7 @@ export function isAgentEventMetadata(
     kind === "plan" ||
     kind === "commands" ||
     kind === "mode-changed" ||
-    kind === "usage"
+    kind === "usage" ||
+    kind === "session-info-updated"
   );
 }

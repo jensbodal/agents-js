@@ -373,6 +373,16 @@ export class A2AClientProvider {
           ...(md.cost !== undefined ? { cost: md.cost } : {}),
         });
         return true;
+      case "session-info-updated":
+        // Three-state per field: undefined (omitted from wire) → omitted
+        // from event so receivers preserve prior; null → forwarded as
+        // explicit clear; string → replacement.
+        this.emit({
+          type: "session.info.updated",
+          ...(md.title !== undefined ? { title: md.title } : {}),
+          ...(md.updatedAt !== undefined ? { updatedAt: md.updatedAt } : {}),
+        });
+        return true;
       default: {
         const _exhaustive: never = md;
         return false;

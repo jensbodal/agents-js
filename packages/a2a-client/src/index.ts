@@ -113,6 +113,7 @@ export type {
   A2ARunFinishedEvent,
   A2ARunStartedEvent,
   A2ASendResult,
+  A2ASessionInfoUpdatedEvent,
   A2ASessionState,
   A2ASessionUpdatedEvent,
   A2AStepFinishedEvent,

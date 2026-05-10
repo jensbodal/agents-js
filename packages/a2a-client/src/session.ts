@@ -119,6 +119,8 @@ export function createInitialSessionState(
     availableCommands: overrides.availableCommands ?? [],
     currentMode: overrides.currentMode,
     lastUsage: overrides.lastUsage,
+    sessionTitle: overrides.sessionTitle,
+    sessionUpdatedAt: overrides.sessionUpdatedAt,
   };
 }
 
@@ -426,5 +428,26 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
           ...(event.cost !== undefined ? { cost: event.cost } : {}),
         },
       };
+    case "session.info.updated": {
+      // Three-state per field: `undefined` (or omitted) = preserve
+      // prior; null = explicit clear (kept as null in state so the
+      // TUI can distinguish "agent withdrew the title" from
+      // "never had one"); string = replacement.
+      //
+      // Use `!== undefined` rather than `in` membership: an event
+      // constructed via spread / partial merge can carry
+      // `{ title: undefined }`, which `in` would treat as present
+      // and overwrite state. The protocol semantic for `undefined`
+      // is "no change", so dropping it here keeps construction
+      // ergonomics aligned with the wire spec.
+      const next = { ...state };
+      if (event.title !== undefined) {
+        next.sessionTitle = event.title;
+      }
+      if (event.updatedAt !== undefined) {
+        next.sessionUpdatedAt = event.updatedAt;
+      }
+      return next;
+    }
   }
 }
