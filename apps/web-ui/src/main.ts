@@ -150,6 +150,7 @@ interface ChatAppHostState {
   _lastError: string;
   _sessionTitle: string;
   _plan: NonNullable<HostState["plan"]>;
+  _currentToolCalls: NonNullable<NonNullable<HostState["currentTurn"]>["toolCalls"]>;
   _runtimeSwitchState: HostState["runtimeSwitchState"];
   _workflowSurface: WorkflowSurfaceRenderState | null;
   _loadProfilesFromManager(): void;
@@ -238,6 +239,10 @@ function applyHostState(): void {
   hostView._lastError = showHostState ? (latestHostState.lastError ?? "") : "";
   hostView._sessionTitle = workflowSurface?.transcript_surface.title ?? "";
   hostView._plan = workflowSurface?.plan_surface.entries ?? [];
+  hostView._currentToolCalls =
+    showHostState && latestHostState.currentTurn?.toolCalls
+      ? latestHostState.currentTurn.toolCalls
+      : [];
   hostView._runtimeSwitchState = showHostState ? latestHostState.runtimeSwitchState : null;
   hostView._workflowSurface = workflowSurface;
   hostView._runtimeNotice = deriveRuntimeNotice(showHostState, latestHostState.runtimeSwitchState);

@@ -13,6 +13,8 @@ import type {
   RuntimeModelLike,
   SessionModelsLike,
   SessionStateLike,
+  TranscriptEntryLike,
+  TranscriptToolCallEntryPayload,
 } from "./acp-types.ts";
 import type { ConnectPreferences, ConnectProfile } from "./connect-preferences-store.ts";
 import {
@@ -157,6 +159,21 @@ export class AcpChatApp extends LitElement {
   @state()
   accessor _workflowSurface: WorkflowSurfaceRenderState | null = null;
 
+  /**
+   * Active-turn tool calls forwarded from the WS bridge's
+   * `HostState.currentTurn.toolCalls`. Rendered inline in the
+   * transcript via `<acp-tool-call-detail>` (composed inside
+   * `<acp-transcript>`) so users see ACP tool-call activity —
+   * locations, raw I/O, diffs — alongside the conversation.
+   *
+   * Active-turn only: completed-turn tool calls live in the host's
+   * `completedTurns[].toolCalls` and would need timestamp ordering
+   * to interleave correctly with the message log; that's a separate
+   * follow-up.
+   */
+  @state()
+  accessor _currentToolCalls: TranscriptToolCallEntryPayload[] = [];
+
   @state()
   accessor _connecting = false;
 
@@ -196,6 +213,54 @@ export class AcpChatApp extends LitElement {
   private get _isInflight(): boolean {
     const s = this._view.status;
     return s === "sending" || s === "waiting";
+  }
+
+  /**
+   * Build the unified transcript array fed to `<acp-transcript>`. Merges
+   * the controller's text-message stream with the WS-bridge `HostState`'s
+   * active-turn tool calls so they render inline via
+   * `<acp-tool-call-detail>` (composed inside the transcript component).
+   *
+   * Active tool calls are appended after the existing message stream —
+   * during a turn they always belong at the end (between the user's last
+   * message and any in-flight agent text), so positional ordering matches
+   * temporal arrival without needing per-entry timestamps.
+   *
+   * Memoized on both input references so streaming `pendingText` re-renders
+   * (which bypass both inputs) don't trigger O(n) transcript re-copies and
+   * don't churn `<acp-transcript>`'s downstream change detection.
+   */
+  private _renderedTranscriptCache: {
+    transcript: unknown;
+    toolCalls: unknown;
+    merged: TranscriptEntryLike[];
+  } | null = null;
+
+  private get _renderedTranscript(): TranscriptEntryLike[] {
+    const messages = this._view.transcript as TranscriptEntryLike[];
+    if (this._currentToolCalls.length === 0) return messages;
+
+    const cache = this._renderedTranscriptCache;
+    if (
+      cache &&
+      cache.transcript === this._view.transcript &&
+      cache.toolCalls === this._currentToolCalls
+    ) {
+      return cache.merged;
+    }
+
+    const toolEntries: TranscriptEntryLike[] = this._currentToolCalls.map((toolCall) => ({
+      id: `tool:${toolCall.toolCallId}`,
+      kind: "tool_call",
+      toolCall,
+    }));
+    const merged = [...messages, ...toolEntries];
+    this._renderedTranscriptCache = {
+      transcript: this._view.transcript,
+      toolCalls: this._currentToolCalls,
+      merged,
+    };
+    return merged;
   }
 
   override connectedCallback(): void {
@@ -754,7 +819,7 @@ export class AcpChatApp extends LitElement {
 
         <slot name="transcript">
           <acp-transcript
-            .transcript=${v.transcript}
+            .transcript=${this._renderedTranscript}
             .pendingText=${v.pendingText}
             .status=${v.status}
             .lastError=${v.lastError}
