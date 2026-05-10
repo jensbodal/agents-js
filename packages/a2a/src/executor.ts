@@ -561,40 +561,72 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         });
       },
 
-      onToolCallStart: ({ toolCallId, title, status }) => {
+      onToolCallStart: ({
+        toolCallId,
+        title,
+        status,
+        toolKind,
+        content,
+        locations,
+        rawInput,
+        rawOutput,
+      }) => {
         publishMetadata({
           kind: "tool-call-start",
           toolCallId,
           toolName: title,
           ...(status !== undefined ? { status } : {}),
+          ...(toolKind !== undefined ? { toolKind } : {}),
+          ...(content !== undefined ? { content } : {}),
+          ...(locations !== undefined ? { locations } : {}),
+          ...(rawInput !== undefined ? { rawInput } : {}),
+          ...(rawOutput !== undefined ? { rawOutput } : {}),
         });
       },
 
-      onToolCallUpdate: ({ toolCallId, status, content: _content, rawLocations: _raw }) => {
-        // ACP `tool_call_update` notifications carry both intermediate
-        // and terminal status transitions. Emitting `tool-call-end`
-        // for every update would cause the client to fire `tool_call.end`
-        // on intermediate progress (e.g. `pending` → `in_progress`),
-        // and the session reducer would prematurely move the call from
-        // `activeToolCalls` to `completedToolCalls`. Gate on terminal
-        // status; non-terminal updates emit `tool-call-progress` so
-        // receivers can update the displayed status without ending the
-        // call.
-        if (status !== undefined && isTerminalToolCallStatus(status)) {
+      onToolCallUpdate: ({
+        toolCallId,
+        status,
+        content,
+        locations,
+        toolKind,
+        rawInput,
+        rawOutput,
+      }) => {
+        // ACP `tool_call_update` notifications carry three shapes:
+        //   1. terminal status transition (`completed` / `failed`)
+        //   2. non-terminal status transition (`pending` → `in_progress`)
+        //   3. payload-only update (content / locations / raw I/O changes
+        //      with status omitted or `null` = "no change")
+        //
+        // Gate (1) on terminal status; everything else emits
+        // `tool-call-progress` so receivers can update the call without
+        // moving it from `activeToolCalls` to `completedToolCalls`.
+        // For (3), `status` is omitted from the emitted metadata so
+        // receivers preserve their prior status — defaulting to
+        // `"in_progress"` would silently overwrite a `pending` call.
+        if (typeof status === "string" && isTerminalToolCallStatus(status)) {
           publishMetadata({
             kind: "tool-call-end",
             toolCallId,
             status,
+            ...(toolKind !== undefined ? { toolKind } : {}),
+            ...(content !== undefined ? { content } : {}),
+            ...(locations !== undefined ? { locations } : {}),
+            ...(rawInput !== undefined ? { rawInput } : {}),
+            ...(rawOutput !== undefined ? { rawOutput } : {}),
           });
           return;
         }
-        // No status, or non-terminal status: surface as progress so
-        // the TUI can refresh `▶ tool_name (status)` without flipping
-        // the call into the completed bucket.
         publishMetadata({
           kind: "tool-call-progress",
           toolCallId,
-          status: status ?? "in_progress",
+          ...(typeof status === "string" ? { status } : {}),
+          ...(toolKind !== undefined ? { toolKind } : {}),
+          ...(content !== undefined ? { content } : {}),
+          ...(locations !== undefined ? { locations } : {}),
+          ...(rawInput !== undefined ? { rawInput } : {}),
+          ...(rawOutput !== undefined ? { rawOutput } : {}),
         });
       },
 

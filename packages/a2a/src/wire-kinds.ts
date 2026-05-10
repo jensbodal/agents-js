@@ -27,7 +27,14 @@
  * SDK changes a shape, our code stops compiling at the boundary
  * instead of silently mismatching at runtime.
  */
-import type { AvailableCommand, Cost, PlanEntry } from "@agentclientprotocol/sdk";
+import type {
+  AvailableCommand,
+  Cost,
+  PlanEntry,
+  ToolCallContent,
+  ToolCallLocation,
+  ToolKind,
+} from "@agentclientprotocol/sdk";
 
 /** Allowed values for `TaskStatusUpdateEvent.metadata.kind`. */
 export type AgentEventKind =
@@ -50,23 +57,71 @@ export interface ThoughtMetadata {
   cumulativeText: string;
 }
 
-/** Metadata for the initial registration of a tool call. */
+/** Metadata for the initial registration of a tool call.
+ *
+ *  Carries the full ACP `ToolCall` payload so receivers can render rich
+ *  detail (diff/terminal content, file locations, raw input/output, tool
+ *  kind) without a follow-up update. All ACP-derived fields are optional
+ *  because some harnesses omit them at start. The base set
+ *  (`toolCallId`, `toolName`) is required and stable across versions.
+ *
+ *  `toolKind` (not `kind`) names the ACP `ToolKind` so it doesn't
+ *  collide with the metadata envelope's `kind` discriminator. */
 export interface ToolCallStartMetadata {
   kind: "tool-call-start";
   toolCallId: string;
   toolName: string;
   /** ACP status at time of start: typically `"pending"` or `"in_progress"`. */
   status?: string;
+  /** ACP `ToolCall.kind` — category enum (read/edit/execute/think/...). */
+  toolKind?: ToolKind;
+  /** ACP `ToolCall.content` — content blocks (text/image/diff/terminal/...). */
+  content?: ToolCallContent[];
+  /** ACP `ToolCall.locations` — file paths + optional line numbers for
+   *  follow-along clients. */
+  locations?: ToolCallLocation[];
+  /** ACP `ToolCall.rawInput` — unredacted args. */
+  rawInput?: unknown;
+  /** ACP `ToolCall.rawOutput` — unredacted output. Optional at start;
+   *  most harnesses populate later. */
+  rawOutput?: unknown;
 }
 
 /** Metadata for a non-terminal tool-call status transition (e.g.
- *  `pending` → `in_progress`). Receivers should update the active
- *  tool's displayed status WITHOUT moving it to completed. */
+ *  `pending` → `in_progress`) or a payload-only update (content /
+ *  locations / raw I/O) without a status change. Receivers should
+ *  update the active tool's displayed status WITHOUT moving it to
+ *  completed.
+ *
+ *  Two-state semantics for `status` and `toolKind` (the SDK doesn't
+ *  define a meaningful "explicit clear" for either):
+ *    - field absent (`undefined`) → no change
+ *    - field present              → replacement
+ *
+ *  Three-state semantics for `content` and `locations` (per ACP spec):
+ *    - field absent (`undefined`) → no change to receiver state
+ *    - field present and `null`     → explicit clear
+ *    - field present as a value     → replacement
+ *
+ *  Receivers that observe a progress event without `status` preserve
+ *  the prior status — they do NOT default to anything. */
 export interface ToolCallProgressMetadata {
   kind: "tool-call-progress";
   toolCallId: string;
-  /** Current non-terminal status: `"pending"`, `"in_progress"`, etc. */
-  status: string;
+  /** Current non-terminal status: `"pending"`, `"in_progress"`, etc.
+   *  Omitted when the harness sent a payload-only update with no
+   *  status change. */
+  status?: string;
+  /** Updated tool kind. */
+  toolKind?: ToolKind;
+  /** Updated content blocks. `null` is an explicit clear; absent
+   *  means no change. */
+  content?: ToolCallContent[] | null;
+  /** Updated locations. `null` is an explicit clear; absent means
+   *  no change. */
+  locations?: ToolCallLocation[] | null;
+  rawInput?: unknown;
+  rawOutput?: unknown;
 }
 
 /** Terminal status values for tool-call-end metadata. ACP defines
@@ -79,7 +134,15 @@ export interface ToolCallProgressMetadata {
 export type ToolCallEndStatus = string;
 
 /** Metadata for a terminal tool-call transition (`completed` /
- *  `failed`). Receivers move the call from active to completed. */
+ *  `failed`). Receivers move the call from active to completed.
+ *
+ *  Carries the full final ACP `ToolCall` payload so receivers don't
+ *  need to retain mid-flight state to render the terminal view. The
+ *  base set (`toolCallId`, `status`, optional `resultText`/`errorText`)
+ *  remains for backwards-compat receivers that pre-date the rich
+ *  payload. The same three-state semantics as
+ *  {@link ToolCallProgressMetadata} apply to the rich fields:
+ *  absent = no value, `null` = explicit clear, value = present. */
 export interface ToolCallEndMetadata {
   kind: "tool-call-end";
   toolCallId: string;
@@ -90,6 +153,15 @@ export interface ToolCallEndMetadata {
   /** Optional terminal-status content (result text or error text). */
   resultText?: string;
   errorText?: string;
+  /** Final ACP fields. All optional — older harnesses may omit.
+   *  `content` and `locations` accept `null` for explicit clear
+   *  per the ACP `ToolCallUpdate` spec; `toolKind` does not (the
+   *  SDK doesn't define a meaningful clear for it). */
+  toolKind?: ToolKind;
+  content?: ToolCallContent[] | null;
+  locations?: ToolCallLocation[] | null;
+  rawInput?: unknown;
+  rawOutput?: unknown;
 }
 
 /** Metadata for an ACP `plan` notification — the agent's structured
@@ -155,7 +227,7 @@ export type AgentEventMetadata =
 /** Re-export the SDK schema types we ride on so consumers don't
  *  need to take a separate dependency on `@agentclientprotocol/sdk`
  *  just to read these. */
-export type { AvailableCommand, Cost, PlanEntry };
+export type { AvailableCommand, Cost, PlanEntry, ToolCallContent, ToolCallLocation, ToolKind };
 
 /** Type guard: does this `metadata` carry a known agent-event kind? */
 export function isAgentEventMetadata(
