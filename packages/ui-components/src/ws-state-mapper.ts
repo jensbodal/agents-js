@@ -6,7 +6,9 @@
  * making them directly unit-testable.
  */
 
+import type { ToolCallContent, ToolCallLocation, ToolKind } from "@agentclientprotocol/sdk";
 import { deriveWorkflowSurfaceState } from "@agents-js/acp-host/workflow-surface";
+import type { TranscriptToolCallEntryPayload } from "./acp-types.ts";
 import type {
   HostState,
   HostTurnSummary,
@@ -214,6 +216,121 @@ function extractRuntime(raw: Record<string, unknown>): HostState["runtime"] {
 }
 
 /**
+ * Translate the host's flattened `ToolCallContentInfo` shape back into
+ * the SDK's discriminated `ToolCallContent` union so receivers
+ * (`<acp-tool-call-detail>` in particular) get spec-shaped variants.
+ *
+ * Inverse of `mapToolCallContent` in `packages/acp-host/src/session-state.ts`.
+ * Lossy in the same places acp-host already lost data — `terminal`
+ * variants only carry `terminalId` (command/exit code/output never
+ * survived Layer A); `content` variants only carry `text` (image /
+ * audio / resource_link / resource collapsed upstream).
+ */
+function rehydrateToolCallContent(raw: unknown): ToolCallContent[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw
+    .map((item): ToolCallContent | null => {
+      if (!item || typeof item !== "object") return null;
+      const entry = item as Record<string, unknown>;
+      switch (entry.type) {
+        case "content": {
+          // Skip entries that lost their text upstream rather than
+          // fabricating an empty `text: ""` block — the detail
+          // component would otherwise render a misleading empty box.
+          if (typeof entry.text !== "string") return null;
+          return { type: "content", content: { type: "text", text: entry.text } };
+        }
+        case "diff": {
+          // `diff` requires both a path and the resulting text. If
+          // either is missing the entry is malformed; drop it.
+          if (typeof entry.diffPath !== "string" || typeof entry.diffNewText !== "string") {
+            return null;
+          }
+          return {
+            type: "diff",
+            path: entry.diffPath,
+            oldText: typeof entry.diffOldText === "string" ? entry.diffOldText : null,
+            newText: entry.diffNewText,
+          };
+        }
+        case "terminal": {
+          if (typeof entry.terminalId !== "string") return null;
+          return { type: "terminal", terminalId: entry.terminalId };
+        }
+        default:
+          return null;
+      }
+    })
+    .filter((entry): entry is ToolCallContent => entry !== null);
+}
+
+/**
+ * Coerce a JSON-roundtripped `ToolCallLocation[]` back to the SDK shape.
+ * The wire form is structurally identical (`path` + optional `line`);
+ * this helper just narrows `unknown` after the JSON parse.
+ */
+function rehydrateLocations(raw: unknown): ToolCallLocation[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw
+    .map((item): ToolCallLocation | null => {
+      if (!item || typeof item !== "object") return null;
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.path !== "string") return null;
+      const line = typeof entry.line === "number" ? entry.line : undefined;
+      return line === undefined ? { path: entry.path } : { path: entry.path, line };
+    })
+    .filter((entry): entry is ToolCallLocation => entry !== null);
+}
+
+/**
+ * Map a single host-side `ToolCallInfo` (post-JSON-roundtrip from the
+ * WS bridge) into a `TranscriptToolCallEntryPayload` — the same shape
+ * `<acp-tool-call-detail>` consumes.
+ *
+ * `rawInput` / `rawOutput` are passed through verbatim; see the
+ * `HostTurnSummary.toolCalls` JSDoc for the truncation rationale.
+ */
+function mapToolCallEntry(id: string, input: unknown): TranscriptToolCallEntryPayload | null {
+  // `typeof null === "object"` — guard against null / non-object
+  // values so a malformed wire payload (e.g. `{ "tc-1": null }`)
+  // doesn't crash the mapper when we read field accessors below.
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+
+  const status = typeof raw.status === "string" ? raw.status : null;
+  const name = typeof raw.name === "string" ? raw.name : null;
+  if (!status || !name) return null;
+
+  // acp-host's `mapToolCallStatus` translates ACP `in_progress` →
+  // host `running` for internal use. <acp-tool-call-detail> styles
+  // ACP-shaped statuses (`data-status="in_progress"`), so invert the
+  // mapping at the boundary so in-flight calls render with the
+  // intended progress badge instead of an unstyled `running` chip.
+  const acpStatus = status === "running" ? "in_progress" : status;
+
+  const entry: TranscriptToolCallEntryPayload = {
+    toolCallId: typeof raw.id === "string" ? raw.id : id,
+    toolName: name,
+    status: acpStatus,
+  };
+
+  if (typeof raw.kind === "string") {
+    entry.toolKind = raw.kind as ToolKind;
+  }
+
+  const content = rehydrateToolCallContent(raw.richContent);
+  if (content !== null) entry.content = content;
+
+  const locations = rehydrateLocations(raw.locations);
+  if (locations !== null) entry.locations = locations;
+
+  if ("rawInput" in raw) entry.rawInput = raw.rawInput;
+  if ("rawOutput" in raw) entry.rawOutput = raw.rawOutput;
+
+  return entry;
+}
+
+/**
  * Summarize `currentTurn` into the lightweight `HostTurnSummary` the
  * UI consumes. Returns `null` when the snapshot has no current turn.
  */
@@ -225,16 +342,26 @@ function extractCurrentTurnSummary(raw: Record<string, unknown>): HostState["cur
     ? currentTurn.textChunks.filter((value): value is string => typeof value === "string")
     : [];
 
+  // Narrow to `Record<string, unknown>` rather than asserting object
+  // values everywhere — the wire payload can include nulls / primitives
+  // per the defensive guard in `mapToolCallEntry`. Keeping the value
+  // type as `unknown` forces every field access below to runtime-check.
   const rawToolCalls =
     currentTurn.toolCalls && typeof currentTurn.toolCalls === "object"
-      ? (currentTurn.toolCalls as Record<string, Record<string, unknown>>)
+      ? (currentTurn.toolCalls as Record<string, unknown>)
       : {};
-  const toolCalls = Object.values(rawToolCalls);
-  const activeToolCallCount = toolCalls.filter((toolCall) => {
-    const status = toolCall?.status;
-    return status === "pending" || status === "running";
-  }).length;
-  const failedToolCallCount = toolCalls.filter((toolCall) => toolCall?.status === "failed").length;
+  const toolCallEntries = Object.entries(rawToolCalls);
+  const toolCalls = toolCallEntries.map(([, value]) => value);
+  const isToolCallStatus = (value: unknown, status: string) =>
+    !!value && typeof value === "object" && (value as { status?: unknown }).status === status;
+  const activeToolCallCount = toolCalls.filter(
+    (tc) => isToolCallStatus(tc, "pending") || isToolCallStatus(tc, "running"),
+  ).length;
+  const failedToolCallCount = toolCalls.filter((tc) => isToolCallStatus(tc, "failed")).length;
+
+  const richToolCalls = toolCallEntries
+    .map(([id, value]) => mapToolCallEntry(id, value))
+    .filter((entry): entry is TranscriptToolCallEntryPayload => entry !== null);
 
   return {
     textChunkCount: textChunks.length,
@@ -242,6 +369,7 @@ function extractCurrentTurnSummary(raw: Record<string, unknown>): HostState["cur
     toolCallCount: toolCalls.length,
     activeToolCallCount,
     failedToolCallCount,
+    ...(richToolCalls.length > 0 ? { toolCalls: richToolCalls } : {}),
   } satisfies HostTurnSummary;
 }
 

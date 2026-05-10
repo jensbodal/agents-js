@@ -1,4 +1,4 @@
-import type { PlanEntryLike } from "./acp-types.ts";
+import type { PlanEntryLike, TranscriptToolCallEntryPayload } from "./acp-types.ts";
 import type { WorkflowSurfaceRenderState } from "./workflow-surface.ts";
 
 /**
@@ -94,6 +94,24 @@ export interface HostTurnSummary {
   toolCallCount: number;
   activeToolCallCount: number;
   failedToolCallCount: number;
+  /**
+   * Per-call rich payloads for the active turn, structurally compatible
+   * with `<acp-tool-call-detail>`'s `data` prop. Built from the host's
+   * `currentTurn.toolCalls` map (Layer A — PR #41 — extended
+   * `ToolCallInfo` with `locations` / `rawInput` / `rawOutput`).
+   *
+   * Mapper-side normalization: `richContent` is rehydrated into the
+   * SDK's discriminated `ToolCallContent` union, `locations` are
+   * narrowed back to `ToolCallLocation`, host-internal status
+   * `"running"` is mapped back to ACP's `"in_progress"`. `rawInput` /
+   * `rawOutput` pass through unbounded. ACP doesn't cap their size, but
+   * `<acp-tool-call-detail>` only stringifies them lazily on `<details>`
+   * expand, so the cost is paid on user demand rather than on every
+   * state push. If real-world payloads start blowing past WebSocket
+   * frame limits, add truncation in the mapper (with a sentinel marker
+   * the UI can show as "[truncated]").
+   */
+  toolCalls?: TranscriptToolCallEntryPayload[];
 }
 
 /** Flat state object pushed to subscribers on every relevant event. */
