@@ -10,6 +10,7 @@ import type {
   SessionModelState,
   SessionModeState,
   SessionNotification,
+  ToolCallLocation,
 } from "@agentclientprotocol/sdk";
 
 export type ACPSessionStatus =
@@ -71,6 +72,12 @@ export interface CompletedToolCallSnapshot {
   content?: string;
   kind?: string;
   richContent?: ToolCallContentInfo[];
+  /** Final ACP `ToolCall.locations` at completion. */
+  locations?: ToolCallLocation[];
+  /** Final ACP `ToolCall.rawInput` at completion. */
+  rawInput?: unknown;
+  /** Final ACP `ToolCall.rawOutput` at completion. */
+  rawOutput?: unknown;
 }
 
 export interface CompletedTurnSnapshot {
@@ -113,8 +120,23 @@ export interface ToolCallInfo {
   name: string;
   status: "pending" | "running" | "completed" | "failed";
   content?: string;
+  /** ACP `ToolCall.kind` (read/edit/execute/think/...). Widened to
+   *  `string` so unknown kinds the SDK adds in future versions still
+   *  flow through without recompilation. Receivers that care about
+   *  the typed enum can narrow against the SDK's `ToolKind`. */
   kind?: string;
   richContent?: ToolCallContentInfo[];
+  /** ACP `ToolCall.locations` — file paths + optional line numbers
+   *  the call is operating on. Enables follow-along clients to
+   *  highlight the active file. Forwarded directly using the SDK's
+   *  typed shape so receivers see proper `path` / `line` fields. */
+  locations?: ToolCallLocation[];
+  /** ACP `ToolCall.rawInput` — unredacted args sent to the tool.
+   *  `unknown` because tools own their input schema. */
+  rawInput?: unknown;
+  /** ACP `ToolCall.rawOutput` — unredacted output. Most commonly
+   *  populated on terminal status (`completed` / `failed`). */
+  rawOutput?: unknown;
 }
 
 export interface PlanEntryInfo {
@@ -123,6 +145,26 @@ export interface PlanEntryInfo {
   priority: "high" | "medium" | "low";
 }
 
+/**
+ * Flattened ACP `ToolCallContent` representation. The SDK's
+ * `ToolCallContent` is a discriminated union of three nested shapes
+ * (`content`, `diff`, `terminal`); this type pulls the relevant
+ * fields up so consumers can switch on `type` and read scalars
+ * without three more layers of narrowing.
+ *
+ * Field set per variant:
+ *   - `content`: `text` (other Content variants like image/audio
+ *     surface as a typed `text` placeholder; full media-type rendering
+ *     is host-specific).
+ *   - `diff`: `diffPath`, `diffOldText`, `diffNewText`.
+ *   - `terminal`: `terminalId` only — the ACP `terminal`
+ *     `ToolCallContent` variant just references a terminal session;
+ *     command / exit-code / captured output come from the
+ *     terminal-handler RPC surface (`session/terminal/{id}/...`),
+ *     not from the inline notification. Hosts that want to render
+ *     terminal output do their own resolution and pass it to the
+ *     UI components separately.
+ */
 export interface ToolCallContentInfo {
   type: "content" | "diff" | "terminal";
   text?: string;

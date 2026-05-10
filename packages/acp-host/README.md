@@ -181,7 +181,7 @@ bun add @agents-js/acp-host
 - **`ToolBlockSurfaceState`**
 - **`ToolCallContentHandler`**
 - **`ToolCallContentHandlerContext`**
-- **`ToolCallContentInfo`**
+- **`ToolCallContentInfo`** — Flattened ACP `ToolCallContent` representation. The SDK's `ToolCallContent` is a discriminated union of three nested shapes (`content`, `diff`, `terminal`); this type pulls the relevant fields up s...
 - **`ToolCallInfo`**
 - **`ToolCallStartCall`** — Argument shape for `AcpStreamingSink.onToolCallStart`.
 - **`ToolCallSummary`**
