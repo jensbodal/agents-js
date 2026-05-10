@@ -21,8 +21,12 @@ import type { SessionNotification } from "@agentclientprotocol/sdk";
 import {
   type AcpStreamingSink,
   AcpStreamingTranslator,
+  type AvailableCommandsUpdateCall,
+  type ModeChangeCall,
+  type PlanUpdateCall,
   type ToolCallStartCall,
   type ToolCallUpdateCall,
+  type UsageUpdateCall,
 } from "../src/streaming-translator.ts";
 
 /**
@@ -34,6 +38,10 @@ class RecordingAcpStreamingSink implements AcpStreamingSink {
   thoughtDeltas: Array<{ messageId: string; delta: string; cumulativeText: string }> = [];
   toolCallStarts: ToolCallStartCall[] = [];
   toolCallUpdates: ToolCallUpdateCall[] = [];
+  planUpdates: PlanUpdateCall[] = [];
+  availableCommandsUpdates: AvailableCommandsUpdateCall[] = [];
+  modeChanges: ModeChangeCall[] = [];
+  usageUpdates: UsageUpdateCall[] = [];
 
   onTextDelta(input: { messageId: string; delta: string; cumulativeText: string }): void {
     this.textDeltas.push({ ...input });
@@ -47,6 +55,18 @@ class RecordingAcpStreamingSink implements AcpStreamingSink {
   onToolCallUpdate(input: ToolCallUpdateCall): void {
     this.toolCallUpdates.push({ ...input });
   }
+  onPlanUpdate(input: PlanUpdateCall): void {
+    this.planUpdates.push({ ...input, entries: [...input.entries] });
+  }
+  onAvailableCommandsUpdate(input: AvailableCommandsUpdateCall): void {
+    this.availableCommandsUpdates.push({ ...input, commands: [...input.commands] });
+  }
+  onModeChange(input: ModeChangeCall): void {
+    this.modeChanges.push({ ...input });
+  }
+  onUsageUpdate(input: UsageUpdateCall): void {
+    this.usageUpdates.push({ ...input });
+  }
 }
 
 /**
@@ -59,7 +79,7 @@ function chunk(opts: { sessionId: string; messageId: string; text: string }): Se
       sessionUpdate: "agent_message_chunk",
       messageId: opts.messageId,
       content: { type: "text", text: opts.text },
-    } as SessionNotification["update"],
+    } as unknown as SessionNotification["update"],
   };
 }
 
@@ -74,7 +94,7 @@ function thoughtChunk(opts: {
       sessionUpdate: "agent_thought_chunk",
       messageId: opts.messageId,
       content: { type: "text", text: opts.text },
-    } as SessionNotification["update"],
+    } as unknown as SessionNotification["update"],
   };
 }
 
@@ -184,7 +204,7 @@ describe("AcpStreamingTranslator", () => {
           toolCallId: "tc1",
           title: "Read",
           status: "pending",
-        } as SessionNotification["update"],
+        } as unknown as SessionNotification["update"],
       };
       t.feed(notification, sink);
       expect(sink.toolCallStarts).toEqual([
@@ -202,7 +222,7 @@ describe("AcpStreamingTranslator", () => {
           sessionUpdate: "tool_call_update",
           toolCallId: "tc1",
           status: "completed",
-        } as SessionNotification["update"],
+        } as unknown as SessionNotification["update"],
       };
       t.feed(notification, sink);
       expect(sink.toolCallUpdates).toEqual([
@@ -212,22 +232,19 @@ describe("AcpStreamingTranslator", () => {
   });
 
   describe("non-streaming variants", () => {
-    test("ignores plan / mode / commands / config / usage / session_info", () => {
+    test("ignores config_option_update / session_info_update / user_message_chunk", () => {
       const t = new AcpStreamingTranslator();
       const sink = new RecordingAcpStreamingSink();
       const variants = [
-        "plan",
-        "current_mode_update",
-        "available_commands_update",
         "config_option_update",
-        "usage_update",
         "session_info_update",
+        "user_message_chunk",
       ] as const;
       for (const sessionUpdate of variants) {
         t.feed(
           {
             sessionId: "s1",
-            update: { sessionUpdate } as SessionNotification["update"],
+            update: { sessionUpdate } as unknown as SessionNotification["update"],
           },
           sink,
         );
@@ -236,6 +253,173 @@ describe("AcpStreamingTranslator", () => {
       expect(sink.thoughtDeltas).toHaveLength(0);
       expect(sink.toolCallStarts).toHaveLength(0);
       expect(sink.toolCallUpdates).toHaveLength(0);
+      expect(sink.planUpdates).toHaveLength(0);
+      expect(sink.availableCommandsUpdates).toHaveLength(0);
+      expect(sink.modeChanges).toHaveLength(0);
+      expect(sink.usageUpdates).toHaveLength(0);
+    });
+  });
+
+  describe("plan updates", () => {
+    test("emits onPlanUpdate with full entry list", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "plan",
+            entries: [
+              { content: "step 1", status: "completed", priority: "high" },
+              { content: "step 2", status: "in_progress", priority: "medium" },
+              { content: "step 3", status: "pending", priority: "low" },
+            ],
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.planUpdates).toHaveLength(1);
+      expect(sink.planUpdates[0]?.entries).toEqual([
+        { content: "step 1", status: "completed", priority: "high" },
+        { content: "step 2", status: "in_progress", priority: "medium" },
+        { content: "step 3", status: "pending", priority: "low" },
+      ]);
+    });
+
+    test("forwards SDK-typed entries verbatim (no field-level filtering)", () => {
+      // The translator delegates shape validation to the SDK schema:
+      // it does NOT filter entries, mutate fields, or drop on missing
+      // values. If a malformed update gets past the SDK boundary, that
+      // surfaces in consumers, not silently drops here.
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "plan",
+            entries: [{ content: "ok", status: "pending", priority: "low" }],
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.planUpdates[0]?.entries).toHaveLength(1);
+    });
+  });
+
+  describe("available commands updates", () => {
+    test("emits onAvailableCommandsUpdate with full SDK-typed command set", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "available_commands_update",
+            availableCommands: [
+              { name: "/think", description: "toggle thinking" },
+              { name: "/plan", description: "" },
+            ],
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.availableCommandsUpdates).toHaveLength(1);
+      expect(sink.availableCommandsUpdates[0]?.commands).toEqual([
+        { name: "/think", description: "toggle thinking" },
+        { name: "/plan", description: "" },
+      ]);
+    });
+  });
+
+  describe("mode changes", () => {
+    test("emits onModeChange with currentModeId only (per ACP CurrentModeUpdate spec)", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "current_mode_update",
+            currentModeId: "execute",
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.modeChanges).toHaveLength(1);
+      expect(sink.modeChanges[0]).toEqual({ currentModeId: "execute" });
+    });
+
+    test("drops update with missing currentModeId", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "current_mode_update",
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.modeChanges).toHaveLength(0);
+    });
+  });
+
+  describe("usage updates", () => {
+    test("emits onUsageUpdate with SDK-typed structured Cost", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      const cost = { amount: 0.18, currency: "USD" };
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "usage_update",
+            size: 200_000,
+            used: 12_345,
+            cost,
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.usageUpdates).toHaveLength(1);
+      expect(sink.usageUpdates[0]).toEqual({ size: 200_000, used: 12_345, cost });
+    });
+
+    test("emits without cost when omitted", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "usage_update",
+            size: 100,
+            used: 50,
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.usageUpdates[0]).toEqual({ size: 100, used: 50 });
+    });
+
+    test("preserves explicit null cost", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "usage_update",
+            size: 100,
+            used: 50,
+            cost: null,
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.usageUpdates[0]).toEqual({ size: 100, used: 50, cost: null });
     });
   });
 

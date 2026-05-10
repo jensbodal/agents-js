@@ -5,6 +5,12 @@ import type {
   TaskArtifactUpdateEvent,
   TaskStatusUpdateEvent,
 } from "@a2a-js/sdk";
+// Import the wire-kinds discriminator via the subpath export so the
+// browser bundle (apps/web-ui) doesn't drag in the executor + acp-host
+// (which transitively pull node:path through @agents-js/policy).
+// The /wire-kinds entry is a tiny pure-data module — types + a type
+// guard — with zero runtime deps beyond the ACP SDK schema types.
+import { isAgentEventMetadata } from "@agents-js/a2a/wire-kinds";
 import {
   ACP_A2A_AUTH_REQUIRED_METADATA_KEY,
   buildAcpElicitationResponseMetadata,
@@ -285,6 +291,92 @@ export class A2AClientProvider {
   private emit(event: A2AEvent): void {
     for (const listener of this.listeners) {
       listener(event);
+    }
+  }
+
+  /**
+   * Fan an `agent_event_metadata`-shaped TaskStatusUpdateEvent out into typed
+   * client events (`reasoning.message.chunk`, `tool_call.start`,
+   * `tool_call.end`, `plan.updated`, `commands.updated`, `mode.changed`,
+   * `usage.updated`).
+   *
+   * The wire shape is documented in `@agents-js/a2a/wire-kinds`: the
+   * executor publishes TaskStatusUpdateEvents with `state: "working"` and
+   * `metadata: AgentEventMetadata`. The metadata fields reuse the ACP
+   * SDK's typed shapes (`PlanEntry`, `AvailableCommand`, `Cost`,
+   * `SessionModeState`) so the boundary is single-cast — once
+   * `isAgentEventMetadata` passes, the discriminated union narrows
+   * each `case` without per-field defensive narrowing.
+   *
+   * A TaskStatusUpdateEvent without a recognized `metadata.kind` is
+   * unchanged — the caller falls through to its existing text-delta
+   * path. Returns `true` if the event was handled.
+   */
+  private fanOutAgentEventMetadata(event: TaskStatusUpdateEvent): boolean {
+    if (!isAgentEventMetadata(event.metadata)) return false;
+    const md = event.metadata;
+
+    switch (md.kind) {
+      case "thought": {
+        // Defensive guard against malformed metadata only — `delta` is
+        // a string per ThoughtMetadata, so we only skip the
+        // explicit empty-string case (no chunk to render). A `null`
+        // wire payload would have failed `isAgentEventMetadata` above.
+        if (md.delta.length === 0) return true;
+        this.emit({
+          type: "reasoning.message.chunk",
+          text: md.delta,
+          delta: md.delta,
+          messageId: md.messageId,
+        });
+        return true;
+      }
+      case "tool-call-start": {
+        if (!md.toolCallId) return true;
+        this.emit({
+          type: "tool_call.start",
+          toolCallId: md.toolCallId,
+          toolCallName: md.toolName,
+        });
+        return true;
+      }
+      case "tool-call-progress":
+        // Non-terminal tool-call status transitions don't have a
+        // first-class client event yet; consumers that want to render
+        // intermediate progress can subscribe to `task.status.updated`
+        // and inspect `metadata.kind === "tool-call-progress"`. Holding
+        // off on a dedicated typed event until UI demand emerges.
+        return true;
+      case "tool-call-end": {
+        if (!md.toolCallId) return true;
+        this.emit({
+          type: "tool_call.end",
+          toolCallId: md.toolCallId,
+          status: md.status,
+        });
+        return true;
+      }
+      case "plan":
+        this.emit({ type: "plan.updated", entries: md.entries });
+        return true;
+      case "commands":
+        this.emit({ type: "commands.updated", commands: md.commands });
+        return true;
+      case "mode-changed":
+        this.emit({ type: "mode.changed", modeId: md.modeId });
+        return true;
+      case "usage":
+        this.emit({
+          type: "usage.updated",
+          size: md.size,
+          used: md.used,
+          ...(md.cost !== undefined ? { cost: md.cost } : {}),
+        });
+        return true;
+      default: {
+        const _exhaustive: never = md;
+        return false;
+      }
     }
   }
 
@@ -853,6 +945,16 @@ export class A2AClientProvider {
             currentAgentMessageId = event.status.message.messageId;
           }
           this.emit({ type: "task.status.updated", update: event });
+
+          // Agent-event metadata fan-out: when the executor publishes a
+          // TaskStatusUpdateEvent with `metadata.kind` (see
+          // @agents-js/a2a/wire-kinds), translate to typed client events.
+          // Skips the text-delta path below — these events carry no
+          // cumulative agent text in the status message.
+          if (this.fanOutAgentEventMetadata(event)) {
+            continue;
+          }
+
           const nextText = extractMessageText(event.status.message);
           if (nextText && nextText !== lastText) {
             lastText = nextText;

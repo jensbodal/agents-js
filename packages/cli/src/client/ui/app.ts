@@ -1,5 +1,6 @@
 import type { A2AClientController } from "@agents-js/a2a-client";
 import { BoxRenderable, type CliRenderer } from "@opentui/core";
+import { createClientActiveAction } from "./active-action.ts";
 import { createClientHeader } from "./header.ts";
 import { createClientInputBar } from "./input-bar.ts";
 import { createClientInspector } from "./inspector.ts";
@@ -24,6 +25,7 @@ export function createClientApp(
   const header = createClientHeader(renderer);
   const transcript = createClientTranscriptView(renderer);
   const inspector = createClientInspector(renderer, options.raw);
+  const activeAction = createClientActiveAction(renderer);
   const inputBar = createClientInputBar(renderer, {
     onAuthSelection: async (methodId) => {
       await controller.respondToAuthRequired(methodId);
@@ -61,6 +63,7 @@ export function createClientApp(
   });
   root.add(header.root);
   root.add(body);
+  root.add(activeAction.root);
   root.add(inputBar.root);
   renderer.root.add(root);
 
@@ -68,6 +71,7 @@ export function createClientApp(
     header.update(state);
     transcript.update(state);
     inspector.update(state);
+    activeAction.update(state);
     inputBar.update(state);
     // Flush a frame after every controller event. `@opentui/core`'s
     // `CliRenderer` runs a 30 FPS frame-loop; without an explicit flush,
@@ -81,6 +85,7 @@ export function createClientApp(
   return {
     destroy() {
       unsubscribe();
+      activeAction.destroy();
     },
     nextInspectorTab() {
       inspector.nextTab();
@@ -91,6 +96,7 @@ export function createClientApp(
       header.update(state);
       transcript.update(state);
       inspector.update(state);
+      activeAction.update(state);
       inputBar.update(state);
       inputBar.focus();
     },

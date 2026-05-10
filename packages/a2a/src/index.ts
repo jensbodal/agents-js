@@ -48,3 +48,15 @@ export type {
   TaskStatus,
   TaskStatusUpdateEvent,
 } from "./types.ts";
+export {
+  type AgentEventKind,
+  type AgentEventMetadata,
+  type CommandsMetadata,
+  isAgentEventMetadata,
+  type ModeChangedMetadata,
+  type PlanMetadata,
+  type ThoughtMetadata,
+  type ToolCallEndMetadata,
+  type ToolCallStartMetadata,
+  type UsageMetadata,
+} from "./wire-kinds.ts";

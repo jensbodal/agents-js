@@ -14,6 +14,7 @@ import {
   RequestError,
   type Stream,
 } from "@agents-js/acp";
+import { type AcpStreamingSink, AcpStreamingTranslator } from "@agents-js/acp-host";
 import { buildACPA2ATaskMetadata, extractACPA2AContinuationMetadata } from "./acp-task-metadata.ts";
 import { isACPAuthRequiredError, withAuthRetry } from "./executor-auth.ts";
 import { buildStatusUpdate, buildTerminalTask, nowIso } from "./executor-events.ts";
@@ -21,6 +22,7 @@ import { extractValidAgentMessageId, selectPermissionOutcome } from "./executor-
 import { formatErrorMessage } from "./format-error.ts";
 import { type A2ALogger, createConsoleLogger } from "./logger.ts";
 import { SessionIdStore } from "./persistence.ts";
+import type { AgentEventMetadata } from "./wire-kinds.ts";
 
 /**
  * Lifecycle hooks for the {@link ACPtoA2AExecutor}.
@@ -93,7 +95,13 @@ type ActiveTaskState = {
   runPromise?: Promise<void>;
   sessionId?: string;
   taskId: string;
+  /** Cumulative agent message text accumulated by the translator's
+   *  `onTextDelta` sink call. Used as the terminal task's reply text.
+   *  Capped at `maxTextBufferSize` to bound memory. */
   textBuffer: string;
+  /** Per-task translator instance. Owns the per-`messageId` cumulative
+   *  state for both message and thought streams. */
+  translator: AcpStreamingTranslator;
 };
 
 function createDeferred<T>(): PendingResolver<T> {
@@ -130,6 +138,17 @@ function mapStopReasonToTaskState(stopReason: PromptResponse["stopReason"]): Tas
 
 /** Default maximum text buffer size in bytes (256 KB). */
 export const DEFAULT_MAX_TEXT_BUFFER_SIZE = 256 * 1024;
+
+/** Terminal `ToolCallStatus` values per ACP spec
+ *  (`@agentclientprotocol/sdk` `types.gen.d.ts`). The non-terminal
+ *  values are `"pending"` and `"in_progress"`. Kept as a runtime
+ *  set so the executor can gate emit-as-end vs emit-as-progress at
+ *  the wire boundary. */
+const TERMINAL_TOOL_CALL_STATUSES = new Set<string>(["completed", "failed"]);
+
+function isTerminalToolCallStatus(status: string): boolean {
+  return TERMINAL_TOOL_CALL_STATUSES.has(status);
+}
 
 /**
  * Bridges A2A execution requests to an ACP agent.
@@ -169,28 +188,41 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         }
 
         const update = params.update;
-        if (update.sessionUpdate !== "agent_message_chunk" || update.content.type !== "text") {
-          return;
+
+        if (update.sessionUpdate === "agent_message_chunk" && update.content.type === "text") {
+          // Capture messageId on first chunk so the terminal task carries
+          // it forward — same contract as the pre-refactor executor.
+          const chunkMessageId = extractValidAgentMessageId(
+            (update as { messageId?: unknown }).messageId,
+          );
+          if (chunkMessageId && !task.currentAgentMessageId) {
+            task.currentAgentMessageId = chunkMessageId;
+          }
+          // The translator deliberately drops chunks without a
+          // `messageId` (it can't accumulate cumulative state without
+          // an id). ACP marks `messageId` as nullable / not required,
+          // so a spec-shaped harness that omits it would lose the
+          // entire visible response if we routed those through the
+          // translator. Fall back to the legacy direct-emit path: pull
+          // the chunk text, extend the task's textBuffer (cap-aware),
+          // and emit a cumulative-text TaskStatusUpdate. Same wire
+          // shape the pre-translator executor used.
+          if (!chunkMessageId) {
+            const chunk = update.content.text || "";
+            const remaining = this.maxTextBufferSize - task.textBuffer.length;
+            if (remaining > 0) {
+              task.textBuffer += chunk.length <= remaining ? chunk : chunk.slice(0, remaining);
+            }
+            this.publishStatusUpdate(task, {
+              state: "working",
+              text: task.textBuffer,
+              final: false,
+            });
+            return;
+          }
         }
 
-        const chunkMessageId = extractValidAgentMessageId(
-          (update as { messageId?: unknown }).messageId,
-        );
-        if (!task.currentAgentMessageId && chunkMessageId) {
-          task.currentAgentMessageId = chunkMessageId;
-        }
-
-        const chunk = update.content.text || "";
-        const remaining = this.maxTextBufferSize - task.textBuffer.length;
-        if (remaining > 0) {
-          task.textBuffer += remaining >= chunk.length ? chunk : chunk.slice(0, remaining);
-        }
-        this.publishStatusUpdate(task, {
-          state: "working",
-          text: task.textBuffer,
-          final: false,
-          messageId: task.currentAgentMessageId,
-        });
+        task.translator.feed(params, this.buildSessionSink(task));
       },
       extMethod: async (method, params) => {
         if (method !== CLIENT_METHODS.elicitation_create) {
@@ -292,6 +324,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
       eventBus,
       taskId: context.taskId,
       textBuffer: "",
+      translator: new AcpStreamingTranslator(),
     };
     this.activeTasks.set(context.taskId, task);
 
@@ -464,6 +497,138 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     options: Parameters<typeof buildStatusUpdate>[2],
   ): void {
     task.eventBus.publish(buildStatusUpdate(task.taskId, task.contextId, options));
+  }
+
+  /**
+   * Build the `AcpStreamingSink` for a task. The sink translates every
+   * translator emission into a `TaskStatusUpdateEvent` with `state: "working"`
+   * and a typed `metadata.kind` (see `wire-kinds.ts`) so the A2A client's
+   * provider can fan events into typed client events without re-parsing.
+   *
+   * Why TaskStatusUpdateEvent and not Message events: `@a2a-js/sdk`'s server
+   * `events()` AsyncGenerator treats any `Message` as terminal — emitting a
+   * thought/tool/plan/etc. Message would end the stream prematurely. The
+   * v0.3.0 work hit this exact bug and reverted (commit c93c95a) for
+   * `agent_message_chunk` alone; we extend the same TaskStatusUpdateEvent
+   * pattern to cover all non-terminal agent signals.
+   */
+  private buildSessionSink(task: ActiveTaskState): AcpStreamingSink {
+    const publishMetadata = (metadata: AgentEventMetadata) => {
+      this.publishStatusUpdate(task, {
+        state: "working",
+        final: false,
+        metadata: metadata as unknown as Record<string, unknown>,
+      });
+    };
+
+    return {
+      onTextDelta: ({ messageId, delta }) => {
+        // Mirror cumulative text onto the task's textBuffer so the
+        // terminal task carries the full reply. Cap policy stays
+        // executor-owned (per maxTextBufferSize); translator does not
+        // know about size limits.
+        const remaining = this.maxTextBufferSize - task.textBuffer.length;
+        if (remaining > 0) {
+          const additional = delta.length <= remaining ? delta : delta.slice(0, remaining);
+          task.textBuffer += additional;
+        }
+
+        // Carry messageId forward if not yet captured (chunkMessageId
+        // capture in sessionUpdate handler is a belt-and-suspenders
+        // for the case where the translator drops a chunk).
+        if (!task.currentAgentMessageId) {
+          task.currentAgentMessageId = messageId;
+        }
+
+        // Existing wire shape: cumulative text on TaskStatusUpdateEvent.
+        // No metadata.kind — older A2A clients that pre-date the new
+        // event surface continue to drive incremental render via the
+        // provider's existing delta computation.
+        this.publishStatusUpdate(task, {
+          state: "working",
+          text: task.textBuffer,
+          final: false,
+          messageId: task.currentAgentMessageId,
+        });
+      },
+
+      onThoughtDelta: ({ messageId, delta, cumulativeText }) => {
+        publishMetadata({
+          kind: "thought",
+          messageId,
+          delta,
+          cumulativeText,
+        });
+      },
+
+      onToolCallStart: ({ toolCallId, title, status }) => {
+        publishMetadata({
+          kind: "tool-call-start",
+          toolCallId,
+          toolName: title,
+          ...(status !== undefined ? { status } : {}),
+        });
+      },
+
+      onToolCallUpdate: ({ toolCallId, status, content: _content, rawLocations: _raw }) => {
+        // ACP `tool_call_update` notifications carry both intermediate
+        // and terminal status transitions. Emitting `tool-call-end`
+        // for every update would cause the client to fire `tool_call.end`
+        // on intermediate progress (e.g. `pending` → `in_progress`),
+        // and the session reducer would prematurely move the call from
+        // `activeToolCalls` to `completedToolCalls`. Gate on terminal
+        // status; non-terminal updates emit `tool-call-progress` so
+        // receivers can update the displayed status without ending the
+        // call.
+        if (status !== undefined && isTerminalToolCallStatus(status)) {
+          publishMetadata({
+            kind: "tool-call-end",
+            toolCallId,
+            status,
+          });
+          return;
+        }
+        // No status, or non-terminal status: surface as progress so
+        // the TUI can refresh `▶ tool_name (status)` without flipping
+        // the call into the completed bucket.
+        publishMetadata({
+          kind: "tool-call-progress",
+          toolCallId,
+          status: status ?? "in_progress",
+        });
+      },
+
+      onPlanUpdate: ({ entries }) => {
+        // SDK-typed `PlanEntry[]` flows through unchanged; consumers
+        // receive proper `priority: PlanEntryPriority` enums.
+        publishMetadata({ kind: "plan", entries });
+      },
+
+      onAvailableCommandsUpdate: ({ commands }) => {
+        // SDK-typed `AvailableCommand[]` preserves description + input
+        // schema for the slash-command autocomplete UI.
+        publishMetadata({ kind: "commands", commands });
+      },
+
+      onModeChange: ({ currentModeId }) => {
+        publishMetadata({
+          kind: "mode-changed",
+          modeId: currentModeId,
+        });
+      },
+
+      onUsageUpdate: ({ size, used, cost }) => {
+        // SDK `Cost` (`{ amount, currency }`) is forwarded verbatim;
+        // `null` is preserved as-is (some harnesses signal "no cost"
+        // explicitly).
+        publishMetadata({
+          kind: "usage",
+          size,
+          used,
+          ...(cost !== undefined ? { cost } : {}),
+        });
+      },
+    };
   }
 
   private getActiveTaskBySessionId(sessionId: string): ActiveTaskState | undefined {

@@ -101,13 +101,14 @@ describe("app", () => {
     const clientRoot = renderer.root.findDescendantById("client-root");
     expect(clientRoot).not.toBeUndefined();
 
-    // Verify the tree structure: header, body, input-bar
+    // Verify the tree structure: header, body, active-action, input-bar
     const rootChildren = clientRoot?.getChildren() ?? [];
-    expect(rootChildren.length).toBe(3);
+    expect(rootChildren.length).toBe(4);
     expect(rootChildren[0]?.id).toBe("client-header-root");
     expect(rootChildren[1]?.id).toBe("client-body");
+    expect(rootChildren[2]?.id).toBe("client-active-action-root");
     // The input bar root on main is an InputRenderable (no id set), so check it exists
-    expect(rootChildren[2]).not.toBeUndefined();
+    expect(rootChildren[3]).not.toBeUndefined();
 
     // Body should contain transcript and inspector
     const bodyChildren = rootChildren[1]?.getChildren() ?? [];

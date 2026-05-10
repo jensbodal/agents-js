@@ -35,6 +35,7 @@ bun add @agents-js/a2a
 - **`formatHttpAuthorityHost`**
 - **`getMessageText`** — Extract text content from an A2A Message's parts array
 - **`isACPAuthRequiredError`**
+- **`isAgentEventMetadata`** — Type guard: does this `metadata` carry a known agent-event kind?
 - **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
 - **`newCorrelationId`** — Generate a fresh correlation id.
 - **`normalizeAdvertisedHost`**
@@ -51,32 +52,46 @@ bun add @agents-js/a2a
 - **`ACPA2AContinuationMetadata`**
 - **`ACPA2ATaskMetadata`**
 - **`AuditEmitter`** — Public emitter handle.
+- **`CommandsMetadata`** — Metadata for an `available_commands_update` notification — the set of slash-commands currently available from the harness. Uses the SDK's typed `AvailableCommand` shape so consumers get the full pe...
 - **`DiscoveredPrompt`**
 - **`DiscoveredResource`**
 - **`ExecutorHooks`** — Lifecycle hooks for the {ACPtoA2AExecutor}. Mirrors the subset of {import("-js/acp-host").SessionHooks} that applies to the A2A-to-ACP bridge. Hosts that want to transform prompt content before it ...
 - **`InitializableExecutor`** — An AgentExecutor that also supports ACP initialization. Used by UniversalA2AServer to discover agent capabilities before serving the A2A agent card. Both ACPtoA2AExecutor and HostA2AExecutor implem...
+- **`ModeChangedMetadata`** — Metadata for a `current_mode_update` notification — mode transitions like plan→execute or model swaps. ACP's `CurrentModeUpdate` only carries the new `currentModeId`; the available-modes list is de...
+- **`PlanMetadata`** — Metadata for an ACP `plan` notification — the agent's structured todo-list. Always carries the FULL set of entries; consumers replace state wholesale on receipt. Entries reuse the SDK's typed `Plan...
 - **`ServeACPOverA2AHandle`**
 - **`ServeACPOverA2AOptions`**
+- **`ThoughtMetadata`** — Metadata for an `agent_thought_chunk` ACP notification. The `delta` is the incremental text added by this chunk; `cumulativeText` is the running concatenation per `messageId`.
+- **`ToolCallEndMetadata`** — Metadata for a terminal tool-call transition (`completed` / `failed`). Receivers move the call from active to completed.
+- **`ToolCallProgressMetadata`** — Metadata for a non-terminal tool-call status transition (e.g. `pending` → `in_progress`). Receivers should update the active tool's displayed status WITHOUT moving it to completed.
+- **`ToolCallStartMetadata`** — Metadata for the initial registration of a tool call.
 - **`UniversalA2AServerOptions`**
+- **`UsageMetadata`** — Metadata for a `usage_update` notification — token-budget telemetry. `cost` reuses the SDK's `Cost` type (`{ amount: number; currency: string }`) so structured multi-currency values are preserved e...
 
 ### Types
 
 - **`AgentCard`**
+- **`AgentEventKind`** — Allowed values for `TaskStatusUpdateEvent.metadata.kind`.
+- **`AgentEventMetadata`** — Discriminated union of all agent-event metadata shapes that ride on `TaskStatusUpdateEvent.metadata`. Use this as the type for `metadata` when emitting a non-text agent event.
 - **`AgentExecutor`**
 - **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
 - **`AuditEventInput`**
 - **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`AvailableCommand`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
 - **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
+- **`Cost`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
 - **`ExecutionEventBus`**
 - **`GatewayAgentCapabilities`**
 - **`GatewayAgentCard`**
 - **`GatewayCardInput`**
 - **`HttpStatus`** — Union of the numeric values in {HTTP_STATUS}. Useful for typing custom handler return values or status-code routing tables that should only accept codes the monorepo emits.
 - **`Message`**
+- **`PlanEntry`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
 - **`RequestContext`**
 - **`Task`**
 - **`TaskStatus`**
 - **`TaskStatusUpdateEvent`**
+- **`ToolCallEndStatus`** — Terminal status values for tool-call-end metadata. ACP defines `pending` / `in_progress` as non-terminal and `completed` / `failed` as terminal. We accept any string here so receivers see what the ...
 
 ### Constants
 

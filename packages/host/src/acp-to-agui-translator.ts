@@ -115,14 +115,19 @@ export function translateAcpEvent(event: ACPSessionEvent, state: TranslatorState
             onTextDelta: ({ messageId, delta }) => {
               out.push(...state.stream.textChunk({ text: delta, messageId }));
             },
-            // Thought / tool-call notifications still flow through their
-            // own ACPSessionEvent paths in this translator (they don't
-            // arrive as `agent_message_chunk`); these stubs are unreachable
-            // for `agent_message_chunk` input but keep the sink contract
+            // Thought / tool-call / plan / commands / mode / usage
+            // notifications still flow through their own ACPSessionEvent
+            // paths in this translator (they don't arrive as
+            // `agent_message_chunk`); these stubs are unreachable for
+            // `agent_message_chunk` input but keep the sink contract
             // satisfied without `as any` casts.
             onThoughtDelta: () => {},
             onToolCallStart: () => {},
             onToolCallUpdate: () => {},
+            onPlanUpdate: () => {},
+            onAvailableCommandsUpdate: () => {},
+            onModeChange: () => {},
+            onUsageUpdate: () => {},
           });
           return out;
         }

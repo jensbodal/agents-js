@@ -888,7 +888,7 @@ A `custom` runtime is also supported by the ACP contract — any command is acce
 - `droid-acp` is maintained in this repo as `@agents-js/droid-acp`; it wraps Factory.ai's `droid` CLI via per-turn `droid exec --output-format stream-json` invocations
 - `trial-agent` is available for testing and is not a production runtime.
 - `gemini` is not maintained in this repo
-- the repo wires the runtimes into the gateway and CLI.
+- the repo wires the runtimes into the gateway and CLI, and the lower-level `apps/internal-gateway` workspace keeps a direct `@agents-js/acp` edge for its local gateway test harness
 
 ### Auth
 

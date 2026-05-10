@@ -12,6 +12,10 @@ import type {
   TaskQueryParams,
   TaskStatusUpdateEvent,
 } from "@a2a-js/sdk";
+// Agent-event payload shapes are taken straight from the ACP SDK so
+// receivers see spec-typed enums + structured values (e.g.
+// `PlanEntryPriority`, `Cost`) rather than widened strings/numbers.
+import type { AvailableCommand, Cost, PlanEntry } from "@agentclientprotocol/sdk";
 
 export type AgentTargetMode = "auto" | "card" | "base" | "agui";
 
@@ -189,6 +193,19 @@ export interface SessionStatusAction {
   label: string;
 }
 
+/**
+ * Snapshot of a single in-flight or recently-completed tool call.
+ * Mirrored on session state so the TUI can render an inline status
+ * row that swaps in place as the call progresses.
+ */
+export interface ActiveToolCall {
+  toolCallId: string;
+  toolName: string;
+  status: string;
+  /** Wall-clock ms timestamp at which the call was first observed. */
+  startedAt: number;
+}
+
 export interface A2ASessionState {
   sessionId: string;
   target?: ResolvedAgentTarget;
@@ -205,6 +222,38 @@ export interface A2ASessionState {
   resumableTaskId?: string;
   activeElicitation?: ACPA2AElicitation;
   activeAuth?: A2AAuthRequiredState;
+  /** Cumulative thinking text accumulated by `reasoning.message.chunk`
+   *  events for the current turn. Cleared when first
+   *  `message.delta`/`message.completed` arrives or on `turn.started`. */
+  pendingThoughtText?: string;
+  /** Tool calls currently in flight, keyed by `toolCallId`. Entries are
+   *  added on `tool_call.start` and removed on `tool_call.end`. The TUI's
+   *  active-action status line renders the most recent entry. */
+  activeToolCalls: ActiveToolCall[];
+  /** Tool calls that have terminated this session. Used for the
+   *  transcript-history rendering once a turn completes (the TUI
+   *  surfaces the full tool timeline alongside the agent reply). */
+  completedToolCalls: ActiveToolCall[];
+  /** Most-recent plan from the harness. `null` when no plan has been
+   *  reported. ACP `plan` notifications carry the full set; we
+   *  replace state wholesale on receipt. Reuses the SDK's `PlanEntry`
+   *  shape so consumers see the proper `priority: PlanEntryPriority`
+   *  string enum. */
+  currentPlan: PlanEntry[] | null;
+  /** Slash-commands the harness has reported as available. Empty
+   *  when the harness has not reported any. Drives the TUI's
+   *  slash-command autocomplete. Reuses the SDK's `AvailableCommand`
+   *  shape so the autocomplete UI sees description + input schema. */
+  availableCommands: AvailableCommand[];
+  /** Most-recent mode id reported by the harness (e.g. plan vs
+   *  execute, or a model-name swap). The available-modes list lives
+   *  in session metadata; receivers that want to render mode names
+   *  look it up from there. */
+  currentMode?: { modeId: string };
+  /** Most-recent token-budget telemetry. `cost` reuses the SDK's
+   *  `Cost` type (`{ amount, currency }`) so multi-currency values
+   *  are preserved end-to-end. */
+  lastUsage?: { size: number; used: number; cost?: Cost | null };
 }
 
 export interface SendTurnOptions {
@@ -730,6 +779,62 @@ export interface A2AToolCallEndEvent {
   type: "tool_call.end";
   /** The ID of the tool call that has finished. */
   toolCallId: string;
+  /** Terminal status reported by the harness, e.g. `"completed"`,
+   *  `"failed"`, `"cancelled"`. */
+  status?: string;
+}
+
+// --- Agent-event metadata fan-out (ACP plan / commands / mode / usage) ---
+//
+// These events ride on TaskStatusUpdateEvent.metadata via the
+// `agents-js/a2a` `wire-kinds` discriminator schema. Their payload
+// types reuse the ACP SDK's typed shapes (`PlanEntry`,
+// `AvailableCommand`, `Cost`, `SessionModeState`) so the wire
+// surface preserves spec-shaped enums and structured values
+// (e.g. `Cost = { amount, currency }`, `PlanEntryPriority = "high" |
+// "medium" | "low"`) end-to-end. See
+// `packages/a2a/src/wire-kinds.ts` for the discriminator + rationale.
+
+/**
+ * The agent's structured todo-list. ACP `plan` notifications always
+ * carry the FULL set of entries; receivers replace state wholesale.
+ */
+export interface A2APlanUpdatedEvent {
+  type: "plan.updated";
+  entries: PlanEntry[];
+}
+
+/**
+ * The set of slash-commands currently available from the harness.
+ * Replaces state wholesale on receipt.
+ */
+export interface A2AAvailableCommandsUpdatedEvent {
+  type: "commands.updated";
+  commands: AvailableCommand[];
+}
+
+/**
+ * Mode transition reported by the harness (e.g. plan→execute, model swap).
+ * ACP `current_mode_update` carries only the new `modeId`; the
+ * available-modes list lives in session metadata.
+ */
+export interface A2AModeChangedEvent {
+  type: "mode.changed";
+  modeId: string;
+}
+
+/**
+ * Token-budget telemetry. `size` = total context window tokens,
+ * `used` = consumed so far, `cost` = structured `Cost` from the SDK
+ * (`{ amount, currency }`) preserved verbatim — `null` is a valid
+ * harness signal for "no cost", `undefined` means the field was
+ * omitted.
+ */
+export interface A2AUsageUpdatedEvent {
+  type: "usage.updated";
+  size: number;
+  used: number;
+  cost?: Cost | null;
 }
 
 export type A2AEvent =
@@ -756,6 +861,10 @@ export type A2AEvent =
   | A2AToolCallStartEvent
   | A2AToolCallArgsEvent
   | A2AToolCallEndEvent
+  | A2APlanUpdatedEvent
+  | A2AAvailableCommandsUpdatedEvent
+  | A2AModeChangedEvent
+  | A2AUsageUpdatedEvent
   | A2ARunStartedEvent
   | A2ARunFinishedEvent
   | A2ARunErrorEvent
