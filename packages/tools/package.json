@@ -50,6 +50,6 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "@agents-js/gateway-runtime": "0.3.2"
+    "@agents-js/gateway-runtime": "0.3.3"
   }
 }

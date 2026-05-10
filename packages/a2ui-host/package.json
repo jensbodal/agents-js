@@ -54,12 +54,12 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp-host": "0.3.2"
+    "@agents-js/acp-host": "0.3.3"
   },
   "peerDependencies": {
-    "@agents-js/a2ui-types": "0.3.2",
-    "@agents-js/ui-components": "0.3.2",
-    "@agents-js/validation": "0.3.2",
+    "@agents-js/a2ui-types": "0.3.3",
+    "@agents-js/ui-components": "0.3.3",
+    "@agents-js/validation": "0.3.3",
     "lit": "catalog:"
   },
   "devDependencies": {
