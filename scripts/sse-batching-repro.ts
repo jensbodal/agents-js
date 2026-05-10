@@ -39,6 +39,7 @@ interface Args {
   payloadBytes: number;
   shape: "minimal" | "agents-js";
   burst: boolean;
+  direct: boolean;
   url: string;
 }
 
@@ -61,6 +62,7 @@ function parseArgs(argv: string[]): Args {
     payloadBytes: Number(flag("payload-bytes", "0")),
     shape,
     burst: args.includes("--burst"),
+    direct: args.includes("--direct"),
     url: `http://127.0.0.1:${port}/sse`,
   };
 }
@@ -124,6 +126,40 @@ async function runServer(args: Args, signal?: AbortSignal): Promise<void> {
         return new Response("not found", { status: 404 });
       }
       const padding = "x".repeat(args.payloadBytes);
+      const buildFrame = (i: number) => {
+        const data = JSON.stringify({ n: i, enqueueAt: performance.now(), pad: padding });
+        return args.shape === "agents-js"
+          ? `event: status-update\ndata: ${data}\nid: msg-${i}\n\n`
+          : `data: ${data}\n\n`;
+      };
+      const headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      };
+      if (args.direct) {
+        return new Response(
+          new ReadableStream({
+            type: "direct",
+            async pull(controller) {
+              for (let i = 0; i < events; i++) {
+                if (i > 0) {
+                  if (args.burst) await Bun.sleep(0);
+                  else await Bun.sleep(intervalMs);
+                }
+                controller.write(buildFrame(i));
+                // controller.flush() returns a synchronous byte count, not a Promise.
+                // Calling without await preserves the sync semantics under test
+                // (await would schedule a microtask that flush itself doesn't need).
+                controller.flush();
+              }
+              controller.close();
+            },
+          } as UnderlyingSource),
+          { headers },
+        );
+      }
       const stream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
@@ -132,25 +168,12 @@ async function runServer(args: Args, signal?: AbortSignal): Promise<void> {
               if (args.burst) await Bun.sleep(0);
               else await Bun.sleep(intervalMs);
             }
-            const enqueueAt = performance.now();
-            const data = JSON.stringify({ n: i, enqueueAt, pad: padding });
-            const frame =
-              args.shape === "agents-js"
-                ? `event: status-update\ndata: ${data}\nid: msg-${i}\n\n`
-                : `data: ${data}\n\n`;
-            controller.enqueue(encoder.encode(frame));
+            controller.enqueue(encoder.encode(buildFrame(i)));
           }
           controller.close();
         },
       });
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        },
-      });
+      return new Response(stream, { headers });
     },
   });
   console.log(

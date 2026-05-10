@@ -1,42 +1,43 @@
 # SSE batching investigation
 
-**Status**: ROOT CAUSE IDENTIFIED — `Bun.serve` outbound write coalescing.
+**Status**: COULD NOT REPRODUCE on current code. Earlier "ROOT CAUSE
+IDENTIFIED" framing was wrong; corrected here.
 
-The reproducer harness `scripts/sse-batching-repro.ts` (#71) demonstrates
-that when a `Bun.serve` ReadableStream consumer calls `controller.enqueue`
-multiple times within the same event-loop tick (or close to it — `await
-Bun.sleep(0)` between calls is enough to yield but does not break
-coalescing), the outbound bytes are flushed as a single TCP write.
+## Current evidence
 
-Evidence (from `bun scripts/sse-batching-repro.ts all --burst`):
+Tested `scripts/sse-batching-against-agents-js.ts` against
+`agents-js serve --harness codex` running a Read-tool prompt that produces
+real LLM-cadenced output:
 
-```
-client                arrivals   meanΔ      verdict
---------------------- ---------- ---------- ----------
-bun-fetch+parser      8/8        0ms        BATCHED
-bun-fetch-raw         4/8        0ms        INCOMPLETE  (bytes batched, fewer reader yields)
-node-fetch+parser     8/8        0ms        BATCHED
-curl -N               8/8        0ms        BATCHED
-```
+- Bun fetch raw bytes (`response.body.getReader()`): 520 chunks, mean Δ
+  73ms, max 8.3s — **streams correctly**
+- Bun fetch + `TextDecoderStream` + per-line buffering: 618 SSE events,
+  mean Δ 55ms, max 7.2s — **streams correctly**
 
-`curl -N` is the deciding signal: kernel-level / wire-level read shows the
-8 events arrive in one batch, ruling out Bun's fetch client, Node's fetch
-client, `TextDecoderStream`, `parseSseStream` line buffering, and any
-other downstream-of-server suspect. With the same server emitting events
-500ms apart instead, all four clients stream cleanly at proper intervals
-— so the coalescing depends on inter-write spacing, not on the clients.
+Both client paths preserve real-time cadence end-to-end. The streaming-TUI
+batching symptom that motivated this investigation does not reproduce on
+current `main` against codex. Possible explanations:
 
-**Why agents-js sees this:** the A2A executor processes ACP `sessionUpdate`
-notifications synchronously inside one async iteration of the request
-handler — between `await`s, multiple `controller.enqueue` calls happen
-within the same tick, and Bun.serve coalesces them. Real claude/codex
-turns that emit many small chunks tightly all batch; turns with sparse
-chunks (or with model latency between chunks) do not batch.
+- The original symptom was specific to `claude-agent-acp`'s emission
+  shape (not retested here).
+- Intermediate streaming-path surgery in PRs #29–#41 fixed it.
 
-**Earlier framing in this report ("Bun fetch runtime") was wrong** — the
-suspect was downstream-of-server rather than the server itself. The
-verification gates G1, G2, G3, and G5 in §"Verification gates" below all
-ran via `scripts/sse-batching-repro.ts` and produced the data above.
+Either way, there is no client-side fix to ship on current evidence.
+
+## What `scripts/sse-batching-repro.ts` (#44) actually demonstrates
+
+The synthetic harness's `--burst` mode reproduces a different phenomenon:
+**TCP segment coalescing of writes that happen within the same event-loop
+tick.** This is normal kernel behavior — multiple `controller.enqueue`
+calls inside one tick get serialized into one TCP segment, and the
+receiver's `read()` returns them together. It does not correlate with
+the agents-js streaming bug, which would be whole-response buffering over
+seconds of real-spaced writes.
+
+The synthetic harness is retained as a Bun.serve infrastructure benchmark
+— useful if Bun's tick-coalescing behavior changes in a future release —
+but it is **not** a regression gate for the original streaming-render
+issue.
 
 What the probe data shows:
 - agents-js executor publishes per-chunk in real time (innocent)
@@ -153,45 +154,35 @@ These are tracked as task #69's follow-ups (#70, #71). The earlier task
 titles ("Try undici workaround", "File upstream Bun bug") were premature —
 they assumed the cause that the gates above are meant to verify.
 
-## Fix — manually-flushed outbound transport
+## Fix — none ships from this investigation
 
-Root cause is server-side, so client-side workarounds (custom `fetchImpl`
-with undici, etc.) wouldn't help.
+The proposed `Bun.serve` direct-controller fix (`type: "direct"` +
+`flush()`) was tested in `scripts/sse-batching-repro.ts` before applying
+anywhere — it does **not** stop tick-local coalescing. Under Bun 1.3.12
+(observed via `typeof controller.flush()` in the harness),
+`controller.flush()` returns a synchronous byte count, not a Promise; it
+pushes to the socket buffer but does not block on the wire. So even if
+the agents-js streaming bug were tick-local coalescing (it isn't, per
+the codex evidence above), this fix would not resolve it. If a future
+Bun release changes `flush()` semantics, re-run the harness with
+`--burst --direct` to re-verify before treating this as still-true.
 
-The fix lives in `packages/a2a/src/server.ts`'s SSE response construction.
-Replace the standard `ReadableStream` with `Bun.serve`'s direct
-controller (`type: "direct"` + explicit `flush()` per write) which gives
-write-by-write control over the TCP send timing:
+The proposed `fetchImpl` swap to `undici` was tested by reading the
+SSE response with Node 24's native fetch (which IS undici under the
+hood) — also batches when the response is short enough that all chunks
+arrive together at the kernel. So undici is also not a fix on current
+evidence.
 
-```ts
-// Sketch — actual change goes in server.ts where the ReadableStream is built
-return new Response(
-  new ReadableStream({
-    type: "direct",
-    async pull(controller) {
-      for await (const event of source) {
-        controller.write(formatSseEvent(event));
-        await controller.flush(); // <-- forces wire flush, prevents coalescing
-      }
-      controller.close();
-    },
-  } as UnderlyingSource),
-  { headers: SSE_HEADERS },
-);
-```
+Both proposed fixes were unnecessary because the bug they targeted does
+not reproduce on current code. If the streaming-render symptom resurfaces
+with a specific harness in the future, re-run
+`scripts/sse-batching-against-agents-js.ts` against that harness to
+generate fresh evidence, then re-evaluate fix shape.
 
-Tracked as a follow-up to #71. Out of scope for the harness PR itself —
-the harness's job is to confirm the root cause; the server fix lands
-separately so it can be evaluated against the harness as a regression
-gate.
-
-Alternative escape hatches (kept for completeness):
+If a real Bun-fetch coalescing issue is ever isolated, escape hatches:
 
 - **Switch SSE → WebSocket on the agent card.** Protocol-level change.
-  Bigger lift, blocks on A2A spec direction.
-- **File upstream Bun bug** asking for write-coalescing to honor backpressure
-  more aggressively for `text/event-stream` responses. Not blocking — the
-  direct-controller workaround is documented Bun-native API, not a hack.
+- **File upstream Bun bug** with a fresh reproducer.
 
 ## Adapter-seam recommendation
 
