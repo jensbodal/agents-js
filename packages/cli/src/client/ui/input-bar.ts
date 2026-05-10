@@ -170,6 +170,11 @@ export function createClientInputBar(
 
   let currentState: A2ASessionState | undefined;
   let draft: ElicitationDraft | undefined;
+  // Live mirror of what the user is currently typing — drives the
+  // slash-command suggestion hint. Updated on every INPUT event from
+  // the InputRenderable so the suggestion list refreshes character-
+  // by-character.
+  let inputDraftValue = "";
 
   const hint = new TextRenderable(renderer, {
     id: "client-input-hint",
@@ -194,9 +199,40 @@ export function createClientInputBar(
   root.add(hint);
   root.add(input);
 
+  /**
+   * If the user is typing a slash-command (input starts with `/`),
+   * surface up-to-3 matching `availableCommands` from session state
+   * inline in the hint area. Empty string returned when no match or
+   * no commands reported by the harness — caller falls through to
+   * the regular hint.
+   *
+   * Inline-hint rendering rather than a popup menu: keeps the layout
+   * stable, matches Codex CLI's terse pattern, doesn't need
+   * keyboard-handling for a separate focused list. If users want
+   * tab-completion later, the hint is the discoverability layer.
+   */
+  function buildCommandSuggestionHint(state: A2ASessionState | undefined): string {
+    if (!state || !inputDraftValue.startsWith("/")) return "";
+    if (state.availableCommands.length === 0) return "";
+    const query = inputDraftValue.slice(1).toLowerCase();
+    const matches = state.availableCommands
+      .filter((c) => c.name.toLowerCase().slice(1).startsWith(query))
+      .slice(0, 3);
+    if (matches.length === 0) return "";
+    return matches
+      .map((c) => (c.description ? `${c.name} — ${c.description}` : c.name))
+      .join("  ·  ");
+  }
+
   function syncHint(): void {
     const state = currentState;
     if (!state?.activeElicitation) {
+      const slashHint = buildCommandSuggestionHint(state);
+      if (slashHint) {
+        input.placeholder = "";
+        hint.content = slashHint;
+        return;
+      }
       const label = buildDefaultLabel(state ?? ({ status: "idle" } as A2ASessionState));
       if (label === DEFAULT_HINT) {
         input.placeholder = DEFAULT_HINT;
@@ -318,11 +354,22 @@ export function createClientInputBar(
     }
   }
 
+  // Per-keystroke event so the slash-command hint stays in sync with
+  // what the user is currently typing. INPUT fires before the
+  // value is committed, but the renderable's internal value is
+  // already updated by the time the listener runs.
+  input.on(InputRenderableEvents.INPUT, (value: string) => {
+    inputDraftValue = value;
+    syncHint();
+  });
+
   input.on(InputRenderableEvents.ENTER, (value: string) => {
     const trimmed = value.trim();
     if (trimmed || currentState?.activeElicitation) {
       void submit(value);
       input.clear();
+      inputDraftValue = "";
+      syncHint();
       input.focus();
     }
   });

@@ -155,7 +155,12 @@ describe("client command", () => {
 
     header.update(state);
 
-    const status = header.root.getRenderable("client-header-status");
+    // Status sits inside the right-cluster sub-container (header
+    // refactored to group badges+status so they stay right-adjacent
+    // under flex `justify-content: space-between`). Use
+    // `findDescendantById` (recursive) rather than `getRenderable`
+    // (direct-children only) so the lookup survives the layout change.
+    const status = header.root.findDescendantById("client-header-status");
     expect(status).toBeDefined();
   });
 

@@ -18,11 +18,14 @@
 
 import { spawn } from "node:child_process";
 import path from "node:path";
+// Use the package's public entry rather than `src/...` so this script
+// stays inside the package-boundaries contract enforced by
+// `tests/package-boundaries.test.ts`.
 import {
   A2AClientController,
   A2AClientProvider,
   createInitialSessionState,
-} from "../packages/a2a-client/src/index.ts";
+} from "@agents-js/a2a-client";
 
 const PORT = 6970;
 // Conversational prompt — no tools. claude-agent-acp emits this kind of
