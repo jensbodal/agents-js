@@ -1,6 +1,42 @@
 # SSE batching investigation
 
-**Status**: GAP LOCALIZED, ROOT CAUSE NOT YET PROVEN.
+**Status**: ROOT CAUSE IDENTIFIED — `Bun.serve` outbound write coalescing.
+
+The reproducer harness `scripts/sse-batching-repro.ts` (#71) demonstrates
+that when a `Bun.serve` ReadableStream consumer calls `controller.enqueue`
+multiple times within the same event-loop tick (or close to it — `await
+Bun.sleep(0)` between calls is enough to yield but does not break
+coalescing), the outbound bytes are flushed as a single TCP write.
+
+Evidence (from `bun scripts/sse-batching-repro.ts all --burst`):
+
+```
+client                arrivals   meanΔ      verdict
+--------------------- ---------- ---------- ----------
+bun-fetch+parser      8/8        0ms        BATCHED
+bun-fetch-raw         4/8        0ms        INCOMPLETE  (bytes batched, fewer reader yields)
+node-fetch+parser     8/8        0ms        BATCHED
+curl -N               8/8        0ms        BATCHED
+```
+
+`curl -N` is the deciding signal: kernel-level / wire-level read shows the
+8 events arrive in one batch, ruling out Bun's fetch client, Node's fetch
+client, `TextDecoderStream`, `parseSseStream` line buffering, and any
+other downstream-of-server suspect. With the same server emitting events
+500ms apart instead, all four clients stream cleanly at proper intervals
+— so the coalescing depends on inter-write spacing, not on the clients.
+
+**Why agents-js sees this:** the A2A executor processes ACP `sessionUpdate`
+notifications synchronously inside one async iteration of the request
+handler — between `await`s, multiple `controller.enqueue` calls happen
+within the same tick, and Bun.serve coalesces them. Real claude/codex
+turns that emit many small chunks tightly all batch; turns with sparse
+chunks (or with model latency between chunks) do not batch.
+
+**Earlier framing in this report ("Bun fetch runtime") was wrong** — the
+suspect was downstream-of-server rather than the server itself. The
+verification gates G1, G2, G3, and G5 in §"Verification gates" below all
+ran via `scripts/sse-batching-repro.ts` and produced the data above.
 
 What the probe data shows:
 - agents-js executor publishes per-chunk in real time (innocent)
@@ -117,32 +153,45 @@ These are tracked as task #69's follow-ups (#70, #71). The earlier task
 titles ("Try undici workaround", "File upstream Bun bug") were premature —
 they assumed the cause that the gates above are meant to verify.
 
-## Workaround options (still ranked, but conditional)
+## Fix — manually-flushed outbound transport
 
-If G1+G2 confirm Bun's fetch as the buffering layer:
+Root cause is server-side, so client-side workarounds (custom `fetchImpl`
+with undici, etc.) wouldn't help.
 
-1. **Custom `fetchImpl` using `undici` / Node native fetch** — `@a2a-js/sdk`'s
-   `A2AClient` accepts a `fetchImpl` option. agents-js already passes one
-   through (`packages/a2a-client/src/transport.ts:177`, currently `debugFetch`
-   wrapping native fetch). Swap that wrapper for an undici-backed one on the
-   streaming endpoint. Low disruption.
+The fix lives in `packages/a2a/src/server.ts`'s SSE response construction.
+Replace the standard `ReadableStream` with `Bun.serve`'s direct
+controller (`type: "direct"` + explicit `flush()` per write) which gives
+write-by-write control over the TCP send timing:
 
-2. **Replace `Bun.serve`'s outbound with a manually-flushed transport** —
-   `ReadableStreamDirectController` with `type: "direct"` and explicit
-   `flush()` per event is the documented Bun-native escape hatch for this
-   shape of bug (see oven-sh/bun#15235 for a related, distinct flush bug).
-   Higher disruption: rewrite `packages/a2a/src/server.ts:357`.
+```ts
+// Sketch — actual change goes in server.ts where the ReadableStream is built
+return new Response(
+  new ReadableStream({
+    type: "direct",
+    async pull(controller) {
+      for await (const event of source) {
+        controller.write(formatSseEvent(event));
+        await controller.flush(); // <-- forces wire flush, prevents coalescing
+      }
+      controller.close();
+    },
+  } as UnderlyingSource),
+  { headers: SSE_HEADERS },
+);
+```
 
-3. **Switch SSE → WebSocket on the agent card.** Protocol-level change. Big
-   lift, blocks on A2A spec direction.
+Tracked as a follow-up to #71. Out of scope for the harness PR itself —
+the harness's job is to confirm the root cause; the server fix lands
+separately so it can be evaluated against the harness as a regression
+gate.
 
-4. **Wait for a Bun fix.** Only viable after G1-G5 produce a reproducer that
-   the Bun maintainers can reproduce.
+Alternative escape hatches (kept for completeness):
 
-If G3+G5 instead implicate `parseSseStream` or `TextDecoderStream`, the fix
-is in the SDK's parser (or our consumer), not the runtime. Workaround set is
-different: rewrite `parseSseStream`-equivalent in agents-js to yield per-line
-without buffering.
+- **Switch SSE → WebSocket on the agent card.** Protocol-level change.
+  Bigger lift, blocks on A2A spec direction.
+- **File upstream Bun bug** asking for write-coalescing to honor backpressure
+  more aggressively for `text/event-stream` responses. Not blocking — the
+  direct-controller workaround is documented Bun-native API, not a hack.
 
 ## Adapter-seam recommendation
 
