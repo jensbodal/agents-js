@@ -112,6 +112,132 @@ describe("mapSnapshot", () => {
     });
   });
 
+  test("forwards rich per-call tool data including locations, rawInput, rawOutput", () => {
+    // Mirrors the wire shape: ws-bridge JSON-stringifies the host's
+    // `Map<string, ToolCallInfo>` to a Record. acp-host populates
+    // `richContent` (flattened ToolCallContentInfo) — the mapper has
+    // to re-hydrate it back into the SDK's discriminated `ToolCallContent`.
+    const state = mapSnapshot({
+      currentTurn: {
+        textChunks: [],
+        toolCalls: {
+          "tc-1": {
+            id: "tc-1",
+            name: "read",
+            status: "completed",
+            kind: "read",
+            richContent: [{ type: "content", text: "file contents here" }],
+            locations: [{ path: "/repo/src/index.ts", line: 42 }],
+            rawInput: { path: "/repo/src/index.ts" },
+            rawOutput: { bytes: 1024 },
+          },
+          "tc-2": {
+            id: "tc-2",
+            name: "edit",
+            status: "running",
+            richContent: [{ type: "diff", diffPath: "a.ts", diffOldText: "x", diffNewText: "y" }],
+          },
+        },
+      },
+    });
+
+    expect(state.currentTurn?.toolCalls).toHaveLength(2);
+    const [call1, call2] = state.currentTurn?.toolCalls ?? [];
+    expect(call1).toMatchObject({
+      toolCallId: "tc-1",
+      toolName: "read",
+      status: "completed",
+      toolKind: "read",
+      locations: [{ path: "/repo/src/index.ts", line: 42 }],
+      rawInput: { path: "/repo/src/index.ts" },
+      rawOutput: { bytes: 1024 },
+    });
+    expect(call1?.content).toEqual([
+      { type: "content", content: { type: "text", text: "file contents here" } },
+    ]);
+    expect(call2?.content).toEqual([{ type: "diff", path: "a.ts", oldText: "x", newText: "y" }]);
+  });
+
+  test("normalizes host-internal 'running' status back to ACP 'in_progress'", () => {
+    // acp-host's mapToolCallStatus collapses ACP `in_progress` → host
+    // `running`. <acp-tool-call-detail> styles ACP-shaped statuses, so
+    // the mapper has to invert this on the way out.
+    const state = mapSnapshot({
+      currentTurn: {
+        textChunks: [],
+        toolCalls: {
+          "tc-1": { id: "tc-1", name: "edit", status: "running" },
+        },
+      },
+    });
+    expect(state.currentTurn?.toolCalls?.[0]?.status).toBe("in_progress");
+  });
+
+  test("drops malformed rich-content entries instead of fabricating empty placeholders", () => {
+    // `content` without text, `diff` without path, `terminal` without
+    // terminalId — all invalid per the SDK shape. The mapper used to
+    // backfill empty strings; now it filters them out so the detail
+    // component doesn't render misleading empty blocks.
+    const state = mapSnapshot({
+      currentTurn: {
+        textChunks: [],
+        toolCalls: {
+          "tc-1": {
+            id: "tc-1",
+            name: "read",
+            status: "completed",
+            richContent: [
+              { type: "content" }, // no text → drop
+              { type: "diff", diffNewText: "y" }, // no diffPath → drop
+              { type: "terminal" }, // no terminalId → drop
+              { type: "content", text: "ok" }, // valid → keep
+            ],
+          },
+        },
+      },
+    });
+    expect(state.currentTurn?.toolCalls?.[0]?.content).toEqual([
+      { type: "content", content: { type: "text", text: "ok" } },
+    ]);
+  });
+
+  test("survives null/non-object values inside the toolCalls record", () => {
+    // `typeof null === "object"`, so a wire payload like
+    // `{ "tc-1": null }` would otherwise crash on `raw.status` access.
+    // The defensive guard inside mapToolCallEntry should drop these.
+    const state = mapSnapshot({
+      currentTurn: {
+        textChunks: [],
+        toolCalls: {
+          "tc-null": null,
+          "tc-num": 42,
+          "tc-ok": { id: "tc-ok", name: "read", status: "completed" },
+        },
+      },
+    });
+    // counts still walk all entries — the active/failed counters
+    // runtime-check `status` before reading it, so non-object values
+    // are treated as "not active" / "not failed" rather than crashing
+    expect(state.currentTurn?.toolCallCount).toBe(3);
+    // but only the well-formed entry survives into the rich list
+    expect(state.currentTurn?.toolCalls).toHaveLength(1);
+    expect(state.currentTurn?.toolCalls?.[0]?.toolCallId).toBe("tc-ok");
+  });
+
+  test("skips tool calls missing id/name (defensive — partial wire payloads)", () => {
+    const state = mapSnapshot({
+      currentTurn: {
+        textChunks: [],
+        toolCalls: {
+          "tc-1": { status: "running" }, // legacy-shape probe; no id/name
+        },
+      },
+    });
+    // Counts still work for status-only entries; rich list is empty.
+    expect(state.currentTurn?.toolCallCount).toBe(1);
+    expect(state.currentTurn?.toolCalls).toBeUndefined();
+  });
+
   test("maps permission scope candidates from pending permission snapshots", () => {
     const state = mapSnapshot({
       currentTurn: {
