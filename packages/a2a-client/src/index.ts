@@ -126,6 +126,7 @@ export type {
   A2AStreamOpenedEvent,
   A2AToolCallArgsEvent,
   A2AToolCallEndEvent,
+  A2AToolCallProgressEvent,
   A2AToolCallStartEvent,
   A2ATransport,
   A2AUsageUpdatedEvent,

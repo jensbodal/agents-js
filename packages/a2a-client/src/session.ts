@@ -375,14 +375,64 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
       const next: ActiveToolCall = {
         toolCallId: event.toolCallId,
         toolName: event.toolCallName,
-        status: "in_progress",
+        // Use the harness-reported initial status when present; some
+        // harnesses emit `pending` to mark a queued-but-not-executing
+        // call. Fall back to `in_progress` only when status is
+        // unspecified.
+        status: event.status ?? "in_progress",
         startedAt,
+        ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+        ...(event.content !== undefined ? { content: event.content } : {}),
+        ...(event.locations !== undefined ? { locations: event.locations } : {}),
+        ...(event.rawInput !== undefined ? { rawInput: event.rawInput } : {}),
+        ...(event.rawOutput !== undefined ? { rawOutput: event.rawOutput } : {}),
       };
       // De-dup against the rare case where a harness re-emits the same
       // toolCallId (translator-level idempotency keeps this from happening
       // for well-behaved harnesses, but defensive at the reducer layer).
       const filtered = state.activeToolCalls.filter((c) => c.toolCallId !== event.toolCallId);
       return { ...state, activeToolCalls: [...filtered, next] };
+    }
+    case "tool_call.progress": {
+      // Mid-call update — merge over the existing ActiveToolCall by
+      // toolCallId. `undefined` on the event preserves prior; a value
+      // (including `null` for content/locations as "explicit clear"
+      // per ACP spec) replaces. Use `!== undefined` rather than `in`
+      // membership so accidentally-undefined props from spreads don't
+      // overwrite state.
+      const existing = state.activeToolCalls.find((c) => c.toolCallId === event.toolCallId);
+      if (!existing) {
+        // Progress without a prior start — synthesize so the call shows
+        // up. Most harnesses emit start first, but this keeps the TUI
+        // robust if updates arrive out of order.
+        const synthesized: ActiveToolCall = {
+          toolCallId: event.toolCallId,
+          toolName: "",
+          status: event.status ?? "in_progress",
+          startedAt: Date.now(),
+          ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+          ...(event.content !== undefined ? { content: event.content } : {}),
+          ...(event.locations !== undefined ? { locations: event.locations } : {}),
+          ...(event.rawInput !== undefined ? { rawInput: event.rawInput } : {}),
+          ...(event.rawOutput !== undefined ? { rawOutput: event.rawOutput } : {}),
+        };
+        return { ...state, activeToolCalls: [...state.activeToolCalls, synthesized] };
+      }
+      const merged: ActiveToolCall = {
+        ...existing,
+        ...(event.status !== undefined ? { status: event.status } : {}),
+        ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+        ...(event.content !== undefined ? { content: event.content } : {}),
+        ...(event.locations !== undefined ? { locations: event.locations } : {}),
+        ...(event.rawInput !== undefined ? { rawInput: event.rawInput } : {}),
+        ...(event.rawOutput !== undefined ? { rawOutput: event.rawOutput } : {}),
+      };
+      return {
+        ...state,
+        activeToolCalls: state.activeToolCalls.map((c) =>
+          c.toolCallId === event.toolCallId ? merged : c,
+        ),
+      };
     }
     case "tool_call.args":
       // Argument streaming is rendered separately if the harness supplies
@@ -391,8 +441,19 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
     case "tool_call.end": {
       const matched = state.activeToolCalls.find((c) => c.toolCallId === event.toolCallId);
       const remaining = state.activeToolCalls.filter((c) => c.toolCallId !== event.toolCallId);
+      // Merge the terminal payload over the prior state so the
+      // completed entry carries all fields the harness has reported
+      // across start → progress → end.
       const finalized: ActiveToolCall | null = matched
-        ? { ...matched, status: event.status ?? "completed" }
+        ? {
+            ...matched,
+            status: event.status ?? "completed",
+            ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+            ...(event.content !== undefined ? { content: event.content } : {}),
+            ...(event.locations !== undefined ? { locations: event.locations } : {}),
+            ...(event.rawInput !== undefined ? { rawInput: event.rawInput } : {}),
+            ...(event.rawOutput !== undefined ? { rawOutput: event.rawOutput } : {}),
+          }
         : {
             // Synthesize an entry if `tool_call.start` was missed (some
             // harnesses skip intermediate updates) so the transcript
@@ -401,6 +462,11 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
             toolName: "",
             status: event.status ?? "completed",
             startedAt: Date.now(),
+            ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+            ...(event.content !== undefined ? { content: event.content } : {}),
+            ...(event.locations !== undefined ? { locations: event.locations } : {}),
+            ...(event.rawInput !== undefined ? { rawInput: event.rawInput } : {}),
+            ...(event.rawOutput !== undefined ? { rawOutput: event.rawOutput } : {}),
           };
       return {
         ...state,

@@ -15,7 +15,14 @@ import type {
 // Agent-event payload shapes are taken straight from the ACP SDK so
 // receivers see spec-typed enums + structured values (e.g.
 // `PlanEntryPriority`, `Cost`) rather than widened strings/numbers.
-import type { AvailableCommand, Cost, PlanEntry } from "@agentclientprotocol/sdk";
+import type {
+  AvailableCommand,
+  Cost,
+  PlanEntry,
+  ToolCallContent,
+  ToolCallLocation,
+  ToolKind,
+} from "@agentclientprotocol/sdk";
 
 export type AgentTargetMode = "auto" | "card" | "base" | "agui";
 
@@ -95,6 +102,7 @@ export type A2AStreamEvent =
   | A2AReasoningEndEvent
   | A2AReasoningEncryptedEvent
   | A2AToolCallStartEvent
+  | A2AToolCallProgressEvent
   | A2AToolCallArgsEvent
   | A2AToolCallEndEvent
   | A2ARunStartedEvent
@@ -197,6 +205,18 @@ export interface SessionStatusAction {
  * Snapshot of a single in-flight or recently-completed tool call.
  * Mirrored on session state so the TUI can render an inline status
  * row that swaps in place as the call progresses.
+ *
+ * Optional fields mirror the ACP `ToolCall` payload forwarded over
+ * the A2A wire (see `@agents-js/a2a/wire-kinds`'s
+ * `ToolCallStartMetadata` / `ToolCallProgressMetadata` /
+ * `ToolCallEndMetadata`). They are populated as the harness reports
+ * them and merged across `tool_call.start` → `tool_call.progress` →
+ * `tool_call.end` events. A `null` value (for `content` / `locations`)
+ * is an explicit clear per ACP `ToolCallUpdate` semantics; receivers
+ * keep the `null` so the TUI can distinguish "agent withdrew the
+ * content" from "agent never sent any". Reducers replace prior
+ * arrays wholesale on a non-null/undefined update — there is no
+ * cross-event array merge.
  */
 export interface ActiveToolCall {
   toolCallId: string;
@@ -204,6 +224,18 @@ export interface ActiveToolCall {
   status: string;
   /** Wall-clock ms timestamp at which the call was first observed. */
   startedAt: number;
+  /** ACP `ToolCall.kind` — read/edit/execute/think/... */
+  toolKind?: ToolKind;
+  /** Most recent `ToolCallContent[]` seen for this call (text /
+   *  image / diff / terminal / ...). `null` is an explicit clear. */
+  content?: ToolCallContent[] | null;
+  /** Most recent file locations the call reported. `null` is an
+   *  explicit clear. */
+  locations?: ToolCallLocation[] | null;
+  /** Unredacted args. */
+  rawInput?: unknown;
+  /** Unredacted output. Most commonly populated on terminal status. */
+  rawOutput?: unknown;
 }
 
 export interface A2ASessionState {
@@ -752,6 +784,12 @@ export interface A2AReasoningEncryptedEvent {
 /**
  * Marks the start of a tool call. Emitted once per `toolCallId` before any
  * `tool_call.args` or `tool_call.end` event.
+ *
+ * Carries the full ACP `ToolCall` payload forwarded from the wire so
+ * receivers can render rich detail (kind icons, file location chips,
+ * raw I/O, content blocks) at start. Optional fields mirror the
+ * SDK's `ToolCall` shape; see `ActiveToolCall` for the persisted
+ * state surface.
  */
 export interface A2AToolCallStartEvent {
   type: "tool_call.start";
@@ -761,6 +799,49 @@ export interface A2AToolCallStartEvent {
   toolCallName: string;
   /** Optional parent message ID this tool call is attached to. */
   parentMessageId?: string;
+  /** Initial status the harness reported on the ACP `ToolCall`
+   *  (typically `"pending"` or `"in_progress"`). Receivers should
+   *  use this instead of defaulting — some harnesses emit
+   *  `pending` to signal the call is queued but not yet executing. */
+  status?: string;
+  /** ACP `ToolCall.kind` — category enum (read/edit/execute/...). */
+  toolKind?: ToolKind;
+  /** Initial content blocks (text/image/diff/terminal/...). */
+  content?: ToolCallContent[];
+  /** File locations the call is operating on. */
+  locations?: ToolCallLocation[];
+  /** Unredacted args. */
+  rawInput?: unknown;
+  /** Unredacted output (rare at start, but ACP allows). */
+  rawOutput?: unknown;
+}
+
+/**
+ * Non-terminal mid-call update. ACP `tool_call_update` notifications
+ * carry status transitions (`pending` → `in_progress`) and/or
+ * payload mutations (content/locations/raw I/O) without ending the
+ * call. Receivers merge the update over their `ActiveToolCall` state
+ * for the matching `toolCallId`.
+ *
+ * Three-state semantics for `content` / `locations`:
+ *   - field absent  → no change to receiver state
+ *   - field `null`  → explicit clear
+ *   - field present → replacement
+ *
+ * `status` and `toolKind` use two-state (absent vs present); see
+ * `@agents-js/a2a/wire-kinds`'s `ToolCallProgressMetadata` for the
+ * underlying wire shape.
+ */
+export interface A2AToolCallProgressEvent {
+  type: "tool_call.progress";
+  toolCallId: string;
+  /** Current non-terminal status when the harness reported one. */
+  status?: string;
+  toolKind?: ToolKind;
+  content?: ToolCallContent[] | null;
+  locations?: ToolCallLocation[] | null;
+  rawInput?: unknown;
+  rawOutput?: unknown;
 }
 
 /**
@@ -783,6 +864,11 @@ export interface A2AToolCallArgsEvent {
  * Marks the end of a tool call. Emitted once per `toolCallId` after all
  * `tool_call.args` events and when the underlying tool call reaches a
  * terminal state (completed or failed).
+ *
+ * Carries the final ACP `ToolCall` payload so receivers can render
+ * the terminal view without retaining mid-flight state. Same
+ * three-state semantics as `tool_call.progress` for `content` /
+ * `locations`.
  */
 export interface A2AToolCallEndEvent {
   type: "tool_call.end";
@@ -791,6 +877,11 @@ export interface A2AToolCallEndEvent {
   /** Terminal status reported by the harness, e.g. `"completed"`,
    *  `"failed"`, `"cancelled"`. */
   status?: string;
+  toolKind?: ToolKind;
+  content?: ToolCallContent[] | null;
+  locations?: ToolCallLocation[] | null;
+  rawInput?: unknown;
+  rawOutput?: unknown;
 }
 
 // --- Agent-event metadata fan-out (ACP plan / commands / mode / usage) ---
@@ -880,6 +971,7 @@ export type A2AEvent =
   | A2AReasoningEndEvent
   | A2AReasoningEncryptedEvent
   | A2AToolCallStartEvent
+  | A2AToolCallProgressEvent
   | A2AToolCallArgsEvent
   | A2AToolCallEndEvent
   | A2APlanUpdatedEvent
