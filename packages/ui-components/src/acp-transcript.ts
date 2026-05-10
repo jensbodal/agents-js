@@ -8,6 +8,7 @@ import { safeCustomElement } from "./safe-custom-element.ts";
 // Ensure child components are registered (side-effect imports)
 import "./acp-message.ts";
 import "./acp-streaming-text.ts";
+import "./acp-tool-call-detail.ts";
 
 /**
  * A scrollable transcript container that renders `acp-message` for each
@@ -173,7 +174,11 @@ export class AcpTranscript extends LitElement {
     super.updated(changed);
     if (changed.has("transcript") || changed.has("pendingText")) {
       const last = this.transcript[this.transcript.length - 1];
-      if (last?.role === "user") {
+      // The "user just sent — auto-scroll" behavior only fires on
+      // user-message entries; tool-call entries don't reset the
+      // scroll lock so a user reading earlier output isn't yanked
+      // down by tool-call activity.
+      if (last && last.kind !== "tool_call" && last.role === "user") {
         this._userScrolledUp = false;
       }
       this._scrollToBottom();
@@ -234,12 +239,19 @@ export class AcpTranscript extends LitElement {
               ${repeat(
                 this.transcript,
                 (entry) => entry.id,
-                (entry) => html`
-                  <acp-message
-                    .messageRole=${entry.role}
-                    .text=${entry.text}
-                  ></acp-message>
-                `,
+                (entry) =>
+                  entry.kind === "tool_call"
+                    ? html`
+                        <acp-tool-call-detail
+                          .toolCall=${entry.toolCall}
+                        ></acp-tool-call-detail>
+                      `
+                    : html`
+                        <acp-message
+                          .messageRole=${entry.role}
+                          .text=${entry.text}
+                        ></acp-message>
+                      `,
               )}
               ${
                 this._showThinking

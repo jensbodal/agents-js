@@ -125,7 +125,9 @@ bun add @agents-js/ui-components
 - **`SessionModelsLike`**
 - **`SessionStateLike`** — Unified session state shape — covers snapshot and view uses.
 - **`TargetInspectionLike`**
-- **`TranscriptEntryLike`** — Minimal shape matching TranscriptEntry from -js/a2a-client.
+- **`TranscriptMessageEntryLike`**
+- **`TranscriptToolCallEntryLike`**
+- **`TranscriptToolCallEntryPayload`** — `ActiveToolCall`-shaped payload for transcript tool-call entries. Re-uses the SDK's typed shapes (`ToolKind`, `ToolCallContent`, `ToolCallLocation`) so receivers get spec-shaped enums and proper di...
 - **`WorkflowActivityEntryState`**
 - **`WorkflowSurfaceActivityState`**
 - **`WorkflowSurfaceComposerState`**
@@ -145,6 +147,7 @@ bun add @agents-js/ui-components
 - **`PermissionModalDetail`**
 - **`RuntimeSwitchOrigin`**
 - **`SessionViewState`** — SessionViewState groups the derived state fields that drive the main chat view rendering. The component stores this as a single `()` property with a custom `hasChanged` guard instead of 17+ individ...
+- **`TranscriptEntryLike`** — Discriminated union for transcript entries. Two variants today: - **Message**: a user or agent text message (the original `TranscriptEntry` shape from `agents-js/a2a-client`). Carries `role: "user"...
 - **`WorkflowActivityKind`**
 - **`WorkflowActivityStatus`**
 - **`WorkflowSurfaceActivityPhase`**
@@ -155,6 +158,7 @@ bun add @agents-js/ui-components
 
 ### Constants
 
+- **`_typeFixtures`**
 - **`acpInputStyles`** — Shared CSS for input and label elements used across form components. Provides consistent styling for `<label>`, `<input>`, `<textarea>`, and `<select>` elements including focus, disabled, and error...
 - **`acpTheme`** — Shared Tokyo Night theme as CSS custom properties. Each property uses a double-var pattern: the component references `var(--acp-bg, #0f1117)` as the compiled default, but hosts can set `--acp-bg` o...
 - **`DEFAULT_PERMISSION_MODE_LABELS`** — Default label copy for each mode. Consumers can override any subset via the `labels` property; missing keys fall back to these values.

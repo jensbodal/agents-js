@@ -6,11 +6,72 @@
  * and acp-transcript.ts.
  */
 
-/** Minimal shape matching TranscriptEntry from @agents-js/a2a-client. */
-export interface TranscriptEntryLike {
+import type { ToolCallContent, ToolCallLocation, ToolKind } from "@agentclientprotocol/sdk";
+
+/**
+ * Discriminated union for transcript entries. Two variants today:
+ *
+ *   - **Message**: a user or agent text message (the original
+ *     `TranscriptEntry` shape from `agents-js/a2a-client`). Carries
+ *     `role: "user" | "agent"` and `text: string`.
+ *   - **Tool call**: a completed (or in-flight) tool call rendered
+ *     inline by `acp-transcript`. Carries `kind: "tool_call"` and
+ *     `toolCall: TranscriptToolCallEntryPayload` mirroring the
+ *     `ActiveToolCall` shape from `agents-js/a2a-client`.
+ *
+ * The `kind` discriminator is optional on message entries so existing
+ * callers passing `{ id, role, text }` continue to typecheck without
+ * change. New tool-call callers MUST set `kind: "tool_call"`.
+ *
+ * Hosts merge messages and tool calls into a single timestamp-ordered
+ * array; the transcript renders the right component per variant.
+ */
+export type TranscriptEntryLike = TranscriptMessageEntryLike | TranscriptToolCallEntryLike;
+
+export interface TranscriptMessageEntryLike {
   id: string;
+  /** Discriminator. Optional — absent or `"message"` both indicate a
+   *  text message. Present so existing `{ id, role, text }` callers
+   *  continue to typecheck. */
+  kind?: "message";
   role: "user" | "agent";
   text: string;
+}
+
+export interface TranscriptToolCallEntryLike {
+  id: string;
+  kind: "tool_call";
+  /** ActiveToolCall-shaped payload. Structurally compatible with
+   *  `AcpToolCallDetailData` so consumers can pass it into
+   *  `<acp-tool-call-detail>` without a cast. */
+  toolCall: TranscriptToolCallEntryPayload;
+}
+
+/**
+ * `ActiveToolCall`-shaped payload for transcript tool-call entries.
+ * Re-uses the SDK's typed shapes (`ToolKind`, `ToolCallContent`,
+ * `ToolCallLocation`) so receivers get spec-shaped enums and proper
+ * discriminated content variants — not widened `unknown` / `string`.
+ *
+ * Mirrors `AcpToolCallDetailData` from `acp-tool-call-detail` and is
+ * structurally compatible with it: hosts can pass a
+ * `TranscriptToolCallEntryPayload` (or any `AcpToolCallDetailData`)
+ * straight into the rendering component without a runtime cast.
+ *
+ * The duplication exists to avoid a circular dependency between
+ * `acp-types` (loaded by every component) and
+ * `acp-tool-call-detail` (loads `acp-types`).
+ */
+export interface TranscriptToolCallEntryPayload {
+  toolCallId: string;
+  toolName: string;
+  status: string;
+  startedAt?: number;
+  toolKind?: ToolKind;
+  content?: ToolCallContent[] | null;
+  locations?: ToolCallLocation[] | null;
+  rawInput?: unknown;
+  rawOutput?: unknown;
 }
 
 /** Unified agent card shape — covers preview, snapshot, and view uses. */
