@@ -128,6 +128,7 @@ export function translateAcpEvent(event: ACPSessionEvent, state: TranslatorState
             onAvailableCommandsUpdate: () => {},
             onModeChange: () => {},
             onUsageUpdate: () => {},
+            onSessionInfoUpdate: () => {},
           });
           return out;
         }

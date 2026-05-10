@@ -5,8 +5,8 @@
  * translation for ACP `SessionUpdate` variants the consumers care
  * about: `agent_message_chunk`, `agent_thought_chunk`, `tool_call`,
  * `tool_call_update`, `plan`, `available_commands_update`,
- * `current_mode_update`, and `usage_update`. Two consumers feed it
- * via different sinks:
+ * `current_mode_update`, `usage_update`, and `session_info_update`.
+ * Two consumers feed it via different sinks:
  *
  *   - **A2A executor** (`@agents-js/a2a/src/executor.ts`) — sink emits
  *     A2A `TaskStatusUpdateEvent`s with `state: "working"` and a
@@ -36,10 +36,10 @@
  * translator forwards them stateless. One translator instance per
  * ACP session.
  *
- * Variants intentionally NOT translated: `config_option_update`,
- * `session_info_update`, `user_message_chunk`. The first two are
- * consumer-state concerns; the third is an echo of input the
- * consumer already has.
+ * Variants intentionally NOT translated: `config_option_update` and
+ * `user_message_chunk`. `config_option_update` is a consumer-state
+ * concern handled at the ACP-host layer; `user_message_chunk` is an
+ * echo of input the consumer already has.
  */
 import type {
   AvailableCommand,
@@ -162,6 +162,22 @@ export interface UsageUpdateCall {
   cost?: Cost | null;
 }
 
+/** Argument shape for `AcpStreamingSink.onSessionInfoUpdate`.
+ *
+ *  Mirrors ACP `SessionInfoUpdate` (title + updatedAt). Both fields
+ *  are `string | null | undefined` per the SDK: `null` is an explicit
+ *  clear ("agent withdrew the title / has no timestamp"), `undefined`
+ *  means the field was omitted from the notification (no change),
+ *  and a string is a replacement. */
+export interface SessionInfoUpdateCall {
+  /** Human-readable session title. `null` clears, `undefined` means
+   *  no change. */
+  title?: string | null;
+  /** ISO 8601 timestamp of last activity. `null` clears, `undefined`
+   *  means no change. */
+  updatedAt?: string | null;
+}
+
 /**
  * Sink contract: consumers implement these methods to receive translated
  * streaming events. Methods are invoked synchronously; the sink owns any
@@ -185,6 +201,9 @@ export interface AcpStreamingSink {
   onModeChange(input: ModeChangeCall): void;
   /** Fired once per `usage_update` notification with token-budget telemetry. */
   onUsageUpdate(input: UsageUpdateCall): void;
+  /** Fired once per `session_info_update` notification with session
+   *  metadata (title / updatedAt). */
+  onSessionInfoUpdate(input: SessionInfoUpdateCall): void;
 }
 
 /**
@@ -307,10 +326,23 @@ export class AcpStreamingTranslator {
         });
         return;
       }
-      // Remaining variants (config_option_update, session_info_update,
-      // user_message_chunk) are intentionally ignored — config + session
-      // info are consumer-state concerns handled elsewhere; user_message_chunk
-      // is an echo of input the consumer already has.
+      case "session_info_update": {
+        // ACP `SessionInfoUpdate` lets the harness mutate session
+        // metadata (title / updatedAt) at any point. Three-state per
+        // field: undefined = omitted (no change), null = explicit
+        // clear, string = replacement. Forward exactly so the TUI can
+        // render dynamic session names without inventing "no-change"
+        // semantics on the receiver side.
+        sink.onSessionInfoUpdate({
+          ...(update.title !== undefined ? { title: update.title } : {}),
+          ...(update.updatedAt !== undefined ? { updatedAt: update.updatedAt } : {}),
+        });
+        return;
+      }
+      // Remaining variants (config_option_update, user_message_chunk)
+      // are intentionally ignored — config is a consumer-state concern
+      // handled elsewhere; user_message_chunk is an echo of input the
+      // consumer already has.
       default:
         return;
     }

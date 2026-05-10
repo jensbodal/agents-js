@@ -168,6 +168,7 @@ bun add @agents-js/acp-host
 - **`ResolvedHostEnvPolicy`** — Resolved view of {HostEnvPolicyInput} with defaults applied.
 - **`ResolvedWorkspaceContext`**
 - **`SessionHooks`**
+- **`SessionInfoUpdateCall`** — Argument shape for `AcpStreamingSink.onSessionInfoUpdate`. Mirrors ACP `SessionInfoUpdate` (title + updatedAt). Both fields are `string | null | undefined` per the SDK: `null` is an explicit clear ...
 - **`SessionUpdateContentHandlerHooks`**
 - **`Span`**
 - **`StartConfig`** — Configuration for starting an ACP session controller. Replaces the old positional parameters with a structured config object.

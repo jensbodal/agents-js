@@ -254,6 +254,15 @@ export interface A2ASessionState {
    *  `Cost` type (`{ amount, currency }`) so multi-currency values
    *  are preserved end-to-end. */
   lastUsage?: { size: number; used: number; cost?: Cost | null };
+  /** Human-readable session title set by the harness via ACP
+   *  `session_info_update`. `null` is "harness explicitly cleared
+   *  the title"; `undefined` is "harness has not reported a title".
+   *  Distinct so the TUI can decide between hiding the title and
+   *  rendering an empty placeholder. */
+  sessionTitle?: string | null;
+  /** ISO 8601 timestamp of last activity reported by the harness.
+   *  Same null-vs-undefined semantic as `sessionTitle`. */
+  sessionUpdatedAt?: string | null;
 }
 
 export interface SendTurnOptions {
@@ -837,6 +846,18 @@ export interface A2AUsageUpdatedEvent {
   cost?: Cost | null;
 }
 
+/**
+ * Session-level metadata mutation from ACP `session_info_update`.
+ * Both fields use three-state semantics: omitted (`undefined`) → no
+ * change, `null` → explicit clear, string → replacement. Receivers
+ * merge over `A2ASessionState.sessionTitle` / `.sessionUpdatedAt`.
+ */
+export interface A2ASessionInfoUpdatedEvent {
+  type: "session.info.updated";
+  title?: string | null;
+  updatedAt?: string | null;
+}
+
 export type A2AEvent =
   | A2ATargetResolvedEvent
   | A2ASessionUpdatedEvent
@@ -865,6 +886,7 @@ export type A2AEvent =
   | A2AAvailableCommandsUpdatedEvent
   | A2AModeChangedEvent
   | A2AUsageUpdatedEvent
+  | A2ASessionInfoUpdatedEvent
   | A2ARunStartedEvent
   | A2ARunFinishedEvent
   | A2ARunErrorEvent

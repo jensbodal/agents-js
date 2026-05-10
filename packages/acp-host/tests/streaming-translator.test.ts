@@ -24,6 +24,7 @@ import {
   type AvailableCommandsUpdateCall,
   type ModeChangeCall,
   type PlanUpdateCall,
+  type SessionInfoUpdateCall,
   type ToolCallStartCall,
   type ToolCallUpdateCall,
   type UsageUpdateCall,
@@ -42,6 +43,7 @@ class RecordingAcpStreamingSink implements AcpStreamingSink {
   availableCommandsUpdates: AvailableCommandsUpdateCall[] = [];
   modeChanges: ModeChangeCall[] = [];
   usageUpdates: UsageUpdateCall[] = [];
+  sessionInfoUpdates: SessionInfoUpdateCall[] = [];
 
   onTextDelta(input: { messageId: string; delta: string; cumulativeText: string }): void {
     this.textDeltas.push({ ...input });
@@ -66,6 +68,9 @@ class RecordingAcpStreamingSink implements AcpStreamingSink {
   }
   onUsageUpdate(input: UsageUpdateCall): void {
     this.usageUpdates.push({ ...input });
+  }
+  onSessionInfoUpdate(input: SessionInfoUpdateCall): void {
+    this.sessionInfoUpdates.push({ ...input });
   }
 }
 
@@ -372,14 +377,14 @@ describe("AcpStreamingTranslator", () => {
   });
 
   describe("non-streaming variants", () => {
-    test("ignores config_option_update / session_info_update / user_message_chunk", () => {
+    test("ignores config_option_update / user_message_chunk", () => {
+      // session_info_update is now translated (see "session info updates"
+      // describe block below); config_option_update and user_message_chunk
+      // remain intentionally ignored — config is a consumer-state concern,
+      // user_message_chunk is an echo of input.
       const t = new AcpStreamingTranslator();
       const sink = new RecordingAcpStreamingSink();
-      const variants = [
-        "config_option_update",
-        "session_info_update",
-        "user_message_chunk",
-      ] as const;
+      const variants = ["config_option_update", "user_message_chunk"] as const;
       for (const sessionUpdate of variants) {
         t.feed(
           {
@@ -397,6 +402,71 @@ describe("AcpStreamingTranslator", () => {
       expect(sink.availableCommandsUpdates).toHaveLength(0);
       expect(sink.modeChanges).toHaveLength(0);
       expect(sink.usageUpdates).toHaveLength(0);
+      expect(sink.sessionInfoUpdates).toHaveLength(0);
+    });
+  });
+
+  describe("session info updates", () => {
+    test("emits onSessionInfoUpdate with title + updatedAt replacement", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "session_info_update",
+            title: "Refactor auth flow",
+            updatedAt: "2026-05-09T20:00:00Z",
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      expect(sink.sessionInfoUpdates).toEqual([
+        { title: "Refactor auth flow", updatedAt: "2026-05-09T20:00:00Z" },
+      ]);
+    });
+
+    test("forwards null as explicit clear for title/updatedAt", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "session_info_update",
+            title: null,
+            updatedAt: null,
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      const recorded = sink.sessionInfoUpdates[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      // null is distinct from absent — receivers must be able to
+      // distinguish "agent withdrew" from "no change".
+      expect(recorded.title).toBeNull();
+      expect(recorded.updatedAt).toBeNull();
+    });
+
+    test("omits fields the harness omitted (no defaults synthesized)", () => {
+      const t = new AcpStreamingTranslator();
+      const sink = new RecordingAcpStreamingSink();
+      t.feed(
+        {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "session_info_update",
+            title: "Just a title",
+          } as unknown as SessionNotification["update"],
+        },
+        sink,
+      );
+      const recorded = sink.sessionInfoUpdates[0];
+      expect(recorded).toBeDefined();
+      if (!recorded) return;
+      expect(recorded.title).toBe("Just a title");
+      expect(recorded).not.toHaveProperty("updatedAt");
     });
   });
 

@@ -55,8 +55,10 @@ export {
   isAgentEventMetadata,
   type ModeChangedMetadata,
   type PlanMetadata,
+  type SessionInfoUpdatedMetadata,
   type ThoughtMetadata,
   type ToolCallEndMetadata,
+  type ToolCallProgressMetadata,
   type ToolCallStartMetadata,
   type UsageMetadata,
 } from "./wire-kinds.ts";
