@@ -73,6 +73,200 @@ describe("handleSessionUpdate — tool call and text processing", () => {
     expect(state.currentTurn?.turnItems[0]).toEqual({ type: "tool_call", id: "tc-1" });
   });
 
+  test("forwards locations / rawInput / rawOutput from tool_call notification", () => {
+    const { state, emit } = setup();
+    const notification = {
+      sessionId: "s-1",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-rich",
+        title: "Read file",
+        status: "in_progress",
+        kind: "read",
+        locations: [{ path: "/repo/src/foo.ts", line: 12 }],
+        rawInput: { path: "/repo/src/foo.ts" },
+      },
+    } as unknown as SessionNotification;
+
+    handleSessionUpdate(notification, state, null, emit, noopLog);
+
+    const tc = state.currentTurn?.toolCalls.get("tc-rich");
+    expect(tc).toBeDefined();
+    if (!tc) return;
+    expect(tc.locations).toEqual([{ path: "/repo/src/foo.ts", line: 12 }]);
+    expect(tc.rawInput).toEqual({ path: "/repo/src/foo.ts" });
+    expect(tc).not.toHaveProperty("rawOutput");
+  });
+
+  test("tool_call_update merges rich fields over prior state (undefined preserves)", () => {
+    const { state, emit } = setup();
+    handleSessionUpdate(
+      makeToolCallNotification({
+        toolCallId: "tc-merge",
+        title: "Edit",
+        status: "in_progress",
+        kind: "edit",
+      }),
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+
+    // Seed prior state with rawInput + locations.
+    const prior = state.currentTurn?.toolCalls.get("tc-merge");
+    if (prior) {
+      prior.rawInput = { path: "/initial.ts" };
+      prior.locations = [{ path: "/initial.ts" }];
+    }
+
+    // Update arrives with only rawOutput; rawInput / locations should be preserved.
+    const update = {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tc-merge",
+      status: "completed",
+      rawOutput: { applied: true },
+    };
+    handleSessionUpdate(
+      { sessionId: "s-1", update } as unknown as SessionNotification,
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+
+    const merged = state.currentTurn?.toolCalls.get("tc-merge");
+    expect(merged?.rawOutput).toEqual({ applied: true });
+    // Preserved from prior because update omitted them.
+    expect(merged?.rawInput).toEqual({ path: "/initial.ts" });
+    expect(merged?.locations).toEqual([{ path: "/initial.ts" }]);
+  });
+
+  test("tool_call_update preserves prior status when update omits status", () => {
+    const { state, emit } = setup();
+    handleSessionUpdate(
+      makeToolCallNotification({
+        toolCallId: "tc-status",
+        title: "Edit",
+        status: "in_progress",
+      }),
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+    // Sanity: prior is `running` (mapped from `in_progress`).
+    expect(state.currentTurn?.toolCalls.get("tc-status")?.status).toBe("running");
+
+    // Payload-only update — no status field. Reducer must NOT
+    // overwrite `running` with the default `pending`; it must
+    // preserve the prior status.
+    handleSessionUpdate(
+      {
+        sessionId: "s-1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-status",
+          rawOutput: { partial: true },
+        },
+      } as unknown as SessionNotification,
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+
+    const merged = state.currentTurn?.toolCalls.get("tc-status");
+    expect(merged?.status).toBe("running");
+    expect(merged?.rawOutput).toEqual({ partial: true });
+  });
+
+  test("tool_call_update with content: null clears prior richContent", () => {
+    const { state, emit } = setup();
+    // Seed with a tool_call that has content[].
+    handleSessionUpdate(
+      {
+        sessionId: "s-1",
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-content",
+          title: "Read",
+          status: "in_progress",
+          content: [
+            {
+              type: "content",
+              content: { type: "text", text: "before" },
+            },
+          ],
+        },
+      } as unknown as SessionNotification,
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+    expect(state.currentTurn?.toolCalls.get("tc-content")?.richContent).toHaveLength(1);
+
+    handleSessionUpdate(
+      {
+        sessionId: "s-1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-content",
+          status: "in_progress",
+          content: null,
+        },
+      } as unknown as SessionNotification,
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+
+    const merged = state.currentTurn?.toolCalls.get("tc-content");
+    // null = explicit clear → richContent removed entirely (the
+    // emitted object omits the field, distinct from "preserve").
+    expect(merged?.richContent).toBeUndefined();
+  });
+
+  test("tool_call_update with locations: null clears prior locations", () => {
+    const { state, emit } = setup();
+    handleSessionUpdate(
+      makeToolCallNotification({
+        toolCallId: "tc-clear",
+        title: "Edit",
+        status: "in_progress",
+      }),
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+    const prior = state.currentTurn?.toolCalls.get("tc-clear");
+    if (prior) prior.locations = [{ path: "/old.ts" }];
+
+    handleSessionUpdate(
+      {
+        sessionId: "s-1",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-clear",
+          status: "in_progress",
+          locations: null,
+        },
+      } as unknown as SessionNotification,
+      state,
+      null,
+      emit,
+      noopLog,
+    );
+
+    const merged = state.currentTurn?.toolCalls.get("tc-clear");
+    // null = "explicit clear" per ACP spec, collapsed to empty array
+    // on ToolCallInfo (the receiver type is `T[] | undefined`, not nullable).
+    expect(merged?.locations).toEqual([]);
+  });
+
   test("processes text chunks", () => {
     const { state, emit } = setup();
 

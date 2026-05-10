@@ -82,7 +82,40 @@ export function snapshotToolCalls(
     content: toolCall.content,
     kind: toolCall.kind,
     richContent: toolCall.richContent ? structuredClone(toolCall.richContent) : undefined,
+    // Forward the rich ACP fields onto the completed snapshot so
+    // post-turn consumers (transcript history, replay) see what the
+    // harness reported. Deep-clone every reference field so the
+    // snapshot is decoupled from later mutations of the live
+    // `ToolCallInfo`. `rawInput` / `rawOutput` are `unknown` and may
+    // hold arbitrary objects (file contents, structured tool output);
+    // `cloneRawValue` handles the cases `structuredClone` can't (DOM
+    // nodes, functions, BigInt — though tools shouldn't return any
+    // of those, defensive belt-and-suspenders).
+    ...(toolCall.locations !== undefined ? { locations: structuredClone(toolCall.locations) } : {}),
+    ...(toolCall.rawInput !== undefined ? { rawInput: cloneRawValue(toolCall.rawInput) } : {}),
+    ...(toolCall.rawOutput !== undefined ? { rawOutput: cloneRawValue(toolCall.rawOutput) } : {}),
   }));
+}
+
+/**
+ * Best-effort deep clone for `rawInput` / `rawOutput`. Tries
+ * `structuredClone` first; falls back to JSON round-trip for the
+ * narrow case where the value contains JSON-serializable data but
+ * something `structuredClone` rejects (e.g. tagged template literal
+ * objects). Final fallback is a reference passthrough — at that
+ * point the snapshot's immutability is best-effort and consumers
+ * SHOULD treat raw values as read-only regardless.
+ */
+function cloneRawValue(value: unknown): unknown {
+  try {
+    return structuredClone(value);
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return value;
+    }
+  }
 }
 
 export function buildCompletedTurnSnapshot(params: {

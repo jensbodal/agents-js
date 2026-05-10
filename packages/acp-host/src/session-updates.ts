@@ -18,6 +18,7 @@ import type {
   ACPSessionEvent,
   ACPSessionState,
   PlanEntryInfo,
+  ToolCallInfo,
   TurnState,
 } from "./types/session.ts";
 import type {
@@ -69,6 +70,32 @@ function partitionHandledToolCallContent(
   }
 
   return regular;
+}
+
+/**
+ * Merge an ACP `ToolCallUpdate`-style three-state field over its
+ * prior value. Returns:
+ *   - `prior` when the update omitted the field (`undefined`).
+ *   - `[]` (empty array) when the harness sent `null` (explicit
+ *     clear). Returned as an empty array because the receiver type
+ *     `ToolCallInfo.locations` is `T[] | undefined` (not nullable);
+ *     "explicit clear" lands as "no locations" rather than "null".
+ *   - The new array when the harness sent a replacement.
+ *
+ * Note: this collapses the SDK's three-state semantic (omitted vs
+ * null vs value) to two on `ToolCallInfo` for now. If a downstream
+ * consumer needs to distinguish "agent withdrew locations" from
+ * "agent never had any", widen `ToolCallInfo.locations` to
+ * `T[] | null` and forward `null` through. Receivers like
+ * `acp-tool-call-detail` already handle `T[] | null`.
+ */
+function mergeUpdateField<T>(
+  updateValue: T[] | null | undefined,
+  prior: T[] | undefined,
+): T[] | undefined {
+  if (updateValue === undefined) return prior;
+  if (updateValue === null) return [];
+  return updateValue;
 }
 
 /** Terminal ACP tool call statuses that should trigger a tool_call_end emission. */
@@ -174,6 +201,13 @@ export function handleSessionUpdate(
         content: undefined,
         kind: tc.kind ?? undefined,
         richContent: regularContent ? mapToolCallContent(regularContent) : undefined,
+        // Forward the SDK's typed `ToolCall` fields directly so
+        // downstream consumers (WS bridge → browser UI) get the rich
+        // payload that ACP carries. Previously dropped — see the
+        // Phase 4 audit at docs/_internal/ws-bridge-session-update-audit.md.
+        ...(tc.locations !== undefined ? { locations: tc.locations } : {}),
+        ...(tc.rawInput !== undefined ? { rawInput: tc.rawInput } : {}),
+        ...(tc.rawOutput !== undefined ? { rawOutput: tc.rawOutput } : {}),
       });
 
       // AG-UI lifecycle emission: tool_call.start on first observation.
@@ -204,14 +238,54 @@ export function handleSessionUpdate(
         turn.turnItems.push({ type: "tool_call", id: tc.toolCallId });
       }
       const toolName = tc.title ?? existing?.name ?? "unknown";
-      const regularContent = partitionHandledToolCallContent(tc.content, contentHandlerHooks);
+
+      // ACP `ToolCallUpdate` distinguishes three states per field:
+      //   undefined / omitted → preserve prior
+      //   null                → explicit clear
+      //   value               → replace
+      //
+      // For `status`: only call `mapToolCallStatus` when the harness
+      // included a status; otherwise preserve `existing.status`.
+      // Synthesizing a status when none was sent (the previous
+      // behavior, defaulting to "pending") would silently overwrite
+      // a prior `running` / `completed` on a payload-only update.
+      // Synthesized tool calls (no `existing`) get the SDK default.
+      const nextStatus =
+        tc.status !== undefined && tc.status !== null
+          ? mapToolCallStatus(tc.status)
+          : (existing?.status ?? mapToolCallStatus(undefined));
+
+      // For `content`: distinguish undefined (preserve) from null
+      // (explicit clear) from array (replace). Apply the
+      // content-handler partitioning only on the array case.
+      let nextRichContent: ToolCallInfo["richContent"];
+      if (tc.content === undefined) {
+        nextRichContent = existing?.richContent;
+      } else if (tc.content === null) {
+        nextRichContent = undefined;
+      } else {
+        const regular = partitionHandledToolCallContent(tc.content, contentHandlerHooks);
+        nextRichContent = regular ? mapToolCallContent(regular) : undefined;
+      }
+
+      const nextLocations = mergeUpdateField(tc.locations, existing?.locations);
+      // `rawInput` / `rawOutput` use two-state: replace or preserve.
+      // ACP doesn't define an "explicit clear" semantic for raw
+      // payloads — the spec types them as `unknown`, so null is just
+      // a value the harness might legitimately set.
+      const nextRawInput = tc.rawInput !== undefined ? tc.rawInput : existing?.rawInput;
+      const nextRawOutput = tc.rawOutput !== undefined ? tc.rawOutput : existing?.rawOutput;
+
       turn.toolCalls.set(tc.toolCallId, {
         id: tc.toolCallId,
         name: toolName,
-        status: mapToolCallStatus(tc.status),
+        status: nextStatus,
         content: existing?.content,
         kind: tc.kind ?? existing?.kind ?? undefined,
-        richContent: regularContent ? mapToolCallContent(regularContent) : existing?.richContent,
+        ...(nextRichContent !== undefined ? { richContent: nextRichContent } : {}),
+        ...(nextLocations !== undefined ? { locations: nextLocations } : {}),
+        ...(nextRawInput !== undefined ? { rawInput: nextRawInput } : {}),
+        ...(nextRawOutput !== undefined ? { rawOutput: nextRawOutput } : {}),
       });
 
       // AG-UI lifecycle emission: tool_call.start if the initial notification
