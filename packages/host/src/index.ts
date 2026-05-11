@@ -26,6 +26,16 @@ export {
   createAuditEmitter,
   newCorrelationId,
 } from "./audit.ts";
+export {
+  buildGatewayBusEvent,
+  type CreateGatewayBusOptions,
+  createGatewayBus,
+  type GatewayBus,
+  type GatewayBusEvent,
+  type GatewayBusSubscriber,
+  type GatewayBusUnsubscribe,
+  type IdentityPrincipal,
+} from "./gateway-bus.ts";
 export { HostA2AExecutor, type HostA2AExecutorOptions } from "./host-executor.ts";
 export {
   createHostSession,
