@@ -25,6 +25,8 @@ bun add @agents-js/host
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`buildRuntimeProfileConfigEnv`**
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
+- **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape: ```json { "type": "gateway.matrix.event-received", "...
+- **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
 - **`createEnsureSessionCoordinator`**
 - **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
 - **`createGatewaySurfaceBroadcaster`**
@@ -48,6 +50,9 @@ bun add @agents-js/host
 
 - **`AguiEndpointOptions`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`BusEndpointOptions`** — Common construction options.
+- **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
+- **`CreateBusSubscribeHandlerOptions`** — SSE subscribe handler options.
 - **`CreateGatewayBusOptions`** — Optional construction-time hooks.
 - **`GatewayBus`** — Public surface of the bus primitive.
 - **`GatewayBusEvent`** — Typed envelope for every gateway bus event.
