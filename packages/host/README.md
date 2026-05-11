@@ -21,10 +21,12 @@ bun add @agents-js/host
 ### Functions
 
 - **`applyEnvRuntimeProfile`**
+- **`buildGatewayBusEvent`** — Construct a `GatewayBusEvent` envelope with the standard `id` + `ts` fields populated. Publishers should use this rather than building envelopes inline so that the id generation + timestamp shape s...
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`buildRuntimeProfileConfigEnv`**
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createEnsureSessionCoordinator`**
+- **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
 - **`createGatewaySurfaceBroadcaster`**
 - **`createGatewayTestServer`** — Construct a running gateway test server bound to the given ACP command. This assembles the same three layers as the production gateway: 1. `ACPSessionController` with Node file adapters + empty per...
 - **`createHostSession`**
@@ -46,6 +48,9 @@ bun add @agents-js/host
 
 - **`AguiEndpointOptions`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`CreateGatewayBusOptions`** — Optional construction-time hooks.
+- **`GatewayBus`** — Public surface of the bus primitive.
+- **`GatewayBusEvent`** — Typed envelope for every gateway bus event.
 - **`GatewaySurfaceBroadcaster`** — Adapter that plugs into the ACP host session and, once attached to a live broadcaster, forwards every lifecycle message to that broadcaster.
 - **`GatewaySurfaceBroadcasterConfig`**
 - **`GatewayTestServerHandle`**
@@ -53,6 +58,7 @@ bun add @agents-js/host
 - **`HostA2AExecutorOptions`**
 - **`HostSession`**
 - **`HostSessionConfig`**
+- **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land per DOT-392 — at that point this alias is replaced with the imported type. Kept loose (open record) so the event...
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 - **`RuntimeBridgeSnapshot`**
@@ -72,6 +78,8 @@ bun add @agents-js/host
 - **`AuditEventInput`**
 - **`AuditLogger`**
 - **`CorrelationId`**
+- **`GatewayBusSubscriber`** — Subscriber callback shape. Receives every published event.
+- **`GatewayBusUnsubscribe`** — Unsubscribe handle returned from `subscribe`.
 - **`GatewayHostController`**
 - **`RuntimeSwitchOrigin`**
 - **`SurfaceBroadcastFn`** — Fan-out callback handed to the broadcaster by the WS bridge.
