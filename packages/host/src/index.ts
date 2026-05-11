@@ -27,6 +27,13 @@ export {
   newCorrelationId,
 } from "./audit.ts";
 export {
+  type BusEndpointOptions,
+  type CreateBusPublishHandlerOptions,
+  type CreateBusSubscribeHandlerOptions,
+  createBusPublishHandler,
+  createBusSubscribeHandler,
+} from "./bus-endpoint.ts";
+export {
   buildGatewayBusEvent,
   type CreateGatewayBusOptions,
   createGatewayBus,
