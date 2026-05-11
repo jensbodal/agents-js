@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/ui-components",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "type": "module",
   "description": "Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.",
   "author": "Jens Bodal",
@@ -61,9 +61,9 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/a2ui-types": "0.3.3",
-    "@agents-js/acp-host": "0.3.3",
-    "@agents-js/schema-utils": "0.3.3"
+    "@agents-js/a2ui-types": "0.4.0",
+    "@agents-js/acp-host": "0.4.0",
+    "@agents-js/schema-utils": "0.4.0"
   },
   "peerDependencies": {
     "lit": "catalog:"

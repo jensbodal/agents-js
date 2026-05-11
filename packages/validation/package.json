@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/validation",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "type": "module",
   "sideEffects": false,
   "description": "Schema validation for ACP envelopes, A2A requests/responses, runtime manifests, and JSON-RPC messages.",
@@ -94,8 +94,8 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
-    "@agents-js/a2ui-types": "0.3.3",
-    "@agents-js/agui-types": "0.3.3",
+    "@agents-js/a2ui-types": "0.4.0",
+    "@agents-js/agui-types": "0.4.0",
     "@agentclientprotocol/sdk": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
