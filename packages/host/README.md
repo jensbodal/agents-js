@@ -45,6 +45,7 @@ bun add @agents-js/host
 - **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
 - **`switchHostSessionRuntime`**
 - **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
+- **`wrapAuditEmitterAsBusPublisher`** — Wrap an existing {AuditEmitter} so every recorded event is also published on the gateway bus. The wrapped emitter has the same shape as the underlying one — callers swap it in at construction and n...
 
 ### Interfaces
 
@@ -72,6 +73,7 @@ bun add @agents-js/host
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
 - **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
+- **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
 - **`WSBridgeConfig`**
 - **`WSBridgeHandle`**
 

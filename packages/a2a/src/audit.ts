@@ -157,8 +157,14 @@ export type AuditEventInput = AuditEvent extends infer T
 
 /** Public emitter handle. */
 export interface AuditEmitter {
-  /** Record an event. Stamps `at` automatically; caller supplies correlationId. */
-  record(event: AuditEventInput): void;
+  /**
+   * Record an event. Stamps `at` automatically; caller supplies
+   * correlationId. Returns the stamped event so downstream observers
+   * (e.g. bus publishers) can react without re-reading the buffer —
+   * critical for emitters configured with `bufferSize: 0`, where
+   * `recent(1)` would be empty immediately after the push.
+   */
+  record(event: AuditEventInput): AuditEvent;
   /** Most recent N records. Useful for debug endpoints and tests. */
   recent(limit?: number): AuditEvent[];
   /** Discard buffered records. */
@@ -184,6 +190,7 @@ export function createAuditEmitter(options?: {
         buffer.splice(0, buffer.length - bufferSize);
       }
       logger.log("[agents-js/audit]", stamped);
+      return stamped;
     },
 
     recent(limit = bufferSize) {

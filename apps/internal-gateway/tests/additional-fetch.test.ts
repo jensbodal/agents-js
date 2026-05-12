@@ -22,6 +22,8 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
     const compose = composeAdditionalFetch({
       planeWebhookHandler: async () => null,
       aguiHandler: async () => null,
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
       syncEndpointHandler: null,
     });
 
@@ -36,6 +38,8 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
     const compose = composeAdditionalFetch({
       planeWebhookHandler: async () => null,
       aguiHandler: async () => null,
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
       syncEndpointHandler: async (req) => {
         const url = new URL(req.url);
         if (url.pathname === SYNC_PATH && req.method === "GET") {
@@ -66,6 +70,8 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
         }
         return null;
       },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
       syncEndpointHandler: async () => {
         syncHandled = true;
         return new Response("sync", { status: 200 });
@@ -76,6 +82,58 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
 
     expect(aguiHandled).toBe(true);
     expect(syncHandled).toBe(false);
+  });
+
+  test("bus subscribe handler runs before other routes — preempts AG-UI", async () => {
+    let busSubHandled = false;
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async () => {
+        aguiHandled = true;
+        return new Response("agui", { status: 200 });
+      },
+      busSubscribeHandler: async (req) => {
+        if (new URL(req.url).pathname === "/events") {
+          busSubHandled = true;
+          return new Response("sse", { status: 200 });
+        }
+        return null;
+      },
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+    });
+
+    await compose(new Request("http://gw.local/events", { method: "GET" }));
+
+    expect(busSubHandled).toBe(true);
+    expect(aguiHandled).toBe(false);
+  });
+
+  test("bus publish handler runs before plane-webhook — admin path takes priority", async () => {
+    let busPubHandled = false;
+    let planeHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => {
+        planeHandled = true;
+        return new Response("plane", { status: 200 });
+      },
+      aguiHandler: async () => null,
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async (req) => {
+        if (new URL(req.url).pathname === "/admin/publish") {
+          busPubHandled = true;
+          return new Response('{"accepted":true}', { status: 200 });
+        }
+        return null;
+      },
+      syncEndpointHandler: null,
+    });
+
+    await compose(new Request("http://gw.local/admin/publish", { method: "POST" }));
+
+    expect(busPubHandled).toBe(true);
+    expect(planeHandled).toBe(false);
   });
 
   test("plane-webhook route runs first — preempts AG-UI and sync", async () => {
@@ -90,6 +148,8 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
         aguiHandled = true;
         return new Response("agui", { status: 200 });
       },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
       syncEndpointHandler: async () => new Response("sync", { status: 200 }),
     });
 

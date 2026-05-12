@@ -43,6 +43,10 @@ export {
   type GatewayBusUnsubscribe,
   type IdentityPrincipal,
 } from "./gateway-bus.ts";
+export {
+  type WrapAuditEmitterAsBusPublisherOptions,
+  wrapAuditEmitterAsBusPublisher,
+} from "./gateway-bus-publishers.ts";
 export { HostA2AExecutor, type HostA2AExecutorOptions } from "./host-executor.ts";
 export {
   createHostSession,
