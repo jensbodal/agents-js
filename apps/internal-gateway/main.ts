@@ -18,13 +18,18 @@ import {
   buildRuntimeProfileConfigEnv,
   createAguiFetchHandler,
   createAuditEmitter,
+  createBusPublishHandler,
+  createBusSubscribeHandler,
+  createGatewayBus,
   createGatewaySurfaceBroadcaster,
   createHostSession,
   createStandaloneHostController,
   createWSBridge,
   fetchRuntimeModels,
+  type GatewayBus,
   type GatewayHostController,
   HostA2AExecutor,
+  wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
 import { createPlaneWebhookFetchHandler } from "@agents-js/plane/mount";
 import { type GatewayCliArgs, parseCliArgs } from "./cli-args.ts";
@@ -70,6 +75,7 @@ interface SetupServerOptions {
   session: HostSession;
   controllerFactory: (contextId: string) => Promise<GatewayHostController>;
   audit: ReturnType<typeof createAuditEmitter>;
+  bus: GatewayBus;
   aguiCoordinator: AguiRunCoordinator;
 }
 
@@ -89,10 +95,12 @@ export function buildAvailableRuntimeInfos(
 }
 
 /**
- * Compose the gateway's `additionalFetch` chain. Order matters:
- * plane-webhook handlers run first (they self-route on path), AG-UI is
- * the primary browser run surface, and the registry sync endpoint —
- * when enabled — runs last so it never shadows AG-UI's `/agent` route.
+ * Compose the gateway's `additionalFetch` chain. Order matters: bus
+ * subscribe/publish endpoints run first (self-route on `/events` and
+ * `/admin/publish`), then plane-webhook handlers (self-route on path),
+ * then AG-UI as the primary browser run surface, and the registry sync
+ * endpoint — when enabled — runs last so it never shadows AG-UI's
+ * `/agent` route.
  *
  * `syncEndpointHandler` is `null` when registry sync is disabled (the
  * default). In that case the well-known sync URL falls through to the
@@ -105,9 +113,20 @@ export function buildAvailableRuntimeInfos(
 export function composeAdditionalFetch(handlers: {
   planeWebhookHandler: (req: Request) => Promise<Response | null>;
   aguiHandler: (req: Request) => Promise<Response | null>;
+  busSubscribeHandler: (req: Request) => Promise<Response | null>;
+  busPublishHandler: (req: Request) => Promise<Response | null>;
   syncEndpointHandler: ((req: Request) => Promise<Response | null>) | null;
 }): (req: Request) => Promise<Response | null> {
   return async (req: Request): Promise<Response | null> => {
+    // Bus endpoints self-route on path (`/events`, `/admin/publish`)
+    // and return null otherwise — safe to attempt before AG-UI's
+    // `POST /agent`. Subscribe + publish are both gated to
+    // trusted-network by the deployment model; the internal-gateway
+    // listener is operator-only.
+    const busSubscribeResponse = await handlers.busSubscribeHandler(req);
+    if (busSubscribeResponse !== null) return busSubscribeResponse;
+    const busPublishResponse = await handlers.busPublishHandler(req);
+    if (busPublishResponse !== null) return busPublishResponse;
     const planeWebhookResponse = await handlers.planeWebhookHandler(req);
     if (planeWebhookResponse !== null) return planeWebhookResponse;
     const aguiResponse = await handlers.aguiHandler(req);
@@ -143,10 +162,14 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   const syncEndpointHandler = opts.cliArgs.registrySync
     ? createSyncEndpointHandler({ audit: opts.audit })
     : null;
+  const busSubscribeHandler = createBusSubscribeHandler({ bus: opts.bus });
+  const busPublishHandler = createBusPublishHandler({ bus: opts.bus });
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
       aguiHandler,
+      busSubscribeHandler,
+      busPublishHandler,
       syncEndpointHandler,
     }),
   });
@@ -494,11 +517,21 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     });
   };
 
+  // Internal gateway bus — single in-process pub/sub channel that
+  // surfaces gateway lifecycle events to operator tooling (Matrix
+  // bridge, dashboards, etc.) via the SSE `/events` endpoint mounted
+  // below. Trusted-network only; the internal-gateway listener is
+  // operator-only per AC v3.
+  const bus = createGatewayBus();
+
   // Internal correlation/audit surface — records lifecycle events for
   // AG-UI runs, A2A tasks, and @@dispatch with stable correlation IDs.
   // The emitter is in-process (ring buffer + console.log) and carries
-  // structural metadata only; raw user content never lands here.
-  const audit = createAuditEmitter();
+  // structural metadata only; raw user content never lands here. The
+  // wrapper also lifts every recorded event onto the bus as a
+  // `gateway.audit.<kind>` event so subscribers see the full lifecycle
+  // stream without polling the ring buffer.
+  const audit = wrapAuditEmitterAsBusPublisher({ bus, emitter: createAuditEmitter() });
 
   // Shared AG-UI run coordinator. Both the AG-UI fetch handler (which
   // acquires/releases the run slot) and the WS bridge's setRuntime
@@ -514,6 +547,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     session,
     controllerFactory,
     audit,
+    bus,
     aguiCoordinator,
   });
 

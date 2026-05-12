@@ -33,6 +33,7 @@ import {
   validateGatewayRuntimeProfileName,
   writeAgentsJsConfig,
 } from "@agents-js/gateway-runtime";
+import { createGatewayBus, wrapAuditEmitterAsBusPublisher } from "@agents-js/host";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
 import { normalizeHost, parsePort } from "./cli-utils.ts";
 import { EXIT_OK } from "./exit-codes.ts";
@@ -398,12 +399,22 @@ export async function runServeCommand(
     onMissingProfile: "throw",
   });
   const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
-  const audit = createAuditEmitter({
-    logger: {
-      log(message, meta) {
-        output.write(`${message} ${JSON.stringify(meta)}\n`);
+  // In-process gateway bus — every recorded audit event is also
+  // published on this bus via the wrapper below. The public-facing
+  // CLI gateway does NOT mount the bus subscribe/publish HTTP
+  // endpoints (they're trusted-network only per AC v3); subscribers
+  // are limited to in-process listeners. The internal-gateway
+  // listener mounts the HTTP endpoints for operator tooling.
+  const bus = createGatewayBus();
+  const audit = wrapAuditEmitterAsBusPublisher({
+    bus,
+    emitter: createAuditEmitter({
+      logger: {
+        log(message, meta) {
+          output.write(`${message} ${JSON.stringify(meta)}\n`);
+        },
       },
-    },
+    }),
   });
   const hooks = await detectA2AMentionHooks(output, registryPath, audit);
   const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
