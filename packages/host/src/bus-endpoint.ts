@@ -195,12 +195,12 @@ export function createBusSubscribeHandler(
  * Build a `POST /admin/publish` handler that injects events onto the
  * bus from operator tooling. Returns `null` for non-matching paths.
  *
- * Body shape:
+ * Body shape (generic — Matrix, Slack, GitHub bridges all share this):
  * ```json
  * {
- *   "type": "gateway.matrix.event-received",
+ *   "type": "gateway.<source>.<verb>",
  *   "payload": { ... },
- *   "sourcePrincipal": { "kind": "matrix", "id": "@user:server" },
+ *   "sourcePrincipal": { "kind": "<source>", "id": "<author>" },
  *   "correlationId": "abc-123"
  * }
  * ```

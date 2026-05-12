@@ -27,6 +27,12 @@ export {
   newCorrelationId,
 } from "./audit.ts";
 export {
+  type BuildBridgeBusEventOptions,
+  buildBridgeBusEvent,
+  type PublishBridgeEventToBusOptions,
+  publishBridgeEventToBus,
+} from "./bridge-publisher.ts";
+export {
   type BusEndpointOptions,
   type CreateBusPublishHandlerOptions,
   type CreateBusSubscribeHandlerOptions,
