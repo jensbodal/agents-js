@@ -91,9 +91,9 @@ describe("createBusPublishHandler", () => {
       new Request("http://localhost/admin/publish", {
         method: "POST",
         body: JSON.stringify({
-          type: "gateway.matrix.event-received",
-          payload: { sender: "@user:server", text: "hello" },
-          sourcePrincipal: { kind: "matrix", id: "@user:server" },
+          type: "gateway.example.event-received",
+          payload: { sender: "example-sender", text: "hello" },
+          sourcePrincipal: { kind: "example-bridge", id: "example-sender" },
           correlationId: "abc-123",
         }),
         headers: { "Content-Type": "application/json" },
@@ -106,9 +106,9 @@ describe("createBusPublishHandler", () => {
     expect(typeof body.id).toBe("string");
 
     expect(received).toHaveLength(1);
-    expect(received[0]?.type).toBe("gateway.matrix.event-received");
+    expect(received[0]?.type).toBe("gateway.example.event-received");
     expect(received[0]?.id).toBe(body.id);
-    expect(received[0]?.payload).toEqual({ sender: "@user:server", text: "hello" });
+    expect(received[0]?.payload).toEqual({ sender: "example-sender", text: "hello" });
   });
 
   test("respects custom path option", async () => {
@@ -258,7 +258,7 @@ describe("createBusSubscribeHandler — integration with publish handler", () =>
       new Request("http://localhost/admin/publish", {
         method: "POST",
         body: JSON.stringify({
-          type: "gateway.matrix.message",
+          type: "gateway.example.message",
           payload: { text: "round-trip" },
         }),
         headers: { "Content-Type": "application/json" },
@@ -268,7 +268,7 @@ describe("createBusSubscribeHandler — integration with publish handler", () =>
 
     const decoder = new TextDecoder();
     const frame = decoder.decode((await reader.read()).value);
-    expect(frame).toContain('"type":"gateway.matrix.message"');
+    expect(frame).toContain('"type":"gateway.example.message"');
     expect(frame).toContain('"text":"round-trip"');
 
     await reader.cancel();

@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-09T04:43:44.047Z",
-  "package_count": 27,
+  "generated_at": "2026-05-12T23:19:56.138Z",
+  "package_count": 28,
   "publishable_count": 18,
   "packages": [
     {
       "name": "@agents-js/a2a",
       "dir": "packages/a2a",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp",
         "@agents-js/validation"
@@ -23,7 +23,7 @@
       "name": "@agents-js/a2a-client",
       "dir": "packages/a2a-client",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a",
         "@agents-js/agui-types",
@@ -40,7 +40,7 @@
       "name": "@agents-js/a2ui-host",
       "dir": "packages/a2ui-host",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp-host"
       ],
@@ -56,7 +56,7 @@
       "name": "@agents-js/a2ui-renderer",
       "dir": "packages/a2ui-renderer",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2ui-types",
         "@agents-js/ui-components"
@@ -71,7 +71,7 @@
       "name": "@agents-js/a2ui-types",
       "dir": "packages/a2ui-types",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [],
       "external_deps": [
         "@a2ui/web_core",
@@ -86,7 +86,7 @@
       "name": "@agents-js/acp",
       "dir": "packages/acp",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/policy"
       ],
@@ -100,7 +100,7 @@
       "name": "@agents-js/acp-host",
       "dir": "packages/acp-host",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp",
         "@agents-js/policy"
@@ -115,7 +115,7 @@
       "name": "@agents-js/agui-types",
       "dir": "packages/agui-types",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [],
       "external_deps": [
         "@ag-ui/core"
@@ -127,7 +127,7 @@
       "name": "@agents-js/browser-runtime",
       "dir": "extras/browser-runtime",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/agui-types",
         "@agents-js/validation"
@@ -144,7 +144,7 @@
       "name": "@agents-js/cli",
       "dir": "packages/cli",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a",
         "@agents-js/a2a-client",
@@ -155,9 +155,9 @@
         "@agents-js/schema-utils"
       ],
       "external_deps": [
+        "@agentclientprotocol/claude-agent-acp",
         "@modelcontextprotocol/sdk",
         "@opentui/core",
-        "@zed-industries/claude-agent-acp",
         "@zed-industries/codex-acp"
       ],
       "external_peer": [],
@@ -167,7 +167,7 @@
       "name": "@agents-js/droid-acp",
       "dir": "extras/droid-acp",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp",
         "@agents-js/gateway-runtime"
@@ -190,11 +190,12 @@
         "@agents-js/droid-acp",
         "@agents-js/gateway-runtime",
         "@agents-js/host",
+        "@agents-js/matrix-bridge",
         "@agents-js/pi-acp",
         "@agents-js/plane"
       ],
       "external_deps": [
-        "@zed-industries/claude-agent-acp",
+        "@agentclientprotocol/claude-agent-acp",
         "@zed-industries/codex-acp"
       ],
       "external_peer": [],
@@ -204,7 +205,7 @@
       "name": "@agents-js/gateway-runtime",
       "dir": "packages/gateway-runtime",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a",
         "@agents-js/acp"
@@ -219,7 +220,7 @@
       "name": "@agents-js/host",
       "dir": "packages/host",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a",
         "@agents-js/a2a-client",
@@ -240,10 +241,22 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/matrix-bridge",
+      "dir": "extras/matrix-bridge",
+      "private": true,
+      "version": "0.4.0",
+      "internal_deps": [
+        "@agents-js/host"
+      ],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/mcp-bridge",
       "dir": "packages/mcp-bridge",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a-client",
         "@agents-js/skills"
@@ -259,7 +272,7 @@
       "name": "@agents-js/pi-acp",
       "dir": "extras/pi-acp",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp",
         "@agents-js/gateway-runtime"
@@ -274,7 +287,7 @@
       "name": "@agents-js/pi-extension",
       "dir": "extras/pi-extension",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2a",
         "@agents-js/a2a-client",
@@ -291,7 +304,7 @@
       "name": "@agents-js/plane",
       "dir": "extras/plane",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/gateway-runtime"
       ],
@@ -303,7 +316,7 @@
       "name": "@agents-js/policy",
       "dir": "packages/policy",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [],
       "external_deps": [
         "@agentclientprotocol/sdk"
@@ -315,7 +328,7 @@
       "name": "@agents-js/reporting",
       "dir": "extras/reporting",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/gateway-runtime"
       ],
@@ -327,7 +340,7 @@
       "name": "@agents-js/schema-utils",
       "dir": "packages/schema-utils",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [],
       "external_deps": [],
       "external_peer": [],
@@ -337,7 +350,7 @@
       "name": "@agents-js/skills",
       "dir": "packages/skills",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [],
       "external_deps": [],
       "external_peer": [],
@@ -347,7 +360,7 @@
       "name": "@agents-js/tools",
       "dir": "packages/tools",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/gateway-runtime"
       ],
@@ -359,7 +372,7 @@
       "name": "@agents-js/trial-agent",
       "dir": "tests/trial-agent",
       "private": true,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/acp",
         "@agents-js/tools"
@@ -374,13 +387,15 @@
       "name": "@agents-js/ui-components",
       "dir": "packages/ui-components",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2ui-types",
         "@agents-js/acp-host",
         "@agents-js/schema-utils"
       ],
-      "external_deps": [],
+      "external_deps": [
+        "@agentclientprotocol/sdk"
+      ],
       "external_peer": [
         "lit"
       ],
@@ -390,7 +405,7 @@
       "name": "@agents-js/validation",
       "dir": "packages/validation",
       "private": false,
-      "version": "0.2.0",
+      "version": "0.4.0",
       "internal_deps": [
         "@agents-js/a2ui-types",
         "@agents-js/agui-types"
@@ -435,7 +450,8 @@
       "@agents-js/trial-agent"
     ],
     "@agents-js/host": [
-      "@agents-js/gateway"
+      "@agents-js/gateway",
+      "@agents-js/matrix-bridge"
     ],
     "@agents-js/ui-components": [
       "@agents-js/a2ui-renderer",
@@ -536,6 +552,9 @@
     ],
     "@agents-js/reporting": [],
     "@agents-js/browser-runtime": [],
+    "@agents-js/matrix-bridge": [
+      "@agents-js/gateway"
+    ],
     "@agents-js/droid-acp": [
       "@agents-js/gateway"
     ],

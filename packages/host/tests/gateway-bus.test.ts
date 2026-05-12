@@ -176,12 +176,16 @@ describe("buildGatewayBusEvent", () => {
     const event = buildGatewayBusEvent({
       type: "gateway.permission.decision",
       payload: null,
-      sourcePrincipal: { kind: "matrix", id: "@ajs-claude:server", displayName: "ajs-claude" },
+      sourcePrincipal: {
+        kind: "example-bridge",
+        id: "example-author-1",
+        displayName: "example-author",
+      },
       correlationId: "abc-123",
     });
 
-    expect(event.sourcePrincipal?.kind).toBe("matrix");
-    expect(event.sourcePrincipal?.id).toBe("@ajs-claude:server");
+    expect(event.sourcePrincipal?.kind).toBe("example-bridge");
+    expect(event.sourcePrincipal?.id).toBe("example-author-1");
     expect(event.correlationId).toBe("abc-123");
   });
 

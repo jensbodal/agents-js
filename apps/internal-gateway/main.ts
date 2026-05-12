@@ -518,8 +518,8 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   };
 
   // Internal gateway bus — single in-process pub/sub channel that
-  // surfaces gateway lifecycle events to operator tooling (Matrix
-  // bridge, dashboards, etc.) via the SSE `/events` endpoint mounted
+  // surfaces gateway lifecycle events to operator tooling (external
+  // bridges, dashboards, etc.) via the SSE `/events` endpoint mounted
   // below. Trusted-network only; the internal-gateway listener is
   // operator-only per AC v3.
   const bus = createGatewayBus();

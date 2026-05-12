@@ -21,11 +21,12 @@ bun add @agents-js/host
 ### Functions
 
 - **`applyEnvRuntimeProfile`**
+- **`buildBridgeBusEvent`** — Build a bus envelope from a caller-supplied topic + payload. The returned envelope is ready for in-process publishing through {GatewayBus.publish}, or for serialization into the `/admin/publish` JS...
 - **`buildGatewayBusEvent`** — Construct a `GatewayBusEvent` envelope with the standard `id` + `ts` fields populated. Publishers should use this rather than building envelopes inline so that the id generation + timestamp shape s...
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`buildRuntimeProfileConfigEnv`**
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
-- **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape: ```json { "type": "gateway.matrix.event-received", "...
+- **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
 - **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
 - **`createEnsureSessionCoordinator`**
 - **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
@@ -41,6 +42,7 @@ bun add @agents-js/host
 - **`formatAguiSseFrame`**
 - **`getEnvRuntimeProfileName`**
 - **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
+- **`publishBridgeEventToBus`** — In-process convenience: build the envelope and publish it on the supplied bus. Returns the envelope so callers can inspect or assert on the server-populated `id` + `ts` fields. Out-of-process bridg...
 - **`resolveHostWorkspaceFlag`**
 - **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
 - **`switchHostSessionRuntime`**
@@ -51,6 +53,7 @@ bun add @agents-js/host
 
 - **`AguiEndpointOptions`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`BuildBridgeBusEventOptions`** — Options for {buildBridgeBusEvent}.
 - **`BusEndpointOptions`** — Common construction options.
 - **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
 - **`CreateBusSubscribeHandlerOptions`** — SSE subscribe handler options.
@@ -65,6 +68,7 @@ bun add @agents-js/host
 - **`HostSession`**
 - **`HostSessionConfig`**
 - **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land per DOT-392 — at that point this alias is replaced with the imported type. Kept loose (open record) so the event...
+- **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 - **`RuntimeBridgeSnapshot`**
