@@ -10,7 +10,17 @@ export interface GatewayCliArgs {
   permissionMode: PermissionMode;
   port?: number;
   registrySync: boolean;
-  runtimeOverride?: string;
+  /**
+   * Ordered list of curated runtime ids. AJS-7 introduces the array
+   * form: index 0 is the primary routing target; subsequent entries
+   * are secondary (parsed in PR1, lazy-spawned in PR2). `--runtime`
+   * (singular) and `--runtimes` (comma-separated, repeatable) both
+   * populate this list in argv order. A single-runtime invocation
+   * (`--runtime opencode` alone) yields a 1-element list — the
+   * pre-AJS-7 single-runtime behavior is preserved by downstream
+   * consumers reading `runtimeOverrides[0]`.
+   */
+  runtimeOverrides: readonly string[];
   trustWorkspace: boolean;
   workspace: string;
 }
@@ -40,7 +50,7 @@ function resolveRegistrySync(flagPresent: boolean, env: NodeJS.ProcessEnv): bool
 
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCliArgs {
   let check = false;
-  let runtimeOverride: string | undefined;
+  const runtimeOverrides: string[] = [];
   let workspace: string = process.cwd();
   let permissionMode: PermissionMode = "ask";
   let defaultModel: string | undefined;
@@ -61,7 +71,24 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       if (!next) {
         throw new Error('[Gateway] Missing value for "--runtime".');
       }
-      runtimeOverride = next;
+      runtimeOverrides.push(next);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--runtimes") {
+      const next = argv[index + 1];
+      if (!next) {
+        throw new Error('[Gateway] Missing value for "--runtimes".');
+      }
+      for (const part of next.split(",").map((s) => s.trim())) {
+        if (part.length === 0) {
+          throw new Error(
+            "[Gateway] --runtimes value contains an empty entry; comma-separate non-empty ids only.",
+          );
+        }
+        runtimeOverrides.push(part);
+      }
       index += 1;
       continue;
     }
@@ -132,7 +159,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     }
 
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace, --registry-sync.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace, --registry-sync.`,
     );
   }
 
@@ -141,7 +168,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
 
   return {
     check,
-    runtimeOverride,
+    runtimeOverrides,
     workspace,
     permissionMode,
     defaultModel,

@@ -18,18 +18,19 @@ import {
 import { DEFAULT_INHERITED_ENV_KEYS } from "@agents-js/acp-host";
 import {
   type AgentsJsConfigPaths,
-  createRuntimeSelectionFromArgs,
+  createRuntimeSelectionsFromArgs,
   detectInstalledGatewayRuntimes,
   type GatewayRuntimeProfile,
   type GatewayRuntimeSelection,
   getConfiguredProfile,
+  getPrimaryGatewayRuntime,
   listGatewayRuntimeIds,
   loadAgentsJsConfig,
   mergeAgentsJsConfig,
   type ResolvedGatewayRuntime,
   type RuntimeCommandResolver,
   type RuntimeEnvOverrides,
-  resolveAndApplyGatewayRuntime,
+  resolveAndApplyGatewayRuntimes,
   validateGatewayRuntimeProfileName,
   writeAgentsJsConfig,
 } from "@agents-js/gateway-runtime";
@@ -47,10 +48,11 @@ import {
   promptForRuntimeSelection,
 } from "./serve-prompts.ts";
 import {
+  acpCommandAndProfileArgs,
+  harnessesArg,
   hostPortArgs,
   registrySyncArg,
   runtimeLogArgs,
-  runtimeSelectArgs,
 } from "./shared-arg-specs.ts";
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
 
@@ -61,7 +63,15 @@ export interface ServeCommandArgs {
   acpArgsJson?: string;
   acpCommand?: string;
   defaultModel?: string;
-  harness?: string;
+  /**
+   * Ordered list of curated harness ids. Populated by `--harness`
+   * (repeatable) and `--harnesses` (comma-separated), in argv order.
+   * First entry = primary routing target. Single-element array is the
+   * single-harness back-compat path. AJS-7 PR1 introduces the list
+   * shape; downstream consumers in PR1 collapse to `harnesses[0]`
+   * with byte-identical behavior to pre-AJS-7.
+   */
+  harnesses?: string[];
   help?: boolean;
   host?: string;
   opencodeDisableExternalPlugins?: boolean;
@@ -121,7 +131,8 @@ const setHelp = (a: ServeCommandArgs): void => {
 export const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
   "--help": { kind: "flag", assign: setHelp, description: "Show this message." },
   "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
-  ...runtimeSelectArgs<ServeCommandArgs>(),
+  ...harnessesArg<ServeCommandArgs>(),
+  ...acpCommandAndProfileArgs<ServeCommandArgs>(),
   ...hostPortArgs<ServeCommandArgs>(),
   ...runtimeLogArgs<ServeCommandArgs>(),
   ...registrySyncArg<ServeCommandArgs>(),
@@ -148,7 +159,9 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  agents-js serve [options]",
       "",
       "Options:",
-      `  --harness <${listGatewayRuntimeIds().join("|")}|custom>  Select a curated harness or enter custom mode`,
+      `  --harness <${listGatewayRuntimeIds().join("|")}|custom>  Select a curated harness. Repeatable: --harness <id> --harness <id> declares a fleet (first = primary).`,
+      "  --harnesses <id1,id2,...>           Comma-separated harness fleet (first = primary). Equivalent to repeating --harness.",
+      "                                       AJS-7 v1: only the primary is resolved; secondary harnesses are accepted by the parser but not yet routed.",
       "  --acp-command <command>             Custom ACP command (requires --harness custom or no --harness; mutually exclusive with curated harnesses)",
       "  --acp-args-json <json>              JSON array of custom ACP args (only valid with --acp-command)",
       "  --profile <name>                    Optional named profile for curated runtimes (not supported with --harness custom)",
@@ -246,7 +259,21 @@ async function resolveServeInputs(
   const configServe = loadedConfig.effectiveConfig.serve;
   // Use the user+project merge (without base defaults) to decide whether to prompt.
   const explicitServe = mergeAgentsJsConfig(userConfig, projectConfig).serve;
-  const argSelection = createRuntimeSelectionFromArgs(args);
+  // AJS-7 PR1: the CLI flag side accepts `harnesses: string[]` (index
+  // 0 = primary, subsequent = secondary). PR1 narrow scope only
+  // RESOLVES the primary entry; secondary harnesses parse cleanly but
+  // do not yet spawn lane controllers — that fanout lives in PR2.
+  // The data-structure boundary moves to the array form via
+  // `createRuntimeSelectionsFromArgs`, so PR2 only has to wire the
+  // additional resolution + setupServer fanout with no further CLI or
+  // type-shape churn.
+  const argSelections = createRuntimeSelectionsFromArgs(args);
+  if ((args.harnesses?.length ?? 0) > 1) {
+    output.write(
+      `[agents-js] AJS-7 PR1: ${args.harnesses?.length ?? 0} harnesses configured (${args.harnesses?.join(", ")}). v1 PR1 resolves only the primary ("${args.harnesses?.[0]}"); secondary harnesses ship in PR2.\n`,
+    );
+  }
+  const argSelection = argSelections?.[0];
   const selectionPolicy = configServe?.selectionPolicy ?? "prefer-saved";
   const shouldPromptForHarness =
     !argSelection && (selectionPolicy === "ask-each-time" || !explicitServe?.harness);
@@ -386,8 +413,15 @@ export async function runServeCommand(
   // earlier in `resolveServeInputs`). Precedence: CLI flag > pre-existing
   // env > default. `onMissingProfile: "throw"` enforces the invariant that
   // resolveServeInputs already wrote the profile into project config.
-  const runtime: ResolvedGatewayRuntime = await resolveAndApplyGatewayRuntime({
-    selection: resolvedInputs.runtimeSelection,
+  // AJS-7 PR1: plumb the multi-runtime data structure through
+  // `resolveAndApplyGatewayRuntimes` (plural). v1 PR1 still resolves
+  // only the primary (single selection wrapped in a one-entry array);
+  // PR2 builds the per-secondary-harness selections + spawns them.
+  // Downstream code collapses back to the primary via
+  // `getPrimaryGatewayRuntime` so the existing single-runtime data
+  // flow stays byte-identical to pre-AJS-7.
+  const runtimes: readonly ResolvedGatewayRuntime[] = await resolveAndApplyGatewayRuntimes({
+    selections: [resolvedInputs.runtimeSelection],
     envOverrides: serveArgsToRuntimeEnvOverrides(args),
     resolver: dependencies.runtimeResolver,
     runtimeResolution: getCliRuntimeResolutionOptions(),
@@ -398,6 +432,7 @@ export async function runServeCommand(
     },
     onMissingProfile: "throw",
   });
+  const runtime: ResolvedGatewayRuntime = getPrimaryGatewayRuntime(runtimes);
   const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
   // In-process gateway bus — every recorded audit event is also
   // published on this bus via the wrapper below. The public-facing

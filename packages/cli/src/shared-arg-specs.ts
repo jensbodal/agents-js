@@ -89,6 +89,12 @@ export interface HarnessArg {
  * `--harness` only — the minimal runtime-selection fragment. Bridge
  * uses this directly; serve and acp compose it through
  * {@link runtimeSelectArgs} to add custom-command and profile flags.
+ *
+ * Single-value semantics. AJS-7 introduced a multi-value variant
+ * ({@link harnessesArg}) for the gateway-process binaries (`serve`,
+ * `agents-js-gateway`); commands that wrap exactly one harness
+ * (`bridge`, `send`, `registry`) continue to use this single-value
+ * form.
  */
 export function harnessArg<T extends HarnessArg>(): ArgSpec<T> {
   return {
@@ -99,6 +105,64 @@ export function harnessArg<T extends HarnessArg>(): ArgSpec<T> {
       },
       description: "Select a curated harness or enter custom mode.",
       valueExample: "<id|custom>",
+    },
+  };
+}
+
+export interface HarnessesArg {
+  /**
+   * Ordered list of curated harness ids the gateway should expose. The
+   * first entry is the **primary** routing target (used for sessions
+   * with no per-request override); subsequent entries are secondary,
+   * lazy-spawned, available but not auto-bound. AJS-7's gateway
+   * binaries (`serve`, `agents-js-gateway`) use this shape; bridge /
+   * send / registry continue with the single-value {@link HarnessArg}.
+   *
+   * Empty / undefined = no flag passed (interactive wizard prompts in
+   * `serve`, default selection in `agents-js-gateway`).
+   */
+  harnesses?: string[];
+}
+
+/**
+ * `--harness` / `--harnesses` — multi-value runtime-selection
+ * fragment for the gateway-process binaries (`serve`, internal
+ * gateway). Both spellings populate the same `harnesses` array; order
+ * is preserved across mixed forms (`--harness x --harnesses y,z` →
+ * `["x", "y", "z"]`). The first listed id is the primary routing
+ * target.
+ *
+ * Single-harness back-compat: `--harness opencode` alone produces
+ * `["opencode"]` — downstream resolves to a one-entry runtime list,
+ * with byte-identical behavior to pre-AJS-7 single-harness
+ * invocations.
+ */
+export function harnessesArg<T extends HarnessesArg>(): ArgSpec<T> {
+  return {
+    "--harness": {
+      kind: "value",
+      assign: (a, v) => {
+        a.harnesses ??= [];
+        a.harnesses.push(v);
+      },
+      description:
+        "Select a curated harness or enter custom mode. Repeatable: pass --harness multiple times to declare the harness fleet in argv order (first = primary). AJS-7 v1: only the primary is resolved; secondary harnesses are accepted by the parser but not yet routed.",
+      valueExample: "<id|custom>",
+    },
+    "--harnesses": {
+      kind: "value",
+      assign: (a, v) => {
+        a.harnesses ??= [];
+        for (const id of v
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)) {
+          a.harnesses.push(id);
+        }
+      },
+      description:
+        "Comma-separated list of curated harnesses (first = primary). Equivalent to repeating --harness. AJS-7 v1: only the primary is resolved; secondary harnesses are accepted by the parser but not yet routed.",
+      valueExample: "<id1,id2,...>",
     },
   };
 }
@@ -128,19 +192,21 @@ export function registrySyncArg<T extends RegistrySyncArg>(): ArgSpec<T> {
   };
 }
 
-export interface RuntimeSelectArgs extends HarnessArg {
+export interface AcpCommandAndProfileArgs {
   acpArgsJson?: string;
   acpCommand?: string;
   profile?: string;
 }
 
 /**
- * `--harness`, `--acp-command`, `--acp-args-json`, `--profile` — full
- * runtime-selection flag set for serve and acp.
+ * `--acp-command`, `--acp-args-json`, `--profile` — runtime-selection
+ * flags excluding the harness flag itself. Lets serve (multi-harness
+ * via {@link harnessesArg}) and acp (single-harness via
+ * {@link harnessArg}) share the custom-command and profile flag set
+ * while opting into different harness-selection forms.
  */
-export function runtimeSelectArgs<T extends RuntimeSelectArgs>(): ArgSpec<T> {
+export function acpCommandAndProfileArgs<T extends AcpCommandAndProfileArgs>(): ArgSpec<T> {
   return {
-    ...harnessArg<T>(),
     "--acp-command": {
       kind: "value",
       assign: (a, v) => {
@@ -167,5 +233,20 @@ export function runtimeSelectArgs<T extends RuntimeSelectArgs>(): ArgSpec<T> {
         "Optional named profile for curated runtimes (not supported with --harness custom).",
       valueExample: "<name>",
     },
+  };
+}
+
+export interface RuntimeSelectArgs extends HarnessArg, AcpCommandAndProfileArgs {}
+
+/**
+ * `--harness`, `--acp-command`, `--acp-args-json`, `--profile` — full
+ * runtime-selection flag set for acp (single-harness). serve uses
+ * {@link harnessesArg} + {@link acpCommandAndProfileArgs} instead so
+ * it can accept multiple harnesses.
+ */
+export function runtimeSelectArgs<T extends RuntimeSelectArgs>(): ArgSpec<T> {
+  return {
+    ...harnessArg<T>(),
+    ...acpCommandAndProfileArgs<T>(),
   };
 }

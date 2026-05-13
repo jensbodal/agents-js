@@ -6,8 +6,10 @@ import { SEND_ARG_SPEC } from "../src/send.ts";
 import { SERVE_ARG_SPEC } from "../src/serve.ts";
 import {
   type HarnessArg,
+  type HarnessesArg,
   type HostPortArgs,
   harnessArg,
+  harnessesArg,
   hostPortArgs,
   type RegistrySyncArg,
   type RuntimeLogArgs,
@@ -69,6 +71,53 @@ describe("harnessArg", () => {
     const acc: HarnessArg = {};
     spec["--harness"]?.assign(acc, "claude");
     expect(acc.harness).toBe("claude");
+  });
+});
+
+describe("harnessesArg", () => {
+  test("declares both --harness and --harnesses entries", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    expect(Object.keys(spec).sort()).toEqual(["--harness", "--harnesses"]);
+    expect(spec["--harness"]?.kind).toBe("value");
+    expect(spec["--harnesses"]?.kind).toBe("value");
+  });
+
+  test("--harness pushes onto the harnesses list, preserving order", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    const acc: HarnessesArg = {};
+    spec["--harness"]?.assign(acc, "opencode");
+    spec["--harness"]?.assign(acc, "gemini");
+    expect(acc.harnesses).toEqual(["opencode", "gemini"]);
+  });
+
+  test("--harnesses x,y splits on commas and trims whitespace", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    const acc: HarnessesArg = {};
+    spec["--harnesses"]?.assign(acc, " opencode , gemini , codex ");
+    expect(acc.harnesses).toEqual(["opencode", "gemini", "codex"]);
+  });
+
+  test("--harnesses ignores empty entries from leading/trailing commas", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    const acc: HarnessesArg = {};
+    spec["--harnesses"]?.assign(acc, ",opencode,,gemini,");
+    expect(acc.harnesses).toEqual(["opencode", "gemini"]);
+  });
+
+  test("mixed --harness and --harnesses forms preserve argv order", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    const acc: HarnessesArg = {};
+    spec["--harnesses"]?.assign(acc, "a,b");
+    spec["--harness"]?.assign(acc, "c");
+    spec["--harnesses"]?.assign(acc, "d,e");
+    expect(acc.harnesses).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  test("single --harness invocation produces a 1-element list (back-compat path)", () => {
+    const spec = harnessesArg<HarnessesArg>();
+    const acc: HarnessesArg = {};
+    spec["--harness"]?.assign(acc, "opencode");
+    expect(acc.harnesses).toEqual(["opencode"]);
   });
 });
 
