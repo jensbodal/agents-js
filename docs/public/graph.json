@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-12T23:19:56.138Z",
-  "package_count": 28,
+  "generated_at": "2026-05-13T00:01:14.395Z",
+  "package_count": 29,
   "publishable_count": 18,
   "packages": [
     {
@@ -269,6 +269,20 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/mcp-bus-bridge",
+      "dir": "extras/mcp-bus-bridge",
+      "private": true,
+      "version": "0.4.0",
+      "internal_deps": [
+        "@agents-js/host"
+      ],
+      "external_deps": [
+        "@modelcontextprotocol/sdk"
+      ],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/pi-acp",
       "dir": "extras/pi-acp",
       "private": true,
@@ -451,6 +465,7 @@
     ],
     "@agents-js/host": [
       "@agents-js/gateway",
+      "@agents-js/mcp-bus-bridge",
       "@agents-js/matrix-bridge"
     ],
     "@agents-js/ui-components": [
@@ -551,6 +566,7 @@
       "@agents-js/gateway"
     ],
     "@agents-js/reporting": [],
+    "@agents-js/mcp-bus-bridge": [],
     "@agents-js/browser-runtime": [],
     "@agents-js/matrix-bridge": [
       "@agents-js/gateway"

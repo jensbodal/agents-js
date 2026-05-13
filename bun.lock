@@ -126,6 +126,20 @@
         "@types/bun": "catalog:",
       },
     },
+    "extras/mcp-bus-bridge": {
+      "name": "@agents-js/mcp-bus-bridge",
+      "version": "0.4.0",
+      "bin": {
+        "agents-js-mcp-bus-bridge": "./dist/bin.mjs",
+      },
+      "dependencies": {
+        "@agents-js/host": "0.4.0",
+        "@modelcontextprotocol/sdk": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "extras/pi-acp": {
       "name": "@agents-js/pi-acp",
       "version": "0.4.0",
@@ -480,6 +494,8 @@
     "@agents-js/matrix-bridge": ["@agents-js/matrix-bridge@workspace:extras/matrix-bridge"],
 
     "@agents-js/mcp-bridge": ["@agents-js/mcp-bridge@workspace:packages/mcp-bridge"],
+
+    "@agents-js/mcp-bus-bridge": ["@agents-js/mcp-bus-bridge@workspace:extras/mcp-bus-bridge"],
 
     "@agents-js/pi-acp": ["@agents-js/pi-acp@workspace:extras/pi-acp"],
 
