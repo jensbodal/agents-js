@@ -113,7 +113,14 @@ function normalizeSyncEndpointUrl(peerUrl: string, path: string): string {
 function parseWireRecord(raw: unknown): AgentRegistryRecord | null {
   const result = validateWireAgentRegistryRecord(raw);
   if (!result.valid) return null;
-  return result.value satisfies AgentRegistryRecord;
+  // The wire schema is a strict subset of `AgentRegistryRecord`, but
+  // `z.infer<>` widens `actor_type` to `unknown` when more than one
+  // zod version is hoisted into node_modules (transitive deps pull
+  // zod 4.x while our catalog pins 3.x — tracked separately under
+  // AJS-1). Asserting here preserves the original validator contract;
+  // the runtime narrowing already happened inside
+  // `validateWireAgentRegistryRecord`.
+  return result.value as AgentRegistryRecord;
 }
 
 /**
