@@ -71,7 +71,15 @@ interface ServerSetup {
 interface SetupServerOptions {
   cliArgs: GatewayCliArgs;
   resolvedPort: number;
-  runtime: ResolvedGatewayRuntime;
+  /**
+   * Ordered list of resolved runtimes. AJS-7 PR1 introduces the array
+   * form: index 0 is the primary routing target — consumers that need
+   * a single runtime (agent card construction, the runtime selector,
+   * etc.) read `runtimes[0]`. Secondary entries are accepted and
+   * preserved by PR1 but not yet spawned; PR2 wires lazy-spawned
+   * lane controllers against the additional entries.
+   */
+  runtimes: readonly ResolvedGatewayRuntime[];
   session: HostSession;
   controllerFactory: (contextId: string) => Promise<GatewayHostController>;
   audit: ReturnType<typeof createAuditEmitter>;
@@ -148,7 +156,13 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // and (when registry sync is enabled) the registry sync endpoint on
   // the same port via the additionalFetch hook so discovery + CORS
   // stay centralized.
-  const gatewayCard = buildAgentCard(opts.runtime.agentCard);
+  // PR1: agent card reflects only the primary runtime. PR2 adds the
+  // `capabilities.harnesses` extension that surfaces the full fleet.
+  const primaryRuntime = opts.runtimes[0];
+  if (primaryRuntime === undefined) {
+    throw new Error("[Gateway] SetupServerOptions.runtimes must contain at least one runtime.");
+  }
+  const gatewayCard = buildAgentCard(primaryRuntime.agentCard);
   const aguiHandler = createAguiFetchHandler({
     controller: opts.session.controller,
     audit: opts.audit,
@@ -180,7 +194,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
   const httpPort = server.port ?? opts.resolvedPort;
 
-  const localName = opts.runtime.agentCard.name ?? "universal-acp-gateway";
+  const localName = primaryRuntime.agentCard.name ?? "universal-acp-gateway";
   const localUrl = buildAgentCardBaseUrl(httpPort, opts.cliArgs.hostname);
 
   let registrySync: { stop: () => void };
@@ -416,11 +430,23 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     configPort: loadedConfig.effectiveConfig.serve?.port,
   });
 
-  // Resolve runtime: CLI --runtime > config files > env var (via gatewayConfig)
+  // Resolve runtime: CLI --runtime/--runtimes > config files > env
+  // var (via gatewayConfig).
+  //
+  // AJS-7 PR1: `runtimeOverrides` is the ordered list (index 0 =
+  // primary). PR1 narrow scope resolves only the primary; secondary
+  // entries parse cleanly but do not yet spawn lane controllers —
+  // PR2 wires the additional resolution + fanout.
   const configHarness = loadedConfig.effectiveConfig.serve?.harness;
+  const primaryRuntimeOverride = cliArgs.runtimeOverrides[0];
+  if (cliArgs.runtimeOverrides.length > 1) {
+    process.stdout.write(
+      `[Gateway] AJS-7 PR1: ${cliArgs.runtimeOverrides.length} runtimes configured (${cliArgs.runtimeOverrides.join(", ")}). v1 PR1 resolves only the primary ("${primaryRuntimeOverride}"); secondary runtimes ship in PR2.\n`,
+    );
+  }
   const selectedRuntime = applyEnvRuntimeProfile(
-    cliArgs.runtimeOverride
-      ? await resolveGatewayRuntime(cliArgs.runtimeOverride)
+    primaryRuntimeOverride !== undefined
+      ? await resolveGatewayRuntime(primaryRuntimeOverride)
       : configHarness
         ? await resolveGatewayRuntimeSelection(configHarness)
         : await resolveGatewayRuntime(gatewayConfig.runtime),
@@ -543,7 +569,11 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   const { server, gatewayCard, executor, registrySync, httpPort } = await setupServer({
     cliArgs,
     resolvedPort,
-    runtime: selectedRuntime,
+    // AJS-7 PR1: SetupServerOptions takes a runtimes list. v1 wraps the
+    // single resolved runtime (selectedRuntime) as a 1-entry array;
+    // PR2 will surface the secondary runtimes here once their resolution
+    // path lands.
+    runtimes: [selectedRuntime],
     session,
     controllerFactory,
     audit,

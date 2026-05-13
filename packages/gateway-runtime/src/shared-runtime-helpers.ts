@@ -79,6 +79,92 @@ export function createRuntimeSelectionFromArgs(
 }
 
 /**
+ * Multi-harness arg shape (AJS-7 PR1). `harnesses` carries the
+ * ordered list of curated harness ids gathered from `--harness`
+ * (repeatable) and `--harnesses x,y` flags; index 0 is the primary
+ * routing target. Other fields mirror {@link RuntimeSelectionArgs}.
+ *
+ * Single-harness invocations pass a 1-element `harnesses` array (or a
+ * `harness` string, which {@link createRuntimeSelectionsFromArgs}
+ * lifts into a 1-element list).
+ */
+export interface RuntimeSelectionsArgs {
+  acpArgsJson?: string;
+  acpCommand?: string;
+  /** Multi-harness list, index 0 = primary. Mutually exclusive with `harness`. */
+  harnesses?: readonly string[];
+  /** Legacy single-harness form; equivalent to `harnesses: [harness]`. */
+  harness?: string;
+  profile?: string;
+}
+
+/**
+ * Build an ordered list of {@link GatewayRuntimeSelection} from CLI
+ * args. Returns `undefined` when no harness was specified (caller
+ * falls through to interactive prompt or default).
+ *
+ * Single-harness invocations (`--harness x` or `harnesses: ["x"]`)
+ * produce a 1-element list — byte-identical to the pre-AJS-7
+ * single-harness path when consumers use `selections[0]` as the
+ * primary.
+ *
+ * Multi-harness invocations (`--harnesses a,b,c`) produce an N-element
+ * list with `a` as the primary. Duplicates are preserved here so the
+ * downstream validation layer can reject them with a precise error
+ * message; this function intentionally does not silently dedupe.
+ *
+ * AJS-7 PR1 ships only the data-structure plumbing; downstream
+ * consumers in PR1 use `selections[0]` and ignore the rest. PR2 wires
+ * lazy-spawned secondary lanes against the remaining entries.
+ */
+export function createRuntimeSelectionsFromArgs(
+  args: RuntimeSelectionsArgs,
+): GatewayRuntimeSelection[] | undefined {
+  if (args.harnesses !== undefined && args.harnesses.length > 0 && args.harness !== undefined) {
+    throw new Error(
+      "[agents-js] Pass --harness or --harnesses, not both shapes simultaneously. Repeat --harness or use a comma-separated --harnesses value.",
+    );
+  }
+
+  const harnessList: readonly string[] =
+    args.harnesses && args.harnesses.length > 0
+      ? args.harnesses
+      : args.harness
+        ? [args.harness]
+        : [];
+
+  if (harnessList.length === 0 && !args.acpCommand) {
+    return undefined;
+  }
+
+  // Custom-command path is single-harness by construction; multiple
+  // harness ids alongside --acp-command is incoherent.
+  if (args.acpCommand && harnessList.length > 1) {
+    throw new Error("[agents-js] --acp-command is only valid with a single harness selection.");
+  }
+
+  if (args.acpCommand) {
+    const single = createRuntimeSelectionFromArgs({
+      acpCommand: args.acpCommand,
+      acpArgsJson: args.acpArgsJson,
+      harness: harnessList[0],
+      profile: args.profile,
+    });
+    return single ? [single] : undefined;
+  }
+
+  const selections: GatewayRuntimeSelection[] = [];
+  for (const harness of harnessList) {
+    const selection = createRuntimeSelectionFromArgs({
+      harness,
+      profile: args.profile,
+    });
+    if (selection !== undefined) selections.push(selection);
+  }
+  return selections.length > 0 ? selections : undefined;
+}
+
+/**
  * Wraps the internal profile lookup in the gateway-runtime config-paths shape
  * so existing callers do not have to unpack
  * `loaded.configPaths.{user,project}ConfigPath` themselves. The returned

@@ -86,3 +86,59 @@ describe("parseCliArgs — registry sync gate", () => {
     expect(onlyTrust.trustWorkspace).toBe(true);
   });
 });
+
+/**
+ * AJS-7 PR1: the internal-gateway accepts `--runtime <id>` (repeatable,
+ * single value) AND `--runtimes <id1,id2>` (comma-separated). Both
+ * forms populate `runtimeOverrides: readonly string[]` in argv order.
+ * Index 0 is the primary routing target. Single-runtime invocations
+ * (`--runtime opencode` alone) produce a 1-element array so downstream
+ * consumers reading `runtimeOverrides[0]` get byte-identical behavior
+ * to pre-AJS-7.
+ */
+describe("parseCliArgs — multi-runtime selection (AJS-7 PR1)", () => {
+  test("default — runtimeOverrides is empty when no runtime flag present", () => {
+    expect(parseCliArgs([], {}).runtimeOverrides).toEqual([]);
+  });
+
+  test("single `--runtime opencode` yields a 1-element list (back-compat)", () => {
+    expect(parseCliArgs(["--runtime", "opencode"], {}).runtimeOverrides).toEqual(["opencode"]);
+  });
+
+  test("repeated `--runtime` flag pushes in argv order", () => {
+    expect(
+      parseCliArgs(["--runtime", "opencode", "--runtime", "gemini"], {}).runtimeOverrides,
+    ).toEqual(["opencode", "gemini"]);
+  });
+
+  test("`--runtimes a,b,c` splits on commas and trims whitespace", () => {
+    expect(parseCliArgs(["--runtimes", " opencode , gemini ,codex"], {}).runtimeOverrides).toEqual([
+      "opencode",
+      "gemini",
+      "codex",
+    ]);
+  });
+
+  test("mixed `--runtime` and `--runtimes` forms preserve argv order", () => {
+    expect(
+      parseCliArgs(["--runtimes", "a,b", "--runtime", "c", "--runtimes", "d,e"], {})
+        .runtimeOverrides,
+    ).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  test("`--runtimes` rejects an empty entry between commas", () => {
+    expect(() => parseCliArgs(["--runtimes", "a,,b"], {})).toThrow(/empty entry/);
+  });
+
+  test("`--runtimes` rejects a value with only a comma", () => {
+    expect(() => parseCliArgs(["--runtimes", ","], {})).toThrow(/empty entry/);
+  });
+
+  test("`--runtime` without a value throws", () => {
+    expect(() => parseCliArgs(["--runtime"], {})).toThrow(/Missing value for "--runtime"/);
+  });
+
+  test("`--runtimes` without a value throws", () => {
+    expect(() => parseCliArgs(["--runtimes"], {})).toThrow(/Missing value for "--runtimes"/);
+  });
+});

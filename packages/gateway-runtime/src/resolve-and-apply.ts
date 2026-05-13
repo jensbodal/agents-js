@@ -122,3 +122,104 @@ export async function resolveAndApplyGatewayRuntime(
     restoreEnv();
   }
 }
+
+/** Options for {@link resolveAndApplyGatewayRuntimes} (plural). */
+export interface ResolveAndApplyGatewayRuntimesOptions
+  extends Omit<ResolveAndApplyGatewayRuntimeOptions, "selection"> {
+  /**
+   * Ordered list of runtime selections to resolve. First entry is the
+   * **primary** routing target (the harness gateway sessions bind to by
+   * default); subsequent entries are secondary, available alongside the
+   * primary. Empty list is rejected (an empty fleet has no meaning).
+   */
+  selections: readonly GatewayRuntimeSelection[];
+}
+
+/**
+ * Multi-harness variant of {@link resolveAndApplyGatewayRuntime}.
+ * Applies env overrides once, then resolves every supplied selection
+ * in argv order, then restores env. Returns the resolved runtimes as
+ * a readonly array preserving input order (first = primary).
+ *
+ * AJS-7 PR1 introduces this plural variant so gateway entry points
+ * can carry a runtime list through `SetupServerOptions.runtimes`.
+ * PR1 downstream code collapses to `runtimes[0]` via
+ * {@link getPrimaryGatewayRuntime}; PR2 fans out to multi-controller
+ * lifecycle for the full multi-harness behavior.
+ *
+ * Errors propagate to the caller. Env overrides are restored before
+ * any error is rethrown, regardless of which selection in the list
+ * failed.
+ */
+export async function resolveAndApplyGatewayRuntimes(
+  options: ResolveAndApplyGatewayRuntimesOptions,
+): Promise<readonly ResolvedGatewayRuntime[]> {
+  const { selections, envOverrides, resolver, profileLookup, runtimeResolution } = options;
+  if (selections.length === 0) {
+    throw new Error(
+      "[agents-js] resolveAndApplyGatewayRuntimes: empty selection list. Pass at least one curated harness or custom-command selection.",
+    );
+  }
+  const onMissingProfile = options.onMissingProfile ?? "skip";
+  // biome-ignore lint/style/noProcessEnv: CLI-flag override path mutates live env for downstream resolvers.
+  const env = options.env ?? process.env;
+
+  const restoreEnv = applyRuntimeEnvOverrides(env, envOverrides);
+
+  try {
+    const resolved: ResolvedGatewayRuntime[] = [];
+    for (const selection of selections) {
+      let runtime = await resolveGatewayRuntimeSelection(selection, {
+        ...runtimeResolution,
+        resolver,
+      });
+
+      if (selection.kind === "curated" && selection.profile && profileLookup) {
+        const configuredProfile = getConfiguredProfile(selection.profile, profileLookup);
+        if (!configuredProfile) {
+          if (onMissingProfile === "throw") {
+            throw new Error(
+              `[agents-js] Runtime profile "${selection.profile}" could not be resolved after setup.`,
+            );
+          }
+        } else {
+          runtime = applyGatewayRuntimeProfile(
+            runtime,
+            resolveGatewayRuntimeProfile(
+              selection.profile,
+              configuredProfile.profile,
+              configuredProfile.profilesRoot,
+            ),
+          );
+        }
+      }
+
+      resolved.push(runtime);
+    }
+    return resolved;
+  } finally {
+    restoreEnv();
+  }
+}
+
+/**
+ * Return the primary (first) runtime from a non-empty runtimes list.
+ * Throws on empty input — an empty fleet has no meaning, and the
+ * upstream `resolveAndApplyGatewayRuntimes` rejects empty selection
+ * lists, so getting here with `[]` is a caller bug.
+ *
+ * Used at the setupServer boundary to collapse a multi-harness list
+ * to the primary in v1: `const runtime = getPrimaryGatewayRuntime(opts.runtimes);`
+ * AJS-7 PR2 replaces this collapse with per-session harness routing.
+ */
+export function getPrimaryGatewayRuntime(
+  runtimes: readonly ResolvedGatewayRuntime[],
+): ResolvedGatewayRuntime {
+  const primary = runtimes[0];
+  if (!primary) {
+    throw new Error(
+      "[agents-js] getPrimaryGatewayRuntime: empty runtimes list. Upstream resolution should have rejected this case.",
+    );
+  }
+  return primary;
+}
