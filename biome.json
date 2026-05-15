@@ -110,6 +110,8 @@
       "!docs/.vitepress/dist",
       "!docs/public/docs-index.json",
       "!docs/public/graph.json",
+      "!docs/public/components",
+      "!**/*.story.vue",
       "!.claude/worktrees"
     ]
   }
