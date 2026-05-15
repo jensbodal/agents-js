@@ -2,14 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { describeRuntimeSwitchBlockingActivity } from "../main.ts";
 
 /**
- * Pure check that decides whether the gateway should reject a runtime
- * switch. Without this gate, `setRuntime` would call
- * `session.switchRuntime()` while AG-UI/A2A/lane work is in flight,
- * cutting turns mid-stream or leaving lane controllers bound to the
- * outgoing runtime.
+ * AJS-7 PR3 scoped-down semantics: the gate now only blocks on AG-UI
+ * runs. Cross-harness in-flight A2A tasks / dispatch / lanes / pending
+ * spawns no longer block a primary-routing-target switch — those
+ * sessions stay bound to their original harness's controller, so the
+ * switch has no conflict with them.
  *
- * Cover every blocking branch + the idle case so future regressions
- * (e.g. someone forgets to count active dispatches) fail loudly.
+ * AG-UI remains a blocker because it's a multi-prompt coordinated flow:
+ * switching primary mid-run would route the next prompt to the new
+ * primary while the prior prompts ran on the old, which is a UX
+ * footgun (operator UI shows one runtime but the run is on another).
  */
 
 interface ActivitySnapshot {
@@ -36,7 +38,15 @@ const IDLE_SNAPSHOT: ActivitySnapshot = {
   pendingLaneCount: 0,
 };
 
-describe("describeRuntimeSwitchBlockingActivity", () => {
+const BUSY_SNAPSHOT: ActivitySnapshot = {
+  activeTaskCount: 5,
+  activeDispatchCount: 2,
+  activeLaneCount: 4,
+  inFlightLaneCount: 3,
+  pendingLaneCount: 1,
+};
+
+describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
   test("idle gateway → switch allowed (returns null)", () => {
     expect(
       describeRuntimeSwitchBlockingActivity({
@@ -56,55 +66,51 @@ describe("describeRuntimeSwitchBlockingActivity", () => {
     expect(reason).toContain("run-abc");
   });
 
-  test("@@dispatch in flight → switch rejected (priority over plain A2A task count)", () => {
-    const reason = describeRuntimeSwitchBlockingActivity({
-      executor: makeExecutorStub({
-        ...IDLE_SNAPSHOT,
-        activeTaskCount: 5,
-        activeDispatchCount: 2,
+  test("A2A tasks in flight do NOT block a primary-target switch (PR3 scoped-down)", () => {
+    // Pre-PR3 this would have rejected. PR3: existing in-flight A2A
+    // tasks stay bound to their original harness's controller; the
+    // primary flip only affects future sessions, so no conflict.
+    expect(
+      describeRuntimeSwitchBlockingActivity({
+        executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeTaskCount: 3 }),
+        aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
       }),
-      aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
-    });
-    expect(reason).toContain("@@dispatch");
-    expect(reason).toContain("2");
+    ).toBeNull();
   });
 
-  test("A2A tasks in flight → switch rejected with count", () => {
-    const reason = describeRuntimeSwitchBlockingActivity({
-      executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeTaskCount: 3 }),
-      aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
-    });
-    expect(reason).toContain("A2A task");
-    expect(reason).toContain("3");
+  test("@@dispatch in flight does NOT block (PR3 scoped-down)", () => {
+    expect(
+      describeRuntimeSwitchBlockingActivity({
+        executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeDispatchCount: 2 }),
+        aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
+      }),
+    ).toBeNull();
   });
 
-  test("lane holding in-flight prompt → switch rejected", () => {
-    // activeTaskCount could be 0 transiently (the task is registered
-    // and removed quickly, but the lane's mutex is held longer).
-    const reason = describeRuntimeSwitchBlockingActivity({
-      executor: makeExecutorStub({ ...IDLE_SNAPSHOT, inFlightLaneCount: 1 }),
-      aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
-    });
-    expect(reason).toContain("lane");
+  test("in-flight A2A lanes do NOT block (PR3 scoped-down)", () => {
+    expect(
+      describeRuntimeSwitchBlockingActivity({
+        executor: makeExecutorStub({ ...IDLE_SNAPSHOT, inFlightLaneCount: 1 }),
+        aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
+      }),
+    ).toBeNull();
   });
 
-  test("pending lane construction (controllerFactory in flight) blocks the switch", () => {
-    // TOCTOU close: a factory call is awaiting; the lane has not
-    // yet been registered. Without this guard the switch would
-    // proceed and the freshly-spawned controller would be bound
-    // to the wrong runtime.
-    const reason = describeRuntimeSwitchBlockingActivity({
-      executor: makeExecutorStub({ ...IDLE_SNAPSHOT, pendingLaneCount: 2 }),
-      aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
-    });
-    expect(reason).toContain("currently being constructed");
-    expect(reason).toContain("2");
+  test("pending lane construction does NOT block (PR3 scoped-down)", () => {
+    // Pre-PR3: TOCTOU concern — a factory call mid-flight could resolve
+    // to the wrong runtime. PR3 lane manager spawns are bound to the
+    // harnessId the call was made under, not to a global primary cell;
+    // the in-flight spawn resolves to its original target regardless
+    // of who's primary at the moment.
+    expect(
+      describeRuntimeSwitchBlockingActivity({
+        executor: makeExecutorStub({ ...IDLE_SNAPSHOT, pendingLaneCount: 2 }),
+        aguiCoordinator: makeAguiCoordStub({ isActive: false, activeRunId: null }),
+      }),
+    ).toBeNull();
   });
 
-  test("idle lane (factory-spawned, no in-flight prompt) does NOT block — eviction handles it", () => {
-    // activeLaneCount > 0 but inFlightLaneCount === 0 means the lanes
-    // are warm but doing nothing. Switch should proceed; the caller
-    // is expected to call destroyIdleLanes() after switchRuntime.
+  test("idle lanes do NOT block", () => {
     expect(
       describeRuntimeSwitchBlockingActivity({
         executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeLaneCount: 4 }),
@@ -113,16 +119,21 @@ describe("describeRuntimeSwitchBlockingActivity", () => {
     ).toBeNull();
   });
 
-  test("AG-UI active wins over executor activity in the message ordering", () => {
+  test("AG-UI active wins over busy executor (only blocker that survives PR3)", () => {
     const reason = describeRuntimeSwitchBlockingActivity({
-      executor: makeExecutorStub({
-        ...IDLE_SNAPSHOT,
-        activeTaskCount: 9,
-        activeDispatchCount: 9,
-      }),
+      executor: makeExecutorStub(BUSY_SNAPSHOT),
       aguiCoordinator: makeAguiCoordStub({ isActive: true, activeRunId: "run-1" }),
     });
     expect(reason).toContain("AG-UI");
-    expect(reason).not.toContain("@@dispatch");
+    expect(reason).toContain("run-1");
+  });
+
+  test("AG-UI active with unknown runId → reason still produces a usable message", () => {
+    const reason = describeRuntimeSwitchBlockingActivity({
+      executor: makeExecutorStub(IDLE_SNAPSHOT),
+      aguiCoordinator: makeAguiCoordStub({ isActive: true, activeRunId: null }),
+    });
+    expect(reason).toContain("AG-UI");
+    expect(reason).toContain("(unknown)");
   });
 });

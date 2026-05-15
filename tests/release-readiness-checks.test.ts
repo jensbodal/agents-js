@@ -30,7 +30,7 @@ const MUTATIONS: Record<string, string> = {
   "--trust-workspace flag exists": `if (arg === "--something-else") { /* ... */ }`,
   "@@dispatch does not hard-code yolo and publishes cancelable=false": `await dispatchController.setPermissionMode("yolo");`,
   "ACP @@dispatch is non-interactive (cancels on permission/write-gate/elicitation)": `case "permission_requested": sink.eventBus.publish(buildStatusUpdate({ state: "failed" })); break;`,
-  "runtime switch rejects active work": `setRuntime: async (id) => { await session.switchRuntime({ runtime, defaultModel }); }`,
+  "runtime switch rejects unknown fleet ids + AG-UI conflicts": `setRuntime: async (id) => { await session.switchRuntime({ runtime, defaultModel }); }`,
   "AG-UI run coordinator module exists": `// no exports`,
   "AG-UI disconnect cancels controller": `// onAbort does nothing`,
   "AG-UI endpoint honors RunAgentInput.runId": `const runId = crypto.randomUUID();`,

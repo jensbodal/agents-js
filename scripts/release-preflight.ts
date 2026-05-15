@@ -602,17 +602,20 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     },
   },
   {
-    name: "runtime switch rejects active work",
+    name: "runtime switch rejects unknown fleet ids + AG-UI conflicts",
     filePath: "apps/internal-gateway/main.ts",
     validate: (contents) => {
       if (!/describeRuntimeSwitchBlockingActivity/.test(contents)) {
-        return "main.ts must use describeRuntimeSwitchBlockingActivity to gate runtime switches";
+        return "main.ts must use describeRuntimeSwitchBlockingActivity to gate runtime switches (PR3 scoped-down to AG-UI only)";
       }
       if (!/Runtime switch rejected:/.test(contents)) {
-        return 'main.ts must throw an explicit "Runtime switch rejected:" error when blocking activity exists';
+        return 'main.ts must throw an explicit "Runtime switch rejected:" error for fleet-membership / AG-UI rejections';
       }
-      if (!/destroyIdleLanes\(\)/.test(contents)) {
-        return "main.ts must call executor.destroyIdleLanes() after a successful runtime switch";
+      if (!/laneManager\.setPrimaryHarnessId\(/.test(contents)) {
+        return "main.ts must call laneManager.setPrimaryHarnessId() on a successful runtime switch (PR3 primary-routing-target semantics)";
+      }
+      if (!/laneManager\.hasHarness\(/.test(contents)) {
+        return "main.ts must validate fleet membership via laneManager.hasHarness() before switching primary";
       }
       return null;
     },

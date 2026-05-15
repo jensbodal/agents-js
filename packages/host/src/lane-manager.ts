@@ -131,7 +131,12 @@ export class HarnessLaneManager {
   private readonly bus: GatewayBus;
   private readonly createController: (entry: HarnessFleetEntry) => Promise<GatewayHostController>;
   private readonly slots = new Map<string, HarnessSlot>();
-  private readonly primaryHarnessId: string;
+  /**
+   * Current primary-routing target. Mutable post-construction via
+   * {@link setPrimaryHarnessId}; `controllerFactory` consumers read this
+   * to bind new sessions to the operator-pinned primary.
+   */
+  private primaryHarnessId: string;
   private destroyed = false;
 
   constructor(opts: HarnessLaneManagerOptions) {
@@ -162,6 +167,10 @@ export class HarnessLaneManager {
     // Pre-populate the agent-card slice + slot map. All entries start
     // `ready: false` per the PR2 in-lane decision: the fleet is visible
     // to federated peers before any session lazy-spawns.
+    //
+    // Slot entries are SHALLOW-CLONED off the caller's input so we can
+    // mutate `slot.entry.primary` during `setPrimaryHarnessId` without
+    // leaking the mutation back to the caller's input fleet array.
     const cardEntries: HarnessCapabilityEntry[] = [];
     for (const entry of opts.entries) {
       const capability: HarnessCapabilityEntry = {
@@ -172,7 +181,7 @@ export class HarnessLaneManager {
       };
       cardEntries.push(capability);
       this.slots.set(entry.id, {
-        entry,
+        entry: { ...entry },
         capability,
         liveControllers: new Map(),
       });
@@ -180,9 +189,122 @@ export class HarnessLaneManager {
     this.gatewayCard.capabilities.harnesses = cardEntries;
   }
 
-  /** Primary harness id (first entry with `primary: true`). */
+  /** Primary harness id — the operator-pinned default routing target. */
   getPrimaryHarnessId(): string {
     return this.primaryHarnessId;
+  }
+
+  /**
+   * Switch the primary-routing target to `newPrimaryId`. Per AJS-7 PR3
+   * § Behavior, this changes which harness new sessions route to via the
+   * `controllerFactory(contextId)` delegate; existing in-flight lane
+   * controllers stay bound to the harness they were spawned on and are
+   * NOT torn down here. The operator gets a new routing default; live
+   * sessions don't get yanked mid-turn.
+   *
+   * Side effects:
+   *   1. `slot.capability.primary` flag flips for both the old primary
+   *      and the new primary (mutated in place on the live agent-card).
+   *   2. `gateway.harness.card-changed` publishes for each affected entry
+   *      so federated peers consuming `/events` see the diff without
+   *      re-fetching `/.well-known/agent-card.json`.
+   *   3. `this.primaryHarnessId` updates so subsequent calls to
+   *      {@link getPrimaryHarnessId} return the new id.
+   *
+   * No-ops cleanly when `newPrimaryId === this.primaryHarnessId`.
+   * Throws on unknown `newPrimaryId` (dynamic install of a non-fleet
+   * runtime stays out of v1 scope per AC open Q5).
+   */
+  setPrimaryHarnessId(newPrimaryId: string): HarnessFleetEntry {
+    if (this.destroyed) {
+      throw new Error("HarnessLaneManager: destroyed; cannot switch primary");
+    }
+    const newSlot = this.slots.get(newPrimaryId);
+    if (!newSlot) {
+      throw new Error(`HarnessLaneManager: unknown harnessId "${newPrimaryId}"`);
+    }
+
+    if (newPrimaryId === this.primaryHarnessId) {
+      // Return a fresh snapshot. `slot.entry` is internal cloned state
+      // (see constructor); returning `{...slot.entry}` keeps the caller
+      // from holding a reference to internal state and ensures the
+      // returned `primary` value reflects current truth.
+      return { ...newSlot.entry };
+    }
+
+    // biome-ignore lint/style/noNonNullAssertion: invariant — primaryHarnessId always refers to a configured slot
+    const oldSlot = this.slots.get(this.primaryHarnessId)!;
+
+    // Snapshot BOTH entries before mutating so the card-changed payload
+    // carries a faithful previous/new diff per harness.
+    const oldPrevious: HarnessCapabilityEntry = { ...oldSlot.capability };
+    const newPrevious: HarnessCapabilityEntry = { ...newSlot.capability };
+
+    oldSlot.capability.primary = false;
+    newSlot.capability.primary = true;
+    // Keep the internal slot.entry.primary in sync with capability.primary
+    // so the returned snapshot reflects the new state. Internal cloning
+    // at construction means this does NOT leak the mutation to the
+    // caller's input fleet array.
+    oldSlot.entry.primary = false;
+    newSlot.entry.primary = true;
+    this.primaryHarnessId = newPrimaryId;
+
+    const oldNew: HarnessCapabilityEntry = { ...oldSlot.capability };
+    const newNew: HarnessCapabilityEntry = { ...newSlot.capability };
+
+    publishHarnessCardChanged(this.bus, {
+      harnessId: oldSlot.entry.id,
+      previousEntry: oldPrevious,
+      newEntry: oldNew,
+    });
+    publishHarnessCardChanged(this.bus, {
+      harnessId: newSlot.entry.id,
+      previousEntry: newPrevious,
+      newEntry: newNew,
+    });
+
+    return { ...newSlot.entry };
+  }
+
+  /**
+   * True when `harnessId` is in the configured fleet. Used by the WS
+   * bridge to validate a runtime-switch request before invoking
+   * {@link setPrimaryHarnessId} (per AC, dynamic install of a
+   * non-configured runtime is out of v1 scope).
+   */
+  hasHarness(harnessId: string): boolean {
+    return this.slots.has(harnessId);
+  }
+
+  /**
+   * Read-only lookup of the configured runtime for `harnessId`. The WS
+   * bridge uses this to fetch the target's `acp.command` for a
+   * `fetchRuntimeModels` probe BEFORE committing to the switch via
+   * {@link setPrimaryHarnessId} — so an async failure pre-flip doesn't
+   * leave the gateway in a half-switched state.
+   *
+   * Throws on unknown id (use {@link hasHarness} to pre-check).
+   */
+  getHarnessRuntime(harnessId: string): ResolvedGatewayRuntime {
+    const slot = this.slots.get(harnessId);
+    if (!slot) {
+      throw new Error(`HarnessLaneManager: unknown harnessId "${harnessId}"`);
+    }
+    return slot.entry.runtime;
+  }
+
+  /**
+   * Returns true when the manager has at least one currently-alive
+   * lane controller for `harnessId` (i.e. a session bound to that
+   * harness that hasn't hit its `onProcessExit` yet). The WS bridge's
+   * scoped-down switch-blocker reads this for the OLD primary only —
+   * cross-harness in-flight work no longer blocks a primary switch.
+   */
+  hasLiveLanesForHarness(harnessId: string): boolean {
+    const slot = this.slots.get(harnessId);
+    if (!slot) return false;
+    return slot.liveControllers.size > 0;
   }
 
   /**
