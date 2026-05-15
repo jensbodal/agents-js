@@ -330,7 +330,7 @@ describe("Gateway runtime selection", () => {
     const stderr = await new Response(process.stderr).text();
 
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("[Gateway] Runtime: claude (Claude ACP)");
+    expect(stdout).toContain("[Gateway] Primary runtime: claude (Claude ACP)");
     expect(stdout).toContain("[Gateway] Check complete.");
     expect(stderr).toBe("");
   }, 15_000);

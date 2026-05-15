@@ -28,6 +28,8 @@ import {
   fetchRuntimeModels,
   type GatewayBus,
   type GatewayHostController,
+  type HarnessFleetEntry,
+  HarnessLaneManager,
   HostA2AExecutor,
   wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
@@ -62,7 +64,6 @@ type HostSession = Awaited<ReturnType<typeof createHostSession>>;
 
 interface ServerSetup {
   server: Awaited<ReturnType<UniversalA2AServer["start"]>>;
-  gatewayCard: ReturnType<typeof buildAgentCard>;
   executor: HostA2AExecutor;
   registrySync: { stop: () => void };
   httpPort: number;
@@ -74,12 +75,23 @@ interface SetupServerOptions {
   /**
    * Ordered list of resolved runtimes. AJS-7 PR1 introduces the array
    * form: index 0 is the primary routing target — consumers that need
-   * a single runtime (agent card construction, the runtime selector,
-   * etc.) read `runtimes[0]`. Secondary entries are accepted and
-   * preserved by PR1 but not yet spawned; PR2 wires lazy-spawned
-   * lane controllers against the additional entries.
+   * a single runtime (the registry-sync auto-register name, etc.) read
+   * `runtimes[0]`. PR2 fans the secondary entries out into the
+   * `HarnessLaneManager` lane fleet; the agent card surface they show
+   * up on is built outside `setupServer` so the lane manager can
+   * pre-populate `capabilities.harnesses` before the server starts
+   * serving `/.well-known/agent-card.json`.
    */
   runtimes: readonly ResolvedGatewayRuntime[];
+  /**
+   * Live agent card reference. Constructed in `main()` and mutated in
+   * place by the `HarnessLaneManager` (pre-populates
+   * `capabilities.harnesses` at construction; flips `ready` on spawn /
+   * exit). The A2A server reads this same object when serving
+   * `/.well-known/agent-card.json`, so federated peers see live fleet
+   * state without polling the bus.
+   */
+  gatewayCard: ReturnType<typeof buildAgentCard>;
   session: HostSession;
   controllerFactory: (contextId: string) => Promise<GatewayHostController>;
   audit: ReturnType<typeof createAuditEmitter>;
@@ -146,6 +158,41 @@ export function composeAdditionalFetch(handlers: {
   };
 }
 
+/**
+ * Resolve the operator-configured harness fleet. Priority order:
+ *
+ *   1. CLI `--runtime` / `--runtimes` overrides (multi-entry, multi-harness path)
+ *   2. Config-file `serve.harness` selection (single entry; may be a richer
+ *      `GatewayRuntimeSelection` shape rather than a bare id string)
+ *   3. Built-in default (`gatewayConfig.runtime`)
+ *
+ * Each entry passes through `applyEnvRuntimeProfile` so env-driven runtime
+ * profiles override the resolved curated config. Returns a non-empty array
+ * — the caller relies on `[0]` being defined.
+ */
+async function resolveHarnessFleet(opts: {
+  cliArgs: GatewayCliArgs;
+  loadedConfig: LoadedAgentsJsConfig;
+  gatewayConfig: typeof gatewayConfig;
+}): Promise<ResolvedGatewayRuntime[]> {
+  const { cliArgs, loadedConfig, gatewayConfig } = opts;
+  const apply = (runtime: ResolvedGatewayRuntime): ResolvedGatewayRuntime =>
+    applyEnvRuntimeProfile(runtime, loadedConfig);
+
+  if (cliArgs.runtimeOverrides.length > 0) {
+    return Promise.all(
+      cliArgs.runtimeOverrides.map(async (id) => apply(await resolveGatewayRuntime(id))),
+    );
+  }
+
+  const configHarness = loadedConfig.effectiveConfig.serve?.harness;
+  if (configHarness) {
+    return [apply(await resolveGatewayRuntimeSelection(configHarness))];
+  }
+
+  return [apply(await resolveGatewayRuntime(gatewayConfig.runtime))];
+}
+
 async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   const executor = new HostA2AExecutor(opts.session.controller, {
     controllerFactory: opts.controllerFactory,
@@ -156,13 +203,15 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // and (when registry sync is enabled) the registry sync endpoint on
   // the same port via the additionalFetch hook so discovery + CORS
   // stay centralized.
-  // PR1: agent card reflects only the primary runtime. PR2 adds the
-  // `capabilities.harnesses` extension that surfaces the full fleet.
+  // PR2: agent card is built in `main()` so the `HarnessLaneManager`
+  // can pre-populate `capabilities.harnesses` before the server hands
+  // it to `UniversalA2AServer`. The card object identity is preserved
+  // — the lane manager mutates the same instance the A2A server reads.
   const primaryRuntime = opts.runtimes[0];
   if (primaryRuntime === undefined) {
     throw new Error("[Gateway] SetupServerOptions.runtimes must contain at least one runtime.");
   }
-  const gatewayCard = buildAgentCard(primaryRuntime.agentCard);
+  const gatewayCard = opts.gatewayCard;
   const aguiHandler = createAguiFetchHandler({
     controller: opts.session.controller,
     audit: opts.audit,
@@ -229,7 +278,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     );
   }
 
-  return { server, gatewayCard, executor, registrySync, httpPort };
+  return { server, executor, registrySync, httpPort };
 }
 
 interface SetupWsBridgeOptions {
@@ -245,6 +294,18 @@ interface SetupWsBridgeOptions {
   setActiveRuntime: (runtime: ResolvedGatewayRuntime) => void;
   executor: HostA2AExecutor;
   aguiCoordinator: AguiRunCoordinator;
+  /**
+   * When set, the WS bridge's `setRuntime` callback rejects every
+   * incoming switch request with this reason BEFORE any state mutation
+   * — no `session.switchRuntime`, no lane eviction, no card mutation.
+   *
+   * Set by `main()` in PR2 to defer WS-bridge-driven runtime switches
+   * to PR3 per the AC. In PR2 the harness fleet binding is owned by
+   * the lane manager (resolved at startup), so a WS-bridge swap of the
+   * primary host session would leave a split state where
+   * `controllerFactory` still spawns on the original primary.
+   */
+  runtimeSwitchDisabledReason?: string;
 }
 
 /**
@@ -304,6 +365,17 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
     defaultModelId: opts.resolvedDefaultModel,
     surfaceBroadcaster: opts.surfaceBroadcaster,
     setRuntime: async (runtimeId) => {
+      // PR2: WS-bridge-driven runtime switch is deferred to a follow-up
+      // PR. Reject every request BEFORE any state mutation — no host
+      // session swap, no lane eviction, no card mutation. The lane
+      // manager owns the operator-pinned primary at startup; a swap
+      // here would leave a split state where `controllerFactory` still
+      // spawns on the original primary while the bridge advertises the
+      // new one. Fail loud rather than silently no-op.
+      if (opts.runtimeSwitchDisabledReason !== undefined) {
+        throw new Error(`[Gateway] Runtime switch rejected: ${opts.runtimeSwitchDisabledReason}`);
+      }
+
       // Reject the switch if any operator-driven work is in flight.
       // Allowing a switch through here would either cut off an
       // in-flight ACP turn mid-stream OR leave a lane controller
@@ -400,21 +472,34 @@ interface ShutdownTargets {
   wsBridge: ReturnType<typeof createWSBridge>;
   executor: HostA2AExecutor;
   session: HostSession;
+  laneManager: HarnessLaneManager;
 }
 
 function installSignalHandlers(targets: ShutdownTargets): void {
-  const shutdown = (): void => {
+  const shutdown = async (): Promise<void> => {
     console.log("[Gateway] Shutting down...");
     targets.registrySync.stop();
     targets.server.stop(true);
     targets.wsBridge.stop();
     targets.executor.destroy();
+    // Lane manager tears down every spawned lane controller. Exits
+    // flow through `onProcessExit` with `crash: false` because each
+    // `destroy()` sets the gateway-initiated latch on the underlying
+    // `ACPSessionController` before killing its child.
+    try {
+      await targets.laneManager.destroy();
+    } catch (err) {
+      console.warn(
+        "[Gateway] Lane manager teardown raised (non-fatal):",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     targets.session.destroy();
     process.exit();
   };
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
 }
 
 export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> {
@@ -430,28 +515,18 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     configPort: loadedConfig.effectiveConfig.serve?.port,
   });
 
-  // Resolve runtime: CLI --runtime/--runtimes > config files > env
-  // var (via gatewayConfig).
+  // Resolve runtime fleet: CLI --runtime/--runtimes > config files >
+  // env var (via gatewayConfig).
   //
-  // AJS-7 PR1: `runtimeOverrides` is the ordered list (index 0 =
-  // primary). PR1 narrow scope resolves only the primary; secondary
-  // entries parse cleanly but do not yet spawn lane controllers —
-  // PR2 wires the additional resolution + fanout.
-  const configHarness = loadedConfig.effectiveConfig.serve?.harness;
-  const primaryRuntimeOverride = cliArgs.runtimeOverrides[0];
-  if (cliArgs.runtimeOverrides.length > 1) {
-    process.stdout.write(
-      `[Gateway] AJS-7 PR1: ${cliArgs.runtimeOverrides.length} runtimes configured (${cliArgs.runtimeOverrides.join(", ")}). v1 PR1 resolves only the primary ("${primaryRuntimeOverride}"); secondary runtimes ship in PR2.\n`,
-    );
-  }
-  const selectedRuntime = applyEnvRuntimeProfile(
-    primaryRuntimeOverride !== undefined
-      ? await resolveGatewayRuntime(primaryRuntimeOverride)
-      : configHarness
-        ? await resolveGatewayRuntimeSelection(configHarness)
-        : await resolveGatewayRuntime(gatewayConfig.runtime),
-    loadedConfig,
-  );
+  // AJS-7 PR2: `runtimeOverrides` is the ordered list (index 0 =
+  // primary). Every entry resolves to a `ResolvedGatewayRuntime` and
+  // becomes a `HarnessFleetEntry` in the fleet array. The primary
+  // (`fleet[0]`) drives single-runtime consumers — agent-card name,
+  // registry-sync auto-register URL, WS bridge initial runtime — while
+  // the lane manager owns the fan-out for routing.
+  const harnessFleet = await resolveHarnessFleet({ cliArgs, loadedConfig, gatewayConfig });
+  // biome-ignore lint/style/noNonNullAssertion: resolveHarnessFleet always returns at least one entry
+  const selectedRuntime = harnessFleet[0]!;
 
   // Detect all installed runtimes for the runtime selector.
   const installedRuntimeIds = await detectInstalledGatewayRuntimes();
@@ -464,8 +539,15 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     gatewayConfig.defaultModel;
 
   console.log(
-    `[Gateway] Runtime: ${selectedRuntime.definition.id} (${selectedRuntime.definition.displayName})`,
+    `[Gateway] Primary runtime: ${selectedRuntime.definition.id} (${selectedRuntime.definition.displayName})`,
   );
+  if (harnessFleet.length > 1) {
+    const secondaryDescriptors = harnessFleet
+      .slice(1)
+      .map((r) => `${r.definition.id} (${r.definition.displayName})`)
+      .join(", ");
+    console.log(`[Gateway] Secondary harnesses: ${secondaryDescriptors}`);
+  }
   console.log(`[Gateway] Executable: ${selectedRuntime.acp.command}`);
   console.log(`[Gateway] Workspace: ${cliArgs.workspace}`);
   console.log(`[Gateway] Permission mode: ${cliArgs.permissionMode}`);
@@ -511,37 +593,12 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     trustWorkspace: cliArgs.trustWorkspace,
   });
 
-  // The active-runtime cell is captured by both the controllerFactory and
-  // the WS bridge's setRuntime closure. The bridge owns mutation; the
-  // factory observes it when spawning lane controllers.
-  let activeRuntime = selectedRuntime;
-  const setActiveRuntime = (runtime: ResolvedGatewayRuntime): void => {
-    activeRuntime = runtime;
-  };
-
-  // The A2A executor spawns a dedicated controller per A2A `contextId` via
-  // this factory so genuinely independent conversations run in parallel
-  // instead of serializing against the primary controller. We share the
-  // same surface broadcaster across primary + lane controllers so A2UI
-  // surfaces emitted from a lane-backed turn still reach connected
-  // browser clients — without this, lane-driven surfaces were silently
-  // dropped on the gateway side.
-  const controllerFactory = async (contextId: string) => {
-    console.log("[Gateway] Spawning lane controller", {
-      contextId,
-      runtime: activeRuntime.definition.id,
-    });
-    return createStandaloneHostController({
-      runtime: activeRuntime,
-      workspacePath: cliArgs.workspace,
-      permissionMode: cliArgs.permissionMode,
-      defaultModel: resolvedDefaultModel,
-      permissionEngine: session.permissionEngine,
-      permissionStore: session.permissionStore,
-      fileAdapters: createNodeFileAdapters(cliArgs.workspace),
-      surfaceAdapter: surfaceBroadcaster,
-    });
-  };
+  // PR2 makes WS-bridge-driven runtime switches throw before any state
+  // mutation (see `runtimeSwitchDisabledReason` in `setupWsBridge`), so
+  // this hook is unreachable in normal flow. It stays defined as a
+  // no-op to satisfy the bridge surface; if it ever DOES execute, the
+  // gateway is in a state the AC explicitly defers to PR3.
+  const setActiveRuntime = (_runtime: ResolvedGatewayRuntime): void => {};
 
   // Internal gateway bus — single in-process pub/sub channel that
   // surfaces gateway lifecycle events to operator tooling (external
@@ -559,6 +616,51 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // stream without polling the ring buffer.
   const audit = wrapAuditEmitterAsBusPublisher({ bus, emitter: createAuditEmitter() });
 
+  // AJS-7 PR2: build the live agent card here so the lane manager can
+  // pre-populate `capabilities.harnesses` before the A2A server serves
+  // it. The card identity is preserved across the call chain — the
+  // lane manager and the A2A server hold the same reference.
+  const gatewayCard = buildAgentCard(selectedRuntime.agentCard);
+
+  // AJS-7 PR2: build the harness fleet entries and construct the
+  // lane manager. The manager owns:
+  //   - lazy spawn of per-harness lane controllers (one per harnessId,
+  //     multiplexed across contextIds)
+  //   - `gateway.harness.{child-spawned,child-exited,card-changed}`
+  //     bus publishers
+  //   - the `gatewayCard.capabilities.harnesses` agent-card slice
+  // Index 0 of `harnessFleet` is the primary; all others are secondaries.
+  const harnessFleetEntries: HarnessFleetEntry[] = harnessFleet.map((runtime, index) => ({
+    id: runtime.definition.id,
+    displayName: runtime.definition.displayName,
+    runtime,
+    primary: index === 0,
+  }));
+  const laneManager = new HarnessLaneManager({
+    entries: harnessFleetEntries,
+    gatewayCard,
+    bus,
+    createController: async (entry) =>
+      createStandaloneHostController({
+        runtime: entry.runtime,
+        workspacePath: cliArgs.workspace,
+        permissionMode: cliArgs.permissionMode,
+        defaultModel: resolvedDefaultModel,
+        permissionEngine: session.permissionEngine,
+        permissionStore: session.permissionStore,
+        fileAdapters: createNodeFileAdapters(cliArgs.workspace),
+        surfaceAdapter: surfaceBroadcaster,
+      }),
+  });
+
+  // The A2A executor spawns a dedicated controller per A2A `contextId`
+  // via this factory so genuinely independent conversations run in
+  // parallel. In PR2 the factory delegates to the lane manager, which
+  // resolves the operator-pinned primary harness for v1. Per-request
+  // routing override is deferred to v2 (AC open Q2).
+  const controllerFactory = async (contextId: string) =>
+    laneManager.getOrSpawnLane(laneManager.getPrimaryHarnessId(), contextId);
+
   // Shared AG-UI run coordinator. Both the AG-UI fetch handler (which
   // acquires/releases the run slot) and the WS bridge's setRuntime
   // gate (which checks isActive) read from this single instance, so
@@ -566,14 +668,11 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // the second `POST /agent` would see.
   const aguiCoordinator = new AguiRunCoordinator();
 
-  const { server, gatewayCard, executor, registrySync, httpPort } = await setupServer({
+  const { server, executor, registrySync, httpPort } = await setupServer({
     cliArgs,
     resolvedPort,
-    // AJS-7 PR1: SetupServerOptions takes a runtimes list. v1 wraps the
-    // single resolved runtime (selectedRuntime) as a 1-entry array;
-    // PR2 will surface the secondary runtimes here once their resolution
-    // path lands.
-    runtimes: [selectedRuntime],
+    runtimes: harnessFleet,
+    gatewayCard,
     session,
     controllerFactory,
     audit,
@@ -594,6 +693,11 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     setActiveRuntime,
     executor,
     aguiCoordinator,
+    // AJS-7 PR2 defers WS-bridge-driven runtime switches to PR3. The
+    // lane manager owns harness routing at startup, so a bridge-side
+    // swap would split state. Reject every switch with a clear reason.
+    runtimeSwitchDisabledReason:
+      "WS-bridge runtime switch is deferred to PR3 in AJS-7 multi-harness mode; restart with a different --runtime / --runtimes config to change the operator-pinned primary",
   });
 
   const wsPort = wsBridge.server.port ?? 0;
@@ -605,7 +709,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   console.log(`[Gateway] A2A server listening on port ${httpPort}`);
   console.log(`[Gateway] WebSocket bridge listening on port ${wsPort}`);
 
-  installSignalHandlers({ registrySync, server, wsBridge, executor, session });
+  installSignalHandlers({ registrySync, server, wsBridge, executor, session, laneManager });
 
   await new Promise<void>(() => {});
   return 0;

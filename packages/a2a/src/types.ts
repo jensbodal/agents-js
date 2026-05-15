@@ -6,6 +6,7 @@ export type {
   GatewayAgentCapabilities,
   GatewayAgentCard,
   GatewayCardInput,
+  HarnessCapabilityEntry,
 } from "./discovery.ts";
 
 import type { AgentExecutor } from "@a2a-js/sdk/server";

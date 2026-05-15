@@ -3087,4 +3087,228 @@ describe("session config and logout", () => {
     expect(state.availableCommands).toBeNull();
     expect(state.usage).toBeNull();
   });
+
+  // -- PID accessor + onProcessExit observer (AJS-7 PR2 Subagent B) --
+  //
+  // These tests exercise the lifecycle-event surface
+  // `HarnessLaneManager` consumes to publish `gateway.harness.child-spawned`
+  // and `gateway.harness.child-exited`. Mock-based scenarios cover the
+  // `getChildPid()` accessor; real-spawn scenarios drive the actual
+  // child-exit path so `crash: true|false`, `durationMs`, and listener
+  // semantics can be asserted end-to-end.
+
+  test("getChildPid returns undefined before start and after destroy", () => {
+    expect(controller.getChildPid()).toBeUndefined();
+    controller.destroy();
+    expect(controller.getChildPid()).toBeUndefined();
+  });
+
+  test("getChildPid is undefined when running against a mock ACP agent (no real ChildProcess)", async () => {
+    const { createProcess } = createMockAgent({
+      initialize: { agentInfo: { name: "mock", version: "1.0" } },
+      newSession: { sessionId: "mock-session" },
+      prompts: [],
+    });
+    await controller.start(makeStartConfig({ createProcess }));
+    // Mock's `process` is `null as unknown as ChildProcess` —
+    // `getChildPid` resolves to undefined via optional chaining.
+    expect(controller.getChildPid()).toBeUndefined();
+  });
+
+  test("onProcessExit handlers are not invoked when the mock has no real child (silent skip)", async () => {
+    const { createProcess } = createMockAgent({
+      initialize: { agentInfo: { name: "mock", version: "1.0" } },
+      newSession: { sessionId: "mock-session" },
+      prompts: [],
+    });
+    await controller.start(makeStartConfig({ createProcess }));
+
+    let invocations = 0;
+    controller.onProcessExit(() => {
+      invocations++;
+    });
+
+    controller.destroy();
+    // Mock has no `.on` → wrapper logs a debug + skips. No handler fires.
+    expect(invocations).toBe(0);
+  });
+
+  test("onProcessExit returns an unsubscribe function that detaches the handler", async () => {
+    const { createProcess } = createMockAgent({
+      initialize: { agentInfo: { name: "mock", version: "1.0" } },
+      newSession: { sessionId: "mock-session" },
+      prompts: [],
+    });
+    await controller.start(makeStartConfig({ createProcess }));
+
+    let invocations = 0;
+    const unsubscribe = controller.onProcessExit(() => {
+      invocations++;
+    });
+    expect(typeof unsubscribe).toBe("function");
+    unsubscribe();
+    // Even on a real spawn, after unsubscribe the handler must not fire.
+    // The mock path here just confirms the function shape + idempotent return.
+    unsubscribe();
+    expect(invocations).toBe(0);
+  });
+});
+
+// -- Real-spawn integration tests for the exit observer ----------------------
+//
+// These tests use a real child process (`/bin/sh`) so the wrapper's
+// `.on("exit", ...)` registration fires. They're separated from the
+// in-process-mock describe block above so the `beforeEach` can call
+// `start()` against the real spawn path without polluting the mock-based
+// test setup.
+
+describe("ACPSessionController — child-exit observer (real spawn)", () => {
+  let controller: ACPSessionController;
+
+  beforeEach(() => {
+    configureLogging({ minLevel: "error" });
+    controller = new ACPSessionController();
+  });
+
+  afterEach(() => {
+    controller.destroy();
+    resetLogging();
+  });
+
+  /**
+   * Build a StartConfig that points at a real `/bin/sh` process. We don't
+   * care that ACP handshake fails — the test waits for the `exit` event
+   * directly via `onProcessExit`. `start()` will reject; we ignore that.
+   */
+  function makeRealSpawnConfig(scriptArgs: string[]): StartConfig {
+    return {
+      agentConfig: {
+        name: "shell-stub",
+        command: "/bin/sh",
+        args: scriptArgs,
+        env: {},
+        authHints: [],
+        workspacePolicy: "workspace-root-only",
+      },
+      workspacePath: "/tmp",
+      fileAdapters: createMockFileAdapters(),
+    };
+  }
+
+  test("getChildPid returns the spawned process's pid after start", async () => {
+    // Start a long-sleeping child so getChildPid has a live process to read.
+    // We don't await start() — handshake will eventually fail/timeout, but
+    // the child is alive immediately after the spawn-wrapper runs.
+    const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 30"]));
+    startPromise.catch(() => {
+      /* expected — no ACP handshake on a raw sleep */
+    });
+
+    // Give the wrapper a tick to capture acpProcess (spawn is sync but the
+    // wrapper runs inside ACPClientController's constructor).
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const pid = controller.getChildPid();
+    expect(pid).toBeDefined();
+    expect(typeof pid).toBe("number");
+    expect(pid).toBeGreaterThan(0);
+
+    // Cleanup: destroying tears down the child + clears handlers.
+    controller.destroy();
+  });
+
+  test("onProcessExit fires with crash:false when destroy() is called first", async () => {
+    const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 30"]));
+    startPromise.catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const exitPromise = new Promise<import("../src/types/session.ts").ProcessExitInfo>(
+      (resolve) => {
+        controller.onProcessExit(resolve);
+      },
+    );
+
+    controller.destroy();
+
+    // Race with a 2s safety timeout — exit should fire within that window
+    // on any platform that delivers SIGTERM promptly.
+    const info = await Promise.race([
+      exitPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("exit event never fired")), 2000),
+      ),
+    ]);
+
+    expect(info.crash).toBe(false);
+    expect(info.durationMs).toBeGreaterThanOrEqual(0);
+    expect(info.pid).toBeDefined();
+    // Either exitCode is null (signal-driven) or signal is non-null —
+    // depending on whether the child trapped SIGTERM. Both are valid.
+    expect(info.exitCode === null || info.signal !== null).toBe(true);
+  });
+
+  test("onProcessExit fires with crash:true when the child self-exits without destroy()", async () => {
+    // `sleep 0.1` exits cleanly with code 0 after ~100ms — no destroy()
+    // call in between, so the exit observer must classify this as a crash
+    // per the AC's "agent walked away unilaterally counts as crash" rule.
+    const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 0.1"]));
+    startPromise.catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const exitPromise = new Promise<import("../src/types/session.ts").ProcessExitInfo>(
+      (resolve) => {
+        controller.onProcessExit(resolve);
+      },
+    );
+
+    const info = await Promise.race([
+      exitPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("exit event never fired")), 3000),
+      ),
+    ]);
+
+    expect(info.crash).toBe(true);
+    expect(info.exitCode).toBe(0);
+    expect(info.signal).toBeNull();
+    expect(info.durationMs).toBeGreaterThanOrEqual(0);
+    expect(info.pid).toBeDefined();
+  });
+
+  test("onProcessExit unsubscribe prevents the handler from firing on exit", async () => {
+    const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 0.1"]));
+    startPromise.catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    let invocations = 0;
+    const unsubscribe = controller.onProcessExit(() => {
+      invocations++;
+    });
+
+    // Race the unsubscribe against the natural exit: unsub immediately,
+    // then wait long enough for `sleep 0.1` to finish and any latent
+    // listener to fire if our detach didn't take.
+    unsubscribe();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    expect(invocations).toBe(0);
+  });
+
+  test("durationMs reflects spawn-to-exit wall time and is non-negative", async () => {
+    const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 0.25"]));
+    startPromise.catch(() => {});
+
+    const info = await new Promise<import("../src/types/session.ts").ProcessExitInfo>(
+      (resolve, reject) => {
+        controller.onProcessExit(resolve);
+        setTimeout(() => reject(new Error("exit timeout")), 3000);
+      },
+    );
+
+    expect(info.durationMs).toBeGreaterThanOrEqual(0);
+    // Don't assert a hard upper bound — CI flakiness on busy runners can
+    // easily push spawn+exit past 1s. The "non-negative" invariant is the
+    // assertion the AC text calls for; correlation with the script's
+    // sleep duration is purely informational.
+  });
 });

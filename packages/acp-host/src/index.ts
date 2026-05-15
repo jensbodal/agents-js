@@ -141,6 +141,7 @@ export type {
   PendingPermission,
   PendingWriteGate,
   PlanEntryInfo,
+  ProcessExitInfo,
   ToolCallContentInfo,
   ToolCallInfo,
   TurnItem,

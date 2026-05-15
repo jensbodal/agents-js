@@ -41,6 +41,7 @@ export type {
   GatewayAgentCapabilities,
   GatewayAgentCard,
   GatewayCardInput,
+  HarnessCapabilityEntry,
   InitializableExecutor,
   Message,
   RequestContext,

@@ -50,6 +50,12 @@ export {
   type IdentityPrincipal,
 } from "./gateway-bus.ts";
 export {
+  type GatewayHarnessCardChangedPayload,
+  type GatewayHarnessChildExitedPayload,
+  type GatewayHarnessChildSpawnedPayload,
+  publishHarnessCardChanged,
+  publishHarnessChildExited,
+  publishHarnessChildSpawned,
   type WrapAuditEmitterAsBusPublisherOptions,
   wrapAuditEmitterAsBusPublisher,
 } from "./gateway-bus-publishers.ts";
@@ -61,6 +67,11 @@ export {
   type HostSession,
   type HostSessionConfig,
 } from "./host-session.ts";
+export {
+  type HarnessFleetEntry,
+  HarnessLaneManager,
+  type HarnessLaneManagerOptions,
+} from "./lane-manager.ts";
 export { fetchRuntimeModels, type RuntimeModelInfo } from "./model-cache.ts";
 export {
   applyEnvRuntimeProfile,

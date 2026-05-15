@@ -17,8 +17,29 @@ export interface DiscoveredPrompt {
   name: string;
 }
 
+/**
+ * One entry in the gateway agent-card's `capabilities.harnesses` array.
+ *
+ * Federated A2A peers consume this to learn which curated harnesses the
+ * gateway can route to without trial-and-error. `primary` marks the
+ * default routing target (operator-pinned); `ready` reflects whether
+ * the harness's ACP child has been spawned + handshake-completed and
+ * flips per spawn/exit on the live agent-card surface.
+ */
+export interface HarnessCapabilityEntry {
+  /** Curated harness id (e.g. "opencode", "gemini"). */
+  id: string;
+  /** Human-readable display name (e.g. "OpenCode ACP"). */
+  displayName: string;
+  /** True for the primary harness (first configured, used for default routing). */
+  primary: boolean;
+  /** True when the ACP child has been spawned and handshake completed. */
+  ready: boolean;
+}
+
 export type GatewayAgentCapabilities = AgentCard["capabilities"] & {
   "text-to-text"?: Record<string, unknown>;
+  harnesses?: HarnessCapabilityEntry[];
   multimodal?: boolean;
   prompts?: DiscoveredPrompt[];
   resources?: DiscoveredResource[];

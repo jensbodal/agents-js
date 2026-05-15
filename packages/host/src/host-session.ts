@@ -21,6 +21,7 @@ import {
   PermissionEngine,
   type PermissionMode,
   PermissionStore,
+  type ProcessExitInfo,
   type ToolCallSummary,
 } from "@agents-js/acp-host";
 import type { ResolvedGatewayRuntime } from "@agents-js/gateway-runtime";
@@ -99,10 +100,13 @@ export interface HostSession {
 export type GatewayHostController = Pick<
   ACPSessionController,
   | "cancel"
+  | "destroy"
   | "forceReset"
+  | "getChildPid"
   | "getState"
   | "loadSession"
   | "newSession"
+  | "onProcessExit"
   | "resolveElicitation"
   | "resolvePermission"
   | "resolveWriteGate"
@@ -120,6 +124,14 @@ class StableHostSessionController implements GatewayHostController {
   private activeController: ACPSessionController;
   private listeners = new Set<SessionListener>();
   private unsubscribeActive: (() => void) | null = null;
+  /**
+   * Process-exit handlers registered through this stable facade.
+   * Re-bound to each `activeController` on swap so a switchRuntime()
+   * doesn't silently strand observers on the old controller.
+   * The Map's value is the active-controller-side unsubscribe handle,
+   * refreshed every time `subscribeProcessExitToActiveController()` runs.
+   */
+  private processExitHandlers = new Map<(info: ProcessExitInfo) => void, () => void>();
 
   constructor(controller: ACPSessionController) {
     this.activeController = controller;
@@ -133,6 +145,26 @@ class StableHostSessionController implements GatewayHostController {
   swapActiveController(nextController: ACPSessionController): void {
     this.activeController = nextController;
     this.subscribeToActiveController();
+    // For each forwarded onProcessExit handler: bind to the new
+    // controller (additive). Do NOT unsubscribe from the outgoing
+    // controller — its synchronous dispose() schedules an exit event
+    // on a later tick, and the handler must remain bound there to
+    // observe it. Otherwise consumers subscribed through the stable
+    // facade silently miss the gateway-initiated exit of the controller
+    // being switched out. The old controller is short-lived after the
+    // swap (single exit event then garbage collected), so the
+    // doubled binding doesn't leak.
+    //
+    // `processExitHandlers.set` records the NEW controller's
+    // unsubscribe handle, overwriting the old. The caller-driven
+    // unsubscribe via the returned handle from `onProcessExit()` will
+    // therefore unbind from the current (new) controller only —
+    // acceptable because at that point the old controller has either
+    // already fired its exit or is on its way to doing so.
+    for (const handler of this.processExitHandlers.keys()) {
+      const unsubscribe = nextController.onProcessExit(handler);
+      this.processExitHandlers.set(handler, unsubscribe);
+    }
   }
 
   subscribe(listener: SessionListener): () => void {
@@ -194,10 +226,43 @@ class StableHostSessionController implements GatewayHostController {
     this.activeController.sendSurfaceEvent(surfaceId, event);
   }
 
+  getChildPid(): number | undefined {
+    return this.activeController.getChildPid();
+  }
+
+  onProcessExit(handler: (info: ProcessExitInfo) => void): () => void {
+    // Bind to the current active controller and track so we can re-bind
+    // on swap. Without this forwarding, `swapActiveController()` would
+    // strand the handler on the old controller and it would never
+    // observe exits from the replacement.
+    const unsubscribe = this.activeController.onProcessExit(handler);
+    this.processExitHandlers.set(handler, unsubscribe);
+    return () => {
+      const current = this.processExitHandlers.get(handler);
+      if (current) {
+        try {
+          current();
+        } catch {
+          // best-effort
+        }
+        this.processExitHandlers.delete(handler);
+      }
+    };
+  }
+
   destroy(): void {
     this.unsubscribeActive?.();
     this.unsubscribeActive = null;
     this.listeners.clear();
+    // Intentionally do NOT invoke the forwarded `unsubscribe()` handles
+    // here — that would remove the underlying handler from
+    // `ACPSessionController.processExitHandlers`, and Node delivers the
+    // child `exit` event on a later tick after `dispose()` returns. The
+    // forwarded handler must remain registered on the underlying
+    // controller to observe that exit. We do clear our local tracking
+    // map because this stable facade itself is going away; callers who
+    // unsubscribe explicitly already removed themselves.
+    this.processExitHandlers.clear();
     this.activeController.destroy();
   }
 
