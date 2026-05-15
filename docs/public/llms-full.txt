@@ -2189,6 +2189,67 @@ deliberately simple:
 `streaming = true`, sets `multimodal = true` when the ACP runtime advertises image prompt support,
 and copies discovered prompts or resources into the A2A card when requested.
 
+#### `capabilities.harnesses` (multi-harness fleet)
+
+When the gateway is started with more than one configured harness (see the `--runtime` /
+`--runtimes` CLI flags or `serve.harness` config), the agent card's `capabilities.harnesses`
+field exposes the operator-pinned fleet to federated A2A peers. Entry shape:
+
+```ts
+interface HarnessCapabilityEntry {
+  id: string;         // curated harness id, e.g. "opencode"
+  displayName: string;
+  primary: boolean;   // true for the default-routing target; exactly one entry has primary: true
+  ready: boolean;     // true when the harness's ACP child has been spawned + handshake-completed
+}
+```
+
+The array is mutated in place — federated peers reading
+`/.well-known/agent-card.json` observe ready-state transitions and primary-target swaps
+without re-fetching, as long as they hold a reference to the live card object. The
+in-process cache-invalidation signal is the `gateway.harness.card-changed` bus event (see
+[Gateway bus events](#gateway-bus-events) below); peers that subscribe to `/events` SSE
+can react to that event by either re-rendering from their cached card or re-fetching the
+card endpoint.
+
+The fleet entries are populated at construction with `ready: false`. A harness flips
+`ready: true` on its first successful lane spawn and flips back to `ready: false` when its
+last live lane controller exits. `primary` only ever flips through an explicit
+WS-bridge `set_runtime` switch (or future control surface); it is not affected by
+spawn/exit transitions.
+
+#### Gateway bus events
+
+The reference gateway publishes harness-lifecycle events on the in-process bus shipped by
+AJS-8 v1, exposed externally via the `/events` SSE endpoint:
+
+- `gateway.harness.child-spawned` — fires on every successful lane-controller spawn.
+  Payload includes `harnessId`, `pid`, `harnessDisplayName`, and a full
+  `capabilities.harnesses` snapshot at spawn time.
+- `gateway.harness.child-exited` — fires on ACP-child exit, whether gateway-initiated
+  (`crash: false`) or unilateral agent walk-away (`crash: true`). Payload includes
+  `harnessId`, `pid`, `exitCode`, `signal`, `crash`, `durationMs`.
+- `gateway.harness.card-changed` — fires when an entry in
+  `capabilities.harnesses` mutates (e.g. `ready` flips on first spawn or last exit;
+  `primary` flips on a routing-target switch). Payload carries `harnessId`,
+  `previousEntry`, and `newEntry` for a faithful diff.
+
+These are AJS-7 PR2/PR3 surface, not part of A2A or AG-UI; they ride the
+[bus + SSE substrate](#json-rpc-2-0) that AJS-8 established for operator/federation
+tooling. The event-name namespace is `gateway.harness.*` to mark them as
+fleet-lifecycle events rather than per-turn protocol traffic.
+
+#### WS-bridge primary-routing-target switch
+
+The WS bridge's `set_runtime` operation is repurposed for multi-harness mode: instead of
+swapping the single active runtime, it switches which configured fleet entry is the
+default routing target for *new* sessions. Existing in-flight lane controllers stay bound
+to whichever harness spawned them — the switch is non-disruptive to live work. The
+target must be in the configured fleet at startup; dynamic install of a non-configured
+runtime is out of scope. AG-UI runs block the switch (single multi-prompt coordinated
+flow per run, see [Known Limitations](#known-limitations) under AG-UI); A2A tasks,
+`@@dispatch`, and idle lanes do not block.
+
 ### JSON-RPC over HTTP and SSE
 
 The gateway validates A2A requests and responses before and after dispatch. Standard JSON-RPC
