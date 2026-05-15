@@ -55,7 +55,10 @@
   ],
   "scripts": {
     "build": "bun build.ts",
+    "build:watch": "bun build.ts --watch",
     "prepack": "bun run build",
+    "stories:build": "bun run build && bunx histoire build",
+    "stories:dev": "bun run build && (bun run build:watch & bunx histoire dev)",
     "test": "bun test tests",
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
@@ -64,6 +67,12 @@
     "@agents-js/a2ui-types": "0.4.0",
     "@agents-js/acp-host": "0.4.0",
     "@agents-js/schema-utils": "0.4.0"
+  },
+  "devDependencies": {
+    "@histoire/plugin-vue": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "histoire": "catalog:",
+    "vue": "catalog:"
   },
   "peerDependencies": {
     "lit": "catalog:"

@@ -12,6 +12,8 @@
 import { rmSync } from "node:fs";
 import * as esbuild from "esbuild";
 
+const watchMode = process.argv.includes("--watch");
+
 // Clean dist/
 rmSync("dist", { recursive: true, force: true });
 
@@ -39,7 +41,13 @@ if (tsdown.exitCode !== 0) {
 }
 
 // Step 2: Overwrite JS with esbuild (transforms TC39 decorators correctly)
-const indexResult = await esbuild.build({
+//
+// In `--watch` mode, esbuild's `context()` API rebuilds incrementally on source
+// file changes. The Histoire dev server reads from `dist/`, so a story-time
+// edit to a Lit component re-bundles and Histoire's HMR picks up the new
+// `dist/*.mjs`. Types (tsdown above) are NOT re-run in watch mode — they were
+// built once at startup and stories don't depend on `.d.mts` at runtime.
+const indexOpts: esbuild.BuildOptions = {
   entryPoints: ["src/index.ts"],
   bundle: true,
   format: "esm",
@@ -47,28 +55,16 @@ const indexResult = await esbuild.build({
   external: ["lit", "lit/*", "@agents-js/*"],
   target: "es2022",
   sourcemap: false,
-});
-
-if (indexResult.errors.length > 0) {
-  console.error("esbuild errors:", indexResult.errors);
-  process.exit(1);
-}
-
-const connectPreferencesResult = await esbuild.build({
+};
+const connectPreferencesOpts: esbuild.BuildOptions = {
   entryPoints: ["src/connect-preferences-store.ts"],
   bundle: false,
   format: "esm",
   outfile: "dist/connect-preferences-store.mjs",
   target: "es2022",
   sourcemap: false,
-});
-
-if (connectPreferencesResult.errors.length > 0) {
-  console.error("esbuild errors:", connectPreferencesResult.errors);
-  process.exit(1);
-}
-
-const webUiGlueResult = await esbuild.build({
+};
+const webUiGlueOpts: esbuild.BuildOptions = {
   entryPoints: ["src/web-ui-glue.ts"],
   bundle: true,
   format: "esm",
@@ -76,11 +72,35 @@ const webUiGlueResult = await esbuild.build({
   external: ["lit", "lit/*", "@agents-js/*"],
   target: "es2022",
   sourcemap: false,
-});
+};
 
-if (webUiGlueResult.errors.length > 0) {
-  console.error("esbuild errors:", webUiGlueResult.errors);
-  process.exit(1);
+if (watchMode) {
+  const indexCtx = await esbuild.context(indexOpts);
+  const connectPreferencesCtx = await esbuild.context(connectPreferencesOpts);
+  const webUiGlueCtx = await esbuild.context(webUiGlueOpts);
+
+  await Promise.all([indexCtx.watch(), connectPreferencesCtx.watch(), webUiGlueCtx.watch()]);
+  console.log("✓ esbuild watch mode active — rebuild on src/ changes");
+  // Keep the process alive; SIGINT/SIGTERM tears it down.
+  await new Promise<void>(() => {});
+} else {
+  const indexResult = await esbuild.build(indexOpts);
+  if (indexResult.errors.length > 0) {
+    console.error("esbuild errors:", indexResult.errors);
+    process.exit(1);
+  }
+
+  const connectPreferencesResult = await esbuild.build(connectPreferencesOpts);
+  if (connectPreferencesResult.errors.length > 0) {
+    console.error("esbuild errors:", connectPreferencesResult.errors);
+    process.exit(1);
+  }
+
+  const webUiGlueResult = await esbuild.build(webUiGlueOpts);
+  if (webUiGlueResult.errors.length > 0) {
+    console.error("esbuild errors:", webUiGlueResult.errors);
+    process.exit(1);
+  }
+
+  console.log("✓ Build complete (esbuild JS + tsdown dts)");
 }
-
-console.log("✓ Build complete (esbuild JS + tsdown dts)");
