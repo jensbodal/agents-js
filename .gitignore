@@ -26,8 +26,9 @@ _dot/
 gemini-extension.json
 Procfile.docs
 
-# Claude agent runtime state (agent definitions ARE committed)
-.claude/agent-memory/
+# Claude agent runtime state, drafts, plans — none of it belongs in the repo.
+# Forward-looking specs live in Plane; implementation belongs in code + tests.
+.claude/
 .agents-js/config.json
 .agents-js/profiles/
 .agents-js/permission-rules.json
