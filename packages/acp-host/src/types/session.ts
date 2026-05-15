@@ -197,6 +197,30 @@ export type WriteGateResolution =
   | { action: "reject" }
   | { action: "allow_folder"; folder: string };
 
+/**
+ * Exit info surfaced from `ACPSessionController.onProcessExit` listeners.
+ *
+ * The `crash` boolean reflects INTENT, not exit code:
+ *   - `crash: false` ← gateway called `destroy()` first (operator-initiated
+ *     teardown; the `destroyedByGateway` latch is set before `dispose()`)
+ *   - `crash: true`  ← any other exit path, including a clean `code === 0`
+ *     exit where the child walked away without the gateway pulling the cord
+ *
+ * `pid` may be `undefined` when the underlying `ACPProcess.process` is null
+ * (test mocks; see `testing/mock-acp-agent.ts`). `signal` is the platform
+ * signal name (`"SIGTERM"`, `"SIGKILL"`, ...) when termination was
+ * signal-driven; otherwise `null`. Typed as `string` instead of
+ * `NodeJS.Signals` so this type compiles cleanly under `types: ["bun"]`
+ * package configurations that don't pull in `@types/node` globals.
+ */
+export interface ProcessExitInfo {
+  pid: number | undefined;
+  exitCode: number | null;
+  signal: string | null;
+  crash: boolean;
+  durationMs: number;
+}
+
 // Discriminated union of events emitted by the session controller
 export type ACPSessionEvent =
   | { type: "status_changed"; status: ACPSessionStatus }

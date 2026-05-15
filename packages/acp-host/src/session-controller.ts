@@ -22,7 +22,12 @@ import type {
   SessionModeState,
   SessionNotification,
 } from "@agentclientprotocol/sdk";
-import { ACPClientController, type ACPControllerEvent, formatRequestError } from "@agents-js/acp";
+import {
+  ACPClientController,
+  type ACPControllerEvent,
+  type ACPProcess,
+  formatRequestError,
+} from "@agents-js/acp";
 import { extractResourceScope, generateScopeCandidates } from "@agents-js/policy";
 import { normalizeAgentName } from "./agent-name-normalize.ts";
 import { CapabilityCache } from "./capability-cache.ts";
@@ -73,6 +78,7 @@ import type {
   ACPSessionEvent,
   ACPSessionState,
   ACPSessionStatus,
+  ProcessExitInfo,
   WriteGateResolution,
 } from "./types/session.ts";
 import type { ToolCallContentHandler } from "./types/tool-call-content-handler.ts";
@@ -80,6 +86,9 @@ import { type ResolvedWorkspaceContext, resolveWorkspaceContext } from "./worksp
 
 // Re-export PermissionMode so existing imports from this file continue to work
 export type { PermissionMode } from "./session-state.ts";
+// Re-export ProcessExitInfo so callers that subscribe via `onProcessExit`
+// can import the payload type alongside the controller.
+export type { ProcessExitInfo } from "./types/session.ts";
 
 /**
  * High-level session orchestrator for ACP agent communication.
@@ -148,6 +157,31 @@ export class ACPSessionController {
    * {@link destroy} so a fresh start/newSession cycle is allowed to retry.
    */
   private opencodeRecoveryAttempted = false;
+
+  /**
+   * Captured `ACPProcess` for the active spawn — wraps the controller's
+   * underlying child-process surface so `getChildPid()` can read pid.
+   * `null` between spawns and after `destroy()`.
+   *
+   * The `onProcessExit` listener captures its own `spawnedAtMs` snapshot
+   * in the closure at registration time (see the `wrappedCreateProcess`
+   * body in `start()`), so this field is NOT consulted at exit time —
+   * that would race the destroy() reset.
+   */
+  private acpProcess: ACPProcess | null = null;
+  /**
+   * Per-spawn closure setter: flips the CURRENT spawn's
+   * "destroyed-by-gateway" flag (captured inside the wrappedCreateProcess
+   * closure). `destroy()` calls this before `dispose()` so the exit
+   * observer reports `crash: false` for gateway-initiated teardowns.
+   * `null` between spawns. Replaced atomically when the next spawn
+   * starts — past spawns retain their own closure-local flag, so a
+   * later destroy() can never retro-set an already-exited spawn's
+   * crash classification.
+   */
+  private markCurrentSpawnDestroyed: (() => void) | null = null;
+  /** Set of registered `onProcessExit` handlers (single-shot wrapper). */
+  private processExitHandlers = new Set<(info: ProcessExitInfo) => void>();
 
   readonly capabilities = new CapabilityCache();
 
@@ -402,6 +436,81 @@ export class ACPSessionController {
       envPolicy: this.envPolicy ?? undefined,
     };
 
+    // Rotate `processExitHandlers` to a fresh empty Set. The OLD set
+    // stays alive inside the previous spawn's exit-listener closure (see
+    // `wrappedCreateProcess` below), so any handlers registered against
+    // the old spawn still fire on the old spawn's exit — even when the
+    // exit event arrives on a later tick after a destroy → start cycle.
+    // New `onProcessExit()` calls go into the new Set and bind to the
+    // new spawn's exit listener.
+    //
+    // Note: the per-spawn `markCurrentSpawnDestroyed` closure is set
+    // inside `wrappedCreateProcess` below, so the OLD spawn's closure
+    // retains its own flag and a later `destroy()` cannot retroactively
+    // flip an already-observed exit's `crash` classification.
+    this.processExitHandlers = new Set();
+
+    // Wrap whichever `createProcess` callback the caller / default supplies
+    // so we can capture the returned `ACPProcess` for pid + exit-observer
+    // surfaces. The wrapper preserves the original return value verbatim
+    // — downstream `ACPClientController` consumes it unchanged.
+    const baseCreateProcess =
+      config.createProcess ??
+      ((options: HostACPProcessOptions) =>
+        createHostACPProcess(workspaceContext.workspaceIdentityPath, options));
+
+    const wrappedCreateProcess = (options: HostACPProcessOptions): ACPProcess => {
+      const acp = baseCreateProcess(options);
+      this.acpProcess = acp;
+      const spawnedAtMs = Date.now();
+      // Snapshot per-spawn state into the exit-listener closure so a
+      // subsequent destroy → start cycle does not race with this
+      // child's exit event (which fires on a later tick than the
+      // synchronous start()).
+      const handlersForThisSpawn = this.processExitHandlers;
+      let thisSpawnDestroyedByGateway = false;
+      this.markCurrentSpawnDestroyed = () => {
+        thisSpawnDestroyedByGateway = true;
+      };
+
+      // Mock infrastructure (`testing/mock-acp-agent.ts`) returns
+      // `process: null as unknown as ChildProcess`, so we guard for the
+      // null case AND for `.on` not being a function before subscribing
+      // to the exit event. Mocks that don't expose a real child silently
+      // skip the listener — exit-observer tests must use a real spawn.
+      const child = acp.process;
+      if (child !== null && typeof child?.on === "function") {
+        child.on("exit", (code, signal) => {
+          // Clear the class-level `acpProcess` reference so `getChildPid()`
+          // stops returning a dead pid — but only if this exit is for
+          // the controller's currently-tracked process. After a
+          // destroy → start cycle, `this.acpProcess` already points at
+          // the new spawn; we MUST NOT null it out from the old exit.
+          if (this.acpProcess === acp) {
+            this.acpProcess = null;
+          }
+          const info: ProcessExitInfo = {
+            pid: child.pid,
+            exitCode: code,
+            signal,
+            crash: !thisSpawnDestroyedByGateway,
+            durationMs: Date.now() - spawnedAtMs,
+          };
+          for (const handler of handlersForThisSpawn) {
+            try {
+              handler(info);
+            } catch (err) {
+              this.log.warn("onProcessExit handler threw", {
+                error: formatRequestError(err),
+              });
+            }
+          }
+        });
+      }
+
+      return acp;
+    };
+
     try {
       this.controller = new ACPClientController({
         adapters: buildControllerAdapters({
@@ -417,10 +526,7 @@ export class ACPSessionController {
           elicitationAdapter: this.elicitationAdapter,
           handleElicitationRequest: (request) => this._handleElicitationRequest(request),
         }),
-        createProcess:
-          config.createProcess ??
-          ((options: HostACPProcessOptions) =>
-            createHostACPProcess(workspaceContext.workspaceIdentityPath, options)),
+        createProcess: wrappedCreateProcess,
         processOptions: hostProcessOptions,
         log: (message, data) => this.log.info(message, data),
         workspacePolicy: {
@@ -462,10 +568,22 @@ export class ACPSessionController {
     } catch (err) {
       const message = formatRequestError(err);
       this.log.error("Failed to start agent", { error: message });
+      // Init-failure cleanup intentionally does NOT call
+      // `markCurrentSpawnDestroyed`: the common case is "child stream
+      // closed because the child walked away" — initialize() rejects,
+      // this catch runs, but the exit event already fired (or is about
+      // to fire) with `crash: true`. Flipping the per-spawn flag here
+      // would mis-classify a real crash as gateway-initiated. The flag
+      // is reserved for explicit `destroy()` calls. We DO clear
+      // `markCurrentSpawnDestroyed` so a subsequent destroy() call
+      // doesn't accidentally flip the flag for a closure tied to the
+      // failed-to-init spawn.
+      this.markCurrentSpawnDestroyed = null;
       this.controller?.dispose();
       this.controller = null;
       this.controllerUnsubscribe?.();
       this.controllerUnsubscribe = null;
+      this.acpProcess = null;
       this.state.lastError = message;
       this.setStatus("error");
       throw err;
@@ -1037,6 +1155,43 @@ export class ACPSessionController {
     this.log.info("Model changed (experimental)", { modelId });
   }
 
+  /**
+   * Return the OS pid of the spawned ACP child, or `undefined` when no
+   * child is alive (pre-spawn, post-destroy) or when running against a
+   * test mock that doesn't surface a real `ChildProcess`.
+   *
+   * Used by `HarnessLaneManager` to populate the `pid` field on the
+   * `gateway.harness.child-spawned` envelope.
+   */
+  getChildPid(): number | undefined {
+    return this.acpProcess?.process?.pid;
+  }
+
+  /**
+   * Subscribe to ACP child-process exit events. The handler fires once per
+   * exit with a {@link ProcessExitInfo} payload. Returns an unsubscribe
+   * function.
+   *
+   * Handler lifecycle: registered handlers persist across {@link destroy}
+   * intentionally. `destroy()` calls `dispose()` which kills the child
+   * synchronously, but Node delivers the `exit` event on a later tick —
+   * the handler must still be subscribed to observe it. The next
+   * {@link start} clears any stale handlers at the top of its body so
+   * old observers don't fire on the next spawn's exit.
+   *
+   * Mocks that return `process: null` (see `testing/mock-acp-agent.ts`)
+   * never invoke registered handlers — the wrapper in {@link start}
+   * detects the missing `.on` and skips listener registration. Tests
+   * exercising the exit observer must spawn a real child (e.g.
+   * `createHostACPProcess` against `/bin/sh`).
+   */
+  onProcessExit(handler: (info: ProcessExitInfo) => void): () => void {
+    this.processExitHandlers.add(handler);
+    return () => {
+      this.processExitHandlers.delete(handler);
+    };
+  }
+
   destroy(): void {
     this.log.info("Destroying controller");
     this.state.promptQueue = [];
@@ -1044,6 +1199,15 @@ export class ACPSessionController {
     this.cancelPendingPermission();
     this.cancelPendingElicitation();
     this.cancelPendingWriteGate();
+
+    // Flip the per-spawn flag BEFORE dispose() so the child's "exit"
+    // event fires while the closure-local flag is true — observers see
+    // `crash: false`. This is closure-scoped to the CURRENT spawn, so
+    // a later destroy() can never retroactively flip a past spawn's
+    // already-observed exit, and a subsequent start() cycle's reset
+    // doesn't race with the in-flight exit observation.
+    this.markCurrentSpawnDestroyed?.();
+    this.markCurrentSpawnDestroyed = null;
 
     if (this.controller) {
       this.controller.dispose();
@@ -1087,6 +1251,12 @@ export class ACPSessionController {
     // restarted controller will see the latch and refuse to re-enter.
     this.lastStartConfig = null;
     this.opencodeRecoveryAttempted = false;
+    // NOTE: `processExitHandlers` is intentionally NOT cleared here.
+    // `dispose()` above kills the child synchronously but Node delivers the
+    // `exit` event on a later tick — clearing the handler set now would
+    // race the observer and drop the very event the caller subscribed for.
+    // The next `start()` clears stale handlers at the top of its body.
+    this.acpProcess = null;
     this.capabilities.clear();
     // Emit "closed" before resetting state so listeners can read final state
     this.setStatus("closed");

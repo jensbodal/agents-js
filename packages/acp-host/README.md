@@ -164,6 +164,7 @@ bun add @agents-js/acp-host
 - **`PlanEntryInfo`**
 - **`PlanSurfaceState`**
 - **`PlanUpdateCall`** — Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan` notifications always carry the FULL set of entries — consumers replace plan state wholesale on receipt. Entries reuse the SDK's typed ...
+- **`ProcessExitInfo`** — Exit info surfaced from `ACPSessionController.onProcessExit` listeners. The `crash` boolean reflects INTENT, not exit code: - `crash: false` ← gateway called `destroy()` first (operator-initiated t...
 - **`RenderHint`** — Metadata hint that can be attached to ACP session_update _meta fields to suggest structured rendering for tool call outputs.
 - **`ResolvedHostEnvPolicy`** — Resolved view of {HostEnvPolicyInput} with defaults applied.
 - **`ResolvedWorkspaceContext`**
