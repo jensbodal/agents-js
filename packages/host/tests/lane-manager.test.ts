@@ -393,4 +393,174 @@ describe("HarnessLaneManager", () => {
     });
     await expect(mgr.getOrSpawnLane("nonexistent", "ctx")).rejects.toThrow(/unknown harnessId/);
   });
+
+  // ---- AJS-7 PR3: primary-routing-target switch ----
+
+  test("setPrimaryHarnessId flips primary flag + publishes card-changed for both entries", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const events: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((e) => events.push(e));
+
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+
+    expect(mgr.getPrimaryHarnessId()).toBe("opencode");
+    const newEntry = mgr.setPrimaryHarnessId("gemini");
+    expect(newEntry.id).toBe("gemini");
+    expect(mgr.getPrimaryHarnessId()).toBe("gemini");
+
+    // Card mutated in place: opencode primary false, gemini primary true.
+    expect(card.capabilities.harnesses?.find((c) => c.id === "opencode")?.primary).toBe(false);
+    expect(card.capabilities.harnesses?.find((c) => c.id === "gemini")?.primary).toBe(true);
+
+    // Two card-changed events, one per affected entry.
+    const cardChanged = events.filter((e) => e.type === "gateway.harness.card-changed");
+    expect(cardChanged).toHaveLength(2);
+
+    // Verify the diff payloads are faithful (old went true→false, new went false→true).
+    const opencodeDiff = cardChanged.find(
+      (e) => (e.payload as { harnessId: string }).harnessId === "opencode",
+    );
+    expect(
+      (opencodeDiff?.payload as { previousEntry: HarnessCapabilityEntry }).previousEntry.primary,
+    ).toBe(true);
+    expect((opencodeDiff?.payload as { newEntry: HarnessCapabilityEntry }).newEntry.primary).toBe(
+      false,
+    );
+
+    const geminiDiff = cardChanged.find(
+      (e) => (e.payload as { harnessId: string }).harnessId === "gemini",
+    );
+    expect(
+      (geminiDiff?.payload as { previousEntry: HarnessCapabilityEntry }).previousEntry.primary,
+    ).toBe(false);
+    expect((geminiDiff?.payload as { newEntry: HarnessCapabilityEntry }).newEntry.primary).toBe(
+      true,
+    );
+  });
+
+  test("setPrimaryHarnessId is a no-op when target is already primary", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const events: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((e) => events.push(e));
+
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+
+    const entry = mgr.setPrimaryHarnessId("opencode");
+    expect(entry.id).toBe("opencode");
+    expect(mgr.getPrimaryHarnessId()).toBe("opencode");
+    // No card-changed events on no-op.
+    expect(events.filter((e) => e.type === "gateway.harness.card-changed")).toHaveLength(0);
+  });
+
+  test("setPrimaryHarnessId throws on unknown harnessId", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+    expect(() => mgr.setPrimaryHarnessId("nonexistent")).toThrow(/unknown harnessId/);
+    // Primary is unchanged on a failed switch.
+    expect(mgr.getPrimaryHarnessId()).toBe("opencode");
+  });
+
+  test("setPrimaryHarnessId throws when manager is destroyed", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+    mgr.destroy();
+    expect(() => mgr.setPrimaryHarnessId("gemini")).toThrow(/destroyed/);
+  });
+
+  test("after primary switch, getOrSpawnLane on the new primary spawns its harness; old primary's existing lanes stay alive", async () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const spawnedHarnesses: string[] = [];
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async (entry) => {
+        spawnedHarnesses.push(entry.id);
+        return createMockController({ pid: entry.id === "opencode" ? 100 : 200 }).controller;
+      },
+    });
+
+    // Spawn one lane on the original primary (opencode).
+    const opencodeLane = await mgr.getOrSpawnLane("opencode", "ctx-pre-switch");
+    expect(spawnedHarnesses).toEqual(["opencode"]);
+    expect(mgr.hasLiveLanesForHarness("opencode")).toBe(true);
+
+    // Flip primary to gemini.
+    mgr.setPrimaryHarnessId("gemini");
+    expect(mgr.getPrimaryHarnessId()).toBe("gemini");
+
+    // The opencode lane is still alive (existing in-flight session
+    // semantics — the AC's invariant for primary-target switches).
+    expect(mgr.hasLiveLanesForHarness("opencode")).toBe(true);
+    expect(opencodeLane).toBeDefined();
+
+    // The next spawn against the new primary spawns gemini's harness.
+    await mgr.getOrSpawnLane(mgr.getPrimaryHarnessId(), "ctx-post-switch");
+    expect(spawnedHarnesses).toEqual(["opencode", "gemini"]);
+    expect(mgr.hasLiveLanesForHarness("gemini")).toBe(true);
+  });
+
+  test("hasHarness reflects fleet membership", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+    expect(mgr.hasHarness("opencode")).toBe(true);
+    expect(mgr.hasHarness("gemini")).toBe(true);
+    expect(mgr.hasHarness("nonexistent")).toBe(false);
+  });
+
+  test("hasLiveLanesForHarness returns false before spawn, true after spawn, false after exit", async () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const mock = createMockController({ pid: 7777 });
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => mock.controller,
+    });
+
+    expect(mgr.hasLiveLanesForHarness("opencode")).toBe(false);
+    await mgr.getOrSpawnLane("opencode", "ctx-1");
+    expect(mgr.hasLiveLanesForHarness("opencode")).toBe(true);
+
+    mock.triggerExit({
+      pid: 7777,
+      exitCode: 0,
+      signal: null,
+      crash: false,
+      durationMs: 1,
+    });
+    expect(mgr.hasLiveLanesForHarness("opencode")).toBe(false);
+  });
 });

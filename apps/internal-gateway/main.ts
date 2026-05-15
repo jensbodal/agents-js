@@ -40,7 +40,6 @@ import {
   formatGatewayDiscoveryLines,
   resolveGatewayPort,
 } from "./discovery.ts";
-import { describeGatewayError } from "./error-utils.ts";
 import { gatewayConfig } from "./gateway.config.ts";
 import { resolveGatewayRuntime } from "./runtimes.ts";
 
@@ -295,28 +294,40 @@ interface SetupWsBridgeOptions {
   executor: HostA2AExecutor;
   aguiCoordinator: AguiRunCoordinator;
   /**
-   * When set, the WS bridge's `setRuntime` callback rejects every
-   * incoming switch request with this reason BEFORE any state mutation
-   * — no `session.switchRuntime`, no lane eviction, no card mutation.
-   *
-   * Set by `main()` in PR2 to defer WS-bridge-driven runtime switches
-   * to PR3 per the AC. In PR2 the harness fleet binding is owned by
-   * the lane manager (resolved at startup), so a WS-bridge swap of the
-   * primary host session would leave a split state where
-   * `controllerFactory` still spawns on the original primary.
+   * Lane manager — the WS bridge calls
+   * {@link HarnessLaneManager.setPrimaryHarnessId} on a successful
+   * runtime switch (per AJS-7 PR3 § Behavior). The bridge does NOT
+   * spawn or destroy lane controllers itself; the manager owns that
+   * lifecycle.
    */
-  runtimeSwitchDisabledReason?: string;
+  laneManager: HarnessLaneManager;
 }
 
 /**
- * Pure check: is any operator-driven work currently in flight that
- * would be unsafe to interrupt with a runtime switch?
+ * Pure check: is anything in flight that would be unsafe to interrupt
+ * with a primary-routing-target switch?
  *
- * Returns `null` when the gateway is idle and a switch is allowed,
- * or a human-readable reason string when the switch must be rejected.
+ * **Scoped down for AJS-7 PR3 multi-harness behavior** — under PR3,
+ * existing in-flight A2A tasks / dispatch / lanes / pending-spawns
+ * stay bound to their original harness's controller even after the
+ * primary flips. Only future sessions route to the new primary. So
+ * the cross-harness in-flight signals no longer block a switch — they
+ * have no conflict with the new routing target.
+ *
+ * The single remaining blocker: AG-UI runs. AG-UI is a multi-prompt
+ * coordinated flow where every prompt in the run is expected to land
+ * on the same controller. Switching the primary mid-AG-UI-run won't
+ * actively break the run (existing lanes stay bound), but operator UX
+ * is cleaner if the switch is rejected until the AG-UI run completes
+ * — otherwise the operator just changed routing target and the next
+ * prompt of the active run still goes to the OLD primary, which is
+ * surprising.
+ *
+ * Returns `null` when the switch is allowed, or a human-readable
+ * reason when it's rejected.
  *
  * Exported for unit testing — exercising this directly is much
- * cheaper than orchestrating real A2A tasks + AG-UI runs.
+ * cheaper than orchestrating real AG-UI runs.
  */
 export function describeRuntimeSwitchBlockingActivity(input: {
   executor: Pick<HostA2AExecutor, "getActivitySnapshot">;
@@ -325,24 +336,12 @@ export function describeRuntimeSwitchBlockingActivity(input: {
   if (input.aguiCoordinator.isActive) {
     return `AG-UI run is active (runId=${input.aguiCoordinator.activeRunId ?? "(unknown)"})`;
   }
-  const { activeTaskCount, activeDispatchCount, inFlightLaneCount, pendingLaneCount } =
-    input.executor.getActivitySnapshot();
-  if (activeDispatchCount > 0) {
-    return `${activeDispatchCount} @@dispatch task(s) in flight`;
-  }
-  if (activeTaskCount > 0) {
-    return `${activeTaskCount} A2A task(s) in flight`;
-  }
-  if (inFlightLaneCount > 0) {
-    return `${inFlightLaneCount} A2A lane(s) holding an in-flight prompt`;
-  }
-  if (pendingLaneCount > 0) {
-    // TOCTOU close: a controllerFactory call is awaiting and a fresh
-    // lane bound to the *current* runtime is about to be registered.
-    // Switching now would either lose that lane or bind it to the
-    // wrong runtime.
-    return `${pendingLaneCount} A2A lane(s) currently being constructed`;
-  }
+  // Cross-harness in-flight work (A2A tasks, dispatch, lanes, pending
+  // spawns) does NOT block a primary-target switch under PR3 semantics
+  // — those sessions stay bound to their original harness's
+  // controller regardless of who's primary. `getActivitySnapshot()`
+  // is kept on the executor surface for diagnostics/observability;
+  // the call here is intentionally elided.
   return null;
 }
 
@@ -365,23 +364,29 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
     defaultModelId: opts.resolvedDefaultModel,
     surfaceBroadcaster: opts.surfaceBroadcaster,
     setRuntime: async (runtimeId) => {
-      // PR2: WS-bridge-driven runtime switch is deferred to a follow-up
-      // PR. Reject every request BEFORE any state mutation — no host
-      // session swap, no lane eviction, no card mutation. The lane
-      // manager owns the operator-pinned primary at startup; a swap
-      // here would leave a split state where `controllerFactory` still
-      // spawns on the original primary while the bridge advertises the
-      // new one. Fail loud rather than silently no-op.
-      if (opts.runtimeSwitchDisabledReason !== undefined) {
-        throw new Error(`[Gateway] Runtime switch rejected: ${opts.runtimeSwitchDisabledReason}`);
+      // AJS-7 PR3: WS-bridge runtime switch is now "switch the primary
+      // routing target" — change which configured fleet entry is the
+      // default for new sessions. Existing in-flight lane controllers
+      // stay bound to whichever harness spawned them; only future
+      // `controllerFactory(contextId)` calls route to the new primary.
+      //
+      // Pre-checks happen BEFORE any state mutation so a rejected
+      // switch leaves the gateway in its prior state:
+      //   - Target must be in the configured fleet. Dynamic install
+      //     of a non-configured runtime is out of v1 scope per AC.
+      //   - Cross-harness in-flight work no longer blocks the switch
+      //     (per AC § Behavior, `describeRuntimeSwitchBlockingActivity`
+      //     is scoped down to the AG-UI invariant only — see its
+      //     docstring).
+      if (!opts.laneManager.hasHarness(runtimeId)) {
+        throw new Error(
+          `[Gateway] Runtime switch rejected: "${runtimeId}" is not in the configured fleet (${opts.laneManager
+            .getHarnessCapabilityEntries()
+            .map((e) => e.id)
+            .join(", ")}). Restart the gateway with --runtimes including the target to add it.`,
+        );
       }
 
-      // Reject the switch if any operator-driven work is in flight.
-      // Allowing a switch through here would either cut off an
-      // in-flight ACP turn mid-stream OR leave a lane controller
-      // bound to the outgoing runtime silently handling subsequent work.
-      // Both outcomes are footguns; the operator gets a clear
-      // "busy" error and can retry once their run finishes.
       const blocking = describeRuntimeSwitchBlockingActivity({
         executor: opts.executor,
         aguiCoordinator: opts.aguiCoordinator,
@@ -390,78 +395,61 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
         throw new Error(`[Gateway] Runtime switch rejected: ${blocking}`);
       }
 
-      const nextRuntime = applyEnvRuntimeProfile(
-        await resolveGatewayRuntime(runtimeId),
-        opts.loadedConfig,
-      );
-      const previousRuntime = activeRuntime;
-      const previousRuntimeModels = activeRuntimeModels;
+      if (runtimeId === activeRuntime.definition.id) {
+        // No-op switch — operator selected the current primary again.
+        return {
+          runtime: {
+            id: activeRuntime.definition.id,
+            displayName: activeRuntime.definition.displayName,
+          },
+          runtimeModels: activeRuntimeModels,
+          defaultModelId: opts.resolvedDefaultModel,
+          preservedSession: true,
+          clearedPendingTurn: false,
+          message: `Runtime is already ${activeRuntime.definition.displayName} (${activeRuntime.definition.id}); no change.`,
+        };
+      }
+
+      // Pre-flip the model fetch: if `fetchRuntimeModels` rejects, the
+      // gateway stays on the OLD primary (no card mutation, no
+      // card-changed events published, no local activeRuntime cell
+      // update). Only after the async fetch resolves do we commit the
+      // switch via `setPrimaryHarnessId`. This preserves the "pre-checks
+      // happen before any state mutation" contract documented above.
+      const nextRuntime = opts.laneManager.getHarnessRuntime(runtimeId);
       const nextRuntimeCommand = nextRuntime.acp.command ?? nextRuntime.definition.command;
       const nextRuntimeModels = await fetchRuntimeModels(nextRuntimeCommand);
 
-      try {
-        const switchResult = await opts.session.switchRuntime({
-          runtime: nextRuntime,
-          defaultModel: opts.resolvedDefaultModel,
-        });
-        activeRuntime = nextRuntime;
-        activeRuntimeModels = nextRuntimeModels;
-        opts.setActiveRuntime(nextRuntime);
-        // Evict idle lane controllers so the next prompt against an
-        // existing contextId spawns a fresh lane on the new runtime
-        // instead of inheriting one bound to the old runtime. Lanes
-        // still in flight are skipped — but the gate above should
-        // have prevented any from existing here.
-        const eviction = opts.executor.destroyIdleLanes();
-        if (eviction.evicted > 0 || eviction.skipped > 0) {
-          console.log(
-            `[Gateway] Post-switch lane eviction: evicted=${eviction.evicted} skipped=${eviction.skipped}`,
-          );
-        }
+      // Commit. The lane manager mutates `gatewayCard.capabilities.harnesses`
+      // in place and publishes `gateway.harness.card-changed` for both
+      // affected entries (old primary primary:true→false, new primary
+      // primary:false→true).
+      const previousRuntime = activeRuntime;
+      opts.laneManager.setPrimaryHarnessId(runtimeId);
 
-        const nextGatewayCard = buildAgentCard(nextRuntime.agentCard);
-        nextGatewayCard.url = opts.gatewayCard.url;
-        Object.assign(opts.gatewayCard, nextGatewayCard);
+      activeRuntime = nextRuntime;
+      activeRuntimeModels = nextRuntimeModels;
+      opts.setActiveRuntime(nextRuntime);
 
-        const messageParts = [
-          `Runtime switched to ${nextRuntime.definition.displayName} (${nextRuntime.definition.id}).`,
-          switchResult.preservedSession
-            ? "Started a fresh session automatically."
-            : "Session remains disconnected until connect.",
-        ];
-        if (switchResult.clearedPendingTurn) {
-          messageParts.push("In-flight or queued prompts were cleared.");
-        }
+      console.log(
+        `[Gateway] Primary routing target switched: ${previousRuntime.definition.id} → ${nextRuntime.definition.id} (${nextRuntime.definition.displayName}). Existing in-flight sessions stay on their bound lane controllers; new sessions route to the new primary.`,
+      );
 
-        console.log(
-          `[Gateway] Runtime switched to ${nextRuntime.definition.id} (${nextRuntime.definition.displayName})`,
-        );
-
-        return {
-          runtime: {
-            id: nextRuntime.definition.id,
-            displayName: nextRuntime.definition.displayName,
-          },
-          runtimeModels: nextRuntimeModels,
-          defaultModelId: opts.resolvedDefaultModel,
-          preservedSession: switchResult.preservedSession,
-          clearedPendingTurn: switchResult.clearedPendingTurn,
-          message: messageParts.join(" "),
-        };
-      } catch (error) {
-        const switchMessage = describeGatewayError(error);
-        console.warn(
-          `[Gateway] Runtime switch to ${nextRuntime.definition.id} failed, keeping ${previousRuntime.definition.id} active`,
-          switchMessage,
-        );
-
-        activeRuntime = previousRuntime;
-        activeRuntimeModels = previousRuntimeModels;
-
-        throw new Error(
-          `Failed to switch runtime to ${nextRuntime.definition.displayName} (${nextRuntime.definition.id}). Still using ${previousRuntime.definition.displayName} (${previousRuntime.definition.id}).`,
-        );
-      }
+      return {
+        runtime: {
+          id: nextRuntime.definition.id,
+          displayName: nextRuntime.definition.displayName,
+        },
+        runtimeModels: nextRuntimeModels,
+        defaultModelId: opts.resolvedDefaultModel,
+        // Under PR3 semantics there's no session swap, so the legacy
+        // session-preservation fields are trivially "preserved, nothing
+        // cleared." Kept on the wire for back-compat with the WS bridge
+        // client surface; consumers can ignore.
+        preservedSession: true,
+        clearedPendingTurn: false,
+        message: `Primary routing target switched to ${nextRuntime.definition.displayName} (${nextRuntime.definition.id}). Future sessions route here; existing in-flight sessions are unaffected.`,
+      };
     },
   });
 }
@@ -693,11 +681,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     setActiveRuntime,
     executor,
     aguiCoordinator,
-    // AJS-7 PR2 defers WS-bridge-driven runtime switches to PR3. The
-    // lane manager owns harness routing at startup, so a bridge-side
-    // swap would split state. Reject every switch with a clear reason.
-    runtimeSwitchDisabledReason:
-      "WS-bridge runtime switch is deferred to PR3 in AJS-7 multi-harness mode; restart with a different --runtime / --runtimes config to change the operator-pinned primary",
+    laneManager,
   });
 
   const wsPort = wsBridge.server.port ?? 0;
