@@ -414,13 +414,11 @@ interface HarnessCapabilityEntry {
 }
 ```
 
-The array is mutated in place — federated peers reading
-`/.well-known/agent-card.json` observe ready-state transitions and primary-target swaps
-without re-fetching, as long as they hold a reference to the live card object. The
-in-process cache-invalidation signal is the `gateway.harness.card-changed` bus event (see
-[Gateway bus events](#gateway-bus-events) below); peers that subscribe to `/events` SSE
-can react to that event by either re-rendering from their cached card or re-fetching the
-card endpoint.
+The array is mutated in place on the in-process `gatewayCard` object. Peers fetching
+`/.well-known/agent-card.json` over HTTP receive a JSON snapshot, not a live reference.
+Use `gateway.harness.card-changed` (see [Gateway bus events](#gateway-bus-events) below)
+as the cache-invalidation signal: `/events` subscribers can re-fetch the card endpoint or
+update their cached snapshot from event payloads.
 
 The fleet entries are populated at construction with `ready: false`. A harness flips
 `ready: true` on its first successful lane spawn and flips back to `ready: false` when its
