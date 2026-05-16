@@ -46,6 +46,7 @@
         "packages/acp-host/src/editor/browser.ts",
         "packages/acp-host/src/testing.ts",
         "packages/acp-host/src/workflow-surface.ts",
+        "packages/memory/src/testing.ts",
         "packages/a2ui-host/src/acp-host/index.ts",
         "packages/a2a-client/src/node.ts",
         "packages/policy/src/browser.ts",
