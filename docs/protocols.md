@@ -5,7 +5,7 @@ diataxis: reference
 
 # Protocols and Schema Alignment
 
-> **Status:** Beta · **Known limitations:** AG-UI run resumption, A2UI user→agent back-channel contract, third-party A2A interop
+> **Status:** Beta · **Known limitations:** AG-UI run resumption, A2UI user→agent back-channel contract
 
 `agents-js` is built around explicit protocol and schema boundaries. This page is the canonical map
 for what the repo implements directly, what it validates, what it passes through, and where
@@ -550,6 +550,22 @@ as the authoritative reply from the mentioned agent.
 
 See [Multi-agent patterns](/surfaces#multi-agent-patterns) for the end-to-end setup and
 [Agent registry](/surfaces#agent-registry) for the file format that hosts use to resolve mention targets.
+
+### Third-party SDK interop
+
+Wire-level interop with the canonical upstream A2A consumer
+([`@a2a-js/sdk`](https://www.npmjs.com/package/@a2a-js/sdk)) is verified at the version pinned
+in the workspace catalog. The check spins up `UniversalA2AServer` with a minimal echo executor
+and drives it through the upstream SDK's `A2AClient`:
+
+- `A2AClient.fromCardUrl` resolves `/.well-known/agent-card.json` and surfaces a spec-shaped
+  `AgentCard` (including `capabilities.streaming` after `mapCapabilities` runs).
+- `A2AClient.sendMessage` returns the JSON-RPC envelope with a terminal `Task` snapshot under
+  `result`, history populated with the user message and agent reply.
+- `A2AClient.sendMessageStream` yields the SSE event sequence (submitted `Task` →
+  working `TaskStatusUpdateEvent` → terminal event with `final: true` or a completed `Task`).
+
+Evidence: `packages/a2a/tests/external-sdk-client.test.ts`.
 
 ---
 
