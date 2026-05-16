@@ -70,6 +70,34 @@ describe("mapPermissionRequest", () => {
     expect(result.toolCall?.content).toBeUndefined();
   });
 
+  test("filters malformed elements out of locations and content arrays", () => {
+    // Downstream renderers read `loc.path` and `block.type` unguarded —
+    // a string/null slipping through would crash the modal. The mapper
+    // must drop elements that don't match the documented element shape
+    // even when the outer array is well-formed.
+    const result = mapPermissionRequest({
+      toolCall: {
+        title: "Mixed payload",
+        locations: [
+          { path: "/work/src/app.ts", line: 1 },
+          "not-an-object",
+          null,
+          { line: 2 }, // missing required `path`
+          { path: 7 }, // wrong type for `path`
+        ],
+        content: [
+          { type: "text", text: "ok" },
+          "lone-string",
+          null,
+          { kind: "diff" }, // missing required `type`
+        ],
+      },
+    });
+
+    expect(result.toolCall?.locations).toEqual([{ path: "/work/src/app.ts", line: 1 }]);
+    expect(result.toolCall?.content).toEqual([{ type: "text", text: "ok" }]);
+  });
+
   test("drops non-string toolCallId and status (defensive at the wire boundary)", () => {
     const result = mapPermissionRequest({
       toolCall: {
@@ -94,7 +122,7 @@ describe("mapPermissionRequest", () => {
       ],
       suggestedScopes: [
         { level: "session", scope: "shell:*", label: "Allow shell for this session" },
-        { level: "skip", scope: "ignored", label: "missing-level-shouldnt-survive" },
+        { level: "skip", scope: "ignored", label: "Skip elevation for this turn" },
       ],
     });
 
