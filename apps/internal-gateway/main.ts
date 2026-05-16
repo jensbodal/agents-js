@@ -4,7 +4,6 @@ import {
   createSyncEndpointHandler,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
-import { createNodeFileAdapters } from "@agents-js/acp-host";
 import {
   detectInstalledGatewayRuntimes,
   getGatewayRuntimeDefinition,
@@ -23,7 +22,6 @@ import {
   createGatewayBus,
   createGatewaySurfaceBroadcaster,
   createHostSession,
-  createStandaloneHostController,
   createWSBridge,
   fetchRuntimeModels,
   type GatewayBus,
@@ -41,6 +39,7 @@ import {
   resolveGatewayPort,
 } from "./discovery.ts";
 import { gatewayConfig } from "./gateway.config.ts";
+import { buildLaneControllerFactory } from "./lane-controller-factory.ts";
 import { resolveGatewayRuntime } from "./runtimes.ts";
 
 /**
@@ -636,17 +635,13 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
       entries: harnessFleetEntries,
       gatewayCard,
       bus,
-      createController: async (entry) =>
-        createStandaloneHostController({
-          runtime: entry.runtime,
-          workspacePath: cliArgs.workspace,
-          permissionMode: cliArgs.permissionMode,
-          defaultModel: resolvedDefaultModel,
-          permissionEngine: session.permissionEngine,
-          permissionStore: session.permissionStore,
-          fileAdapters: createNodeFileAdapters(cliArgs.workspace),
-          surfaceAdapter: surfaceBroadcaster,
-        }),
+      createController: buildLaneControllerFactory({
+        session,
+        workspacePath: cliArgs.workspace,
+        permissionMode: cliArgs.permissionMode,
+        defaultModel: resolvedDefaultModel,
+        surfaceAdapter: surfaceBroadcaster,
+      }),
     });
   } catch (err) {
     session.destroy();
