@@ -342,6 +342,10 @@
         "zod": "catalog:",
       },
     },
+    "packages/memory": {
+      "name": "@agents-js/memory",
+      "version": "0.4.0",
+    },
     "packages/policy": {
       "name": "@agents-js/policy",
       "version": "0.4.0",
@@ -507,6 +511,8 @@
     "@agents-js/mcp-bridge": ["@agents-js/mcp-bridge@workspace:packages/mcp-bridge"],
 
     "@agents-js/mcp-bus-bridge": ["@agents-js/mcp-bus-bridge@workspace:extras/mcp-bus-bridge"],
+
+    "@agents-js/memory": ["@agents-js/memory@workspace:packages/memory"],
 
     "@agents-js/pi-acp": ["@agents-js/pi-acp@workspace:extras/pi-acp"],
 
