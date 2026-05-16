@@ -126,6 +126,29 @@ describe("HarnessLaneManager", () => {
     ).toThrow(/exactly one primary/);
   });
 
+  test("constructor rejects when two entries share a harness id", () => {
+    // Load-bearing for `apps/internal-gateway/main.ts`: createHostSession
+    // spawns the primary ACP child BEFORE this constructor runs, so an
+    // unhandled throw here orphans the child in embedded-gateway use.
+    // main.ts now wraps the constructor in `try/catch` + `session.destroy()`;
+    // this test guards the trigger so the wrap's `catch` arm stays exercised.
+    const bus = createGatewayBus();
+    const card = buildAgentCard({ name: "test", description: "t" });
+    const fakeRuntime = {} as ResolvedGatewayRuntime;
+    expect(
+      () =>
+        new HarnessLaneManager({
+          entries: [
+            { id: "shared", displayName: "First", primary: true, runtime: fakeRuntime },
+            { id: "shared", displayName: "Second", primary: false, runtime: fakeRuntime },
+          ],
+          gatewayCard: card,
+          bus,
+          createController: async () => createMockController().controller,
+        }),
+    ).toThrow(/duplicate harness id "shared"/);
+  });
+
   test("getOrSpawnLane creates a fresh controller for every call (no caching)", async () => {
     // The lane manager does NOT cache controllers. HostA2AExecutor owns
     // each factory-returned controller and is free to destroy it on idle

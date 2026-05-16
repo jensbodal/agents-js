@@ -624,22 +624,34 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     runtime,
     primary: index === 0,
   }));
-  const laneManager = new HarnessLaneManager({
-    entries: harnessFleetEntries,
-    gatewayCard,
-    bus,
-    createController: async (entry) =>
-      createStandaloneHostController({
-        runtime: entry.runtime,
-        workspacePath: cliArgs.workspace,
-        permissionMode: cliArgs.permissionMode,
-        defaultModel: resolvedDefaultModel,
-        permissionEngine: session.permissionEngine,
-        permissionStore: session.permissionStore,
-        fileAdapters: createNodeFileAdapters(cliArgs.workspace),
-        surfaceAdapter: surfaceBroadcaster,
-      }),
-  });
+  // createHostSession (above) already spawned the primary ACP child. If
+  // the lane manager constructor throws (duplicate harness id, missing /
+  // multiple primaries, empty entries), the CLI entry-point exits and
+  // the OS reaps the child — but any embedder that wraps setupServer
+  // would leak the child until they kill the parent. Tear the session
+  // down explicitly before re-throwing.
+  let laneManager: HarnessLaneManager;
+  try {
+    laneManager = new HarnessLaneManager({
+      entries: harnessFleetEntries,
+      gatewayCard,
+      bus,
+      createController: async (entry) =>
+        createStandaloneHostController({
+          runtime: entry.runtime,
+          workspacePath: cliArgs.workspace,
+          permissionMode: cliArgs.permissionMode,
+          defaultModel: resolvedDefaultModel,
+          permissionEngine: session.permissionEngine,
+          permissionStore: session.permissionStore,
+          fileAdapters: createNodeFileAdapters(cliArgs.workspace),
+          surfaceAdapter: surfaceBroadcaster,
+        }),
+    });
+  } catch (err) {
+    session.destroy();
+    throw err;
+  }
 
   // The A2A executor spawns a dedicated controller per A2A `contextId`
   // via this factory so genuinely independent conversations run in
