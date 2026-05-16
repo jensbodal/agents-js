@@ -14,6 +14,7 @@ bun add @agents-js/ui-components
 
 ### Classes
 
+- **`AcpAgentStatusBlock`**
 - **`AcpAuthSelector`**
 - **`AcpButton`**
 - **`AcpChatApp`**
@@ -58,10 +59,12 @@ bun add @agents-js/ui-components
 - **`createLocalStoragePromptHistoryPersistence`**
 - **`createPermissionResolution`**
 - **`deleteConnectProfile`**
+- **`deriveAgentVisualState`** — Bucket one agent's raw `StatusSnapshotAgent` into a visual state plus a short human-readable activity label. Pure function, no side effects, no DOM access — usable from non-component contexts (CLI ...
 - **`deriveDisplayedSessionStatus`**
 - **`deriveFallbackModelId`**
 - **`deriveRuntimeNotice`**
 - **`deriveSessionState`** — Derive flat component properties from an incoming SessionStateLike. This is a pure function with no side effects — the caller is responsible for applying the result to Lit reactive properties with ...
+- **`formatActivityAge`** — Format an activity age (seconds) as a compact "Ns ago" / "Nm ago" / "Nh ago" / "Nd ago" string. Returns "unknown" when the age is absent, which is the upstream signal that the status provider had n...
 - **`isHostBridgeActiveForTarget`**
 - **`isKnownModelId`**
 - **`loadConnectPreferences`** — Load previously saved connection preferences. Returns the active profile's preferences, or `null` if nothing valid was saved.
@@ -96,6 +99,8 @@ bun add @agents-js/ui-components
 - **`ConnectProfile`**
 - **`ConnectProfilesState`**
 - **`DebugRecordLike`** — Debug record shape — mirrors DebugRecord from a2a-client types.
+- **`DeriveAgentVisualOptions`**
+- **`DerivedAgentVisual`**
 - **`ElicitationResolution`**
 - **`HistoryNavResult`**
 - **`HostState`** — Flat state object pushed to subscribers on every relevant event.
@@ -124,6 +129,7 @@ bun add @agents-js/ui-components
 - **`SessionModelsInfo`**
 - **`SessionModelsLike`**
 - **`SessionStateLike`** — Unified session state shape — covers snapshot and view uses.
+- **`StatusSnapshotAgent`** — Pass-through shape for one row inside a `StatusSnapshot.agents[]` payload served over the network by a status endpoint. Only `name`, `mxid`, and `online` are required; the producer may omit any of ...
 - **`TargetInspectionLike`**
 - **`TranscriptMessageEntryLike`**
 - **`TranscriptToolCallEntryLike`**
@@ -142,6 +148,7 @@ bun add @agents-js/ui-components
 
 ### Types
 
+- **`AgentVisualState`** — Four bucketed visual states the block renders distinct affordances for. Bucketing is intentional: hosts that want a finer scale derive their own from `activity_age_seconds` directly without re-runn...
 - **`HostStateListener`**
 - **`IconRegistry`** — Icon registry type: a record mapping icon names to SVG path data strings.
 - **`PermissionModalDetail`**

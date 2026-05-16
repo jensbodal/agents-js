@@ -2,6 +2,7 @@
 // SchemaProperty) are NOT re-exported here. Consumers should import them
 // directly from @agents-js/schema-utils. Prior cross-package re-export
 // coupled ui-components's version lifecycle to schema-utils's.
+export { AcpAgentStatusBlock } from "./acp-agent-status-block.ts";
 export { AcpAuthSelector } from "./acp-auth-selector.ts";
 export { AcpButton } from "./acp-button.ts";
 export { AcpChatApp } from "./acp-chat-app.ts";
@@ -62,6 +63,14 @@ export type {
 } from "./acp-types.ts";
 export { statusCategory } from "./acp-utils.ts";
 export { AcpWriteGateModal } from "./acp-write-gate-modal.ts";
+export {
+  type AgentVisualState,
+  type DeriveAgentVisualOptions,
+  type DerivedAgentVisual,
+  deriveAgentVisualState,
+  formatActivityAge,
+  type StatusSnapshotAgent,
+} from "./agent-status-block-types.ts";
 export {
   type ConnectPreferences,
   type ConnectProfile,
