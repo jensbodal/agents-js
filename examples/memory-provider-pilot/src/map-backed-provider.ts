@@ -142,10 +142,10 @@ export class MapBackedProvider implements MemoryProvider {
       throw new MemoryRevisionConflictError(entry.record.id, entry.record.revision ?? "");
     }
 
-    // No-op update: caller passed only `id` — return current state without
-    // bumping revision or updatedAtMs. See finding #3 in the module
-    // header — this contract is *type-invisible*, you only learn it
-    // from JSDoc.
+    // No-op update: caller did not provide content or metadata, so return
+    // current state without bumping revision or updatedAtMs. See finding #3
+    // in the module header — this contract is *type-invisible*, you only
+    // learn it from JSDoc.
     if (input.content === undefined && input.metadata === undefined) {
       return cloneRecord(entry.record);
     }
