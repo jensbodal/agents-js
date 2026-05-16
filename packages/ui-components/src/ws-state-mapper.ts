@@ -43,6 +43,13 @@ export function mapPermissionRequest(raw: Record<string, unknown>): PendingPermi
     // to correlate against `currentTurn.toolCalls`, the live execution
     // state, follow-along files, raw I/O, and rich bodies (image / diff
     // / terminal) despite the upstream having them.
+    //
+    // Element-level narrowing on `locations` and `content` is defensive:
+    // upstream emitters are type-safe today, but the wire boundary is
+    // JSON-parsed and downstream renderers read `loc.path` and
+    // `block.type` unguarded. Drop elements that don't match the
+    // documented shape so a malformed payload degrades silently rather
+    // than crashing the modal.
     result.toolCall = {
       toolCallId: typeof toolCall.toolCallId === "string" ? toolCall.toolCallId : undefined,
       title: typeof toolCall.title === "string" ? toolCall.title : undefined,
@@ -52,12 +59,22 @@ export function mapPermissionRequest(raw: Record<string, unknown>): PendingPermi
           : undefined,
       kind: typeof toolCall.kind === "string" ? (toolCall.kind as ToolKind | string) : undefined,
       locations: Array.isArray(toolCall.locations)
-        ? (toolCall.locations as ToolCallLocation[])
+        ? toolCall.locations.filter(
+            (loc): loc is ToolCallLocation =>
+              typeof loc === "object" &&
+              loc !== null &&
+              typeof (loc as { path?: unknown }).path === "string",
+          )
         : undefined,
       rawInput: toolCall.rawInput,
       rawOutput: toolCall.rawOutput,
       content: Array.isArray(toolCall.content)
-        ? (toolCall.content as ToolCallContent[])
+        ? toolCall.content.filter(
+            (block): block is ToolCallContent =>
+              typeof block === "object" &&
+              block !== null &&
+              typeof (block as { type?: unknown }).type === "string",
+          )
         : undefined,
     };
   }
