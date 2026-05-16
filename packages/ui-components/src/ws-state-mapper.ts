@@ -46,10 +46,18 @@ export function mapPermissionRequest(raw: Record<string, unknown>): PendingPermi
     //
     // Element-level narrowing on `locations` and `content` is defensive:
     // upstream emitters are type-safe today, but the wire boundary is
-    // JSON-parsed and downstream renderers read `loc.path` and
-    // `block.type` unguarded. Drop elements that don't match the
-    // documented shape so a malformed payload degrades silently rather
-    // than crashing the modal.
+    // JSON-parsed and downstream renderers read `loc.path` /
+    // `block.type` unguarded. `rehydrateLocations()` enforces the
+    // `{ path: string, line?: number }` contract; `isToolCallContentBlock`
+    // validates both the `ToolCallContent` discriminator AND the
+    // per-variant required fields (`diff.path` + `diff.newText`,
+    // `terminal.terminalId`, `content.content.type`) so a malformed
+    // payload like `{ type: "diff" }` is dropped rather than narrowed
+    // to a shape with missing required fields.
+    const locations = rehydrateLocations(toolCall.locations) ?? undefined;
+    const content = Array.isArray(toolCall.content)
+      ? toolCall.content.filter(isToolCallContentBlock)
+      : undefined;
     result.toolCall = {
       toolCallId: typeof toolCall.toolCallId === "string" ? toolCall.toolCallId : undefined,
       title: typeof toolCall.title === "string" ? toolCall.title : undefined,
@@ -58,24 +66,10 @@ export function mapPermissionRequest(raw: Record<string, unknown>): PendingPermi
           ? (toolCall.status as ToolCallStatus | string)
           : undefined,
       kind: typeof toolCall.kind === "string" ? (toolCall.kind as ToolKind | string) : undefined,
-      locations: Array.isArray(toolCall.locations)
-        ? toolCall.locations.filter(
-            (loc): loc is ToolCallLocation =>
-              typeof loc === "object" &&
-              loc !== null &&
-              typeof (loc as { path?: unknown }).path === "string",
-          )
-        : undefined,
+      locations,
       rawInput: toolCall.rawInput,
       rawOutput: toolCall.rawOutput,
-      content: Array.isArray(toolCall.content)
-        ? toolCall.content.filter(
-            (block): block is ToolCallContent =>
-              typeof block === "object" &&
-              block !== null &&
-              typeof (block as { type?: unknown }).type === "string",
-          )
-        : undefined,
+      content,
     };
   }
 
@@ -304,6 +298,44 @@ function rehydrateToolCallContent(raw: unknown): ToolCallContent[] | null {
       }
     })
     .filter((entry): entry is ToolCallContent => entry !== null);
+}
+
+/**
+ * Narrow a raw value against the ACP `ToolCallContent` union
+ * (`"content" | "diff" | "terminal"`) — validates BOTH the
+ * discriminator AND per-variant required fields, so a partial
+ * payload like `{ type: "diff" }` is rejected rather than narrowed
+ * to a `ToolCallContent` with missing required fields.
+ *
+ * Used inline by `mapPermissionRequest`; the permission-path content
+ * is the raw SDK shape (host-serialized `richContent` uses the
+ * separate `rehydrateToolCallContent`).
+ */
+function isToolCallContentBlock(block: unknown): block is ToolCallContent {
+  if (typeof block !== "object" || block === null) return false;
+  const entry = block as Record<string, unknown>;
+  switch (entry.type) {
+    case "content": {
+      // `content` variants wrap a nested content block; per spec the
+      // nested block carries its own `type` discriminator (text /
+      // image / audio / resource_link / resource). We only require
+      // the nested object + its `type` field — exact nested shape
+      // validation is the renderer's job.
+      const nested = entry.content;
+      return (
+        !!nested &&
+        typeof nested === "object" &&
+        typeof (nested as { type?: unknown }).type === "string"
+      );
+    }
+    case "diff":
+      // `diff` requires `path` + `newText`; `oldText` may be string or null.
+      return typeof entry.path === "string" && typeof entry.newText === "string";
+    case "terminal":
+      return typeof entry.terminalId === "string";
+    default:
+      return false;
+  }
 }
 
 /**

@@ -1,19 +1,19 @@
 #!/usr/bin/env bun
 /**
- * Multi-agent dogfood wire probe (#72).
+ * Wire-extensions probe for a running gateway.
  *
- * Drives a `agents-js serve` already running on the given URL with a
- * prompt that's likely to trigger tool calls, captures all A2AEvents,
+ * Drives an `agents-js serve` already running on the given URL with a
+ * prompt that's likely to trigger tool calls, captures all `A2AEvent`s,
  * and prints a structured timeline plus pass/fail assertions over the
- * wire-kinds extensions from PR #35 (toolKind, content, locations,
- * rawInput, rawOutput). Hard-asserts on toolKind, locations|rawInput,
- * terminal status, and rawOutput. `content` is harness-dependent
- * (codex emits raw process output, claude/pi may emit content blocks)
- * — surfaced as informational only so the gate doesn't false-fail
- * across harnesses.
+ * tool-call wire-kind extensions (`toolKind`, `content`, `locations`,
+ * `rawInput`, `rawOutput`). Hard-asserts on `toolKind`,
+ * `locations | rawInput`, terminal status, and `rawOutput`. `content`
+ * is harness-dependent (e.g. codex emits raw process output; other
+ * harnesses may emit content blocks) and is surfaced as informational
+ * only, so the gate doesn't false-fail across harnesses.
  *
  * Usage:
- *   bun scripts/dogfood-probe.ts <url> "<prompt>" [--verbose]
+ *   bun scripts/wire-extensions-probe.ts <url> "<prompt>" [--verbose]
  *
  * **Credential-leak note**: ACP `rawInput`/`rawOutput`/`content` fields
  * are unredacted by spec — they may include API keys, file contents,
@@ -32,7 +32,7 @@ const prompt =
   positional[1] ?? "Read packages/a2a/src/wire-kinds.ts. Tell me what kinds are defined.";
 
 if (!url) {
-  console.error("usage: bun scripts/dogfood-probe.ts <url> [prompt] [--verbose]");
+  console.error("usage: bun scripts/wire-extensions-probe.ts <url> [prompt] [--verbose]");
   process.exit(1);
 }
 

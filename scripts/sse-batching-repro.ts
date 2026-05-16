@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 /**
- * SSE batching reproducer harness — gates G1, G2 (Bun+Node), G3, G5 from
- * docs/_internal/sse-batching-investigation.md (#71). G4 (Bun version
- * matrix) is left as a manual rerun under different Bun versions; G2's
- * undici client variant is not implemented (Node 24's native fetch covers
- * the non-Bun comparison without adding a runtime dep).
+ * SSE batching reproducer harness.
  *
  * Self-contained: imports nothing from agents-js, no SDK, no harness.
  * Goal: bisect which layer between Bun.serve `controller.enqueue` and
- * a client's read loop coalesces SSE chunks into one batch.
+ * a client's read loop coalesces SSE chunks into one batch. Gates G1,
+ * G2 (Bun+Node), G3, G5 are wired here; G4 (Bun version matrix) is a
+ * manual rerun under different Bun versions, and G2's undici client
+ * variant is omitted because Node 24's native fetch covers the non-Bun
+ * comparison without adding a runtime dep.
  *
  * Usage:
  *   bun scripts/sse-batching-repro.ts                # default: run all gates, print verdict

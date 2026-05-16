@@ -203,8 +203,7 @@ export function handleSessionUpdate(
         richContent: regularContent ? mapToolCallContent(regularContent) : undefined,
         // Forward the SDK's typed `ToolCall` fields directly so
         // downstream consumers (WS bridge → browser UI) get the rich
-        // payload that ACP carries. Previously dropped — see the
-        // Phase 4 audit at docs/_internal/ws-bridge-session-update-audit.md.
+        // payload that ACP carries. Earlier revisions dropped these.
         ...(tc.locations !== undefined ? { locations: tc.locations } : {}),
         ...(tc.rawInput !== undefined ? { rawInput: tc.rawInput } : {}),
         ...(tc.rawOutput !== undefined ? { rawOutput: tc.rawOutput } : {}),

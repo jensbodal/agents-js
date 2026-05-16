@@ -48,8 +48,10 @@ export default withMermaid(
     // Local working artifacts: archived plans live under `docs/superpowers/`
     // for orchestrator workflow tooling but should not ship as deployed
     // pages. Same for the api/ tree's regenerated typedoc-sidebar.json
-    // (config-only, not a page).
-    srcExclude: ["superpowers/**"],
+    // (config-only, not a page). `_internal/**` is reserved as a build-time
+    // exclusion guard so re-introduced session-research drafts never ship
+    // to the public docs even if they reappear under that path.
+    srcExclude: ["superpowers/**", "_internal/**"],
     markdown: {
       // Resolve `!!!include(path)!!!` directives relative to docs/ root so
       // hand-authored pages can transclude generated reference partials
