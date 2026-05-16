@@ -104,7 +104,7 @@ bun add @agents-js/ui-components
 - **`ModelInfo`**
 - **`ModelInfoLike`**
 - **`PendingElicitationInfo`** — Minimal elicitation request shape for display purposes. Mirrors the non-function fields of `PendingElicitation` on the host side (see `packages/acp-host/src/types/session.ts`). The gateway's JSON s...
-- **`PendingPermissionInfo`** — Minimal permission request shape for display purposes.
+- **`PendingPermissionInfo`** — Permission-request shape for display purposes. Mirrors the ACP SDK `ToolCallUpdate` surface (which is what `RequestPermissionRequest.toolCall` actually carries — see `/sdk` `schema/types.gen.d.ts`)...
 - **`PendingWriteGateInfo`** — Minimal write-gate shape for display purposes.
 - **`PermissionOptionInfo`** — Permission option shape matching /sdk PermissionOption.
 - **`PermissionRequestLike`** — Minimal shape for permission requests from acp-host.
