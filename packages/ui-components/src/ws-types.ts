@@ -1,3 +1,9 @@
+import type {
+  ToolCallContent,
+  ToolCallLocation,
+  ToolCallStatus,
+  ToolKind,
+} from "@agentclientprotocol/sdk";
 import type { PlanEntryLike, TranscriptToolCallEntryPayload } from "./acp-types.ts";
 import type { WorkflowSurfaceRenderState } from "./workflow-surface.ts";
 
@@ -20,11 +26,44 @@ export interface PermissionOptionInfo {
   description?: string;
 }
 
-/** Minimal permission request shape for display purposes. */
+/**
+ * Permission-request shape for display purposes. Mirrors the ACP SDK
+ * `ToolCallUpdate` surface (which is what `RequestPermissionRequest.toolCall`
+ * actually carries — see `@agentclientprotocol/sdk` `schema/types.gen.d.ts`).
+ * The modal can correlate this prompt with the live `ToolCallInfo` entry
+ * via `toolCallId`, surface execution state via `status`, render
+ * follow-along files (`locations`), terminal output produced by the time
+ * the agent asks for follow-up permission (`rawOutput`), the call's
+ * icon/treatment (`kind`), and the rich body (`content` — image / diff /
+ * terminal variants). The host carries all of these in `ToolCallInfo`
+ * since `@agents-js/acp-host` 0.4.0; the WS-bridge mapper forwards them
+ * through.
+ */
 export interface PendingPermissionInfo {
   toolCall?: {
+    /** ACP `ToolCallUpdate.toolCallId` — required on the SDK type;
+     *  enables UI consumers to correlate a permission prompt with the
+     *  corresponding live tool-call entry in `currentTurn.toolCalls`. */
+    toolCallId?: string;
     title?: string;
+    /** ACP `ToolCallUpdate.status` — current execution state of the
+     *  tool call (e.g. `pending`, `in_progress`, `completed`, `failed`).
+     *  Widened to string so unknown future statuses flow through. */
+    status?: ToolCallStatus | string;
+    /** ACP `ToolCallUpdate.kind` (read/edit/execute/...) — widened to
+     *  string so unknown future kinds flow through; receivers narrow
+     *  against the SDK's `ToolKind` if they want typed handling. */
+    kind?: ToolKind | string;
+    /** ACP `ToolCallUpdate.locations` — file paths + optional line
+     *  numbers the call operates on; enables follow-along clients. */
+    locations?: ToolCallLocation[];
+    /** Raw input args. Always opaque to the UI. */
     rawInput?: unknown;
+    /** Raw output already produced (e.g. terminal output preceding
+     *  a permission prompt). Opaque to the UI. */
+    rawOutput?: unknown;
+    /** Rich body (text / image / audio / resource / diff / terminal). */
+    content?: ToolCallContent[];
   };
   message?: string;
   options?: PermissionOptionInfo[];

@@ -6,7 +6,12 @@
  * making them directly unit-testable.
  */
 
-import type { ToolCallContent, ToolCallLocation, ToolKind } from "@agentclientprotocol/sdk";
+import type {
+  ToolCallContent,
+  ToolCallLocation,
+  ToolCallStatus,
+  ToolKind,
+} from "@agentclientprotocol/sdk";
 import { deriveWorkflowSurfaceState } from "@agents-js/acp-host/workflow-surface";
 import type { TranscriptToolCallEntryPayload } from "./acp-types.ts";
 import type {
@@ -31,9 +36,29 @@ export function mapPermissionRequest(raw: Record<string, unknown>): PendingPermi
 
   const toolCall = raw.toolCall as Record<string, unknown> | undefined;
   if (toolCall) {
+    // Forward the full ACP `ToolCallUpdate` surface (Layer C fidelity).
+    // Host carries `toolCallId`, `status`, `kind`, `locations`,
+    // `rawInput`, `rawOutput`, and `content` on `ToolCallInfo` since
+    // acp-host 0.4.0 — truncating here means modals lose the ID needed
+    // to correlate against `currentTurn.toolCalls`, the live execution
+    // state, follow-along files, raw I/O, and rich bodies (image / diff
+    // / terminal) despite the upstream having them.
     result.toolCall = {
+      toolCallId: typeof toolCall.toolCallId === "string" ? toolCall.toolCallId : undefined,
       title: typeof toolCall.title === "string" ? toolCall.title : undefined,
+      status:
+        typeof toolCall.status === "string"
+          ? (toolCall.status as ToolCallStatus | string)
+          : undefined,
+      kind: typeof toolCall.kind === "string" ? (toolCall.kind as ToolKind | string) : undefined,
+      locations: Array.isArray(toolCall.locations)
+        ? (toolCall.locations as ToolCallLocation[])
+        : undefined,
       rawInput: toolCall.rawInput,
+      rawOutput: toolCall.rawOutput,
+      content: Array.isArray(toolCall.content)
+        ? (toolCall.content as ToolCallContent[])
+        : undefined,
     };
   }
 
