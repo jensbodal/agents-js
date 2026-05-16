@@ -74,7 +74,10 @@ describe("mapPermissionRequest", () => {
     // Downstream renderers read `loc.path` and `block.type` unguarded —
     // a string/null slipping through would crash the modal. The mapper
     // must drop elements that don't match the documented element shape
-    // even when the outer array is well-formed.
+    // even when the outer array is well-formed. Locations are narrowed
+    // via `rehydrateLocations` (path: string + optional numeric line);
+    // content blocks are narrowed against the `ToolCallContent`
+    // discriminator union (`"content" | "diff" | "terminal"`).
     const result = mapPermissionRequest({
       toolCall: {
         title: "Mixed payload",
@@ -84,18 +87,33 @@ describe("mapPermissionRequest", () => {
           null,
           { line: 2 }, // missing required `path`
           { path: 7 }, // wrong type for `path`
+          { path: "/work/src/other.ts", line: "12" }, // wrong type for `line` — line dropped, path kept
         ],
         content: [
-          { type: "text", text: "ok" },
+          { type: "content", content: { type: "text", text: "ok" } },
+          { type: "diff", path: "/x", oldText: null, newText: "y" },
           "lone-string",
           null,
+          { type: "text", text: "wrong-discriminator" }, // not part of the ToolCallContent union
           { kind: "diff" }, // missing required `type`
+          { type: "image" }, // unknown discriminator
+          { type: "diff" }, // diff missing required `path` + `newText`
+          { type: "diff", path: "/y" }, // diff missing required `newText`
+          { type: "terminal" }, // terminal missing required `terminalId`
+          { type: "content", content: null }, // content missing nested block
+          { type: "content", content: { text: "no-type" } }, // content nested block missing `type`
         ],
       },
     });
 
-    expect(result.toolCall?.locations).toEqual([{ path: "/work/src/app.ts", line: 1 }]);
-    expect(result.toolCall?.content).toEqual([{ type: "text", text: "ok" }]);
+    expect(result.toolCall?.locations).toEqual([
+      { path: "/work/src/app.ts", line: 1 },
+      { path: "/work/src/other.ts" }, // `line` dropped because it was a string
+    ]);
+    expect(result.toolCall?.content).toEqual([
+      { type: "content", content: { type: "text", text: "ok" } },
+      { type: "diff", path: "/x", oldText: null, newText: "y" },
+    ]);
   });
 
   test("drops non-string toolCallId and status (defensive at the wire boundary)", () => {

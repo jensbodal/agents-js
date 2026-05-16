@@ -2218,8 +2218,8 @@ spawn/exit transitions.
 
 #### Gateway bus events
 
-The reference gateway publishes harness-lifecycle events on the in-process bus shipped by
-AJS-8 v1, exposed externally via the `/events` SSE endpoint:
+The reference gateway publishes harness-lifecycle events on the in-process bus,
+exposed externally via the `/events` SSE endpoint:
 
 - `gateway.harness.child-spawned` — fires on every successful lane-controller spawn.
   Payload includes `harnessId`, `pid` (`number | null` — `null` when the underlying
@@ -2236,9 +2236,9 @@ AJS-8 v1, exposed externally via the `/events` SSE endpoint:
   `primary` flips on a routing-target switch). Payload carries `harnessId`,
   `previousEntry`, and `newEntry` for a faithful diff.
 
-These are AJS-7 PR2/PR3 surface, not part of A2A or AG-UI; they ride the
-[bus + SSE substrate](#json-rpc-2-0) that AJS-8 established for operator/federation
-tooling. The event-name namespace is `gateway.harness.*` to mark them as
+These are fleet-lifecycle events, not part of A2A or AG-UI; they ride the
+[bus + SSE substrate](#json-rpc-2-0) used for operator/federation tooling.
+The event-name namespace is `gateway.harness.*` to mark them as
 fleet-lifecycle events rather than per-turn protocol traffic.
 
 #### WS-bridge primary-routing-target switch
