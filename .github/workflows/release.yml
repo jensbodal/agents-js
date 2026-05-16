@@ -67,7 +67,14 @@ jobs:
     # invoked against any branch from the UI; gate to main so a manual run
     # can't accidentally execute with a non-main toolchain (mise.toml),
     # config (release-please-config.json), or scripts (scripts/bump.ts).
-    if: github.ref == 'refs/heads/main'
+    #
+    # The `server_url` clause skips this job entirely when the workflow is
+    # executed by Gitea Actions (mirror push, gitea-side CI). release-please
+    # binds to npm Trusted Publishers via github.com OIDC and `release.yml`
+    # filename, so running anywhere other than github.com fails — and the
+    # failure surfaces as red CI noise on gitea even though release flow on
+    # github is unaffected.
+    if: github.ref == 'refs/heads/main' && github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -156,7 +163,7 @@ jobs:
     # when release-please was skipped — without it, GitHub treats the
     # skipped need as failure and short-circuits.
     if: |
-      always() && (
+      always() && github.server_url == 'https://github.com' && (
         needs.release-please.outputs.release_created == 'true' ||
         (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
       )
