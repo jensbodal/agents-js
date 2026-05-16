@@ -161,7 +161,8 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "Options:",
       `  --harness <${listGatewayRuntimeIds().join("|")}|custom>  Select a curated harness. Repeatable: --harness <id> --harness <id> declares a fleet (first = primary).`,
       "  --harnesses <id1,id2,...>           Comma-separated harness fleet (first = primary). Equivalent to repeating --harness.",
-      "                                       AJS-7 v1: only the primary is resolved; secondary harnesses are accepted by the parser but not yet routed.",
+      "                                       Note: this standalone binary resolves only the primary harness; secondary entries are parsed but not routed.",
+      "                                       For multi-harness fleet routing (per-session lane controllers + WS-bridge runtime-switch), use the internal-gateway binary instead.",
       "  --acp-command <command>             Custom ACP command (requires --harness custom or no --harness; mutually exclusive with curated harnesses)",
       "  --acp-args-json <json>              JSON array of custom ACP args (only valid with --acp-command)",
       "  --profile <name>                    Optional named profile for curated runtimes (not supported with --harness custom)",
@@ -259,18 +260,16 @@ async function resolveServeInputs(
   const configServe = loadedConfig.effectiveConfig.serve;
   // Use the user+project merge (without base defaults) to decide whether to prompt.
   const explicitServe = mergeAgentsJsConfig(userConfig, projectConfig).serve;
-  // AJS-7 PR1: the CLI flag side accepts `harnesses: string[]` (index
-  // 0 = primary, subsequent = secondary). PR1 narrow scope only
-  // RESOLVES the primary entry; secondary harnesses parse cleanly but
-  // do not yet spawn lane controllers — that fanout lives in PR2.
-  // The data-structure boundary moves to the array form via
-  // `createRuntimeSelectionsFromArgs`, so PR2 only has to wire the
-  // additional resolution + setupServer fanout with no further CLI or
-  // type-shape churn.
+  // AJS-7 multi-harness fanout (HarnessLaneManager) is wired into
+  // `apps/internal-gateway/main.ts`, NOT this standalone CLI binary.
+  // The flag side accepts `harnesses: string[]` so both binaries share
+  // arg-parsing surface, but this entry point still resolves only the
+  // primary. Backporting the lane manager to `packages/cli/src/serve.ts`
+  // is a separate follow-up.
   const argSelections = createRuntimeSelectionsFromArgs(args);
   if ((args.harnesses?.length ?? 0) > 1) {
     output.write(
-      `[agents-js] AJS-7 PR1: ${args.harnesses?.length ?? 0} harnesses configured (${args.harnesses?.join(", ")}). v1 PR1 resolves only the primary ("${args.harnesses?.[0]}"); secondary harnesses ship in PR2.\n`,
+      `[agents-js] ${args.harnesses?.length ?? 0} harnesses configured (${args.harnesses?.join(", ")}). This standalone CLI uses only the primary ("${args.harnesses?.[0]}"); for multi-harness fleet routing run the internal-gateway binary instead.\n`,
     );
   }
   const argSelection = argSelections?.[0];

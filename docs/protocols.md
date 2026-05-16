@@ -432,11 +432,15 @@ The reference gateway publishes harness-lifecycle events on the in-process bus s
 AJS-8 v1, exposed externally via the `/events` SSE endpoint:
 
 - `gateway.harness.child-spawned` — fires on every successful lane-controller spawn.
-  Payload includes `harnessId`, `pid`, `harnessDisplayName`, and a full
+  Payload includes `harnessId`, `pid` (`number | null` — `null` when the underlying
+  `createProcess` returns no real child, e.g. mocks), `harnessDisplayName`, and a full
   `capabilities.harnesses` snapshot at spawn time.
 - `gateway.harness.child-exited` — fires on ACP-child exit, whether gateway-initiated
   (`crash: false`) or unilateral agent walk-away (`crash: true`). Payload includes
-  `harnessId`, `pid`, `exitCode`, `signal`, `crash`, `durationMs`.
+  `harnessId`, `pid` (`number | null` same convention as above), `exitCode` (`number | null` —
+  `null` when the process was killed by a signal rather than exiting cleanly), `signal`
+  (`string | null` — the platform signal name when signal-killed, `null` otherwise),
+  `crash`, `durationMs`.
 - `gateway.harness.card-changed` — fires when an entry in
   `capabilities.harnesses` mutates (e.g. `ready` flips on first spawn or last exit;
   `primary` flips on a routing-target switch). Payload carries `harnessId`,
