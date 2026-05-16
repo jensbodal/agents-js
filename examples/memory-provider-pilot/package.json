@@ -1,0 +1,17 @@
+{
+  "name": "@agents-js/example-memory-provider-pilot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Consumer-pilot smoke test for @agents-js/memory. Implements MapBackedProvider against the published surface (no src/ reach-through) and runs the conformance harness against it.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/memory": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
