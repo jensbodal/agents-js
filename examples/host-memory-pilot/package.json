@@ -1,0 +1,19 @@
+{
+  "name": "@agents-js/example-host-memory-pilot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Host-side consumer pilot for @agents-js/memory + @agents-js/memory-local. Demonstrates the consumption pattern a host runtime uses to compose LocalMemoryProvider, exercises all three MemoryActor.kind variants (agent | human | service), and re-runs runProviderConformanceTests against the host-composed provider so the contract pin survives host wrapping.",
+  "scripts": {
+    "smoke": "bun run src/smoke.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/memory": "workspace:*",
+    "@agents-js/memory-local": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
