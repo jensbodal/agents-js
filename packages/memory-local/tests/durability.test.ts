@@ -65,6 +65,40 @@ describe("SqliteStorage — durability", () => {
     await reader.close();
   });
 
+  // Intent: `decodeCreator` is the read-boundary narrowing point from
+  // raw `creator_kind: string` back into the `MemoryActor.kind` union.
+  // When the union widens, every narrowing point has to widen with it;
+  // otherwise a record written with the new kind round-trips through
+  // insert but throws on the read after re-open. This pins the contract
+  // for `"service"` specifically because that's the kind whose absence
+  // from decodeCreator was the actual ship-blocker.
+  test("service-kind creator persists across SqliteStorage re-open at the same dbPath", async () => {
+    const dbPath = join(tmp, "service-actor.sqlite");
+
+    const writer = new SqliteStorage({ dbPath });
+    const inserted = await writer.insertRecord(
+      fixtureRecord({
+        id: "mem_service_1",
+        creator: { kind: "service", actorId: "cron-smoke-1" },
+      }),
+    );
+    await writer.close();
+
+    const reader = new SqliteStorage({ dbPath });
+    const reread = await reader.getRecord(inserted.id);
+    expect(reread?.creator).toEqual({ kind: "service", actorId: "cron-smoke-1" });
+
+    // Update path also goes through rowToRecord → decodeCreator, so
+    // exercise it explicitly — this is the failure mode codex's gate
+    // surfaced: the insert succeeds, but the post-reopen update throws.
+    const updated = await reader.updateRecord(inserted.id, { content: "rotated" });
+    expect(updated.ok).toBe(true);
+    if (updated.ok) {
+      expect(updated.record.creator).toEqual({ kind: "service", actorId: "cron-smoke-1" });
+    }
+    await reader.close();
+  });
+
   // Intent: WAL mode is what makes concurrent reads non-blocking against
   // an active writer. The constructor sets `PRAGMA journal_mode = WAL`
   // and we verify the database reports it back. (For `:memory:`
