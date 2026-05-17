@@ -123,6 +123,10 @@ interface HarnessSlot {
  * ready-state transitions, and publishes `gateway.harness.*` lifecycle
  * events onto the in-process bus.
  *
+ * Lanes with `source: "remote"` in their fleet entry are future
+ * routing branches not yet handled by {@link HarnessLaneManager.getOrSpawnLane};
+ * the federation contract is documented in `docs/federation/v1-contract.md`.
+ *
  * See {@link HarnessLaneManagerOptions} for constructor inputs.
  */
 export class HarnessLaneManager {
