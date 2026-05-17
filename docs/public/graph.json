@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-16T05:24:43.710Z",
-  "package_count": 30,
-  "publishable_count": 19,
+  "generated_at": "2026-05-17T02:47:54.523Z",
+  "package_count": 31,
+  "publishable_count": 20,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -293,6 +293,18 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/memory-local",
+      "dir": "packages/memory-local",
+      "private": false,
+      "version": "0.4.0",
+      "internal_deps": [
+        "@agents-js/memory"
+      ],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/pi-acp",
       "dir": "extras/pi-acp",
       "private": true,
@@ -478,7 +490,9 @@
       "@agents-js/mcp-bus-bridge",
       "@agents-js/matrix-bridge"
     ],
-    "@agents-js/memory": [],
+    "@agents-js/memory": [
+      "@agents-js/memory-local"
+    ],
     "@agents-js/ui-components": [
       "@agents-js/a2ui-renderer",
       "@agents-js/web-ui"
@@ -494,6 +508,7 @@
     "@agents-js/a2ui-renderer": [
       "@agents-js/web-ui"
     ],
+    "@agents-js/memory-local": [],
     "@agents-js/acp-host": [
       "@agents-js/host",
       "@agents-js/ui-components",

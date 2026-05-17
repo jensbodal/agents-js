@@ -86,6 +86,17 @@
         "vite": "catalog:",
       },
     },
+    "examples/memory-local-smoke": {
+      "name": "@agents-js/example-memory-local-smoke",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/memory": "workspace:*",
+        "@agents-js/memory-local": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "examples/memory-provider-pilot": {
       "name": "@agents-js/example-memory-provider-pilot",
       "version": "0.0.0",
@@ -356,6 +367,13 @@
       "name": "@agents-js/memory",
       "version": "0.4.0",
     },
+    "packages/memory-local": {
+      "name": "@agents-js/memory-local",
+      "version": "0.4.0",
+      "dependencies": {
+        "@agents-js/memory": "0.4.0",
+      },
+    },
     "packages/policy": {
       "name": "@agents-js/policy",
       "version": "0.4.0",
@@ -510,6 +528,8 @@
 
     "@agents-js/droid-acp": ["@agents-js/droid-acp@workspace:extras/droid-acp"],
 
+    "@agents-js/example-memory-local-smoke": ["@agents-js/example-memory-local-smoke@workspace:examples/memory-local-smoke"],
+
     "@agents-js/example-memory-provider-pilot": ["@agents-js/example-memory-provider-pilot@workspace:examples/memory-provider-pilot"],
 
     "@agents-js/gateway": ["@agents-js/gateway@workspace:apps/internal-gateway"],
@@ -525,6 +545,8 @@
     "@agents-js/mcp-bus-bridge": ["@agents-js/mcp-bus-bridge@workspace:extras/mcp-bus-bridge"],
 
     "@agents-js/memory": ["@agents-js/memory@workspace:packages/memory"],
+
+    "@agents-js/memory-local": ["@agents-js/memory-local@workspace:packages/memory-local"],
 
     "@agents-js/pi-acp": ["@agents-js/pi-acp@workspace:extras/pi-acp"],
 
