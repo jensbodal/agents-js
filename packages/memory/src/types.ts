@@ -20,10 +20,10 @@ export type MemoryType = "user" | "feedback" | "project" | "reference" | "learni
  * uses this to enforce scope ACL (if it implements ACL) and to populate
  * record provenance.
  *
- * Future versions MAY add more principal kinds (service, scheduled-job).
+ * Future versions MAY add more principal kinds (e.g. `scheduled-job`).
  */
 export interface MemoryActor {
-  kind: "agent" | "human";
+  kind: "agent" | "human" | "service";
   actorId: string;
 }
 
@@ -72,14 +72,13 @@ export interface DeleteMemoryInput {
   /**
    * Policy-related context passed to the provider's policy gate but
    * NOT persisted. Scoped naming (vs. generic `metadata`) keeps the
-   * field intent-narrow so the v1.2 destructive-consent flow and
-   * future policy-family extensions (signed consent tokens,
-   * cross-host attestation, etc.) live under one namespace without
-   * grab-bagging unrelated request-tracing or telemetry concerns.
+   * field intent-narrow so destructive-consent context and future
+   * policy-family extensions (signed consent tokens, cross-host
+   * attestation, etc.) live under one namespace without grab-bagging
+   * unrelated request-tracing or telemetry concerns.
    *
-   * Per MemoryPolicy v1.2, `policy.consentToken` is the canonical
-   * key the default destructive gate looks for; the validator is
-   * configurable on the gate side.
+   * `policy.consentToken` is the convention destructive policy gates
+   * may consult; the validator is owned by the gate implementation.
    */
   policy?: {
     consentToken?: string;
