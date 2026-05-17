@@ -1,0 +1,19 @@
+{
+  "name": "@agents-js/example-memory-local-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for @agents-js/memory-local. Demonstrates LocalMemoryProvider construction, policy-gate wiring, and an allow/deny round-trip against an on-disk sqlite db.",
+  "scripts": {
+    "smoke": "bun run src/smoke.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/memory": "workspace:*",
+    "@agents-js/memory-local": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
