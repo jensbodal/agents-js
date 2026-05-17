@@ -12,16 +12,16 @@ import { composeAdditionalFetch } from "../main.ts";
  * End-to-end integration: a real gateway audit event reaches a bus
  * subscriber via the same wiring `main.ts` uses in production.
  *
- * Codex's blocking review on PR #52 noted that shipping
- * `wrapAuditEmitterAsBusPublisher` as an unused helper does not
- * satisfy the AJS-8 PR3 milestone — the wrapper has to be live in
- * the production runtime path. This test exercises that live path:
+ * Shipping `wrapAuditEmitterAsBusPublisher` as a defined-but-unused
+ * helper does not establish that audit events actually reach bus
+ * subscribers — the wrapper has to be live in the production runtime
+ * path. This test exercises that live path:
  * the exact `composeAdditionalFetch` chain main.ts assembles, the
  * exact audit-emitter shape main.ts constructs, and a real SSE
  * subscriber reading the bus through the chain.
  *
  * The chain is invoked directly rather than through `Bun.serve`
- * because PR #51's `createBusSubscribeHandler` tests already cover
+ * because the `createBusSubscribeHandler` unit tests already cover
  * the HTTP transport — what we want to assert here is the
  * composition, not the wire format.
  */

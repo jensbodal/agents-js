@@ -67,9 +67,9 @@ export interface ServeCommandArgs {
    * Ordered list of curated harness ids. Populated by `--harness`
    * (repeatable) and `--harnesses` (comma-separated), in argv order.
    * First entry = primary routing target. Single-element array is the
-   * single-harness back-compat path. AJS-7 PR1 introduces the list
-   * shape; downstream consumers in PR1 collapse to `harnesses[0]`
-   * with byte-identical behavior to pre-AJS-7.
+   * single-harness back-compat path. Downstream consumers in this
+   * binary collapse to `harnesses[0]`, with byte-identical behavior
+   * to the original single-harness invocation form.
    */
   harnesses?: string[];
   help?: boolean;
@@ -260,7 +260,7 @@ async function resolveServeInputs(
   const configServe = loadedConfig.effectiveConfig.serve;
   // Use the user+project merge (without base defaults) to decide whether to prompt.
   const explicitServe = mergeAgentsJsConfig(userConfig, projectConfig).serve;
-  // AJS-7 multi-harness fanout (HarnessLaneManager) is wired into
+  // The multi-harness fanout (HarnessLaneManager) is wired into
   // `apps/internal-gateway/main.ts`, NOT this standalone CLI binary.
   // The flag side accepts `harnesses: string[]` so both binaries share
   // arg-parsing surface, but this entry point still resolves only the
@@ -412,13 +412,13 @@ export async function runServeCommand(
   // earlier in `resolveServeInputs`). Precedence: CLI flag > pre-existing
   // env > default. `onMissingProfile: "throw"` enforces the invariant that
   // resolveServeInputs already wrote the profile into project config.
-  // AJS-7 PR1: plumb the multi-runtime data structure through
-  // `resolveAndApplyGatewayRuntimes` (plural). v1 PR1 still resolves
-  // only the primary (single selection wrapped in a one-entry array);
-  // PR2 builds the per-secondary-harness selections + spawns them.
-  // Downstream code collapses back to the primary via
-  // `getPrimaryGatewayRuntime` so the existing single-runtime data
-  // flow stays byte-identical to pre-AJS-7.
+  // Plumb the multi-runtime data structure through
+  // `resolveAndApplyGatewayRuntimes` (plural). This binary still
+  // resolves only the primary (single selection wrapped in a one-entry
+  // array); the per-secondary-harness selections + spawns happen in
+  // the internal-gateway binary. Downstream code collapses back to
+  // the primary via `getPrimaryGatewayRuntime` so the existing
+  // single-runtime data flow is byte-identical to the original form.
   const runtimes: readonly ResolvedGatewayRuntime[] = await resolveAndApplyGatewayRuntimes({
     selections: [resolvedInputs.runtimeSelection],
     envOverrides: serveArgsToRuntimeEnvOverrides(args),
@@ -436,7 +436,7 @@ export async function runServeCommand(
   // In-process gateway bus — every recorded audit event is also
   // published on this bus via the wrapper below. The public-facing
   // CLI gateway does NOT mount the bus subscribe/publish HTTP
-  // endpoints (they're trusted-network only per AC v3); subscribers
+  // endpoints (they're trusted-network only by design); subscribers
   // are limited to in-process listeners. The internal-gateway
   // listener mounts the HTTP endpoints for operator tooling.
   const bus = createGatewayBus();

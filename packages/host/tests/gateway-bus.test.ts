@@ -6,8 +6,8 @@ import {
 } from "../src/gateway-bus.ts";
 
 // `createGatewayBus` is the in-process publish/subscribe primitive
-// underlying AJS-8. Contract documented in source: fan-out best-effort
-// to every subscriber, subscriber errors isolated, no topic filtering
+// underlying the gateway bus. Contract documented in source: fan-out
+// best-effort to every subscriber, subscriber errors isolated, no topic filtering
 // at the bus layer (filtering happens in subscribers or transport
 // adapters).
 

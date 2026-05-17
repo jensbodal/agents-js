@@ -71,14 +71,13 @@ interface SetupServerOptions {
   cliArgs: GatewayCliArgs;
   resolvedPort: number;
   /**
-   * Ordered list of resolved runtimes. AJS-7 PR1 introduces the array
-   * form: index 0 is the primary routing target — consumers that need
-   * a single runtime (the registry-sync auto-register name, etc.) read
-   * `runtimes[0]`. PR2 fans the secondary entries out into the
-   * `HarnessLaneManager` lane fleet; the agent card surface they show
-   * up on is built outside `setupServer` so the lane manager can
-   * pre-populate `capabilities.harnesses` before the server starts
-   * serving `/.well-known/agent-card.json`.
+   * Ordered list of resolved runtimes. Index 0 is the primary routing
+   * target — consumers that need a single runtime (the registry-sync
+   * auto-register name, etc.) read `runtimes[0]`. Secondary entries are
+   * fanned out into the `HarnessLaneManager` lane fleet; the agent card
+   * surface they show up on is built outside `setupServer` so the lane
+   * manager can pre-populate `capabilities.harnesses` before the server
+   * starts serving `/.well-known/agent-card.json`.
    */
   runtimes: readonly ResolvedGatewayRuntime[];
   /**
@@ -201,7 +200,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // and (when registry sync is enabled) the registry sync endpoint on
   // the same port via the additionalFetch hook so discovery + CORS
   // stay centralized.
-  // PR2: agent card is built in `main()` so the `HarnessLaneManager`
+  // The agent card is built in `main()` so the `HarnessLaneManager`
   // can pre-populate `capabilities.harnesses` before the server hands
   // it to `UniversalA2AServer`. The card object identity is preserved
   // — the lane manager mutates the same instance the A2A server reads.
@@ -295,9 +294,8 @@ interface SetupWsBridgeOptions {
   /**
    * Lane manager — the WS bridge calls
    * {@link HarnessLaneManager.setPrimaryHarnessId} on a successful
-   * runtime switch (per AJS-7 PR3 § Behavior). The bridge does NOT
-   * spawn or destroy lane controllers itself; the manager owns that
-   * lifecycle.
+   * runtime switch. The bridge does NOT spawn or destroy lane
+   * controllers itself; the manager owns that lifecycle.
    */
   laneManager: HarnessLaneManager;
 }
@@ -306,7 +304,7 @@ interface SetupWsBridgeOptions {
  * Pure check: is anything in flight that would be unsafe to interrupt
  * with a primary-routing-target switch?
  *
- * **Scoped down for AJS-7 PR3 multi-harness behavior** — under PR3,
+ * **Scoped down for the multi-harness primary-switch semantics**:
  * existing in-flight A2A tasks / dispatch / lanes / pending-spawns
  * stay bound to their original harness's controller even after the
  * primary flips. Only future sessions route to the new primary. So
@@ -336,11 +334,11 @@ export function describeRuntimeSwitchBlockingActivity(input: {
     return `AG-UI run is active (runId=${input.aguiCoordinator.activeRunId ?? "(unknown)"})`;
   }
   // Cross-harness in-flight work (A2A tasks, dispatch, lanes, pending
-  // spawns) does NOT block a primary-target switch under PR3 semantics
-  // — those sessions stay bound to their original harness's
-  // controller regardless of who's primary. `getActivitySnapshot()`
-  // is kept on the executor surface for diagnostics/observability;
-  // the call here is intentionally elided.
+  // spawns) does NOT block a primary-target switch — those sessions
+  // stay bound to their original harness's controller regardless of
+  // who's primary. `getActivitySnapshot()` is kept on the executor
+  // surface for diagnostics/observability; the call here is
+  // intentionally elided.
   return null;
 }
 
@@ -363,8 +361,8 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
     defaultModelId: opts.resolvedDefaultModel,
     surfaceBroadcaster: opts.surfaceBroadcaster,
     setRuntime: async (runtimeId) => {
-      // AJS-7 PR3: WS-bridge runtime switch is now "switch the primary
-      // routing target" — change which configured fleet entry is the
+      // WS-bridge runtime switch is "switch the primary routing
+      // target" — change which configured fleet entry is the
       // default for new sessions. Existing in-flight lane controllers
       // stay bound to whichever harness spawned them; only future
       // `controllerFactory(contextId)` calls route to the new primary.
@@ -372,11 +370,10 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
       // Pre-checks happen BEFORE any state mutation so a rejected
       // switch leaves the gateway in its prior state:
       //   - Target must be in the configured fleet. Dynamic install
-      //     of a non-configured runtime is out of v1 scope per AC.
+      //     of a non-configured runtime is out of v1 scope.
       //   - Cross-harness in-flight work no longer blocks the switch
-      //     (per AC § Behavior, `describeRuntimeSwitchBlockingActivity`
-      //     is scoped down to the AG-UI invariant only — see its
-      //     docstring).
+      //     (`describeRuntimeSwitchBlockingActivity` is scoped down
+      //     to the AG-UI invariant only — see its docstring).
       if (!opts.laneManager.hasHarness(runtimeId)) {
         throw new Error(
           `[Gateway] Runtime switch rejected: "${runtimeId}" is not in the configured fleet (${opts.laneManager
@@ -441,10 +438,10 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
         },
         runtimeModels: nextRuntimeModels,
         defaultModelId: opts.resolvedDefaultModel,
-        // Under PR3 semantics there's no session swap, so the legacy
-        // session-preservation fields are trivially "preserved, nothing
-        // cleared." Kept on the wire for back-compat with the WS bridge
-        // client surface; consumers can ignore.
+        // The current primary-flip semantics never swap a session, so
+        // the legacy session-preservation fields are trivially
+        // "preserved, nothing cleared." Kept on the wire for back-compat
+        // with the WS bridge client surface; consumers can ignore.
         preservedSession: true,
         clearedPendingTurn: false,
         message: `Primary routing target switched to ${nextRuntime.definition.displayName} (${nextRuntime.definition.id}). Future sessions route here; existing in-flight sessions are unaffected.`,
@@ -505,8 +502,8 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // Resolve runtime fleet: CLI --runtime/--runtimes > config files >
   // env var (via gatewayConfig).
   //
-  // AJS-7 PR2: `runtimeOverrides` is the ordered list (index 0 =
-  // primary). Every entry resolves to a `ResolvedGatewayRuntime` and
+  // `runtimeOverrides` is the ordered list (index 0 = primary).
+  // Every entry resolves to a `ResolvedGatewayRuntime` and
   // becomes a `HarnessFleetEntry` in the fleet array. The primary
   // (`fleet[0]`) drives single-runtime consumers — agent-card name,
   // registry-sync auto-register URL, WS bridge initial runtime — while
@@ -580,18 +577,18 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     trustWorkspace: cliArgs.trustWorkspace,
   });
 
-  // PR2 makes WS-bridge-driven runtime switches throw before any state
-  // mutation (see `runtimeSwitchDisabledReason` in `setupWsBridge`), so
-  // this hook is unreachable in normal flow. It stays defined as a
-  // no-op to satisfy the bridge surface; if it ever DOES execute, the
-  // gateway is in a state the AC explicitly defers to PR3.
+  // WS-bridge-driven runtime switches throw before any state mutation
+  // (see `runtimeSwitchDisabledReason` in `setupWsBridge`), so this
+  // hook is unreachable in normal flow. It stays defined as a no-op
+  // to satisfy the bridge surface; if it ever DOES execute, the
+  // gateway is in a state outside the current v1 contract.
   const setActiveRuntime = (_runtime: ResolvedGatewayRuntime): void => {};
 
   // Internal gateway bus — single in-process pub/sub channel that
   // surfaces gateway lifecycle events to operator tooling (external
   // bridges, dashboards, etc.) via the SSE `/events` endpoint mounted
   // below. Trusted-network only; the internal-gateway listener is
-  // operator-only per AC v3.
+  // operator-only by design.
   const bus = createGatewayBus();
 
   // Internal correlation/audit surface — records lifecycle events for
@@ -603,14 +600,14 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // stream without polling the ring buffer.
   const audit = wrapAuditEmitterAsBusPublisher({ bus, emitter: createAuditEmitter() });
 
-  // AJS-7 PR2: build the live agent card here so the lane manager can
+  // Build the live agent card here so the lane manager can
   // pre-populate `capabilities.harnesses` before the A2A server serves
   // it. The card identity is preserved across the call chain — the
   // lane manager and the A2A server hold the same reference.
   const gatewayCard = buildAgentCard(selectedRuntime.agentCard);
 
-  // AJS-7 PR2: build the harness fleet entries and construct the
-  // lane manager. The manager owns:
+  // Build the harness fleet entries and construct the lane manager.
+  // The manager owns:
   //   - lazy spawn of per-harness lane controllers (one per harnessId,
   //     multiplexed across contextIds)
   //   - `gateway.harness.{child-spawned,child-exited,card-changed}`
@@ -650,9 +647,9 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
 
   // The A2A executor spawns a dedicated controller per A2A `contextId`
   // via this factory so genuinely independent conversations run in
-  // parallel. In PR2 the factory delegates to the lane manager, which
-  // resolves the operator-pinned primary harness for v1. Per-request
-  // routing override is deferred to v2 (AC open Q2).
+  // parallel. The factory delegates to the lane manager, which resolves
+  // the operator-pinned primary harness for v1. Per-request routing
+  // override is deferred to a later version.
   const controllerFactory = async (contextId: string) =>
     laneManager.getOrSpawnLane(laneManager.getPrimaryHarnessId(), contextId);
 

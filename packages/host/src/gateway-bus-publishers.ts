@@ -1,5 +1,5 @@
 /**
- * Internal publishers for the gateway bus (AJS-8).
+ * Internal publishers for the gateway bus.
  *
  * Publishers are named producer roles that turn existing gateway state
  * into structured `GatewayBusEvent` envelopes. Each publisher wraps or
@@ -12,11 +12,11 @@
  * banner, a log stream, or any other consumer without polling the
  * audit ring buffer.
  *
- * Follow-up PRs will add publishers for:
+ * Follow-up publishers will cover:
  * - `gateway.session.*` from ACPSessionController lifecycle hooks
  * - `gateway.harness.*` from harness child spawn/exit + agent-card changes
  * - Structured failure events (model-unresolved, auth-failed) from
- *   in-repo harness adapters per the AJS-8 AC's revised approach
+ *   in-repo harness adapters
  *
  * The wrapper pattern (return a `{ record, recent, reset }` that
  * delegates to the underlying emitter + publishes on the bus) keeps
@@ -146,9 +146,8 @@ export interface GatewayHarnessChildSpawnedPayload {
  * part of gateway-initiated teardown (`crash: false`) or unexpectedly
  * (`crash: true`).
  *
- * `crash: true` covers any exit not preceded by a gateway destroy() call,
- * including code===0 self-exit (agent walked away unilaterally) per the
- * AJS-7 PR2 plan interpretation.
+ * `crash: true` covers any exit not preceded by a gateway destroy()
+ * call, including code===0 self-exit (agent walked away unilaterally).
  */
 export interface GatewayHarnessChildExitedPayload {
   harnessId: string;

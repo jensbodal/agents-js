@@ -141,11 +141,11 @@ export interface ResolveAndApplyGatewayRuntimesOptions
  * in argv order, then restores env. Returns the resolved runtimes as
  * a readonly array preserving input order (first = primary).
  *
- * AJS-7 PR1 introduces this plural variant so gateway entry points
- * can carry a runtime list through `SetupServerOptions.runtimes`.
- * PR1 downstream code collapses to `runtimes[0]` via
- * {@link getPrimaryGatewayRuntime}; PR2 fans out to multi-controller
- * lifecycle for the full multi-harness behavior.
+ * The plural variant lets gateway entry points carry a runtime list
+ * through `SetupServerOptions.runtimes`. Standalone consumers collapse
+ * to `runtimes[0]` via {@link getPrimaryGatewayRuntime}; the
+ * internal-gateway binary fans out to multi-controller lifecycle for
+ * the full multi-harness behavior.
  *
  * Errors propagate to the caller. Env overrides are restored before
  * any error is rethrown, regardless of which selection in the list
@@ -209,8 +209,9 @@ export async function resolveAndApplyGatewayRuntimes(
  * lists, so getting here with `[]` is a caller bug.
  *
  * Used at the setupServer boundary to collapse a multi-harness list
- * to the primary in v1: `const runtime = getPrimaryGatewayRuntime(opts.runtimes);`
- * AJS-7 PR2 replaces this collapse with per-session harness routing.
+ * to the primary: `const runtime = getPrimaryGatewayRuntime(opts.runtimes);`
+ * The internal-gateway binary's lane manager bypasses this collapse
+ * and routes per-session.
  */
 export function getPrimaryGatewayRuntime(
   runtimes: readonly ResolvedGatewayRuntime[],

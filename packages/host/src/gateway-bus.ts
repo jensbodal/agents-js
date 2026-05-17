@@ -1,5 +1,5 @@
 /**
- * In-process server-push event bus for the agents-js gateway (AJS-8).
+ * In-process server-push event bus for the agents-js gateway.
  *
  * Publishers register named producer roles (`gateway.session.*`,
  * `gateway.harness.*`, `gateway.permission.*`, etc.) and emit events.
@@ -7,8 +7,8 @@
  * Delivery is fan-out best-effort within the process; subscribers that
  * throw are isolated and do not affect other subscribers.
  *
- * Transport (SSE / WebSocket / MCP adapter) sits on top of this bus and
- * is delivered in a later AJS-8 PR. This module ships the foundational
+ * Transport (SSE / WebSocket / MCP adapter) sits on top of this bus
+ * and is delivered separately. This module ships the foundational
  * publish/subscribe primitive only.
  *
  * ## Envelope shape
@@ -16,8 +16,8 @@
  * Every event carries an opaque event id, a dotted topic name, an
  * ISO-8601 timestamp, and a typed payload. Two optional metadata slots
  * — `sourcePrincipal` (who emitted) and `correlationId` (which
- * operator action this is part of) — are present in v1 with enforcement
- * deferred per the AJS-8 AC. Subscribers consuming the slots should
+ * operator action this is part of) — are present in v1 with
+ * enforcement deferred. Subscribers consuming the slots should
  * tolerate their absence.
  *
  * Repo-specific data lives in `payload`, never in protocol-shaped
@@ -36,9 +36,9 @@
 
 /**
  * Identity principal slot. Placeholder until the agents-js/identity
- * phase-1 types land per DOT-392 — at that point this alias is replaced
- * with the imported type. Kept loose (open record) so the eventual
- * replacement does not require a wire break.
+ * phase-1 types land — at that point this alias is replaced with the
+ * imported type. Kept loose (open record) so the eventual replacement
+ * does not require a wire break.
  */
 export interface IdentityPrincipal {
   /** Principal classification (e.g. `"matrix"`, `"a2a-peer"`, `"workload"`). */

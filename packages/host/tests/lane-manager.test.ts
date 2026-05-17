@@ -153,7 +153,6 @@ describe("HarnessLaneManager", () => {
     // The lane manager does NOT cache controllers. HostA2AExecutor owns
     // each factory-returned controller and is free to destroy it on idle
     // eviction; caching at the manager would hand back a torn-down ref.
-    // See Copilot review comment on PR #57 lane-manager.ts:199.
     const bus = createGatewayBus();
     const { entries, card } = buildFleet();
     let spawnCount = 0;
@@ -417,7 +416,7 @@ describe("HarnessLaneManager", () => {
     await expect(mgr.getOrSpawnLane("nonexistent", "ctx")).rejects.toThrow(/unknown harnessId/);
   });
 
-  // ---- AJS-7 PR3: primary-routing-target switch ----
+  // ---- primary-routing-target switch ----
 
   test("setPrimaryHarnessId flips primary flag + publishes card-changed for both entries", () => {
     const bus = createGatewayBus();
@@ -537,8 +536,8 @@ describe("HarnessLaneManager", () => {
     mgr.setPrimaryHarnessId("gemini");
     expect(mgr.getPrimaryHarnessId()).toBe("gemini");
 
-    // The opencode lane is still alive (existing in-flight session
-    // semantics — the AC's invariant for primary-target switches).
+    // The opencode lane is still alive — primary-target switches do
+    // NOT destroy lanes for the previously primary harness.
     expect(mgr.hasLiveLanesForHarness("opencode")).toBe(true);
     expect(opencodeLane).toBeDefined();
 

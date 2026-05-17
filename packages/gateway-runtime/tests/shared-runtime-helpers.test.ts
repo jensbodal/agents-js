@@ -4,10 +4,10 @@ import {
   createRuntimeSelectionsFromArgs,
 } from "../src/shared-runtime-helpers.ts";
 
-// AJS-7 PR1 tests for the multi-runtime selection helper.
+// Tests for the multi-runtime selection helper.
 // `createRuntimeSelectionFromArgs` (singular) stays as-is for ACP-command
 // and other single-harness CLI paths; `createRuntimeSelectionsFromArgs`
-// (plural) accepts the `harnesses: string[]` shape that AJS-7's `serve` +
+// (plural) accepts the `harnesses: string[]` shape that `serve` and
 // internal-gateway CLI parsing produces.
 
 describe("createRuntimeSelectionsFromArgs — single-harness back-compat", () => {
@@ -106,7 +106,7 @@ describe("createRuntimeSelectionsFromArgs — input validation", () => {
   });
 });
 
-describe("createRuntimeSelectionFromArgs (singular) — still functional after PR1", () => {
+describe("createRuntimeSelectionFromArgs (singular) — back-compat for single-harness callers", () => {
   test("still returns a single selection for ACP-command and bridge/send/registry callers", () => {
     const result = createRuntimeSelectionFromArgs({ harness: "opencode" });
     expect(result).toEqual({ kind: "curated", profile: undefined, runtime: "opencode" });

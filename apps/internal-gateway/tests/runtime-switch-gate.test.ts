@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { describeRuntimeSwitchBlockingActivity } from "../main.ts";
 
 /**
- * AJS-7 PR3 scoped-down semantics: the gate now only blocks on AG-UI
- * runs. Cross-harness in-flight A2A tasks / dispatch / lanes / pending
+ * Scoped-down primary-switch semantics: the gate only blocks on
+ * AG-UI runs. Cross-harness in-flight A2A tasks / dispatch / lanes / pending
  * spawns no longer block a primary-routing-target switch — those
  * sessions stay bound to their original harness's controller, so the
  * switch has no conflict with them.
@@ -46,7 +46,7 @@ const BUSY_SNAPSHOT: ActivitySnapshot = {
   pendingLaneCount: 1,
 };
 
-describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
+describe("describeRuntimeSwitchBlockingActivity (scoped-down per primary-flip semantics)", () => {
   test("idle gateway → switch allowed (returns null)", () => {
     expect(
       describeRuntimeSwitchBlockingActivity({
@@ -66,10 +66,10 @@ describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
     expect(reason).toContain("run-abc");
   });
 
-  test("A2A tasks in flight do NOT block a primary-target switch (PR3 scoped-down)", () => {
-    // Pre-PR3 this would have rejected. PR3: existing in-flight A2A
-    // tasks stay bound to their original harness's controller; the
-    // primary flip only affects future sessions, so no conflict.
+  test("A2A tasks in flight do NOT block a primary-target switch", () => {
+    // Existing in-flight A2A tasks stay bound to their original
+    // harness's controller; the primary flip only affects future
+    // sessions, so no conflict.
     expect(
       describeRuntimeSwitchBlockingActivity({
         executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeTaskCount: 3 }),
@@ -78,7 +78,7 @@ describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
     ).toBeNull();
   });
 
-  test("@@dispatch in flight does NOT block (PR3 scoped-down)", () => {
+  test("@@dispatch in flight does NOT block (bound to original harness)", () => {
     expect(
       describeRuntimeSwitchBlockingActivity({
         executor: makeExecutorStub({ ...IDLE_SNAPSHOT, activeDispatchCount: 2 }),
@@ -87,7 +87,7 @@ describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
     ).toBeNull();
   });
 
-  test("in-flight A2A lanes do NOT block (PR3 scoped-down)", () => {
+  test("in-flight A2A lanes do NOT block (bound to original harness)", () => {
     expect(
       describeRuntimeSwitchBlockingActivity({
         executor: makeExecutorStub({ ...IDLE_SNAPSHOT, inFlightLaneCount: 1 }),
@@ -96,12 +96,12 @@ describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
     ).toBeNull();
   });
 
-  test("pending lane construction does NOT block (PR3 scoped-down)", () => {
-    // Pre-PR3: TOCTOU concern — a factory call mid-flight could resolve
-    // to the wrong runtime. PR3 lane manager spawns are bound to the
-    // harnessId the call was made under, not to a global primary cell;
-    // the in-flight spawn resolves to its original target regardless
-    // of who's primary at the moment.
+  test("pending lane construction does NOT block", () => {
+    // The lane manager spawn is bound to the harnessId the call was
+    // made under, not to a global primary cell; an in-flight spawn
+    // resolves to its original target regardless of who's primary at
+    // the moment. (Past TOCTOU concern: a factory call mid-flight
+    // resolving to the wrong runtime — closed by per-call binding.)
     expect(
       describeRuntimeSwitchBlockingActivity({
         executor: makeExecutorStub({ ...IDLE_SNAPSHOT, pendingLaneCount: 2 }),
@@ -119,7 +119,7 @@ describe("describeRuntimeSwitchBlockingActivity (PR3 scoped-down)", () => {
     ).toBeNull();
   });
 
-  test("AG-UI active wins over busy executor (only blocker that survives PR3)", () => {
+  test("AG-UI active wins over busy executor (only blocker that survives scoping-down)", () => {
     const reason = describeRuntimeSwitchBlockingActivity({
       executor: makeExecutorStub(BUSY_SNAPSHOT),
       aguiCoordinator: makeAguiCoordStub({ isActive: true, activeRunId: "run-1" }),
