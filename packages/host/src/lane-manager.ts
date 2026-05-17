@@ -1,13 +1,13 @@
 /**
- * `HarnessLaneManager` — owns harness-fleet bookkeeping for the gateway
- * process (AJS-7 PR2).
+ * `HarnessLaneManager` — owns harness-fleet bookkeeping for the
+ * gateway process.
  *
  * Ownership model:
  *
  * - The manager does NOT cache lane controllers. Every call to
  *   {@link HarnessLaneManager.getOrSpawnLane} produces a fresh
  *   `ACPSessionController` via the injected factory — one controller per
- *   `(harnessId, sessionContext)` pair per the AC. `HostA2AExecutor` owns
+ *   `(harnessId, sessionContext)` pair by design. `HostA2AExecutor` owns
  *   each returned controller and is free to destroy it on idle eviction
  *   without the manager handing out stale references on the next call.
  * - The manager DOES track which controllers are currently alive (the
@@ -35,7 +35,7 @@
  *    `card-changed` fires only when the diff is non-empty.
  *
  * Idle-evict, automatic respawn-on-exit, and per-request routing
- * override are all out of scope for v1 — the AC defers those past PR2.
+ * override are all out of scope for v1 — deferred to a later version.
  */
 import type { GatewayAgentCard, HarnessCapabilityEntry } from "@agents-js/a2a";
 import type { ACPSessionEvent, ProcessExitInfo } from "@agents-js/acp-host";
@@ -165,8 +165,8 @@ export class HarnessLaneManager {
     this.primaryHarnessId = primaries[0]!.id;
 
     // Pre-populate the agent-card slice + slot map. All entries start
-    // `ready: false` per the PR2 in-lane decision: the fleet is visible
-    // to federated peers before any session lazy-spawns.
+    // `ready: false` by design: the fleet is visible to federated peers
+    // before any session lazy-spawns.
     //
     // Slot entries are SHALLOW-CLONED off the caller's input so we can
     // mutate `slot.entry.primary` during `setPrimaryHarnessId` without
@@ -195,8 +195,8 @@ export class HarnessLaneManager {
   }
 
   /**
-   * Switch the primary-routing target to `newPrimaryId`. Per AJS-7 PR3
-   * § Behavior, this changes which harness new sessions route to via the
+   * Switch the primary-routing target to `newPrimaryId`. This changes
+   * which harness new sessions route to via the
    * `controllerFactory(contextId)` delegate; existing in-flight lane
    * controllers stay bound to the harness they were spawned on and are
    * NOT torn down here. The operator gets a new routing default; live
@@ -213,7 +213,7 @@ export class HarnessLaneManager {
    *
    * No-ops cleanly when `newPrimaryId === this.primaryHarnessId`.
    * Throws on unknown `newPrimaryId` (dynamic install of a non-fleet
-   * runtime stays out of v1 scope per AC open Q5).
+   * runtime stays out of v1 scope).
    */
   setPrimaryHarnessId(newPrimaryId: string): HarnessFleetEntry {
     if (this.destroyed) {
@@ -270,8 +270,8 @@ export class HarnessLaneManager {
   /**
    * True when `harnessId` is in the configured fleet. Used by the WS
    * bridge to validate a runtime-switch request before invoking
-   * {@link setPrimaryHarnessId} (per AC, dynamic install of a
-   * non-configured runtime is out of v1 scope).
+   * {@link setPrimaryHarnessId} — dynamic install of a non-configured
+   * runtime is out of v1 scope.
    */
   hasHarness(harnessId: string): boolean {
     return this.slots.has(harnessId);
@@ -510,8 +510,8 @@ export class HarnessLaneManager {
    * `capability` mirror. In v1 the slice's shape (`id`, `displayName`,
    * `primary`, `ready`) doesn't reflect mode / config-option / gating
    * state, so for the events we listen to today this is effectively a
-   * no-op diff. The hook is wired through anyway because the AC names
-   * `card-changed` as the cache-invalidation signal for federated
+   * no-op diff. The hook is wired through anyway because `card-changed`
+   * is the documented cache-invalidation signal for federated
    * peers; downstream additions to the slice (e.g. permission-mode
    * label) will flow through this path without further plumbing.
    */

@@ -1,5 +1,5 @@
 /**
- * Matrix-shaped bridge publisher (AJS-8 PR4 demo).
+ * Matrix-shaped bridge publisher.
  *
  * Thin wrapper over `@agents-js/host`'s generic
  * {@link buildBridgeBusEvent} / {@link publishBridgeEventToBus}

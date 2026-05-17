@@ -136,8 +136,8 @@ export interface HostTurnSummary {
   /**
    * Per-call rich payloads for the active turn, structurally compatible
    * with `<acp-tool-call-detail>`'s `data` prop. Built from the host's
-   * `currentTurn.toolCalls` map (Layer A — PR #41 — extended
-   * `ToolCallInfo` with `locations` / `rawInput` / `rawOutput`).
+   * `currentTurn.toolCalls` map (Layer A — host's `ToolCallInfo`
+   * carries `locations` / `rawInput` / `rawOutput`).
    *
    * Mapper-side normalization: `richContent` is rehydrated into the
    * SDK's discriminated `ToolCallContent` union, `locations` are

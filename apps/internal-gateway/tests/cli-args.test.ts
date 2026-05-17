@@ -88,15 +88,15 @@ describe("parseCliArgs — registry sync gate", () => {
 });
 
 /**
- * AJS-7 PR1: the internal-gateway accepts `--runtime <id>` (repeatable,
- * single value) AND `--runtimes <id1,id2>` (comma-separated). Both
- * forms populate `runtimeOverrides: readonly string[]` in argv order.
+ * The internal-gateway accepts `--runtime <id>` (repeatable, single
+ * value) AND `--runtimes <id1,id2>` (comma-separated). Both forms
+ * populate `runtimeOverrides: readonly string[]` in argv order.
  * Index 0 is the primary routing target. Single-runtime invocations
- * (`--runtime opencode` alone) produce a 1-element array so downstream
- * consumers reading `runtimeOverrides[0]` get byte-identical behavior
- * to pre-AJS-7.
+ * (`--runtime opencode` alone) produce a 1-element array so
+ * downstream consumers reading `runtimeOverrides[0]` get
+ * byte-identical behavior to the original single-runtime form.
  */
-describe("parseCliArgs — multi-runtime selection (AJS-7 PR1)", () => {
+describe("parseCliArgs — multi-runtime selection", () => {
   test("default — runtimeOverrides is empty when no runtime flag present", () => {
     expect(parseCliArgs([], {}).runtimeOverrides).toEqual([]);
   });

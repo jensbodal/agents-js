@@ -5,8 +5,9 @@ import { type HarnessesArg, harnessesArg } from "../src/shared-arg-specs.ts";
 // `harnessesArg()` provides the multi-value harness-selection fragment
 // used by `agents-js serve` (and any future gateway-process binaries).
 // `--harness` is REPEATABLE; `--harnesses` is COMMA-SEPARATED. Both
-// populate the same `harnesses` array in argv order. AJS-7 PR1 ships
-// the data structure; PR2 fans out to multi-controller behavior.
+// populate the same `harnesses` array in argv order. This module
+// covers the data-structure plumbing; multi-controller fanout lives
+// in the lane-manager + internal-gateway tests.
 
 interface TestArgs extends HarnessesArg {
   help?: boolean;

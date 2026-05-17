@@ -12,9 +12,9 @@ import {
  *
  * The factory body intentionally reads `permissionEngine` and
  * `permissionStore` from the SHARED `HostSession` reference rather
- * than constructing per-call. This preserves the AJS-7 PR2 invariant
- * (multi-harness coexistence reuses the process-wide permission
- * surface). Extracting the factory into a pure builder makes that
+ * than constructing per-call. This preserves the multi-harness
+ * coexistence invariant (every harness reuses the process-wide
+ * permission surface). Extracting the factory into a pure builder makes that
  * invariant directly testable — `lane-controller-factory.test.ts`
  * asserts identity preservation across factory invocations without
  * standing up the full `main()` composition.

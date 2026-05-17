@@ -11,14 +11,14 @@ export interface GatewayCliArgs {
   port?: number;
   registrySync: boolean;
   /**
-   * Ordered list of curated runtime ids. AJS-7 introduces the array
-   * form: index 0 is the primary routing target; subsequent entries
-   * are secondary (parsed in PR1, lazy-spawned in PR2). `--runtime`
-   * (singular) and `--runtimes` (comma-separated, repeatable) both
-   * populate this list in argv order. A single-runtime invocation
-   * (`--runtime opencode` alone) yields a 1-element list — the
-   * pre-AJS-7 single-runtime behavior is preserved by downstream
-   * consumers reading `runtimeOverrides[0]`.
+   * Ordered list of curated runtime ids. Index 0 is the primary
+   * routing target; subsequent entries are secondary (parsed by the
+   * CLI, lazy-spawned by the lane manager). `--runtime` (singular)
+   * and `--runtimes` (comma-separated, repeatable) both populate this
+   * list in argv order. A single-runtime invocation (`--runtime
+   * opencode` alone) yields a 1-element list — the original
+   * single-runtime behavior is preserved by downstream consumers
+   * reading `runtimeOverrides[0]`.
    */
   runtimeOverrides: readonly string[];
   trustWorkspace: boolean;

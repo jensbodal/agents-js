@@ -19,8 +19,8 @@ import { composeAdditionalFetch } from "../main.ts";
  *                  →  consumer
  *
  * The chain is invoked directly via `composeAdditionalFetch` rather
- * than through `Bun.serve` because PR #51's `bus-endpoint.test.ts`
- * already covers the HTTP transport. What this test asserts is the
+ * than through `Bun.serve` because the `bus-endpoint.test.ts` unit
+ * suite already covers the HTTP transport. What this test asserts is the
  * composition: that the gateway's production wiring routes an
  * external-bridge admin publish to every SSE subscriber unchanged.
  *
@@ -170,11 +170,11 @@ describe("internal-gateway: bridge → /admin/publish → SSE integration", () =
   });
 
   test("subscriber disconnect mid-stream cleans up the bus subscription", async () => {
-    // AC v3 edge-case: subscriber disconnect mid-stream must release
-    // the bus subscription so we don't leak handlers. PR #51's
-    // bus-endpoint tests already cover the cancel() path; this test
-    // confirms the live `composeAdditionalFetch` chain preserves
-    // that behavior end-to-end.
+    // Edge-case: subscriber disconnect mid-stream must release the
+    // bus subscription so we don't leak handlers. The bus-endpoint
+    // unit tests already cover the cancel() path; this test confirms
+    // the live `composeAdditionalFetch` chain preserves that behavior
+    // end-to-end.
     const bus = createGatewayBus();
     const busSubscribeHandler = createBusSubscribeHandler({ bus, heartbeatMs: 0 });
     const busPublishHandler = createBusPublishHandler({ bus });

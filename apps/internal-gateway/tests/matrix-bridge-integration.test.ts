@@ -19,7 +19,7 @@ import { composeAdditionalFetch } from "../main.ts";
  *   a synthetic non-Matrix payload so it can't accidentally exercise
  *   Matrix-specific defaults.
  * - This test — proves the Matrix-specific wrapper layered on top of
- *   the primitive still delivers the AC v3 milestone: one publisher,
+ *   the primitive still delivers the end-to-end demo path: one publisher,
  *   one SSE subscriber, full Matrix-event-in / SSE-event-out cycle.
  *   Asserts the Matrix-flavored defaults (source-principal mapped from
  *   sender MXID, canonical `gateway.matrix.event-received` topic) make
