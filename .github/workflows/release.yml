@@ -4,20 +4,20 @@ name: release-please
 #
 # On every push to main, the release-please job either opens/updates a release
 # PR (titled "chore(main): release X.Y.Z") containing a CHANGELOG.md update and
-# a root package.json version bump (plus all 18 publishable packages/* via
+# a root package.json version bump (plus all publishable packages/* via
 # extra-files), or — if THIS push was the merge of a release PR — creates the
 # tag and GitHub Release.
 #
 # When a release is created, the publish job runs: it checks out the freshly
-# tagged commit, runs the full pre-publish gate, and publishes all 18 packages
+# tagged commit, runs the full pre-publish gate, and publishes all packages
 # to npm with OIDC + provenance via Trusted Publishers. No NPM_TOKEN secret.
 #
 # IMPORTANT: each `@agents-js/*` package on npmjs.com has a Trusted
 # Publisher entry pointing at THIS workflow file (`release.yml`) and the
 # `npm-publish` environment. The filename `release.yml` is deliberately
-# preserved across the tag-driven → release-please cutover so the existing
-# 18 TP bindings continue to authorize OIDC `npm publish --provenance`
-# without per-package re-binding on npmjs.com. Do NOT rename this file.
+# preserved across the tag-driven → release-please cutover so existing TP
+# bindings continue to authorize OIDC `npm publish --provenance` without
+# per-package re-binding on npmjs.com. Do NOT rename this file.
 #
 # Outputs from release-please-action@v5 (root component shape):
 #   - release_created (singular, NOT releases_created) — true when a release
@@ -207,7 +207,7 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
       - run: bun run setup --ci
       - run: bun run check
-      - name: Publish all 18 packages with provenance
+      - name: Publish all packages with provenance
         env:
           AGENTS_JS_PUBLISH_REGISTRY: https://registry.npmjs.org/
           # `--provenance` triggers OIDC token exchange against the npm registry,
