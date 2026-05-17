@@ -107,7 +107,7 @@ export class LocalMemoryProvider implements MemoryProvider {
       return;
     }
 
-    await this.checkPolicy("delete", actor, existing.scope, existing.type, undefined);
+    await this.checkPolicy("delete", actor, existing.scope, existing.type, input.policy);
     this.requireCreator(actor, existing);
 
     await this.storage.deleteRecord(input.id);

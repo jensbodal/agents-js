@@ -69,6 +69,22 @@ export interface UpdateMemoryInput {
 
 export interface DeleteMemoryInput {
   id: string;
+  /**
+   * Policy-related context passed to the provider's policy gate but
+   * NOT persisted. Scoped naming (vs. generic `metadata`) keeps the
+   * field intent-narrow so the v1.2 destructive-consent flow and
+   * future policy-family extensions (signed consent tokens,
+   * cross-host attestation, etc.) live under one namespace without
+   * grab-bagging unrelated request-tracing or telemetry concerns.
+   *
+   * Per MemoryPolicy v1.2, `policy.consentToken` is the canonical
+   * key the default destructive gate looks for; the validator is
+   * configurable on the gate side.
+   */
+  policy?: {
+    consentToken?: string;
+    [extension: string]: unknown;
+  };
 }
 
 /**
