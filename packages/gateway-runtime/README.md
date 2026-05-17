@@ -45,6 +45,7 @@ bun add @agents-js/gateway-runtime
 - **`resolveGatewayRuntimeCommand`**
 - **`resolveGatewayRuntimeProfile`** — Materialize a {GatewayRuntimeProfile} via the internal profile resolver. The narrower {GatewayRuntimeId} is preserved on the returned {ResolvedGatewayRuntimeProfile}.
 - **`resolveGatewayRuntimeSelection`**
+- **`resolveRemoteGatewayEnv`**
 - **`resolveRuntimeArgs`** — Resolve the runtime argv for a curated definition, honoring env-based overrides.
 - **`runCommand`**
 - **`spawnSubSession`** — Spawn a bounded-mode subagent session, run the subtask, return the terminal summary. See module-level docstring for v1 scope. Intentional invariant: cleanup runs on every path. The spawned child pr...
@@ -66,6 +67,7 @@ bun add @agents-js/gateway-runtime
 - **`GatewayRuntimeResolveArgsInput`**
 - **`LoadedAgentsJsConfig`**
 - **`ProfileLookupContext`**
+- **`RemoteGatewayEnvConfig`**
 - **`ResolveAndApplyGatewayRuntimeOptions`**
 - **`ResolveAndApplyGatewayRuntimesOptions`** — Options for {resolveAndApplyGatewayRuntimes} (plural).
 - **`ResolvedGatewayRuntime`**
@@ -90,6 +92,7 @@ bun add @agents-js/gateway-runtime
 - **`GatewayRuntimeProfileRoots`** — Gateway-runtime alias for internal runtime profile roots. The shape is preserved so existing downstream imports keep compiling without churn.
 - **`GatewayRuntimeSelection`**
 - **`HarnessSelectionPolicy`**
+- **`HostnameMode`**
 - **`ResolveGatewayRuntimeFn`** — Runtime resolver shape. Factored out so tests can inject a resolver that returns canned `ResolvedGatewayRuntime` values without touching the filesystem.
 - **`SpawnACPAgentFn`** — Abstraction over `spawnACPAgent` for test injection. Shape matches the imported function; tests substitute a fake that returns a controlled `Stream` / `kill` handle.
 - **`SpawnSubSessionStatus`** — Terminal status of a {spawnSubSession} call. - `completed` — subagent returned an `end_turn` stopReason within the timeout. - `errored` — subagent returned a non-`end_turn` stopReason, or the ACP h...

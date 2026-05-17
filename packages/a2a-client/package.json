@@ -41,6 +41,12 @@
       "bun": "./src/node.ts",
       "import": "./dist/node.mjs",
       "default": "./dist/node.mjs"
+    },
+    "./federation-conformance": {
+      "types": "./dist/federation-conformance.d.mts",
+      "bun": "./src/federation-conformance.ts",
+      "import": "./dist/federation-conformance.mjs",
+      "default": "./dist/federation-conformance.mjs"
     }
   },
   "files": [
@@ -49,7 +55,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "bunx tsdown src/index.ts src/node.ts --format esm --dts --out-dir dist --clean",
+    "build": "bunx tsdown src/index.ts src/node.ts src/federation-conformance.ts --format esm --dts --out-dir dist --clean",
     "prepack": "bun run build",
     "test": "bun test tests",
     "test:integration": "bun test tests/integration.test.ts"

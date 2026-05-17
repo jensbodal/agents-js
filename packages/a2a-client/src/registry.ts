@@ -15,7 +15,13 @@ export type AgentActorType = "human" | "machine";
 /** How a registry record got here on this gateway. */
 export type AgentRegistrySource = "auto-reg" | "manual" | "sync";
 
-/** A registry entry describing a remote A2A agent reachable over HTTP. */
+/**
+ * A registry entry describing a remote A2A agent reachable over HTTP.
+ *
+ * `A2AAgentEntry` is also the v1 dispatch primitive for parent→child
+ * gateway federation when a `HarnessCapabilityEntry` carries
+ * `source: "remote"`. See `docs/federation/v1-contract.md`.
+ */
 export interface A2AAgentEntry {
   kind: "a2a";
   name: string;
