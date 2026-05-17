@@ -86,6 +86,17 @@
         "vite": "catalog:",
       },
     },
+    "examples/host-memory-pilot": {
+      "name": "@agents-js/example-host-memory-pilot",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/memory": "workspace:*",
+        "@agents-js/memory-local": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "examples/memory-local-smoke": {
       "name": "@agents-js/example-memory-local-smoke",
       "version": "0.0.0",
@@ -527,6 +538,8 @@
     "@agents-js/cli": ["@agents-js/cli@workspace:packages/cli"],
 
     "@agents-js/droid-acp": ["@agents-js/droid-acp@workspace:extras/droid-acp"],
+
+    "@agents-js/example-host-memory-pilot": ["@agents-js/example-host-memory-pilot@workspace:examples/host-memory-pilot"],
 
     "@agents-js/example-memory-local-smoke": ["@agents-js/example-memory-local-smoke@workspace:examples/memory-local-smoke"],
 
