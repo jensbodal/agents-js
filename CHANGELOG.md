@@ -9,6 +9,41 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.5.0](https://github.com/jensbodal/agents-js/compare/v0.4.0...v0.5.0) (2026-05-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **memory-local,memory:** `classifyMemoryOperation`, `createMemoryPolicyV12Gate`, `MemoryPolicyV12Options`, and `PolicyCategory` are removed from `@agents-js/memory-local`. No npm-published version exposed them; this breaks only in-repo dogfood consumers on the unreleased 0.4.x line.
+
+### Added
+
+* **docs:** Histoire component sandbox for acp-* primitives (v1) ([df2e383](https://github.com/jensbodal/agents-js/commit/df2e38399b10eb76ab45efcfff0bd40985265923))
+* **examples:** host-memory-pilot — multi-actor host-side consumer smoke ([138d738](https://github.com/jensbodal/agents-js/commit/138d7381b9c711b69f9746ae8e4501a65838b0a6))
+* **examples:** memory-provider-pilot — consumer-perspective smoke test ([a8982e5](https://github.com/jensbodal/agents-js/commit/a8982e5021ae0f43325a234937b69f25bce92f51))
+* **extras:** MCP bus bridge consumer for AJS-9 ([e701411](https://github.com/jensbodal/agents-js/commit/e7014115caa2f90432500cf4d7cdc76da17f1e15))
+* **gateway-runtime,a2a,a2a-client,host:** remote-gateway federation contract (v1 spec) ([2f19f95](https://github.com/jensbodal/agents-js/commit/2f19f95c4b9216a69759df3dcf112bc645806c83))
+* **gateway-runtime,cli:** multi-runtime data structure + CLI flags (AJS-7 PR1) ([9b33b08](https://github.com/jensbodal/agents-js/commit/9b33b08645e3b86af051323a1a744871835a06e2))
+* **gateway,host,a2a,acp-host:** multi-harness lane manager + agent-card harnesses surface (AJS-7 PR2) ([e489d05](https://github.com/jensbodal/agents-js/commit/e489d056e6c5d4180f5834e4110ec55571fcbeae))
+* **gateway,host:** WS-bridge primary-routing-target switch (AJS-7 PR3) ([a6175ce](https://github.com/jensbodal/agents-js/commit/a6175cec57ae2a42c7f459c2570dc6c73729ab61))
+* **host:** gateway bus SSE transport + admin publish handlers (AJS-8 PR2) ([1ce4738](https://github.com/jensbodal/agents-js/commit/1ce47383d9ceb98dcb7b2e115572348182251013))
+* **host:** generic bridge primitive + Matrix adapter in extras (AJS-8 PR4) ([6cb84a2](https://github.com/jensbodal/agents-js/commit/6cb84a2866b3d4db8333911be793fa1bdef9949c))
+* **host:** in-process gateway bus primitive for AJS-8 push channel ([f143673](https://github.com/jensbodal/agents-js/commit/f14367349040314d64301d576c078e3d50d6a1c4))
+* **host:** wire audit-emitter wrapper into gateway runtime (AJS-8 PR3) ([59050a8](https://github.com/jensbodal/agents-js/commit/59050a83ca5fd437d79af6fef13da604ab173e12))
+* **memory-local,memory:** drop policy taxonomy; add service actor kind ([683ad17](https://github.com/jensbodal/agents-js/commit/683ad178f381e9d63870b06f550e8f13d61837af))
+* **memory-local,memory:** MemoryPolicy v1.2 enumerated permission-gate taxonomy ([432a461](https://github.com/jensbodal/agents-js/commit/432a46150c18dbd0814773334bfb329f8ebee971))
+* **memory-local:** @agents-js/memory-local first-party durable provider ([d5104b0](https://github.com/jensbodal/agents-js/commit/d5104b0ef379c898d809be66c1661fdbcfe55fad))
+* **memory:** @agents-js/memory primitive — types, provider interface, conformance harness ([0b2c79e](https://github.com/jensbodal/agents-js/commit/0b2c79e0a0dbedff754c79d8269ec5f658e63355))
+* **ui-components:** AgentStatusBlock component + visual-state deriver ([5ded2ed](https://github.com/jensbodal/agents-js/commit/5ded2ed3696fcd123654fb1ff08a690a36b5cb97))
+
+
+### Fixed
+
+* **internal-gateway:** destroy host session on lane-manager construction failure ([1f1facb](https://github.com/jensbodal/agents-js/commit/1f1facbe9a1335f5d3a4c03cc17c66d23d146308))
+* **memory-local:** drop node from engines; declare Bun-only at runtime ([c4df525](https://github.com/jensbodal/agents-js/commit/c4df52574b0454043c9917176fbe75181d0233de))
+* **ui-components:** defensive element-narrowing on ws-bridge permission mapper ([0effc99](https://github.com/jensbodal/agents-js/commit/0effc999196c5749b8417bc5fab5c3c55afe25c7))
+* **ui-components:** forward full ToolCall surface through ws-bridge permission mapper ([4f1bfdc](https://github.com/jensbodal/agents-js/commit/4f1bfdc7e10f7087dcbd4432bfd54cbe853a059a))
+
 ## [0.4.0](https://github.com/jensbodal/agents-js/compare/v0.3.2...v0.4.0) (2026-05-11)
 
 

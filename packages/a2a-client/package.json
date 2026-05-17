@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2a-client",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "sideEffects": false,
   "description": "A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.",
