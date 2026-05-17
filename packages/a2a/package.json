@@ -62,8 +62,8 @@
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/acp": "0.4.0",
-    "@agents-js/validation": "0.4.0"
+    "@agents-js/acp": "0.5.0",
+    "@agents-js/validation": "0.5.0"
   },
   "publishConfig": {
     "access": "public"

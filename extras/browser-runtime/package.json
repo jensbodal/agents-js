@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/browser-runtime",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Browser-native runtime for the docs meta-agent: WebLLM worker, JSON action loop, ACP shim",
@@ -18,8 +18,8 @@
     }
   },
   "dependencies": {
-    "@agents-js/agui-types": "0.4.0",
-    "@agents-js/validation": "0.4.0",
+    "@agents-js/agui-types": "0.5.0",
+    "@agents-js/validation": "0.5.0",
     "@mlc-ai/web-llm": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:"
