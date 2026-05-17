@@ -12,8 +12,8 @@ import type {
   RuntimeCommandResolver,
 } from "../src/runtimes-registry.ts";
 
-// AJS-7 PR1 plural variant. Covers:
-//   - single-entry list = byte-identical to pre-AJS-7 singular resolution
+// Plural variant. Covers:
+//   - single-entry list = byte-identical to the singular resolution path
 //   - multi-entry list resolves all selections in argv order
 //   - empty list rejected
 //   - env overrides applied once, restored once, regardless of error path

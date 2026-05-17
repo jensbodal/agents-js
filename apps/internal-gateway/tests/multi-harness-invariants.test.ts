@@ -1,8 +1,7 @@
 /**
- * AJS-7 PR2 load-bearing invariant test — lane-manager-surface scope.
+ * Multi-harness load-bearing invariant test — lane-manager-surface scope.
  *
- * The AC (`may-13-ajs7-ac-draft.md` § "Invariant assertion (PR2)") calls
- * out that multi-harness coexistence preserves four process-wide
+ * The invariant: multi-harness coexistence preserves four process-wide
  * singletons (`permissionStore`, `auditEmitter`, WS bridge, agent card).
  *
  * What THIS test covers (the lane-manager-surface subset that's
@@ -33,7 +32,7 @@
  *     requires either (a) exporting the composition seam from main.ts
  *     and exercising it here, or (b) a CI gate that lints the
  *     `createController` factory body in main.ts for per-call store
- *     construction. Neither is in PR2; flagged as PR3-or-later work.
+ *     construction. Neither is in scope here; deferred as later work.
  *
  * Composition mirrors `bus-audit-integration.test.ts`: same primitives
  * `main()` builds, without `Bun.serve` — the wire transport is covered
@@ -126,10 +125,9 @@ function buildFleetEntries(): HarnessFleetEntry[] {
   ];
 }
 
-describe("AJS-7 PR2: multi-harness invariants (AC load-bearing)", () => {
+describe("multi-harness invariants (load-bearing)", () => {
   test("lane manager delegates every spawn to createController; never caches", async () => {
-    // Per the AC and per Copilot's review of the first cut of this test,
-    // the lane manager MUST NOT cache controllers — `HostA2AExecutor`
+    // The lane manager MUST NOT cache controllers — `HostA2AExecutor`
     // owns each factory-returned controller and destroys it on idle
     // eviction. If the lane manager kept a `lanes: Map<ctx, controller>`
     // it could hand back a controller the executor had already torn down.

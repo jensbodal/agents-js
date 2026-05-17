@@ -3088,7 +3088,7 @@ describe("session config and logout", () => {
     expect(state.usage).toBeNull();
   });
 
-  // -- PID accessor + onProcessExit observer (AJS-7 PR2 Subagent B) --
+  // -- PID accessor + onProcessExit observer --
   //
   // These tests exercise the lifecycle-event surface
   // `HarnessLaneManager` consumes to publish `gateway.harness.child-spawned`
@@ -3250,7 +3250,7 @@ describe("ACPSessionController — child-exit observer (real spawn)", () => {
   test("onProcessExit fires with crash:true when the child self-exits without destroy()", async () => {
     // `sleep 0.1` exits cleanly with code 0 after ~100ms — no destroy()
     // call in between, so the exit observer must classify this as a crash
-    // per the AC's "agent walked away unilaterally counts as crash" rule.
+    // per the "agent walked away unilaterally counts as crash" rule.
     const startPromise = controller.start(makeRealSpawnConfig(["-c", "sleep 0.1"]));
     startPromise.catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3308,7 +3308,7 @@ describe("ACPSessionController — child-exit observer (real spawn)", () => {
     expect(info.durationMs).toBeGreaterThanOrEqual(0);
     // Don't assert a hard upper bound — CI flakiness on busy runners can
     // easily push spawn+exit past 1s. The "non-negative" invariant is the
-    // assertion the AC text calls for; correlation with the script's
-    // sleep duration is purely informational.
+    // load-bearing assertion; correlation with the script's sleep
+    // duration is purely informational.
   });
 });

@@ -1,5 +1,5 @@
 /**
- * HTTP transport adapters for the gateway bus (AJS-8).
+ * HTTP transport adapters for the gateway bus.
  *
  * Two handlers:
  *
@@ -18,7 +18,7 @@
  *
  * ## v1 trust model
  *
- * Both handlers are trusted-network / internal-only per the AJS-8 v1
+ * Both handlers are trusted-network / internal-only per the v1
  * scope guards. No auth-z enforcement at the handler level — the
  * deployment is expected to bind the gateway to a local/loopback
  * interface and gate external reachability at the network layer.

@@ -79,7 +79,7 @@ export function createRuntimeSelectionFromArgs(
 }
 
 /**
- * Multi-harness arg shape (AJS-7 PR1). `harnesses` carries the
+ * Multi-harness arg shape. `harnesses` carries the
  * ordered list of curated harness ids gathered from `--harness`
  * (repeatable) and `--harnesses x,y` flags; index 0 is the primary
  * routing target. Other fields mirror {@link RuntimeSelectionArgs}.
@@ -104,7 +104,7 @@ export interface RuntimeSelectionsArgs {
  * falls through to interactive prompt or default).
  *
  * Single-harness invocations (`--harness x` or `harnesses: ["x"]`)
- * produce a 1-element list — byte-identical to the pre-AJS-7
+ * produce a 1-element list — byte-identical to the original
  * single-harness path when consumers use `selections[0]` as the
  * primary.
  *
@@ -113,8 +113,8 @@ export interface RuntimeSelectionsArgs {
  * downstream validation layer can reject them with a precise error
  * message; this function intentionally does not silently dedupe.
  *
- * AJS-7 PR1 ships only the data-structure plumbing; downstream
- * consumers in PR1 use `selections[0]` and ignore the rest. PR2 wires
+ * Today the standalone `serve` binary uses `selections[0]` and
+ * ignores the rest; the internal-gateway binary's lane manager wires
  * lazy-spawned secondary lanes against the remaining entries.
  */
 export function createRuntimeSelectionsFromArgs(

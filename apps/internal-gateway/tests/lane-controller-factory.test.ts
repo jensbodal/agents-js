@@ -1,7 +1,7 @@
 /**
  * Identity-preservation regression catch for the per-lane controller factory.
  *
- * AJS-7 PR2's multi-harness invariant requires that every lane controller
+ * The multi-harness invariant requires that every lane controller
  * spawned by the composition root reads `permissionEngine` /
  * `permissionStore` from the SAME process-wide `HostSession`. The earlier
  * structural test in `multi-harness-invariants.test.ts` flagged a residual

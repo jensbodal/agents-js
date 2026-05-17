@@ -8,7 +8,7 @@
  * `UniversalA2AServer + ACPtoA2AExecutor`, and drives a real
  * `A2AClientController.sendTurn` against it.
  *
- * Asserts the wire shape introduced by PR #30 for each non-text variant:
+ * Asserts the wire shape for each non-text variant:
  *   - `agent_thought_chunk` → `reasoning.message.chunk` events with delta text
  *   - `tool_call` (in_progress) → `tool_call.start` event
  *   - `tool_call_update` (completed, terminal) → `tool_call.end` with status

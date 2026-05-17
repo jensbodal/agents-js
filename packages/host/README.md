@@ -76,7 +76,7 @@ bun add @agents-js/host
 - **`HostA2AExecutorOptions`**
 - **`HostSession`**
 - **`HostSessionConfig`**
-- **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land per DOT-392 — at that point this alias is replaced with the imported type. Kept loose (open record) so the event...
+- **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land — at that point this alias is replaced with the imported type. Kept loose (open record) so the eventual replacem...
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
