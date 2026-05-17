@@ -1,0 +1,56 @@
+{
+  "name": "@agents-js/memory-local",
+  "version": "0.4.0",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Local single-process MemoryProvider for agents-js. Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jensbodal/agents-js.git",
+    "directory": "packages/memory-local"
+  },
+  "homepage": "https://agents-js.bodal.dev/",
+  "bugs": {
+    "url": "https://github.com/jensbodal/agents-js/issues"
+  },
+  "keywords": [
+    "memory",
+    "agents-js",
+    "provider",
+    "local",
+    "sqlite"
+  ],
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "prepack": "bun run build",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/memory": "0.4.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

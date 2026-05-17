@@ -26,6 +26,7 @@
     "apps/*",
     "extras/*",
     "examples/memory-provider-pilot",
+    "examples/memory-local-smoke",
     "tests/trial-agent"
   ],
   "catalog": {
