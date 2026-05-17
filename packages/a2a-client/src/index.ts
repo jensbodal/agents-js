@@ -24,6 +24,11 @@ export {
 } from "./adapters/target.ts";
 export { A2AClientController, type A2AClientControllerOptions } from "./controller.ts";
 export { createDebugFetch } from "./debug.ts";
+export {
+  type FederationConformanceOptions,
+  type FederationTransport,
+  runFederationTransportConformanceTests,
+} from "./federation-conformance.ts";
 export { applyJsonPatch } from "./json-patch.ts";
 export type { ParsedDispatchDirective, ParsedMention } from "./mention-parser.ts";
 export {

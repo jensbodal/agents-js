@@ -25,8 +25,21 @@ export interface DiscoveredPrompt {
  * default routing target (operator-pinned); `ready` reflects whether
  * the harness's ACP child has been spawned + handshake-completed and
  * flips per spawn/exit on the live agent-card surface.
+ *
+ * Federation contract: every entry has an implicit origin. Existing
+ * single-host gateways emit entries with no `source` field; those are
+ * treated as `source: "local"` for back-compat — the parent gateway
+ * spawns the ACP child itself. Federated entries carry `source:
+ * "remote"` together with a `remote` envelope describing the child
+ * gateway that actually owns the process; federation peers dispatch
+ * to that child (directly via `remote.gatewayUrl` when the hostname
+ * is resolvable, or indirectly via `remote.coordinatorUrl` when the
+ * child's hostname is null) instead of asking the parent to spawn.
  */
-export interface HarnessCapabilityEntry {
+export type HarnessCapabilityEntry = HarnessCapabilityEntryBase &
+  (HarnessLocalOrigin | HarnessRemoteOrigin);
+
+interface HarnessCapabilityEntryBase {
   /** Curated harness id (e.g. "opencode", "gemini"). */
   id: string;
   /** Human-readable display name (e.g. "OpenCode ACP"). */
@@ -35,6 +48,38 @@ export interface HarnessCapabilityEntry {
   primary: boolean;
   /** True when the ACP child has been spawned and handshake completed. */
   ready: boolean;
+}
+
+interface HarnessLocalOrigin {
+  /**
+   * Where this harness's backing process actually runs.
+   * Omitted defaults to "local" for back-compat — every existing
+   * card from a single-host gateway is implicitly source: "local".
+   */
+  source?: "local";
+  remote?: never;
+}
+
+interface HarnessRemoteOrigin {
+  source: "remote";
+  /**
+   * Federation envelope for remote-backed harness entries. Present
+   * iff source === "remote"; absent otherwise.
+   *
+   * Federation peers dispatch to the child gateway at gatewayUrl
+   * (or via the coordinator when hostnameMode === "null") rather
+   * than asking the parent gateway to spawn locally.
+   */
+  remote: {
+    /** Externally-routable URL of the child gateway, or coordinator-rewritten URL when hostnameMode === "null". */
+    gatewayUrl: string;
+    /** Hostname-resolution mode the child gateway is operating under. */
+    hostnameMode: "resolvable" | "null";
+    /** Coordinator endpoint; present iff hostnameMode === "null". */
+    coordinatorUrl?: string;
+    /** Child gateway's stable id (matches its own card.name). */
+    childAgentId: string;
+  };
 }
 
 export type GatewayAgentCapabilities = AgentCard["capabilities"] & {
