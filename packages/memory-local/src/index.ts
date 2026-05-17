@@ -8,6 +8,12 @@ export {
   type MemoryPolicyResult,
   noopPolicyGate,
 } from "./policy-gate.ts";
+export {
+  classifyMemoryOperation,
+  createMemoryPolicyV12Gate,
+  type MemoryPolicyV12Options,
+  type PolicyCategory,
+} from "./policy-taxonomy.ts";
 export { SqliteStorage, type SqliteStorageOptions } from "./sqlite-storage.ts";
 export type {
   Storage,
