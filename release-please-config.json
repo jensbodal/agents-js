@@ -93,6 +93,11 @@
         },
         {
           "type": "json",
+          "path": "packages/memory-local/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/policy/package.json",
           "jsonpath": "$.version"
         },
