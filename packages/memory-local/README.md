@@ -19,9 +19,7 @@ bun add @agents-js/memory-local
 
 ### Functions
 
-- **`classifyMemoryOperation`** — Map any `MemoryPolicyInput` to exactly one category. Pure function; deterministic for identical inputs. Does NOT consult the gate's configuredTypes option — the configured-type bucket is applied at...
 - **`cloneRecord`** — Local deep-clone helper. Why this exists: `-js/memory` does not currently export a `cloneRecord` helper, but the sqlite storage impl needs to defensively clone records on the way out (so a caller m...
-- **`createMemoryPolicyV12Gate`** — Build a {MemoryPolicyGate} implementing the v1.2 taxonomy. The returned gate is stateless aside from the closed-over options — the same instance is safe to share across providers and across concurr...
 - **`migrate`** — Read `PRAGMA user_version`; if 0, apply {SCHEMA_DDL} and stamp `currentVersion`. If already equal, no-op. If greater than `currentVersion`, throw — refuse to open a file written by a newer binary. ...
 
 ### Interfaces
@@ -30,7 +28,6 @@ bun add @agents-js/memory-local
 - **`MemoryPolicyGate`** — Optional policy hook injected into `LocalMemoryProvider`. Evaluated BEFORE the storage call; the provider lifts a `deny` (and, in v1, `ask`) into a `MemoryAclError`. The interactive `"ask"` variant...
 - **`MemoryPolicyInput`**
 - **`MemoryPolicyResult`**
-- **`MemoryPolicyV12Options`** — Options for {createMemoryPolicyV12Gate}. Every option has a conservative default — the safe-by-default posture is "ask" for non-trivial decisions so a host with no policy plumbing fails closed rath...
 - **`SqliteStorageOptions`**
 - **`Storage`** — Storage seam used by `LocalMemoryProvider`. Public surface: external consumers can implement this interface to back the provider with their own durable storage (e.g. postgres, level, a remote KV) i...
 - **`StoredRecord`** — Backend-stored record shape. Extends the public `MemoryRecord` with provider-internal fields (creator provenance, idempotency key) that are not exposed across the `MemoryProvider` boundary.
@@ -40,7 +37,6 @@ bun add @agents-js/memory-local
 
 - **`MemoryPolicyDecision`**
 - **`MemoryPolicyOp`**
-- **`PolicyCategory`** — Discriminated union of the four taxonomy categories.
 - **`UpdateRecordResult`**
 
 ### Constants

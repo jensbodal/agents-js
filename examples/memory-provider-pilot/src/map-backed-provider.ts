@@ -15,14 +15,7 @@
  *      `throw new MemoryAclError(...)` and `throw new MemoryRevisionConflictError(...)`
  *      compile without a separate `import type`. Good.
  *
- *   2. (minor) `MemoryActor.kind` is `"agent" | "human"`. There's no slot
- *      for `"service"` / `"system"` / `"scheduled-job"` principals. The
- *      JSDoc in types.ts says "Future versions MAY add more principal
- *      kinds" — so this is acknowledged. For a real consumer modeling a
- *      background-job writer, today's only escape hatch is to lie and
- *      claim `kind: "agent"`. Not blocking for v1, but worth flagging.
- *
- *   3. (notable) The no-op update contract — `updateMemory(actor, { id })`
+ *   2. (notable) The no-op update contract — `updateMemory(actor, { id })`
  *      with no `content` and no `metadata` is documented as a cheap
  *      "authorization-gated read-back" that does NOT bump revision or
  *      updatedAtMs. That behavior is NOT discoverable from the
@@ -34,20 +27,20 @@
  *      "bump anyway" will pass that test but violate the contract in
  *      ways their users will eventually notice.
  *
- *   4. (positive) `ProviderCapabilities` requires all three booleans
+ *   3. (positive) `ProviderCapabilities` requires all three booleans
  *      (`idempotency`, `revisions`, `acl`). No optional flags, no
  *      enums. A provider that supports none of them just returns
  *      `{ idempotency: false, revisions: false, acl: false }` —
  *      ergonomic enough.
  *
- *   5. (minor) `MemoryRecord.revision` is `string | undefined` rather
+ *   4. (minor) `MemoryRecord.revision` is `string | undefined` rather
  *      than a discriminated union keyed off capabilities. A provider
  *      advertising `revisions: true` could still return `undefined`
  *      without a type error. The contract is "present iff capabilities
  *      say so" but the type doesn't enforce it. Not a bug — just a
  *      sharper type would be more self-documenting.
  *
- *   6. (notable) Returned records must be defensively cloned. The
+ *   5. (notable) Returned records must be defensively cloned. The
  *      conformance suite explicitly tests that mutating a returned
  *      record's `metadata` or `scope` does not leak into provider
  *      state. There's no helper exported for this — every consumer
@@ -58,11 +51,11 @@
  *      providers. The README / a provider-author guide should at
  *      least call this out explicitly.
  *
- *   7. (positive) `deleteMemory` returns `Promise<void>` — no need to
+ *   6. (positive) `deleteMemory` returns `Promise<void>` — no need to
  *      decide on a return shape for "did it actually exist". The
  *      contract is "idempotent delete, no signal". Simple.
  *
- *   8. (minor) The contract for "no record with this id" on update is
+ *   7. (minor) The contract for "no record with this id" on update is
  *      "throw" but the error class is unspecified — the reference uses
  *      a plain `Error(...)`. The conformance suite asserts
  *      `rejects.toBeInstanceOf(Error)`, which any throw satisfies. A

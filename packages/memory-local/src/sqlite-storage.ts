@@ -266,7 +266,7 @@ function decodeScope(kind: string, key: string): MemoryScope {
 }
 
 function decodeCreator(kind: string, actorId: string): MemoryActor {
-  if (kind !== "agent" && kind !== "human") {
+  if (kind !== "agent" && kind !== "human" && kind !== "service") {
     throw new Error(`memory-local: unknown creator kind '${kind}' in stored row`);
   }
   return { kind, actorId };
