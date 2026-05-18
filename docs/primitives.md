@@ -97,6 +97,7 @@ detailed responsibilities of each layer follow below.
 | **Protocol** | `@agents-js/gateway-runtime` | Shared gateway runtime catalog, profile isolation, env resolution, and install-hint helpers |
 | **Utility** | `@agents-js/schema-utils` | Schema property parsing for ACP elicitation forms |
 | **Utility** | `@agents-js/acp-host/editor` | Mention parser, frontmatter extraction |
+| **Utility** | `@agents-js/canvas-model` | Dependency-free canvas handoff helpers for inert A2UI payloads, OCIF-style preservation, and JSON Canvas previews |
 | **Utility** | `@agents-js/skills` | Skill loading and management primitives |
 | **Utility** | `@agents-js/tools` | Coordinator + discovery surface — `fetchContext`, `findTools`, `SpawnAgent`, sigil registry |
 | **Surface** | `@agents-js/cli` | Terminal TUI — `serve`, `bridge`, `client`, `send`, `acp`, `mcp`, `registry` commands |

@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-18T11:05:36.819Z",
-  "package_count": 31,
-  "publishable_count": 20,
+  "generated_at": "2026-05-18T17:24:16.304Z",
+  "package_count": 32,
+  "publishable_count": 21,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -137,6 +137,16 @@
         "ajv",
         "ajv-formats"
       ],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
+      "name": "@agents-js/canvas-model",
+      "dir": "packages/canvas-model",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [],
+      "external_deps": [],
       "external_peer": [],
       "exports_count": 0
     },
@@ -527,6 +537,7 @@
       "@agents-js/web-ui",
       "@agents-js/browser-runtime"
     ],
+    "@agents-js/canvas-model": [],
     "@agents-js/a2a-client": [
       "@agents-js/host",
       "@agents-js/cli",

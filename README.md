@@ -177,6 +177,7 @@ See [Primitives](docs/primitives.md) for the full layer diagram.
 | `@agents-js/ui-components` | Surface | public | Lit web components for ACP-aware chat with streaming, permissions, elicitation. |
 | `@agents-js/a2ui-host` | Surface | public | Browser-side A2UI v0.9 host and bridge. |
 | `@agents-js/a2ui-renderer` | Surface | public | Maps A2UI component trees onto the `acp-*` Lit primitives. |
+| `@agents-js/canvas-model` | Utility | public | Dependency-free canvas handoff helpers for inert A2UI payloads, OCIF-style preservation, and JSON Canvas previews. |
 | `@agents-js/tools` | Utility | public | Unified `fetchContext` coordinator and `findTools` discovery surface. |
 | `apps/internal-gateway` | App | internal | Reference host — ACP over A2A with permission mediation. |
 | `apps/web-ui` | App | internal | Reference browser workspace built from `a2a-client` + `ui-components`. |

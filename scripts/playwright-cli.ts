@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { type CommandResult, runCommand } from "./process-utils.ts";
@@ -23,10 +24,15 @@ export const PLAYWRIGHT_SESSION_READY_POLL_INTERVAL_MS = 250;
 export const PLAYWRIGHT_SESSION_READY_SUCCESS_COUNT = 2;
 export const PLAYWRIGHT_BROWSER_INSTALL_TIMEOUT_MS = 600_000;
 export const DEFAULT_PLAYWRIGHT_CLI_CACHE_ROOT = path.join(tmpdir(), "agents-js-playwright-cli");
+export const DEFAULT_PLAYWRIGHT_CLI_CWD = path.join(DEFAULT_PLAYWRIGHT_CLI_CACHE_ROOT, "npx-cwd");
 export const DEFAULT_PLAYWRIGHT_BROWSER_CACHE_ROOT = path.join(
   tmpdir(),
   "agents-js-playwright-browsers",
 );
+
+export function resolvePlaywrightCliCwd(cwd?: string): string {
+  return cwd ?? DEFAULT_PLAYWRIGHT_CLI_CWD;
+}
 
 export function buildPlaywrightCliConfig(options: {
   headed: boolean;
@@ -72,7 +78,9 @@ export async function runPlaywright(
     timeoutMs?: number;
   } = {},
 ): Promise<CommandResult> {
-  return runCommand([...basePlaywrightCli, ...args], options);
+  const cwd = resolvePlaywrightCliCwd(options.cwd);
+  await mkdir(cwd, { recursive: true });
+  return runCommand([...basePlaywrightCli, ...args], { ...options, cwd });
 }
 
 export function buildPlaywrightSessionBootstrapArgv(sessionName: string): string[] {
@@ -247,7 +255,9 @@ export async function ensureNpxAvailable(
   errorMessage: string,
   env?: Record<string, string>,
 ): Promise<void> {
-  const result = await runCommand(["npx", "--version"], { allowFailure: true, env });
+  const cwd = resolvePlaywrightCliCwd();
+  await mkdir(cwd, { recursive: true });
+  const result = await runCommand(["npx", "--version"], { allowFailure: true, cwd, env });
   if (result.code !== 0) {
     throw new Error(errorMessage);
   }

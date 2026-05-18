@@ -15,6 +15,7 @@
       "@agents-js/acp-host/editor": ["./packages/acp-host/src/editor/index.ts"],
       "@agents-js/acp-host/*": ["./packages/acp-host/src/*"],
       "@agents-js/acp": ["./packages/acp/src/index.ts"],
+      "@agents-js/canvas-model": ["./packages/canvas-model/src/index.ts"],
       "@agents-js/cli": ["./packages/cli/src/index.ts"],
       "@agents-js/gateway-runtime": ["./packages/gateway-runtime/src/index.ts"],
       "@agents-js/mcp-bridge": ["./packages/mcp-bridge/src/index.ts"],

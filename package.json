@@ -125,6 +125,7 @@
     "@agents-js/acp-host": "workspace:*",
     "@agents-js/agui-types": "workspace:*",
     "@agents-js/browser-runtime": "workspace:*",
+    "@agents-js/canvas-model": "workspace:*",
     "@agents-js/cli": "workspace:*",
     "@agents-js/gateway-runtime": "workspace:*",
     "@agents-js/host": "workspace:*",

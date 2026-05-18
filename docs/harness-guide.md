@@ -453,6 +453,7 @@ Each package maps to a specific harness concern:
 | `@agents-js/a2ui-host/acp-host` | A2UI surface adapter | `HostSurfaceAdapter` + `SurfaceSession` wiring for acp-host tool-call meta path |
 | `@agents-js/agui-types` | AG-UI types | Re-exports `@ag-ui/core` (pinned pre-1.0) plus adapter helpers |
 | `@agents-js/a2ui-types` | A2UI types | Protocol surface, basic catalog, ACP custom catalog wrapper |
+| `@agents-js/canvas-model` | Canvas data model | `createA2uiCanvasNode`, `exportOcif`, `exportJsonCanvas`, inert JSON helpers |
 | `@agents-js/a2ui-host` | A2UI DOM host | `MessageProcessor` per mount, hot-reload-safe attach/detach |
 | `@agents-js/a2ui-renderer` | A2UI renderer | Maps A2UI component trees onto `acp-*` Lit primitives |
 | `@agents-js/reporting` | Code review reporting | Markdown and JSON Canvas output |

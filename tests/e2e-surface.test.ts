@@ -21,10 +21,12 @@ import {
   buildPlaywrightSessionReadyArgv,
   createPlaywrightCliEnv,
   DEFAULT_PLAYWRIGHT_BROWSER_CACHE_ROOT,
+  DEFAULT_PLAYWRIGHT_CLI_CWD,
   openPlaywrightSessionWithDeps,
   PLAYWRIGHT_SESSION_BOOTSTRAP_MAX_ATTEMPTS,
   PLAYWRIGHT_SESSION_BOOTSTRAP_TIMEOUT_MS,
   PLAYWRIGHT_SESSION_READY_TIMEOUT_MS,
+  resolvePlaywrightCliCwd,
   shouldRetryPlaywrightSessionBootstrap,
   shouldRetryPlaywrightSessionReady,
 } from "../scripts/playwright-cli.ts";
@@ -334,6 +336,15 @@ describe("browser smoke console diagnostics", () => {
 });
 
 describe("playwright bootstrap helper", () => {
+  test("defaults Playwright CLI subprocesses to an isolated cwd", () => {
+    // What: repo-owned Playwright npx calls do not run from the package checkout by default.
+    // Why: npm reads root package metadata from cwd, and this repo intentionally uses Bun-style overrides.
+    expect(resolvePlaywrightCliCwd()).toBe(DEFAULT_PLAYWRIGHT_CLI_CWD);
+    expect(resolvePlaywrightCliCwd("/tmp/custom-playwright-cwd")).toBe(
+      "/tmp/custom-playwright-cwd",
+    );
+  });
+
   test("uses the canonical browser smoke bootstrap command and waits for readiness", async () => {
     const cleanupCalls: string[] = [];
     const runCalls: Array<{
