@@ -78,6 +78,12 @@ Install only the protocol packages you need:
 bun add @agents-js/acp @agents-js/a2a @agents-js/a2a-client
 ```
 
+Or, for host-side memory write surfaces (Bun runtime only):
+
+```sh
+bun add @agents-js/memory @agents-js/memory-local
+```
+
 Drive a running A2A gateway through `@agents-js/a2a-client` and read the result:
 
 ```ts
@@ -160,6 +166,8 @@ See [Primitives](docs/primitives.md) for the full layer diagram.
 | `@agents-js/a2ui-types` | Core | public | Thin wrapper over `@a2ui/web_core` v0.9 with the ACP custom catalog. |
 | `@agents-js/schema-utils` | Core | public | Shared schema property parsing for ACP elicitation forms. |
 | `@agents-js/skills` | Core | public | TypeScript-native skill loading, validation, and registry. |
+| `@agents-js/memory` | Core | public | Write-side memory provider primitive — actor/scope/record types, conformance harness for backend implementations. |
+| `@agents-js/memory-local` | Core | public | Reference memory provider — sqlite-backed (Bun runtime only), policy-gate seam, creator-only ACL. |
 | `@agents-js/a2a` | Protocol | public | A2A server — wraps an ACP agent as HTTP JSON-RPC + SSE. |
 | `@agents-js/a2a-client` | Protocol | public | Browser-compatible A2A client controller, AG-UI adapter, target registry. |
 | `@agents-js/mcp-bridge` | Protocol | public | MCP server that exposes A2A agents as MCP tools. |
