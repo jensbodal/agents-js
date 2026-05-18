@@ -1509,8 +1509,8 @@ The architecture only makes sense if the standards stack is explicit:
 | `ACP` | Direct implementation | Runs session lifecycle, prompts, cancels, session history, and host-mediated session updates over stdio/NDJSON. |
 | `A2A` | Direct implementation | Exposes HTTP + SSE gateway behavior, agent-card discovery, streaming task updates, and client transport consumption. |
 | `MCP` | Pass-through compatibility | Carries MCP server configuration through ACP session setup and preserves ACP content compatibility with MCP-style content blocks. |
-| `AG-UI` | Semantic alignment | Shapes the repo's event vocabulary and client-side workflow semantics; not a wire-compatibility claim. |
-| `A2UI` | Component vocabulary alignment | Shapes the standalone Lit component primitives and host vocabulary; not an agent-authored surface protocol in this repo. |
+| `AG-UI` | Direct implementation | Implements both server and client sides — the gateway emits AG-UI events natively and `@agents-js/a2a-client` consumes them; repo-specific concepts ride on namespaced `CUSTOM` events (`agents-js.*`). |
+| `A2UI` | Compliant host + renderer | A2UI `HostSurfaceAdapter` lives in `@agents-js/acp-host`; the ACP-catalog renderer ships in `@agents-js/a2ui-renderer`; browser host wiring ships in `@agents-js/a2ui-host`; user → agent back-channel rides a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event until the upstream spec lands a contract. |
 | `Runtime manifests` | Repo-defined validation surface | Validated by `@agents-js/validation`, with runtime-specific validators registered by the repo or consumers. |
 
 See [Protocols & Schemas](/protocols) for the standards map and the
@@ -1623,20 +1623,18 @@ file I/O, terminal management, elicitation UI) to whatever host is running.
 
 ### Dependency layers
 
-```
-Layer 0 (Leaf):    policy, schema-utils, reporting
-Layer 1:           ui-components (-> schema-utils), validation (-> policy)
-Layer 2:           acp (-> policy), acp-host (-> policy, acp, validation)
-Layer 3:           a2a (-> acp, policy, validation), a2a-client (-> validation)
-Layer 4:           cli (-> a2a-client, acp, acp-host, a2a, schema-utils),
-                   gateway-runtime (-> a2a, acp-host)
-Apps:              internal-gateway (-> acp, acp-host, a2a, cli)
-                   web-ui (-> a2a-client, ui-components)
-```
+The package dependency graph is generated from workspace manifests and
+published as a static JSON payload — see
+[Package Dependencies](/develop/dependencies) for the live view and
+[`/graph.json`](/graph.json) for the raw payload. The graph is regenerated
+in CI so the rendered view stays coupled to the actual `package.json`
+`dependencies` edges.
 
-Leaf packages have zero internal dependencies and can be used standalone.
-Each layer only depends on packages in lower layers, never on peers or
-packages above it.
+The structural invariant remains: leaf packages have zero internal
+dependencies and can be used standalone, and each layer only depends on
+packages in lower layers, never on peers or packages above it. The
+generated graph is the source of truth for which package sits in which
+layer at any given commit.
 
 ### Key interfaces
 
