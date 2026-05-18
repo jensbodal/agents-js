@@ -32,7 +32,15 @@
         "./packages/ui-components/src/connect-preferences-store.ts"
       ],
       "@agents-js/ui-components/*": ["./packages/ui-components/src/*"],
-      "@agents-js/validation": ["./packages/validation/src/index.ts"]
+      "@agents-js/validation": ["./packages/validation/src/index.ts"],
+      "@agents-js/validation/a2a": ["./packages/validation/src/a2a.ts"],
+      "@agents-js/validation/a2a-metadata": ["./packages/validation/src/a2a-metadata.ts"],
+      "@agents-js/validation/a2ui": ["./packages/validation/src/a2ui.ts"],
+      "@agents-js/validation/acp": ["./packages/validation/src/acp.ts"],
+      "@agents-js/validation/agui": ["./packages/validation/src/agui.ts"],
+      "@agents-js/validation/errors": ["./packages/validation/src/errors.ts"],
+      "@agents-js/validation/loader": ["./packages/validation/src/loader.ts"],
+      "@agents-js/validation/registry": ["./packages/validation/src/registry.ts"]
     }
   }
 }

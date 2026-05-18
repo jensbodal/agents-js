@@ -33,52 +33,62 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     },
     "./a2a": {
       "types": "./dist/a2a.d.mts",
+      "bun": "./src/a2a.ts",
       "import": "./dist/a2a.mjs",
       "default": "./dist/a2a.mjs"
     },
     "./a2a-metadata": {
       "types": "./dist/a2a-metadata.d.mts",
+      "bun": "./src/a2a-metadata.ts",
       "import": "./dist/a2a-metadata.mjs",
       "default": "./dist/a2a-metadata.mjs"
     },
     "./a2ui": {
       "types": "./dist/a2ui.d.mts",
+      "bun": "./src/a2ui.ts",
       "import": "./dist/a2ui.mjs",
       "default": "./dist/a2ui.mjs"
     },
     "./acp": {
       "types": "./dist/acp.d.mts",
+      "bun": "./src/acp.ts",
       "import": "./dist/acp.mjs",
       "default": "./dist/acp.mjs"
     },
     "./agui": {
       "types": "./dist/agui.d.mts",
+      "bun": "./src/agui.ts",
       "import": "./dist/agui.mjs",
       "default": "./dist/agui.mjs"
     },
     "./errors": {
       "types": "./dist/errors.d.mts",
+      "bun": "./src/errors.ts",
       "import": "./dist/errors.mjs",
       "default": "./dist/errors.mjs"
     },
     "./loader": {
       "types": "./dist/loader.d.mts",
+      "bun": "./src/loader.ts",
       "import": "./dist/loader.mjs",
       "default": "./dist/loader.mjs"
     },
     "./registry": {
       "types": "./dist/registry.d.mts",
+      "bun": "./src/registry.ts",
       "import": "./dist/registry.mjs",
       "default": "./dist/registry.mjs"
     }
   },
   "files": [
     "dist",
+    "src",
     "package.json",
     "LICENSE"
   ],

@@ -4,6 +4,7 @@ import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:
 import os from "node:os";
 import path from "node:path";
 import { parseEnv } from "@agents-js/gateway-runtime";
+import { withExternalConsumerSmokeLock } from "./external-consumer-smoke-lock.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
 const releaseCandidatesRoot = path.join(repoRoot, ".tmp", "release-candidates");
@@ -220,6 +221,7 @@ async function packReleaseCandidate(packageDir: string, artifactDir: string): Pr
   const manifest = await readManifest(packageDir);
   const tarballName = `${manifest.name.replace(/^@/, "").replace(/\//g, "-")}-${manifest.version}.tgz`;
 
+  await mkdir(artifactDir, { recursive: true });
   await Bun.$`bun pm pack --destination ${artifactDir}`.cwd(packageDir).quiet();
 
   return path.join(artifactDir, tarballName);
@@ -432,6 +434,12 @@ async function buildHandoffManifest(
 export async function runExternalConsumerSmoke(
   options: RunExternalConsumerSmokeOptions = {},
 ): Promise<RunExternalConsumerSmokeResult> {
+  return withExternalConsumerSmokeLock(() => runExternalConsumerSmokeUnlocked(options));
+}
+
+async function runExternalConsumerSmokeUnlocked(
+  options: RunExternalConsumerSmokeOptions = {},
+): Promise<RunExternalConsumerSmokeResult> {
   const releaseDate = options.releaseDate ?? resolveReleaseDate();
   const artifactDir = getArtifactDir(releaseDate);
   const manifestPath = path.join(artifactDir, "acp-rc-manifest.json");
@@ -489,6 +497,7 @@ export async function runExternalConsumerSmoke(
       throw new Error("External consumer smoke test did not report success.");
     }
 
+    await mkdir(artifactDir, { recursive: true });
     await writeFile(manifestPath, `${JSON.stringify(handoffManifest, null, 2)}\n`);
 
     console.log(`ACP RC artifact directory: ${artifactDir}`);
