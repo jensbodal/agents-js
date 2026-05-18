@@ -14,7 +14,7 @@ moves, major feature lanes).
 
 ### ⚠ BREAKING CHANGES
 
-* **memory-local,memory:** `classifyMemoryOperation`, `createMemoryPolicyV12Gate`, `MemoryPolicyV12Options`, and `PolicyCategory` are removed from `@agents-js/memory-local`. No npm-published version exposed them; this breaks only in-repo dogfood consumers on the unreleased 0.4.x line.
+* **memory-local,memory:** `classifyMemoryOperation`, `createMemoryPolicyV12Gate`, `MemoryPolicyV12Options`, and `PolicyCategory` are removed from `@agents-js/memory-local`. No npm-published version exposed them, so existing npm users are unaffected.
 
 ### Added
 
@@ -28,7 +28,7 @@ moves, major feature lanes).
 * **gateway,host:** WS-bridge primary-routing-target switch ([a6175ce](https://github.com/jensbodal/agents-js/commit/a6175cec57ae2a42c7f459c2570dc6c73729ab61))
 * **host:** gateway bus SSE transport + admin publish handlers ([1ce4738](https://github.com/jensbodal/agents-js/commit/1ce47383d9ceb98dcb7b2e115572348182251013))
 * **host:** generic bridge primitive + Matrix adapter in extras ([6cb84a2](https://github.com/jensbodal/agents-js/commit/6cb84a2866b3d4db8333911be793fa1bdef9949c))
-* **host:** in-process gateway bus primitive for push channel ([f143673](https://github.com/jensbodal/agents-js/commit/f14367349040314d64301d576c078e3d50d6a1c4))
+* **host:** gateway bus primitive for push channel ([f143673](https://github.com/jensbodal/agents-js/commit/f14367349040314d64301d576c078e3d50d6a1c4))
 * **host:** wire audit-emitter wrapper into gateway runtime ([59050a8](https://github.com/jensbodal/agents-js/commit/59050a83ca5fd437d79af6fef13da604ab173e12))
 * **memory-local,memory:** drop policy taxonomy; add service actor kind ([683ad17](https://github.com/jensbodal/agents-js/commit/683ad178f381e9d63870b06f550e8f13d61837af))
 * **memory-local,memory:** MemoryPolicy v1.2 enumerated permission-gate taxonomy ([432a461](https://github.com/jensbodal/agents-js/commit/432a46150c18dbd0814773334bfb329f8ebee971))
@@ -39,7 +39,7 @@ moves, major feature lanes).
 
 ### Fixed
 
-* **internal-gateway:** destroy host session on lane-manager construction failure ([1f1facb](https://github.com/jensbodal/agents-js/commit/1f1facbe9a1335f5d3a4c03cc17c66d23d146308))
+* **gateway:** destroy host session on lane-manager construction failure ([1f1facb](https://github.com/jensbodal/agents-js/commit/1f1facbe9a1335f5d3a4c03cc17c66d23d146308))
 * **memory-local:** drop node from engines; declare Bun-only at runtime ([c4df525](https://github.com/jensbodal/agents-js/commit/c4df52574b0454043c9917176fbe75181d0233de))
 * **ui-components:** defensive element-narrowing on ws-bridge permission mapper ([0effc99](https://github.com/jensbodal/agents-js/commit/0effc999196c5749b8417bc5fab5c3c55afe25c7))
 * **ui-components:** forward full ToolCall surface through ws-bridge permission mapper ([4f1bfdc](https://github.com/jensbodal/agents-js/commit/4f1bfdc7e10f7087dcbd4432bfd54cbe853a059a))
