@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/memory-local",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "sideEffects": false,
   "description": "Local single-process MemoryProvider for agents-js (Bun runtime only — depends on `bun:sqlite`). Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.",

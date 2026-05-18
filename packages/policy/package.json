@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/policy",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "sideEffects": false,
   "description": "Stateless permission policy evaluation for ACP hosts. Pure functions with no framework dependencies.",

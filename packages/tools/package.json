@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/tools",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.",
   "license": "MIT",
   "author": "Jens Bodal",
