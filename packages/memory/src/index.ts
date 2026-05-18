@@ -5,6 +5,7 @@ export {
 } from "./provider.ts";
 export type {
   DeleteMemoryInput,
+  ListByScopeResult,
   MemoryActor,
   MemoryRecord,
   MemoryScope,

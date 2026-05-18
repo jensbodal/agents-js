@@ -66,8 +66,10 @@
 
 import type {
   DeleteMemoryInput,
+  ListByScopeResult,
   MemoryActor,
   MemoryRecord,
+  MemoryScope,
   ProviderCapabilities,
   SaveMemoryInput,
   UpdateMemoryInput,
@@ -160,6 +162,47 @@ export class MapBackedProvider implements MemoryProvider {
     if (!entry) return;
     this.assertAuthorized(actor, entry);
     this.entries.delete(input.id);
+  }
+
+  async get(memoryId: string): Promise<MemoryRecord | null> {
+    const entry = this.entries.get(memoryId);
+    return entry === undefined ? null : cloneRecord(entry.record);
+  }
+
+  async listByScope(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<ListByScopeResult> {
+    // Substrate read primitive (ADR 0001). No ranking, no ACL, no
+    // metadata filtering — that's consumer-layer concerns.
+    const matching: MemoryRecord[] = [];
+    for (const entry of this.entries.values()) {
+      if (this.scopeEquals(entry.record.scope, scope)) matching.push(entry.record);
+    }
+    matching.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+    const startIdx = cursor === null ? 0 : matching.findIndex((r) => r.id > cursor);
+    const effectiveStart = startIdx < 0 ? matching.length : startIdx;
+    const page = matching.slice(effectiveStart, effectiveStart + limit);
+    const nextCursor =
+      effectiveStart + limit < matching.length ? (page[page.length - 1]?.id ?? null) : null;
+    return {
+      records: page.map(cloneRecord),
+      cursor: nextCursor,
+    };
+  }
+
+  private scopeEquals(a: MemoryScope, b: MemoryScope): boolean {
+    if (a.kind !== b.kind) return false;
+    switch (a.kind) {
+      case "agent":
+        return a.agentId === (b as { kind: "agent"; agentId: string }).agentId;
+      case "room":
+        return a.roomId === (b as { kind: "room"; roomId: string }).roomId;
+      case "global":
+        return true;
+    }
   }
 
   private assertAuthorized(actor: MemoryActor, entry: Stored): void {

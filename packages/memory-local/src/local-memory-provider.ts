@@ -1,5 +1,6 @@
 import type {
   DeleteMemoryInput,
+  ListByScopeResult,
   MemoryActor,
   MemoryProvider,
   MemoryRecord,
@@ -111,6 +112,23 @@ export class LocalMemoryProvider implements MemoryProvider {
     this.requireCreator(actor, existing);
 
     await this.storage.deleteRecord(input.id);
+  }
+
+  async get(memoryId: string): Promise<MemoryRecord | null> {
+    const existing = await this.storage.getRecord(memoryId);
+    return existing === undefined ? null : toPublicRecord(existing);
+  }
+
+  async listByScope(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<ListByScopeResult> {
+    const result = await this.storage.listByScope(scope, cursor, limit);
+    return {
+      records: result.records.map(toPublicRecord),
+      cursor: result.cursor,
+    };
   }
 
   /**

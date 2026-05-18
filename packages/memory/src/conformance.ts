@@ -41,10 +41,12 @@ export function createMockActor(overrides: Partial<MemoryActor> = {}): MemoryAct
 }
 
 /**
- * Drop-in conformance suite. v1 has no read surface, so cross-record
- * visibility tests are deferred to v2 — the suite only exercises what
- * is observable through `saveMemory`, `updateMemory`, `deleteMemory`,
- * and the returned `MemoryRecord`.
+ * Drop-in conformance suite. As of v0.6.0 (ADR 0001), providers expose
+ * substrate read primitives ({@link MemoryProvider.get},
+ * {@link MemoryProvider.listByScope}). The harness uses `get` for
+ * independent read verification of mutation outcomes — without this,
+ * "save returned record but storage silently dropped it" failure modes
+ * pass conformance. `listByScope` is also exercised as substrate primitive.
  */
 export function runProviderConformanceTests(opts: ConformanceOptions): void {
   const { describe, it, expect, makeProvider } = opts;
@@ -243,6 +245,138 @@ export function runProviderConformanceTests(opts: ConformanceOptions): void {
       await expect(provider.deleteMemory(intruder, { id: created.id })).rejects.toBeInstanceOf(
         MemoryAclError,
       );
+    });
+  });
+
+  describe("MemoryProvider conformance — substrate read primitives (v0.6.0)", () => {
+    // ADR 0001: get + listByScope are substrate reads, not consumer
+    // queries. The harness verifies that what save/update returned is
+    // actually persisted, catching "API returned record but storage
+    // silently dropped it" failures.
+
+    it("get(id) returns null for unknown id", async () => {
+      const provider = makeProvider();
+      const found = await provider.get("no-such-id");
+      expect(found).toBe(null);
+    });
+
+    it("after save, get(id) returns the persisted record (independent read)", async () => {
+      const provider = makeProvider();
+      const actor = createMockActor();
+      const saved = await provider.saveMemory(actor, {
+        scope: { kind: "global" },
+        type: "feedback",
+        content: "verify-persisted",
+      });
+      const fetched = await provider.get(saved.id);
+      expect(fetched).toBeDefined();
+      if (fetched === null) throw new Error("get returned null after save");
+      expect(fetched.id).toBe(saved.id);
+      expect(fetched.content).toBe(saved.content);
+      expect(fetched.scope).toEqual(saved.scope);
+      expect(fetched.type).toBe(saved.type);
+    });
+
+    it("after update, get(id) reflects the new content + bumped revision", async () => {
+      const provider = makeProvider();
+      const actor = createMockActor();
+      const created = await provider.saveMemory(actor, {
+        scope: { kind: "global" },
+        type: "user",
+        content: "v1",
+      });
+      const updated = await provider.updateMemory(actor, { id: created.id, content: "v2" });
+      const fetched = await provider.get(created.id);
+      if (fetched === null) throw new Error("get returned null after update");
+      expect(fetched.content).toBe("v2");
+      expect(fetched.revision).toBe(updated.revision);
+    });
+
+    it("after delete, get(id) returns null", async () => {
+      const provider = makeProvider();
+      const actor = createMockActor();
+      const created = await provider.saveMemory(actor, {
+        scope: { kind: "global" },
+        type: "user",
+        content: "to-delete",
+      });
+      await provider.deleteMemory(actor, { id: created.id });
+      const fetched = await provider.get(created.id);
+      expect(fetched).toBe(null);
+    });
+
+    it("listByScope returns empty page + null cursor on empty store", async () => {
+      const provider = makeProvider();
+      const page = await provider.listByScope({ kind: "global" }, null, 10);
+      expect(page.records).toEqual([]);
+      expect(page.cursor).toBe(null);
+    });
+
+    it("listByScope filters by scope (records under other scopes excluded)", async () => {
+      const provider = makeProvider();
+      const actor = createMockActor();
+      await provider.saveMemory(actor, {
+        scope: { kind: "global" },
+        type: "user",
+        content: "global-1",
+      });
+      await provider.saveMemory(actor, {
+        scope: { kind: "room", roomId: "room-a" },
+        type: "user",
+        content: "room-a-1",
+      });
+      await provider.saveMemory(actor, {
+        scope: { kind: "agent", agentId: "agent-x" },
+        type: "user",
+        content: "agent-x-1",
+      });
+
+      const globalPage = await provider.listByScope({ kind: "global" }, null, 10);
+      expect(globalPage.records.length).toBe(1);
+      expect(globalPage.records[0]?.content).toBe("global-1");
+
+      const roomPage = await provider.listByScope({ kind: "room", roomId: "room-a" }, null, 10);
+      expect(roomPage.records.length).toBe(1);
+      expect(roomPage.records[0]?.content).toBe("room-a-1");
+
+      const otherRoomPage = await provider.listByScope(
+        { kind: "room", roomId: "room-other" },
+        null,
+        10,
+      );
+      expect(otherRoomPage.records).toEqual([]);
+    });
+
+    it("listByScope paginates: cursor threads pages, terminal cursor is null", async () => {
+      const provider = makeProvider();
+      const actor = createMockActor();
+      const scope = { kind: "global" } as const;
+      const total = 7;
+      for (let i = 0; i < total; i++) {
+        await provider.saveMemory(actor, { scope, type: "user", content: `item-${i}` });
+      }
+
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let pagesFetched = 0;
+      // Hard cap on iterations: total / limit + slack. Catches a buggy
+      // provider that returns a non-null cursor forever.
+      const maxIter = total + 2;
+      do {
+        const page = await provider.listByScope(scope, cursor, 3);
+        expect(page.records.length).toBeGreaterThanOrEqual(0);
+        for (const record of page.records) seen.push(record.id);
+        cursor = page.cursor;
+        pagesFetched++;
+        if (pagesFetched > maxIter) {
+          throw new Error("listByScope cursor did not terminate within max iterations");
+        }
+      } while (cursor !== null);
+
+      // All records observed exactly once, no duplicates across pages.
+      expect(seen.length).toBe(total);
+      const unique = new Set(seen);
+      expect(unique.size).toBe(total);
     });
   });
 }

@@ -46,6 +46,8 @@ describe("@agents-js/memory — type-only smoke", () => {
       },
       deleteMemory: async (_a, _i) => undefined,
       capabilities: () => caps,
+      get: async () => null,
+      listByScope: async () => ({ records: [], cursor: null }),
     };
 
     expect(scope.kind).toBe("global");

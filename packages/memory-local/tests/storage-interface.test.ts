@@ -52,6 +52,9 @@ describe("Storage — interface contract", () => {
       async findByIdempotency() {
         return undefined;
       },
+      async listByScope() {
+        return { records: [], cursor: null };
+      },
       async close() {},
     };
 
@@ -77,6 +80,9 @@ describe("Storage — interface contract", () => {
       },
       async findByIdempotency() {
         return undefined;
+      },
+      async listByScope() {
+        return { records: [], cursor: null };
       },
       async close() {},
     };
@@ -108,6 +114,9 @@ describe("Storage — interface contract", () => {
       },
       async findByIdempotency() {
         return undefined;
+      },
+      async listByScope() {
+        return { records: [], cursor: null };
       },
       async close() {},
     };
@@ -143,6 +152,9 @@ describe("Storage — interface contract", () => {
       async findByIdempotency() {
         return undefined;
       },
+      async listByScope() {
+        return { records: [], cursor: null };
+      },
       async close() {},
     };
 
@@ -171,6 +183,9 @@ describe("Storage — interface contract", () => {
       },
       async findByIdempotency() {
         return undefined;
+      },
+      async listByScope() {
+        return { records: [], cursor: null };
       },
       async close() {},
     };
@@ -208,6 +223,9 @@ describe("Storage — interface contract", () => {
         }
         return undefined;
       },
+      async listByScope() {
+        return { records: [], cursor: null };
+      },
       async close() {},
     };
 
@@ -238,6 +256,9 @@ describe("Storage — interface contract", () => {
       },
       async findByIdempotency() {
         return undefined;
+      },
+      async listByScope() {
+        return { records: [], cursor: null };
       },
       async close() {
         closeCount += 1;

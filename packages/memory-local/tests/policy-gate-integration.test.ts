@@ -56,6 +56,9 @@ function readableStorage(record: StoredRecord | undefined = existingRecord()): S
     async findByIdempotency() {
       return undefined;
     },
+    async listByScope() {
+      return { records: [], cursor: null };
+    },
     async close() {},
   };
 }

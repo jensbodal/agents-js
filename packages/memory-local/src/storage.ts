@@ -1,4 +1,4 @@
-import type { MemoryActor, MemoryRecord } from "@agents-js/memory";
+import type { MemoryActor, MemoryRecord, MemoryScope } from "@agents-js/memory";
 
 /**
  * Storage seam used by `LocalMemoryProvider`.
@@ -35,6 +35,18 @@ export interface Storage {
     creatorId: string,
     key: string,
   ): Promise<StoredRecord | undefined>;
+  /**
+   * Substrate scope listing. Returns up to `limit` records under `scope`
+   * plus an opaque pagination cursor. The provider exposes this verbatim
+   * through `MemoryProvider.listByScope`; backends own the cursor format
+   * (sqlite uses id-as-cursor here, but pg/level/redis MAY use whatever
+   * fits their storage). No ACL filter, no ranking — substrate read only.
+   */
+  listByScope(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ records: StoredRecord[]; cursor: string | null }>;
   /** Resource teardown. MUST be safe to call more than once. */
   close(): Promise<void>;
 }

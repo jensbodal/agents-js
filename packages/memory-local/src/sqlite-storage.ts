@@ -192,6 +192,51 @@ export class SqliteStorage implements Storage {
     return result.changes > 0;
   }
 
+  async listByScope(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ records: StoredRecord[]; cursor: string | null }> {
+    this.assertOpen();
+    if (limit <= 0) return { records: [], cursor: null };
+
+    const encoded = encodeScope(scope);
+    // Cursor is the last-seen id from the previous page; fetch ids
+    // strictly greater. We over-fetch by one record to determine whether
+    // a next page exists without a second round-trip.
+    const overFetch = limit + 1;
+    const cursorClause = cursor === null ? "" : "AND id > $cursor";
+    const rows = this.db
+      .query(
+        `SELECT * FROM records
+         WHERE scope_kind = $scope_kind AND scope_key = $scope_key
+           ${cursorClause}
+         ORDER BY id ASC
+         LIMIT $limit`,
+      )
+      .all(
+        cursor === null
+          ? {
+              $scope_kind: encoded.kind,
+              $scope_key: encoded.key,
+              $limit: overFetch,
+            }
+          : {
+              $scope_kind: encoded.kind,
+              $scope_key: encoded.key,
+              $cursor: cursor,
+              $limit: overFetch,
+            },
+      ) as RecordRow[];
+
+    const hasNext = rows.length > limit;
+    const page = hasNext ? rows.slice(0, limit) : rows;
+    const records = page.map(rowToRecord);
+    const lastRecord = records[records.length - 1];
+    const nextCursor = hasNext && lastRecord !== undefined ? lastRecord.id : null;
+    return { records, cursor: nextCursor };
+  }
+
   async findByIdempotency(
     creatorKind: MemoryActor["kind"],
     creatorId: string,

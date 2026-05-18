@@ -116,3 +116,17 @@ export interface ProviderCapabilities {
   /** Provider enforces ACL on `MemoryActor` × `MemoryScope` pairs. */
   acl: boolean;
 }
+
+/**
+ * Return shape for {@link MemoryProvider.listByScope}. `cursor` is an
+ * opaque-to-callers pagination token: pass it back unchanged on the next
+ * call to fetch the next page. `null` indicates no further pages.
+ *
+ * Cursor representation is provider-chosen (pg may encode `id > ?`-style
+ * cursors; sqlite may encode `OFFSET`; redis may encode SCAN positions).
+ * Callers MUST NOT interpret the cursor string.
+ */
+export interface ListByScopeResult {
+  records: MemoryRecord[];
+  cursor: string | null;
+}

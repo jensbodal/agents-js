@@ -1,8 +1,10 @@
 import { MemoryAclError, type MemoryProvider, MemoryRevisionConflictError } from "./provider.ts";
 import type {
   DeleteMemoryInput,
+  ListByScopeResult,
   MemoryActor,
   MemoryRecord,
+  MemoryScope,
   ProviderCapabilities,
   SaveMemoryInput,
   UpdateMemoryInput,
@@ -102,6 +104,36 @@ export class InMemoryProvider implements MemoryProvider {
     this.store.delete(input.id);
   }
 
+  async get(memoryId: string): Promise<MemoryRecord | null> {
+    const existing = this.store.get(memoryId);
+    return existing === undefined ? null : toRecord(existing);
+  }
+
+  async listByScope(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<ListByScopeResult> {
+    // Insertion order is preserved by Map, but for cursor stability we
+    // re-derive a deterministic ordering by id. Substrate read primitive:
+    // no ACL filter, no ranking, no metadata coercion.
+    const matching: StoredRecord[] = [];
+    for (const record of this.store.values()) {
+      if (scopeEquals(record.scope, scope)) matching.push(record);
+    }
+    matching.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+    const startIdx = cursor === null ? 0 : findStartIndex(matching, cursor);
+    const page = matching.slice(startIdx, startIdx + limit);
+    const nextCursor =
+      startIdx + limit < matching.length ? (page[page.length - 1]?.id ?? null) : null;
+
+    return {
+      records: page.map(toRecord),
+      cursor: nextCursor,
+    };
+  }
+
   private requireAuthorized(actor: MemoryActor, record: StoredRecord): void {
     if (actor.kind === record.creator.kind && actor.actorId === record.creator.actorId) {
       return;
@@ -122,4 +154,30 @@ function toRecord(stored: StoredRecord): MemoryRecord {
 function bumpRevision(current: string | undefined): string {
   const n = Number.parseInt(current ?? "0", 10);
   return Number.isFinite(n) ? String(n + 1) : "1";
+}
+
+function scopeEquals(a: MemoryScope, b: MemoryScope): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case "agent":
+      return a.agentId === (b as { kind: "agent"; agentId: string }).agentId;
+    case "room":
+      return a.roomId === (b as { kind: "room"; roomId: string }).roomId;
+    case "global":
+      return true;
+  }
+}
+
+/**
+ * Given a sorted-by-id list and a cursor (last id of the previous page),
+ * return the index of the first record whose id is strictly greater than
+ * the cursor. If the cursor is not found or all ids are <=, returns the
+ * list length (caller emits an empty page).
+ */
+function findStartIndex(sorted: StoredRecord[], cursor: string): number {
+  for (let i = 0; i < sorted.length; i++) {
+    const record = sorted[i];
+    if (record !== undefined && record.id > cursor) return i;
+  }
+  return sorted.length;
 }
