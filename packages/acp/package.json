@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/policy": "0.5.0"
+    "@agents-js/policy": "0.5.1"
   },
   "publishConfig": {
     "access": "public"

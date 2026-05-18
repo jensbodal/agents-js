@@ -46,8 +46,8 @@
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-js/a2ui-types": "0.5.0",
-    "@agents-js/ui-components": "0.5.0"
+    "@agents-js/a2ui-types": "0.5.1",
+    "@agents-js/ui-components": "0.5.1"
   },
   "peerDependencies": {
     "lit": "catalog:"

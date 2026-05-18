@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/reporting",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -34,7 +34,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/gateway-runtime": "0.5.0"
+    "@agents-js/gateway-runtime": "0.5.1"
   },
   "publishConfig": {
     "access": "public"
