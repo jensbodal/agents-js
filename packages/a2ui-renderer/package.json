@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/a2ui-renderer",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.",
   "author": "Jens Bodal",

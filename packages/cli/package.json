@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "Terminal TUI and server commands for agents-js. Provides the agents-js executable with serve, client, and acp subcommands.",
   "author": "Jens Bodal",

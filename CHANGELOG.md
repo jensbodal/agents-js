@@ -9,6 +9,13 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [0.5.1](https://github.com/jensbodal/agents-js/compare/v0.5.0...v0.5.1) (2026-05-18)
+
+
+### Fixed
+
+* **release:** document trusted publisher bootstrap ([6876e43](https://github.com/jensbodal/agents-js/commit/6876e43bef9abeeee4627d831846d75a763c57c2))
+
 ## [0.5.0](https://github.com/jensbodal/agents-js/compare/v0.4.0...v0.5.0) (2026-05-17)
 
 

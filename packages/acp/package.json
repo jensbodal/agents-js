@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/acp",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "sideEffects": false,
   "description": "Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.",
