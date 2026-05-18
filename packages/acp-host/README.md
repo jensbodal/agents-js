@@ -15,7 +15,6 @@ bun add @agents-js/acp-host
 ### Classes
 
 - **`ACPSessionController`** — High-level session orchestrator for ACP agent communication. This is the top-level **Provider** for host applications. It composes an {ACPClientController} with host-level concerns: permission eval...
-- **`AcpStreamingTranslator`** — Stateful per-session translator. Instantiate one per ACP session. The translator does no I/O and holds no transport handles — it's a pure data transformer with private accumulator state. Tests shou...
 - **`CapabilityCache`** — Parses and caches agent capabilities from InitializeResponse. Provides boolean helpers for capability-gating UI and behavior. "Advertised" flags reflect what the CLIENT advertises to the agent. The...
 - **`EvalTransport`** — `LogTransport` that captures per-prompt evaluation records (prompt content, response, stop reason, errors) for offline regression suites.
 - **`Logger`** — Structured console logger with category prefixes. Provides debug visibility for session lifecycle, permissions, and errors. All log calls are also pushed to the global logStore for the debug panel.
@@ -110,11 +109,9 @@ bun add @agents-js/acp-host
 ### Interfaces
 
 - **`ACPSessionState`**
-- **`AcpStreamingSink`** — Sink contract: consumers implement these methods to receive translated streaming events. Methods are invoked synchronously; the sink owns any downstream async dispatch (e.g. publishing on an event ...
 - **`ActivitySurfaceState`**
 - **`AgentConfig`**
 - **`ApplyDefaultsResult`**
-- **`AvailableCommandsUpdateCall`** — Argument shape for `AcpStreamingSink.onAvailableCommandsUpdate`. Carries the FULL set of commands available from the harness via the SDK's typed `AvailableCommand` shape (preserves description, inp...
 - **`BuildMinimalEnvInput`**
 - **`CodeDescriptor`** — A code block with language annotation
 - **`CompletedToolCallSnapshot`**
@@ -152,7 +149,6 @@ bun add @agents-js/acp-host
 - **`McpToolDefinition`**
 - **`McpToolInputSchema`**
 - **`McpToolsListResult`**
-- **`ModeChangeCall`** — Argument shape for `AcpStreamingSink.onModeChange`. ACP `current_mode_update` notifications only carry `currentModeId` (the available-modes list lives in initial session metadata, not on transition...
 - **`ModeSyncResult`**
 - **`NodeFileAdapterOptions`**
 - **`NormalizedAgentName`**
@@ -163,13 +159,11 @@ bun add @agents-js/acp-host
 - **`PermissionEvaluationContext`**
 - **`PlanEntryInfo`**
 - **`PlanSurfaceState`**
-- **`PlanUpdateCall`** — Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan` notifications always carry the FULL set of entries — consumers replace plan state wholesale on receipt. Entries reuse the SDK's typed ...
 - **`ProcessExitInfo`** — Exit info surfaced from `ACPSessionController.onProcessExit` listeners. The `crash` boolean reflects INTENT, not exit code: - `crash: false` ← gateway called `destroy()` first (operator-initiated t...
 - **`RenderHint`** — Metadata hint that can be attached to ACP session_update _meta fields to suggest structured rendering for tool call outputs.
 - **`ResolvedHostEnvPolicy`** — Resolved view of {HostEnvPolicyInput} with defaults applied.
 - **`ResolvedWorkspaceContext`**
 - **`SessionHooks`**
-- **`SessionInfoUpdateCall`** — Argument shape for `AcpStreamingSink.onSessionInfoUpdate`. Mirrors ACP `SessionInfoUpdate` (title + updatedAt). Both fields are `string | null | undefined` per the SDK: `null` is an explicit clear ...
 - **`SessionUpdateContentHandlerHooks`**
 - **`Span`**
 - **`StartConfig`** — Configuration for starting an ACP session controller. Replaces the old positional parameters with a structured config object.
@@ -177,19 +171,15 @@ bun add @agents-js/acp-host
 - **`TerminalHandlers`**
 - **`TerminalManagerOptions`**
 - **`TerminalWorkspaceContext`**
-- **`TextDeltaCall`** — Argument shape for `AcpStreamingSink.onTextDelta` and `onThoughtDelta`. Both `delta` (incremental text added by this chunk) and `cumulativeText` (running total per `messageId`) are surfaced so sink...
 - **`TextDescriptor`** — A text block rendered as markdown
 - **`ToolBlockSurfaceState`**
 - **`ToolCallContentHandler`**
 - **`ToolCallContentHandlerContext`**
 - **`ToolCallContentInfo`** — Flattened ACP `ToolCallContent` representation. The SDK's `ToolCallContent` is a discriminated union of three nested shapes (`content`, `diff`, `terminal`); this type pulls the relevant fields up s...
 - **`ToolCallInfo`**
-- **`ToolCallStartCall`** — Argument shape for `AcpStreamingSink.onToolCallStart`.
 - **`ToolCallSummary`**
-- **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`. Mirrors the ACP `ToolCallUpdate` shape with three-state semantics for `content` / `locations`: `undefined` = no change, `null` = explicit cle...
 - **`TranscriptSurfaceState`**
 - **`TurnState`**
-- **`UsageUpdateCall`** — Argument shape for `AcpStreamingSink.onUsageUpdate`.
 - **`WorkflowActivityEntryState`**
 - **`WorkflowCopyMap`** — Type-safe interface for all workflow surface UI copy strings. Consumers may supply a partial override to customize any subset of strings.
 - **`WorkflowErrorSummary`**

@@ -2,6 +2,8 @@ import type { Message, Task, TaskStatus } from "@a2a-js/sdk";
 import type { AgentExecutor, ExecutionEventBus, RequestContext } from "@a2a-js/sdk/server";
 import type { ContentBlock } from "@agentclientprotocol/sdk";
 import {
+  type AcpStreamingSink,
+  AcpStreamingTranslator,
   type AuthenticateRequest,
   type AuthMethod,
   CLIENT_METHODS,
@@ -14,7 +16,6 @@ import {
   RequestError,
   type Stream,
 } from "@agents-js/acp";
-import { type AcpStreamingSink, AcpStreamingTranslator } from "@agents-js/acp-host";
 import { buildACPA2ATaskMetadata, extractACPA2AContinuationMetadata } from "./acp-task-metadata.ts";
 import { isACPAuthRequiredError, withAuthRetry } from "./executor-auth.ts";
 import { buildStatusUpdate, buildTerminalTask, nowIso } from "./executor-events.ts";

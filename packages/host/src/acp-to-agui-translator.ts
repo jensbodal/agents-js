@@ -16,7 +16,8 @@
  */
 
 import { A2UI_SURFACE_EVENT_NAME } from "@agents-js/a2ui-types";
-import { type ACPSessionEvent, AcpStreamingTranslator } from "@agents-js/acp-host";
+import { AcpStreamingTranslator } from "@agents-js/acp";
+import type { ACPSessionEvent } from "@agents-js/acp-host";
 import type { AguiEventStream, BaseEvent } from "@agents-js/agui-types";
 import { createAguiEventStream } from "@agents-js/agui-types";
 

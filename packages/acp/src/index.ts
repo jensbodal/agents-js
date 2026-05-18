@@ -31,6 +31,18 @@ export {
   type ErrorAwareStreamOptions,
   type ErrorSignal,
 } from "./stream-utils.ts";
+export {
+  type AcpStreamingSink,
+  AcpStreamingTranslator,
+  type AvailableCommandsUpdateCall,
+  type ModeChangeCall,
+  type PlanUpdateCall,
+  type SessionInfoUpdateCall,
+  type TextDeltaCall,
+  type ToolCallStartCall,
+  type ToolCallUpdateCall,
+  type UsageUpdateCall,
+} from "./streaming-translator.ts";
 export type {
   AuthenticateRequest,
   AuthenticateResponse,
