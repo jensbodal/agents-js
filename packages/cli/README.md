@@ -15,12 +15,13 @@ bunx @agents-js/cli --help
 # Install globally with Bun
 bun add -g @agents-js/cli
 agents-js --help
+ajs --help  # `ajs` ships as an alias for `agents-js`
 
 # Or add as a workspace dependency
 bun add @agents-js/cli
 ```
 
-`npm`/`pnpm`/`yarn` install will download the package, but invoking the `agents-js` bin requires Bun on `PATH`. Use `bunx`/`bun add -g` for the cleanest path. Standalone single-binary artifacts (no Bun required at runtime) can be built locally with `bun run build:standalone`; they are not included in the npm tarball.
+`npm`/`pnpm`/`yarn` install will download the package, but invoking the `agents-js` bin (or its `ajs` alias) requires Bun on `PATH`. Use `bunx`/`bun add -g` for the cleanest path. Standalone single-binary artifacts (no Bun required at runtime) can be built locally with `bun run build:standalone`; they are not included in the npm tarball.
 
 ## Quick start
 

@@ -45,6 +45,7 @@ bunx @agents-js/cli --help
 # Or install globally
 npm i -g @agents-js/cli
 agents-js --help
+# `ajs --help` works as a shorter alias for the same binary
 ```
 
 **Five-line quick start:**

@@ -42,7 +42,8 @@
     "package.json"
   ],
   "bin": {
-    "agents-js": "dist/bin.mjs"
+    "agents-js": "dist/bin.mjs",
+    "ajs": "dist/bin.mjs"
   },
   "scripts": {
     "build": "bun run build:pkg",
