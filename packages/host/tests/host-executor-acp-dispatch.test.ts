@@ -20,6 +20,7 @@
  *  8. primary controller unaffected by dispatch
  *  9. slow dispatch + teardown → ephemeral destroyed (MOCK_ACP_PROMPT_DELAY_MS)
  * 10. A2A + ACP kinds coexist through their respective backends
+ * 10a. source gateway dispatches to target gateway through HostA2AExecutor
  * 11. (optional) unknown-kind future-proof failure
  * 12. (metadata lock) terminal metadata contains agentName, harness, directive
  */
@@ -355,6 +356,53 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
       const a2aResponse = await sendMessage(handle.url, "@@a2a-agent a2a path");
       expect(a2aResponse.result?.status.state).toBe("completed");
+    } finally {
+      await a2aTarget.stop();
+    }
+  }, 60_000);
+
+  test("10a. source gateway dispatches to target A2A gateway through HostA2AExecutor", async () => {
+    // E4.0 baseline proof: the contract seam is not "two public
+    // `agents-js serve` processes". The source gateway must exercise the real
+    // HostA2AExecutor dispatch path: @@target -> dispatch registry -> target
+    // A2A gateway -> target ACP runtime.
+    const a2aTarget = await createGatewayTestServer({
+      acpCommand: "node",
+      acpArgs: [MOCK_AGENT],
+    });
+
+    try {
+      handle = await createGatewayTestServer({
+        acpCommand: "node",
+        acpArgs: [MOCK_AGENT],
+        dispatchRegistry: {
+          target: {
+            kind: "a2a",
+            name: "target",
+            url: a2aTarget.url,
+          },
+        },
+      });
+
+      const response = await sendMessage(
+        handle.url,
+        "@@target __ECHO__:two-host-hostexecutor-proof",
+      );
+      const task = response.result;
+      expect(task?.status.state).toBe("completed");
+      expect(getTaskText(task)).toBe("__ECHO__:two-host-hostexecutor-proof");
+
+      const metadata = task?.metadata as
+        | {
+            "agents-js.dispatch"?: { agentName?: string; agentUrl?: string };
+            "agents-js.cancelable"?: boolean;
+          }
+        | undefined;
+      expect(metadata?.["agents-js.dispatch"]).toMatchObject({
+        agentName: "target",
+        agentUrl: a2aTarget.url,
+      });
+      expect(metadata?.["agents-js.cancelable"]).toBe(false);
     } finally {
       await a2aTarget.stop();
     }
