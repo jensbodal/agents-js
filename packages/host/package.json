@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/host",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "type": "module",
   "sideEffects": false,
   "description": "Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.",
@@ -56,16 +56,16 @@
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
     "@agentclientprotocol/sdk": "catalog:",
-    "@agents-js/a2a": "0.4.0",
-    "@agents-js/a2a-client": "0.4.0",
-    "@agents-js/a2ui-host": "0.4.0",
-    "@agents-js/a2ui-types": "0.4.0",
-    "@agents-js/acp": "0.4.0",
-    "@agents-js/acp-host": "0.4.0",
-    "@agents-js/agui-types": "0.4.0",
-    "@agents-js/gateway-runtime": "0.4.0",
-    "@agents-js/policy": "0.4.0",
-    "@agents-js/validation": "0.4.0"
+    "@agents-js/a2a": "0.5.1",
+    "@agents-js/a2a-client": "0.5.1",
+    "@agents-js/a2ui-host": "0.5.1",
+    "@agents-js/a2ui-types": "0.5.1",
+    "@agents-js/acp": "0.5.1",
+    "@agents-js/acp-host": "0.5.1",
+    "@agents-js/agui-types": "0.5.1",
+    "@agents-js/gateway-runtime": "0.5.1",
+    "@agents-js/policy": "0.5.1",
+    "@agents-js/validation": "0.5.1"
   },
   "publishConfig": {
     "access": "public"

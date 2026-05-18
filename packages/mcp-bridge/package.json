@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/mcp-bridge",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "type": "module",
   "sideEffects": false,
   "description": "MCP server that exposes A2A agents as MCP tools. Each configured agent becomes a callable tool.",
@@ -47,8 +47,8 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/a2a-client": "0.4.0",
-    "@agents-js/skills": "0.4.0",
+    "@agents-js/a2a-client": "0.5.1",
+    "@agents-js/skills": "0.5.1",
     "@modelcontextprotocol/sdk": "catalog:",
     "zod": "catalog:"
   },

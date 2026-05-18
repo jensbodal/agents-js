@@ -148,6 +148,8 @@ External consumers can still be useful corroborating evidence, but they are not 
 
 `scripts/publish-all.ts` runs the same audit before any publish attempt. Its dry-run also verifies `npm pack --json --dry-run` for every publishable package, so a green publish dry-run proves the packed tarball surface includes the built `dist/` outputs and matches the manifest metadata.
 
+Each public `@agents-js/*` package must have an npm Trusted Publisher binding for repository `jensbodal/agents-js`, workflow `release.yml`, and environment `npm-publish`. New package names cannot be bound until the npm package exists, so their first publish is a maintainer bootstrap step; after that binding is added, the GitHub Actions release path publishes with OIDC provenance and no long-lived npm token.
+
 ### Docs Publication Contract
 
 The repository builds static docs with VitePress and publishes them to GitHub Pages. The `Docs Deploy` workflow at `.github/workflows/docs-deploy.yml` runs on pushes to `main` that touch docs, package/app/extra source or manifests, docs build scripts/config, root package/lock/toolchain files, or workflow files. Manual `workflow_dispatch` is available for operators, but the build and deploy jobs are guarded to `refs/heads/main`, so selecting another branch cannot publish Pages. The workflow executes `bun run setup --ci` followed by `bun run docs:build`, then uploads `docs/.vitepress/dist/` via `actions/upload-pages-artifact` and publishes with `actions/deploy-pages`.

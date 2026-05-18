@@ -1,6 +1,6 @@
 # @agents-js/memory-local
 
-> Local single-process MemoryProvider for agents-js. Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.
+> Local single-process MemoryProvider for agents-js (Bun runtime only — depends on `bun:sqlite`). Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.
 
 ## Installation
 
