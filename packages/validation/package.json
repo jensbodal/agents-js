@@ -94,8 +94,8 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "catalog:",
-    "@agents-js/a2ui-types": "0.5.0",
-    "@agents-js/agui-types": "0.5.0",
+    "@agents-js/a2ui-types": "0.5.1",
+    "@agents-js/agui-types": "0.5.1",
     "@agentclientprotocol/sdk": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
