@@ -16,6 +16,7 @@
     "@agents-js/a2ui-renderer": "workspace:*",
     "@agents-js/a2ui-types": "workspace:*",
     "@agents-js/acp-host": "workspace:*",
+    "@agents-js/agui-types": "workspace:*",
     "@agents-js/ui-components": "workspace:*",
     "@agents-js/validation": "workspace:*",
     "lit": "catalog:"
