@@ -43,6 +43,7 @@ interface PackageManifest {
   name: string;
   private?: boolean;
   version: string;
+  dependencies?: Record<string, string>;
 }
 
 export interface FileExpectation {
@@ -54,10 +55,18 @@ export interface FileExpectation {
 
 interface GraphPackage {
   name?: unknown;
+  version?: unknown;
+  internal_deps?: unknown;
 }
 
 interface DependencyGraph {
   packages?: GraphPackage[];
+}
+
+interface NormalizedGraphPackage {
+  name: string;
+  version: string;
+  internalDeps: string[];
 }
 
 interface TextFile {
@@ -200,6 +209,81 @@ export function collectGraphPackageIssues(
     errors.push(`docs/public/graph.json contains non-workspace packages: ${extra.join(", ")}`);
   }
   return errors;
+}
+
+/**
+ * Cross-check that each graph entry's `version` and `internal_deps` match the
+ * underlying manifest. Membership is validated separately by
+ * {@link collectGraphPackageIssues}; this function ASSUMES membership is
+ * already checked and only validates the per-package details.
+ *
+ * Why this exists: the earlier shape of this gate only checked name
+ * membership, which let `docs/public/graph.json` drift to a stale `version`
+ * (e.g. 0.4.0 when manifests had advanced to 0.5.1) without failing the
+ * consistency check. Same pattern would also let an internal_deps edge
+ * silently rot if a manifest added or removed a first-party dep without
+ * a graph regen.
+ */
+export function collectGraphVersionEdgeIssues(
+  manifests: readonly Pick<PackageManifest, "name" | "version" | "dependencies">[],
+  graphPackages: readonly NormalizedGraphPackage[],
+): string[] {
+  const errors: string[] = [];
+  const graphByName = new Map<string, NormalizedGraphPackage>();
+  for (const pkg of graphPackages) {
+    graphByName.set(pkg.name, pkg);
+  }
+  for (const manifest of manifests) {
+    const graph = graphByName.get(manifest.name);
+    if (graph === undefined) {
+      // Membership issue — handled by collectGraphPackageIssues; skip here.
+      continue;
+    }
+    if (graph.version !== manifest.version) {
+      errors.push(
+        `docs/public/graph.json: ${manifest.name} version drift — manifest=${manifest.version}, graph=${graph.version}. Run \`bun scripts/dep-graph-gen.ts\` to regenerate.`,
+      );
+    }
+    const manifestInternalDeps = extractInternalDeps(manifest.dependencies).sort();
+    const graphInternalDeps = [...graph.internalDeps].sort();
+    if (
+      manifestInternalDeps.length !== graphInternalDeps.length ||
+      manifestInternalDeps.some((dep, index) => dep !== graphInternalDeps[index])
+    ) {
+      const missing = manifestInternalDeps.filter((dep) => !graphInternalDeps.includes(dep));
+      const extra = graphInternalDeps.filter((dep) => !manifestInternalDeps.includes(dep));
+      const parts: string[] = [];
+      if (missing.length > 0) parts.push(`missing in graph: ${missing.join(", ")}`);
+      if (extra.length > 0) parts.push(`stale in graph: ${extra.join(", ")}`);
+      errors.push(
+        `docs/public/graph.json: ${manifest.name} internal_deps drift — ${parts.join("; ")}. Run \`bun scripts/dep-graph-gen.ts\` to regenerate.`,
+      );
+    }
+  }
+  return errors;
+}
+
+function extractInternalDeps(deps: Record<string, string> | undefined): string[] {
+  if (deps === undefined) return [];
+  return Object.keys(deps).filter((name) => name.startsWith("@agents-js/"));
+}
+
+function normalizeGraphPackage(pkg: GraphPackage): NormalizedGraphPackage | undefined {
+  if (typeof pkg.name !== "string" || pkg.name.length === 0) return undefined;
+  if (typeof pkg.version !== "string" || pkg.version.length === 0) return undefined;
+  if (!Array.isArray(pkg.internal_deps)) return undefined;
+  const internalDeps = pkg.internal_deps.filter(
+    (dep): dep is string => typeof dep === "string" && dep.length > 0,
+  );
+  return { name: pkg.name, version: pkg.version, internalDeps };
+}
+
+async function readGraphPackages(root = repoRoot): Promise<NormalizedGraphPackage[]> {
+  const graph = JSON.parse(await readText("docs/public/graph.json", root)) as DependencyGraph;
+  if (!Array.isArray(graph.packages)) return [];
+  return graph.packages
+    .map(normalizeGraphPackage)
+    .filter((pkg): pkg is NormalizedGraphPackage => pkg !== undefined);
 }
 
 function resetPattern(pattern: RegExp): RegExp {
@@ -490,6 +574,10 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
   const manifestNames = await readWorkspaceManifestNames(root);
   const graphPackageNames = await readGraphPackageNames(root);
   errors.push(...collectGraphPackageIssues(manifestNames, graphPackageNames));
+
+  const publishableManifests = await readPackageManifests(root);
+  const graphPackages = await readGraphPackages(root);
+  errors.push(...collectGraphVersionEdgeIssues(publishableManifests, graphPackages));
 
   const docsManifest = JSON.parse(await readText("docs/.manifest.json", root)) as DocsManifest;
   errors.push(

@@ -6,6 +6,7 @@ import {
   collectFileExpectationIssues,
   collectFrontmatterTagIssues,
   collectGraphPackageIssues,
+  collectGraphVersionEdgeIssues,
   collectTsMorphBoundaryIssues,
   collectUserFacingForbiddenIssues,
 } from "./docs-consistency.ts";
@@ -27,6 +28,83 @@ describe("docs-consistency", () => {
       "docs/public/graph.json is missing workspace packages: @agents-js/a2ui-host, @agents-js/browser-runtime",
       "docs/public/graph.json contains non-workspace packages: @agents-js/old-package",
     ]);
+  });
+
+  /**
+   * WHAT: Pin that a graph entry with the right name but a stale `version`
+   * triggers a consistency error.
+   * WHY: The original gate only checked name membership, so a manifest could
+   * advance from 0.4.0 → 0.5.1 while graph.json sat at 0.4.0 indefinitely and
+   * still pass. Real instance: the graph said 0.4.0 while manifests had
+   * already advanced two minor cycles. This pin is the post-fix regression.
+   */
+  test("collectGraphVersionEdgeIssues flags version drift between manifest and graph", () => {
+    const issues = collectGraphVersionEdgeIssues(
+      [{ name: "@agents-js/acp", version: "0.5.1", dependencies: {} }],
+      [{ name: "@agents-js/acp", version: "0.4.0", internalDeps: [] }],
+    );
+
+    expect(issues).toEqual([
+      "docs/public/graph.json: @agents-js/acp version drift — manifest=0.5.1, graph=0.4.0. Run `bun scripts/dep-graph-gen.ts` to regenerate.",
+    ]);
+  });
+
+  /**
+   * WHAT: Pin that adding a first-party dep to a manifest without regenerating
+   * the graph triggers a consistency error — and the symmetric case where a
+   * graph entry still carries a `@agents-js/*` edge after a manifest removed
+   * the dep.
+   * WHY: Manifest deps + graph internal_deps must stay coupled — the graph is
+   * the source the docs surface reads from, and edge drift surfaces as wrong
+   * dependency arrows on the published docs site.
+   */
+  test("collectGraphVersionEdgeIssues flags missing AND stale internal_deps edges", () => {
+    const missingInGraph = collectGraphVersionEdgeIssues(
+      [
+        {
+          name: "@agents-js/cli",
+          version: "0.5.1",
+          dependencies: {
+            "@agents-js/acp": "0.5.1",
+            "@agents-js/host": "0.5.1",
+            lit: "catalog:",
+          },
+        },
+      ],
+      [{ name: "@agents-js/cli", version: "0.5.1", internalDeps: ["@agents-js/acp"] }],
+    );
+    expect(missingInGraph).toEqual([
+      "docs/public/graph.json: @agents-js/cli internal_deps drift — missing in graph: @agents-js/host. Run `bun scripts/dep-graph-gen.ts` to regenerate.",
+    ]);
+
+    const staleInGraph = collectGraphVersionEdgeIssues(
+      [{ name: "@agents-js/a2a", version: "0.5.1", dependencies: { "@agents-js/acp": "0.5.1" } }],
+      [
+        {
+          name: "@agents-js/a2a",
+          version: "0.5.1",
+          internalDeps: ["@agents-js/acp", "@agents-js/acp-host"],
+        },
+      ],
+    );
+    expect(staleInGraph).toEqual([
+      "docs/public/graph.json: @agents-js/a2a internal_deps drift — stale in graph: @agents-js/acp-host. Run `bun scripts/dep-graph-gen.ts` to regenerate.",
+    ]);
+  });
+
+  /**
+   * WHAT: Pin that a graph entry whose name has no matching manifest is NOT
+   * flagged by the version/edge validator (membership is the other validator's
+   * job and produces clearer errors).
+   * WHY: Two validators with overlapping error surfaces produce noisy double
+   * errors; keep the responsibility boundary clean.
+   */
+  test("collectGraphVersionEdgeIssues skips graph entries with no matching manifest (membership is separate)", () => {
+    const issues = collectGraphVersionEdgeIssues(
+      [{ name: "@agents-js/acp", version: "0.5.1", dependencies: {} }],
+      [{ name: "@agents-js/acp", version: "0.5.1", internalDeps: [] }],
+    );
+    expect(issues).toEqual([]);
   });
 
   /**
