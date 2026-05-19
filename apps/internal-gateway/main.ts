@@ -1,4 +1,5 @@
 import { buildAgentCard, buildAgentCardBaseUrl, UniversalA2AServer } from "@agents-js/a2a";
+import { A2AClientProvider, extractA2AResponseText } from "@agents-js/a2a-client";
 import {
   autoRegister,
   createSyncEndpointHandler,
@@ -659,36 +660,6 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   const controllerFactory = async (contextId: string) =>
     laneManager.getOrSpawnLane(laneManager.getPrimaryHarnessId(), contextId);
 
-  // E4.0-b infrastructure install (per ADR 0002 surfaces #2/#3/#4): start
-  // the Matrix bus consumer so external bridges that POST to /admin/publish
-  // with `gateway.matrix.event-received` events drive the same
-  // HostA2AExecutor dispatch path that direct HTTP A2A clients use.
-  //
-  // The dispatch handler installed here is a PLACEHOLDER — it emits a
-  // `consumer-unreachable` failure for every incoming event. The follow-up
-  // commit replaces it with a real binding to the gateway's A2A endpoint
-  // (constructing an A2A message from the `DispatchRequest` and routing
-  // through the executor). Keeping the install + the real-dispatch wiring
-  // as separate commits preserves the skeleton/wire-up discipline used on
-  // PR #35 (the consumer infrastructure itself).
-  //
-  // Per cognee-claude's E4.0-b reviewer scope: the `consumer-unreachable`
-  // failure mode is the DOT-393 Phase B fallback signal — bridges receiving
-  // this kind on a reply event should fall back to direct HTTP A2A (the
-  // current `matrix_nio_bridge.py` path) until the real handler ships.
-  const placeholderDispatch: DispatchHandler = async () => {
-    const result: DispatchResult = {
-      status: "failure",
-      body: "matrix-bus-consumer dispatch handler not yet wired (placeholder); bridge should fall back to direct HTTP A2A per DOT-393 Phase B",
-      failureReason: "consumer-unreachable",
-    };
-    return result;
-  };
-  const matrixBusConsumer: MatrixBusConsumerHandle = startMatrixBusConsumer({
-    bus,
-    dispatch: placeholderDispatch,
-  });
-
   // Shared AG-UI run coordinator. Both the AG-UI fetch handler (which
   // acquires/releases the run slot) and the WS bridge's setRuntime
   // gate (which checks isActive) read from this single instance, so
@@ -706,6 +677,103 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     audit,
     bus,
     aguiCoordinator,
+  });
+
+  // E4.0-b real-dispatch wiring (per ADR 0002 surfaces #2/#3/#4): start
+  // the Matrix bus consumer with a dispatch handler that routes inbound
+  // Matrix events to the gateway's OWN A2A endpoint at
+  // `http://localhost:${httpPort}`. The handler constructs an A2A message
+  // (`@@<target> <message>`) and uses the local `A2AClientProvider` to
+  // send it through the same path direct HTTP A2A clients use — so the
+  // bus path inherits the existing `HostA2AExecutor` `@@target` dispatch
+  // behavior verbatim, without coupling this site to executor internals.
+  //
+  // Replaces the placeholder-dispatch install that PR #36 shipped. The
+  // placeholder returned `consumer-unreachable` for every event so the
+  // bridge could fall back to direct HTTP A2A while this real handler
+  // was in flight. Now that this commit lands, the bus path completes
+  // successfully end-to-end and the bridge stops falling back.
+  //
+  // Per cognee-claude's E4.0-b reviewer scope (DOT-393 Phase B
+  // preservation): bridge fallback is keyed off `failureReason`:
+  //   - `"consumer-unreachable"`: the consumer infrastructure isn't
+  //     responding (deadline expired, no subscriber attached). This
+  //     handler does NOT emit that value — if the gateway is up
+  //     enough to start this consumer, it can route to its own A2A
+  //     endpoint. The bridge should never see `consumer-unreachable`
+  //     after this commit lands.
+  //   - `"dispatch-timeout"`: the A2A send exceeded the deadline. The
+  //     handler emits this when the local fetch times out. Bridge
+  //     retries via direct HTTP A2A (which has its own timeout
+  //     budget; semantic match).
+  //   - `"dispatch-error"`: the dispatch ran but the target ACP
+  //     runtime returned an error. Bridge SURFACES to user (no
+  //     retry) — the dispatch was attempted and got a real failure
+  //     response.
+  const realDispatch: DispatchHandler = async (request) => {
+    const dispatchText = request.target
+      ? `@@${request.target} ${request.message}`.trimEnd()
+      : request.message;
+    const localUrl = `http://localhost:${httpPort}`;
+    const provider = new A2AClientProvider();
+    try {
+      const target = await provider.connect({ url: localUrl });
+      const result = await provider.sendTurn(target, dispatchText, {
+        // Per-Matrix-event contextId so each dispatch gets a fresh ACP
+        // controller lane; concurrent dispatches don't bleed turns.
+        contextId: `matrix-${request.matrixEvent.eventId ?? request.matrixEvent.roomId}-${Date.now()}`,
+        // Honor existing correlation thread through the A2A turn so
+        // downstream observability lines up with the inbound bus event.
+        ...(request.correlationId !== undefined && {
+          metadata: { "agents-js.matrix.correlationId": request.correlationId },
+        }),
+      });
+      const text = extractA2AResponseText(result);
+      const dispatchResult: DispatchResult = {
+        status: "success",
+        body: text,
+      };
+      return dispatchResult;
+    } catch (error) {
+      // Determine failureReason from the error shape. Timeouts get the
+      // bridge's retry signal; everything else surfaces to user.
+      //
+      // Detection priority (per cognee-claude review feedback on PR #37
+      // issuecomment-1168): type checks first, substring matching last.
+      // Substring on `message.includes("timeout")` false-positives on any
+      // error whose message happens to contain that token (e.g., a parse
+      // error referencing a `timeout` config field). Cost of mistake here
+      // is "bridge retries once unnecessarily" — not data loss — but the
+      // tighter classification is easy.
+      const message = error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : "";
+      const isTimeout =
+        // Canonical AbortController-driven timeout signature
+        errorName === "AbortError" ||
+        // Web platform timeout — DOMException with name="TimeoutError"
+        errorName === "TimeoutError" ||
+        // Node/Bun network timeout codes (best-effort; structural fields)
+        (error instanceof Error &&
+          "code" in error &&
+          (error.code === "UND_ERR_CONNECT_TIMEOUT" ||
+            error.code === "ETIMEDOUT" ||
+            error.code === "ECONNRESET")) ||
+        // Fallback substring check — last resort, narrowed to "aborted"
+        // since fetch implementations sometimes surface a generic Error
+        // with that token but no canonical name/code.
+        message.includes("aborted");
+      const dispatchResult: DispatchResult = {
+        status: "failure",
+        body: `matrix-bus-consumer dispatch failed: ${message}`,
+        failureReason: isTimeout ? "dispatch-timeout" : "dispatch-error",
+      };
+      return dispatchResult;
+    }
+  };
+
+  const matrixBusConsumer: MatrixBusConsumerHandle = startMatrixBusConsumer({
+    bus,
+    dispatch: realDispatch,
   });
 
   const wsBridge = setupWsBridge({
