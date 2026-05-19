@@ -9,6 +9,7 @@ import { runMcpCommand } from "./mcp.ts";
 import { runRegistryCommand } from "./registry.ts";
 import { runSendCommand } from "./send.ts";
 import { runServeCommand } from "./serve.ts";
+import { runSkillCommand } from "./skill.ts";
 import { formatVersionLine } from "./version.ts";
 
 function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): void {
@@ -27,6 +28,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  client    Open the A2A client TUI",
       "  send      Send a one-shot prompt to a running serve and print the response",
       "  registry  Manage the shared agent registry",
+      "  skill     Print the installable agents-js SKILL.md document",
       "",
       "Global options:",
       "  --version, -v  Print version and exit",
@@ -38,6 +40,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "Run `agents-js mcp --help` for mcp-specific options.",
       "Run `agents-js client --help` for client-specific options.",
       "Run `agents-js send --help` for send-specific options.",
+      "Run `agents-js skill --help` for skill-specific options.",
     ].join("\n")}\n`,
   );
 }
@@ -85,6 +88,10 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "registry") {
     return runRegistryCommand(rest);
+  }
+
+  if (command === "skill") {
+    return runSkillCommand(rest);
   }
 
   // EXIT_USAGE = 64 — unknown command. Print top-level usage to stderr

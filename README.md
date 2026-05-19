@@ -68,6 +68,7 @@ agents-js send --url http://127.0.0.1:<port> "hello"
 | `agents-js client` | A2A client TUI, one-shot message sender, or endpoint probe. |
 | `agents-js send` | Headless one-shot prompt to a running gateway. |
 | `agents-js registry` | Manage `~/.agents-js/registry.json` (A2A and ACP entries). |
+| `agents-js skill` | Print an installable `SKILL.md` for agent command guidance. |
 
 Full flag and exit-code reference: [packages/cli/README.md](packages/cli/README.md).
 

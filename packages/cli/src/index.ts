@@ -28,3 +28,5 @@ export type {
   ServeCommandResult,
 } from "./serve.ts";
 export { parseServeCommandArgs, runServeCommand, serveArgsToRuntimeEnvOverrides } from "./serve.ts";
+export type { SkillCommandDependencies } from "./skill.ts";
+export { resolvePackagedSkillPath, runSkillCommand } from "./skill.ts";
