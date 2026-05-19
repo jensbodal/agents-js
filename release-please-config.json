@@ -103,6 +103,11 @@
         },
         {
           "type": "json",
+          "path": "packages/memory-postgres/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/policy/package.json",
           "jsonpath": "$.version"
         },

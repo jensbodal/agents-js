@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-18T17:24:16.304Z",
-  "package_count": 32,
-  "publishable_count": 21,
+  "generated_at": "2026-05-19T21:20:41.285Z",
+  "package_count": 33,
+  "publishable_count": 22,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -316,6 +316,21 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/memory-postgres",
+      "dir": "packages/memory-postgres",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [
+        "@agents-js/memory",
+        "@agents-js/memory-local"
+      ],
+      "external_deps": [
+        "postgres"
+      ],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/pi-acp",
       "dir": "extras/pi-acp",
       "private": true,
@@ -504,7 +519,8 @@
       "@agents-js/matrix-bridge"
     ],
     "@agents-js/memory": [
-      "@agents-js/memory-local"
+      "@agents-js/memory-local",
+      "@agents-js/memory-postgres"
     ],
     "@agents-js/ui-components": [
       "@agents-js/a2ui-renderer",
@@ -521,7 +537,9 @@
     "@agents-js/a2ui-renderer": [
       "@agents-js/web-ui"
     ],
-    "@agents-js/memory-local": [],
+    "@agents-js/memory-local": [
+      "@agents-js/memory-postgres"
+    ],
     "@agents-js/acp-host": [
       "@agents-js/host",
       "@agents-js/ui-components",
@@ -538,6 +556,7 @@
       "@agents-js/browser-runtime"
     ],
     "@agents-js/canvas-model": [],
+    "@agents-js/memory-postgres": [],
     "@agents-js/a2a-client": [
       "@agents-js/host",
       "@agents-js/cli",

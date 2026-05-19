@@ -389,7 +389,16 @@
       "name": "@agents-js/memory-local",
       "version": "0.5.1",
       "dependencies": {
-        "@agents-js/memory": "0.4.0",
+        "@agents-js/memory": "0.5.1",
+      },
+    },
+    "packages/memory-postgres": {
+      "name": "@agents-js/memory-postgres",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/memory": "0.5.1",
+        "@agents-js/memory-local": "0.5.1",
+        "postgres": "^3.4.5",
       },
     },
     "packages/policy": {
@@ -569,6 +578,8 @@
     "@agents-js/memory": ["@agents-js/memory@workspace:packages/memory"],
 
     "@agents-js/memory-local": ["@agents-js/memory-local@workspace:packages/memory-local"],
+
+    "@agents-js/memory-postgres": ["@agents-js/memory-postgres@workspace:packages/memory-postgres"],
 
     "@agents-js/pi-acp": ["@agents-js/pi-acp@workspace:extras/pi-acp"],
 
@@ -1897,6 +1908,8 @@
     "points-on-path": ["points-on-path@0.2.1", "", { "dependencies": { "path-data-parser": "0.1.0", "points-on-curve": "0.2.0" } }, "sha512-25ClnWWuw7JbWZcgqY/gJ4FQWadKxGWk+3kR/7kD0tCaDtPPMj7oHu2ToLaVhfpnHrZzYby2w6tUA0eOIuUg8g=="],
 
     "postcss": ["postcss@8.5.14", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-SoSL4+OSEtR99LHFZQiJLkT59C5B1amGO1NzTwj7TT1qCUgUO6hxOvzkOYxD+vMrXBM3XJIKzokoERdqQq/Zmg=="],
+
+    "postgres": ["postgres@3.4.9", "", {}, "sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw=="],
 
     "preact": ["preact@10.29.1", "", {}, "sha512-gQCLc/vWroE8lIpleXtdJhTFDogTdZG9AjMUpVkDf2iTCNwYNWA+u16dL41TqUDJO4gm2IgrcMv3uTpjd4Pwmg=="],
 
