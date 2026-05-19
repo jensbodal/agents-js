@@ -43,12 +43,14 @@ bun add @agents-js/host
 - **`formatAguiSseFrame`**
 - **`getEnvRuntimeProfileName`**
 - **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
+- **`parseDispatchDirective`** — Parse `@...rest` from a Matrix message body. Returns `target: ""` when no directive prefix is present (consumer treats that as "no dispatch", but the body may still be useful for audit subscribers)...
 - **`publishBridgeEventToBus`** — In-process convenience: build the envelope and publish it on the supplied bus. Returns the envelope so callers can inspect or assert on the server-populated `id` + `ts` fields. Out-of-process bridg...
 - **`publishHarnessCardChanged`** — Publish a `gateway.harness.card-changed` event onto the bus. Callers are responsible for diffing — this publisher does not. Including both `previousEntry` and `newEntry` in the payload keeps subscr...
 - **`publishHarnessChildExited`** — Publish a `gateway.harness.child-exited` event onto the bus. The `crash` boolean on the payload distinguishes gateway-initiated teardown from unexpected exit; both flow through this single publishe...
 - **`publishHarnessChildSpawned`** — Publish a `gateway.harness.child-spawned` event onto the bus. The source principal is annotated as `{ kind: "harness", id: harnessId }` so subscribers can route per-harness without inspecting the p...
 - **`resolveHostWorkspaceFlag`**
 - **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
+- **`startMatrixBusConsumer`** — Start consuming `gateway.matrix.event-received` events from the bus and invoking the supplied dispatch handler. Returns a handle that can stop the subscription. Subscriber isolation: a throwing `di...
 - **`switchHostSessionRuntime`**
 - **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
 - **`wrapAuditEmitterAsBusPublisher`** — Wrap an existing {AuditEmitter} so every recorded event is also published on the gateway bus. The wrapped emitter has the same shape as the underlying one — callers swap it in at construction and n...
@@ -62,6 +64,8 @@ bun add @agents-js/host
 - **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
 - **`CreateBusSubscribeHandlerOptions`** — SSE subscribe handler options.
 - **`CreateGatewayBusOptions`** — Optional construction-time hooks.
+- **`DispatchRequest`** — Dispatch invocation interface. The consumer translates a Matrix event into a `DispatchRequest` and the caller (typically wired to the host runtime via the gateway's own A2A endpoint) runs it and re...
+- **`DispatchResult`**
 - **`GatewayBus`** — Public surface of the bus primitive.
 - **`GatewayBusEvent`** — Typed envelope for every gateway bus event.
 - **`GatewayHarnessCardChangedPayload`** — Payload for `gateway.harness.card-changed` bus events. Emitted when the per-harness slice of `capabilities.harnesses` changes after subscribed lifecycle events (`mode_changed`, `permission_gating_s...
@@ -77,6 +81,9 @@ bun add @agents-js/host
 - **`HostSession`**
 - **`HostSessionConfig`**
 - **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land — at that point this alias is replaced with the imported type. Kept loose (open record) so the eventual replacem...
+- **`MatrixBusConsumerHandle`** — Handle returned from `startMatrixBusConsumer`.
+- **`MatrixBusEventPayload`** — Matrix event payload shape that this consumer recognizes. Mirrors `MatrixBridgeEventInput` in `-js/matrix-bridge` — duplicated here as a structural type so this package does not depend on the matri...
+- **`MatrixBusReplyPayload`** — Reply payload shape emitted by this consumer onto `gateway.matrix.reply-sent`. The bridge (or any other consumer subscribed to that topic) relays this back to the originating Matrix room.
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
@@ -85,6 +92,7 @@ bun add @agents-js/host
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
+- **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
 - **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
 - **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
 - **`WSBridgeConfig`**
@@ -98,6 +106,7 @@ bun add @agents-js/host
 - **`AuditEventInput`**
 - **`AuditLogger`**
 - **`CorrelationId`**
+- **`DispatchHandler`**
 - **`GatewayBusSubscriber`** — Subscriber callback shape. Receives every published event.
 - **`GatewayBusUnsubscribe`** — Unsubscribe handle returned from `subscribe`.
 - **`GatewayHostController`**
@@ -119,6 +128,8 @@ bun add @agents-js/host
 - **`E2E_RUNTIME_PROFILE_PREFIX_ENV`**
 - **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
 - **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
+- **`MATRIX_INBOUND_TOPIC`** — Topic constants — kept in sync with `-js/matrix-bridge`.
+- **`MATRIX_REPLY_TOPIC`**
 - **`newCorrelationId`**
 
 ### Exports

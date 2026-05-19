@@ -72,6 +72,19 @@ export {
   HarnessLaneManager,
   type HarnessLaneManagerOptions,
 } from "./lane-manager.ts";
+export {
+  type DispatchHandler,
+  type DispatchRequest,
+  type DispatchResult,
+  MATRIX_INBOUND_TOPIC,
+  MATRIX_REPLY_TOPIC,
+  type MatrixBusConsumerHandle,
+  type MatrixBusEventPayload,
+  type MatrixBusReplyPayload,
+  parseDispatchDirective,
+  type StartMatrixBusConsumerOptions,
+  startMatrixBusConsumer,
+} from "./matrix-bus-consumer.ts";
 export { fetchRuntimeModels, type RuntimeModelInfo } from "./model-cache.ts";
 export {
   applyEnvRuntimeProfile,
