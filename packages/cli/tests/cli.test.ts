@@ -10,6 +10,7 @@ import {
   runServeCommand,
   serveArgsToRuntimeEnvOverrides,
 } from "../src/serve.ts";
+import { resolvePackagedSkillPath, runSkillCommand } from "../src/skill.ts";
 
 function createFakePromptSession(answers: string[]) {
   return {
@@ -152,6 +153,32 @@ describe("agents-js CLI", () => {
   test("dispatches the client subcommand from the top-level CLI", async () => {
     const exitCode = await runAgentsJsCli(["client", "--help"]);
     expect(exitCode).toBe(0);
+  });
+
+  test("prints the packaged agents-js skill document", async () => {
+    const output = makeOutputBuffer();
+    const exitCode = await runSkillCommand([], { output });
+
+    expect(exitCode).toBe(0);
+    expect(output.value).toContain("name: agents-js");
+    expect(output.value).toContain("agents-js serve --harness <id>");
+    expect(output.value).toContain("~/.codex/skills/agents-js/SKILL.md");
+  });
+
+  test("dispatches the skill subcommand from the top-level CLI", async () => {
+    const { result, captured } = await captureStdout(() => runAgentsJsCli(["skill"]));
+
+    expect(result).toBe(0);
+    expect(captured).toContain("# agents-js CLI");
+  });
+
+  test("resolves the packaged skill path from source and dist module URLs", () => {
+    expect(resolvePackagedSkillPath(new URL("../src/skill.ts", import.meta.url).href)).toBe(
+      path.join(import.meta.dir, "..", "skills", "agents-js", "SKILL.md"),
+    );
+    expect(resolvePackagedSkillPath(new URL("../dist/skill.mjs", import.meta.url).href)).toBe(
+      path.join(import.meta.dir, "..", "skills", "agents-js", "SKILL.md"),
+    );
   });
 
   test("serve help exits without starting the gateway", async () => {

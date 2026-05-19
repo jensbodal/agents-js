@@ -38,6 +38,7 @@
   },
   "files": [
     "dist",
+    "skills",
     "src",
     "package.json"
   ],

@@ -110,6 +110,7 @@ describe("@agents-js/cli package output", () => {
 
       expect(packedManifest.bin?.["agents-js"]).toBe("dist/bin.mjs");
       expect(packedFiles).toContain("package/dist/bin.mjs");
+      expect(packedFiles).toContain("package/skills/agents-js/SKILL.md");
       expect(packedManifest.dependencies?.["@agentclientprotocol/claude-agent-acp"]).toBe("0.33.1");
       expect(packedManifest.dependencies?.["@zed-industries/codex-acp"]).toBe("0.14.0");
       expect(
