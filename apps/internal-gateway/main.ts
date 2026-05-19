@@ -23,12 +23,16 @@ import {
   createGatewaySurfaceBroadcaster,
   createHostSession,
   createWSBridge,
+  type DispatchHandler,
+  type DispatchResult,
   fetchRuntimeModels,
   type GatewayBus,
   type GatewayHostController,
   type HarnessFleetEntry,
   HarnessLaneManager,
   HostA2AExecutor,
+  type MatrixBusConsumerHandle,
+  startMatrixBusConsumer,
   wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
 import { createPlaneWebhookFetchHandler } from "@agents-js/plane/mount";
@@ -457,12 +461,14 @@ interface ShutdownTargets {
   executor: HostA2AExecutor;
   session: HostSession;
   laneManager: HarnessLaneManager;
+  matrixBusConsumer: MatrixBusConsumerHandle;
 }
 
 function installSignalHandlers(targets: ShutdownTargets): void {
   const shutdown = async (): Promise<void> => {
     console.log("[Gateway] Shutting down...");
     targets.registrySync.stop();
+    targets.matrixBusConsumer.stop();
     targets.server.stop(true);
     targets.wsBridge.stop();
     targets.executor.destroy();
@@ -653,6 +659,36 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   const controllerFactory = async (contextId: string) =>
     laneManager.getOrSpawnLane(laneManager.getPrimaryHarnessId(), contextId);
 
+  // E4.0-b infrastructure install (per ADR 0002 surfaces #2/#3/#4): start
+  // the Matrix bus consumer so external bridges that POST to /admin/publish
+  // with `gateway.matrix.event-received` events drive the same
+  // HostA2AExecutor dispatch path that direct HTTP A2A clients use.
+  //
+  // The dispatch handler installed here is a PLACEHOLDER — it emits a
+  // `consumer-unreachable` failure for every incoming event. The follow-up
+  // commit replaces it with a real binding to the gateway's A2A endpoint
+  // (constructing an A2A message from the `DispatchRequest` and routing
+  // through the executor). Keeping the install + the real-dispatch wiring
+  // as separate commits preserves the skeleton/wire-up discipline used on
+  // PR #35 (the consumer infrastructure itself).
+  //
+  // Per cognee-claude's E4.0-b reviewer scope: the `consumer-unreachable`
+  // failure mode is the DOT-393 Phase B fallback signal — bridges receiving
+  // this kind on a reply event should fall back to direct HTTP A2A (the
+  // current `matrix_nio_bridge.py` path) until the real handler ships.
+  const placeholderDispatch: DispatchHandler = async () => {
+    const result: DispatchResult = {
+      status: "failure",
+      body: "matrix-bus-consumer dispatch handler not yet wired (placeholder); bridge should fall back to direct HTTP A2A per DOT-393 Phase B",
+      failureReason: "consumer-unreachable",
+    };
+    return result;
+  };
+  const matrixBusConsumer: MatrixBusConsumerHandle = startMatrixBusConsumer({
+    bus,
+    dispatch: placeholderDispatch,
+  });
+
   // Shared AG-UI run coordinator. Both the AG-UI fetch handler (which
   // acquires/releases the run slot) and the WS bridge's setRuntime
   // gate (which checks isActive) read from this single instance, so
@@ -697,7 +733,15 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   console.log(`[Gateway] A2A server listening on port ${httpPort}`);
   console.log(`[Gateway] WebSocket bridge listening on port ${wsPort}`);
 
-  installSignalHandlers({ registrySync, server, wsBridge, executor, session, laneManager });
+  installSignalHandlers({
+    registrySync,
+    server,
+    wsBridge,
+    executor,
+    session,
+    laneManager,
+    matrixBusConsumer,
+  });
 
   await new Promise<void>(() => {});
   return 0;
