@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { runProviderConformanceTests } from "@agents-js/memory/testing";
 import { LocalMemoryProvider } from "@agents-js/memory-local";
 import { PostgresStorage } from "../src/postgres-storage.ts";
@@ -30,8 +30,12 @@ if (!POSTGRES_URL) {
 } else {
   // The conformance harness owns the describe/it blocks; we just supply
   // the bun:test functions plus a factory that returns a fresh provider
-  // backed by a fresh ephemeral schema per `makeProvider` call.
+  // backed by a fresh ephemeral schema per `makeProvider` call. We track
+  // every minted storage so the module-scope `afterAll` can drop schemas
+  // and close pools — without it, an N-test conformance run leaks N
+  // orphan schemas + N open connection pools per CI run.
   let counter = 0;
+  const created: PostgresStorage[] = [];
   runProviderConformanceTests({
     describe,
     it,
@@ -43,7 +47,21 @@ if (!POSTGRES_URL) {
         connectionString: POSTGRES_URL,
         schemaName: schema,
       });
+      created.push(storage);
       return new LocalMemoryProvider({ storage });
     },
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled(
+      created.map(async (storage) => {
+        try {
+          await storage.__dangerousDropTable();
+        } catch {
+          // best-effort teardown — matches hand-rolled test pattern
+        }
+        await storage.close();
+      }),
+    );
   });
 }
