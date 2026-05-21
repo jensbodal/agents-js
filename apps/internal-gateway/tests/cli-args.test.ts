@@ -95,6 +95,42 @@ describe("parseCliArgs — registry sync gate", () => {
   });
 });
 
+describe("parseCliArgs — public gateway URL", () => {
+  test("--public-url sets the externally advertised gateway URL without touching hostname", () => {
+    const args = parseCliArgs(
+      ["--hostname", "0.0.0.0", "--public-url", "http://agents-gateway.q4m.dev:9321"],
+      {},
+    );
+
+    expect(args.hostname).toBe("0.0.0.0");
+    expect(args.publicUrl).toBe("http://agents-gateway.q4m.dev:9321/");
+  });
+
+  test("AGENTS_JS_PUBLIC_URL sets the externally advertised gateway URL", () => {
+    expect(
+      parseCliArgs([], { AGENTS_JS_PUBLIC_URL: "http://agents-gateway.q4m.dev:9321" }).publicUrl,
+    ).toBe("http://agents-gateway.q4m.dev:9321/");
+  });
+
+  test("--public-url wins over AGENTS_JS_PUBLIC_URL", () => {
+    expect(
+      parseCliArgs(["--public-url", "http://cli.example:9321"], {
+        AGENTS_JS_PUBLIC_URL: "http://env.example:9321",
+      }).publicUrl,
+    ).toBe("http://cli.example:9321/");
+  });
+
+  test("--public-url rejects non-HTTP(S) URLs", () => {
+    expect(() => parseCliArgs(["--public-url", "ws://agents-gateway.q4m.dev:9321"], {})).toThrow(
+      /http:\/\/ or https:\/\//,
+    );
+  });
+
+  test("--public-url without a value throws", () => {
+    expect(() => parseCliArgs(["--public-url"], {})).toThrow(/Missing value for "--public-url"/);
+  });
+});
+
 /**
  * The internal-gateway accepts `--runtime <id>` (repeatable, single
  * value) AND `--runtimes <id1,id2>` (comma-separated). Both forms

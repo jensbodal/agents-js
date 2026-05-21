@@ -1,4 +1,4 @@
-import { buildAgentCard, buildAgentCardBaseUrl, UniversalA2AServer } from "@agents-js/a2a";
+import { buildAgentCard, UniversalA2AServer } from "@agents-js/a2a";
 import { A2AClientProvider, extractA2AResponseText } from "@agents-js/a2a-client";
 import {
   autoRegister,
@@ -42,6 +42,7 @@ import {
   buildGatewayDiscovery,
   formatGatewayDiscoveryLines,
   resolveGatewayPort,
+  resolveGatewayPublicUrl,
 } from "./discovery.ts";
 import { gatewayConfig } from "./gateway.config.ts";
 import { buildLaneControllerFactory } from "./lane-controller-factory.ts";
@@ -246,7 +247,11 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   const httpPort = server.port ?? opts.resolvedPort;
 
   const localName = primaryRuntime.agentCard.name ?? "universal-acp-gateway";
-  const localUrl = buildAgentCardBaseUrl(httpPort, opts.cliArgs.hostname);
+  const localUrl = resolveGatewayPublicUrl({
+    hostname: opts.cliArgs.hostname,
+    port: httpPort,
+    publicUrl: opts.cliArgs.publicUrl,
+  });
 
   let registrySync: { stop: () => void };
   if (opts.cliArgs.registrySync) {
@@ -612,6 +617,9 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // it. The card identity is preserved across the call chain — the
   // lane manager and the A2A server hold the same reference.
   const gatewayCard = buildAgentCard(selectedRuntime.agentCard);
+  if (cliArgs.publicUrl !== undefined) {
+    gatewayCard.url = cliArgs.publicUrl;
+  }
 
   // Build the harness fleet entries and construct the lane manager.
   // The manager owns:

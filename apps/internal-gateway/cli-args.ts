@@ -1,5 +1,5 @@
 import { normalizePermissionMode, type PermissionMode } from "@agents-js/acp-host";
-import { parseGatewayPort } from "./discovery.ts";
+import { normalizeGatewayPublicUrl, parseGatewayPort } from "./discovery.ts";
 
 export const VALID_PERMISSION_MODES: PermissionMode[] = [
   "default",
@@ -22,6 +22,7 @@ export interface GatewayCliArgs {
   hostname?: string;
   permissionMode: PermissionMode;
   port?: number;
+  publicUrl?: string;
   registrySync: boolean;
   /**
    * Ordered list of curated runtime ids. Index 0 is the primary
@@ -69,6 +70,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   let defaultModel: string | undefined;
   let hostname: string | undefined;
   let port: number | undefined;
+  let publicUrl: string | undefined;
   let trustWorkspaceFlag = false;
   let registrySyncFlag = false;
 
@@ -163,6 +165,16 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       continue;
     }
 
+    if (arg === "--public-url") {
+      const next = argv[index + 1];
+      if (!next) {
+        throw new Error('[Gateway] Missing value for "--public-url".');
+      }
+      publicUrl = normalizeGatewayPublicUrl(next, "--public-url");
+      index += 1;
+      continue;
+    }
+
     if (arg === "--trust-workspace") {
       trustWorkspaceFlag = true;
       continue;
@@ -174,12 +186,16 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     }
 
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --trust-workspace, --registry-sync.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync.`,
     );
   }
 
   const trustWorkspace = resolveTrustWorkspace(trustWorkspaceFlag, env);
   const registrySync = resolveRegistrySync(registrySyncFlag, env);
+  const envPublicUrl =
+    env.AGENTS_JS_PUBLIC_URL !== undefined && env.AGENTS_JS_PUBLIC_URL.trim() !== ""
+      ? normalizeGatewayPublicUrl(env.AGENTS_JS_PUBLIC_URL, "AGENTS_JS_PUBLIC_URL")
+      : undefined;
 
   return {
     check,
@@ -189,6 +205,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     defaultModel,
     hostname,
     port,
+    publicUrl: publicUrl ?? envPublicUrl,
     trustWorkspace,
     registrySync,
   };

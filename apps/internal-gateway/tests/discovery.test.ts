@@ -4,6 +4,7 @@ import {
   formatGatewayDiscoveryLines,
   parseGatewayPort,
   resolveGatewayPort,
+  resolveGatewayPublicUrl,
 } from "../discovery.ts";
 
 describe("parseGatewayPort", () => {
@@ -54,5 +55,26 @@ describe("gateway discovery formatting", () => {
       "[Gateway] Gateway URL: http://127.0.0.1:61001",
       "[Gateway] Gateway WS URL: ws://127.0.0.1:62002",
     ]);
+  });
+});
+
+describe("resolveGatewayPublicUrl", () => {
+  test("uses explicit public URL before bind hostname", () => {
+    expect(
+      resolveGatewayPublicUrl({
+        publicUrl: "http://agents-gateway.q4m.dev:9321",
+        port: 9321,
+        hostname: "0.0.0.0",
+      }),
+    ).toBe("http://agents-gateway.q4m.dev:9321/");
+  });
+
+  test("falls back to bind-derived URL when no explicit public URL is set", () => {
+    expect(resolveGatewayPublicUrl({ port: 9321, hostname: "0.0.0.0" })).toBe(
+      "http://127.0.0.1:9321",
+    );
+    expect(resolveGatewayPublicUrl({ port: 9321, hostname: "10.0.1.192" })).toBe(
+      "http://10.0.1.192:9321",
+    );
   });
 });
