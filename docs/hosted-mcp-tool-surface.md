@@ -9,7 +9,8 @@ outline: [2, 3]
 This living design doc tracks the path from host-local Matrix MCP tools to an
 agents-js-hosted MCP surface. It is intentionally current-state first: the
 first smoke should use what already works, while the durable design moves the
-tool surface behind agents-js provider abstractions.
+tool surface behind agents-js provider abstractions and the AJS-57 runtime
+session protocol.
 
 <DocsArchitectureMap src="hosted-mcp-tool-surface.canvas" />
 
@@ -24,7 +25,7 @@ That shape is enough for the first olthoi0 smoke:
 
 1. Provision `dot-matrix`, `python3`, and `gopass` on olthoi0.
 2. Add a Codex MCP server entry that launches `mcp-server.py` over stdio.
-3. Call `send_message` with `as_agent: "codex-hostname-null"`.
+3. Call `send_message` with `as_agent: "olthoi0-codex-app"`.
 4. Read context with `get_messages`.
 5. Let the running Matrix bridge observe the room event and route mentions.
 
@@ -33,7 +34,8 @@ This is a provisioning pattern, not a hosted product surface.
 ## Target Shape
 
 The durable target is an agents-js-hosted MCP server that exposes
-identity-aware tools such as `SendMessage` and `FetchContext` to any harness.
+identity-aware tools such as `matrix.send_message` and `fetch_context` to any
+harness.
 The harness should not need to know whether Matrix is backed by `dot-matrix`,
 an HTTP proxy, a bus subscriber, or a future service.
 
@@ -43,8 +45,20 @@ The boundary is provider-shaped:
 - `ContextProvider` or the existing `fetchContext` primitive owns grounded
   context recall.
 - `MetricsProvider` owns harness-neutral telemetry.
-- Identity binding comes from host bootstrap and federation trust work, not
-  from wrapper-launching every harness through agents-js.
+- Identity binding comes from host bootstrap, AJS-55 federation trust, and the
+  AJS-57 runtime session protocol, not from wrapper-launching every harness
+  through agents-js.
+
+The runtime contract is:
+
+- AJS-55 signs long-lived peer records and bootstrap trust material.
+- AJS-57 mints short-lived JOSE/JWT sessions after a signed challenge.
+- Hosted MCP tools verify `Authorization: Bearer <JWT>` before provider
+  dispatch.
+- JWT `scopes` map one-to-one with MCP tool names such as
+  `matrix.send_message`.
+- Matrix identity is server-resolved from the verified `sourcePrincipal`;
+  clients never pass `as_agent`, Matrix tokens, or senders as tool arguments.
 
 ## Source-Backed Anchors
 
@@ -56,6 +70,10 @@ The boundary is provider-shaped:
   event shaping outside the generic host package.
 - `dot-matrix/mcp-server.py` is the current working Matrix MCP backend, but it
   is stdio-only and repo-local.
+- The hosted provider backend starts as a narrow Python adapter subprocess that
+  reuses dot-matrix Matrix-client and gopass helpers. It does not verbatim-wrap
+  `mcp-server.py`, because that alpha entrypoint exposes admin-oriented tools
+  and accepts client-supplied `as_agent`.
 
 ## Deployment Patterns
 
@@ -68,14 +86,28 @@ The boundary is provider-shaped:
 The current recommendation is to ship the first smoke with provision-everywhere
 and track the hosted MCP surface as the product path.
 
+## Sequencing
+
+AJS-56 is not the next implementation step by itself. It depends on three
+substrates:
+
+- AJS-54 1a: registry sync from gateway so hosts can discover current peers.
+- AJS-55: signed federation peer records for bootstrap/static trust.
+- AJS-57: runtime session protocol for short-lived JWT verification,
+  key-rotation, denylist, and lease semantics.
+
+Until those land, the in-repo page is a design surface, not an implementation
+promise.
+
 ## Open Work
 
 - Define the `MatrixToolProvider` interface and identity binding contract.
-- Decide whether the first provider wraps `dot-matrix/mcp-server.py` as a
-  subprocess or calls a narrower Python/HTTP adapter.
-- Add hosted MCP tools for `SendMessage` and `FetchContext`.
+- Implement the narrow dot-matrix adapter subprocess for the first backend.
+- Add hosted MCP tools for `matrix.send_message`, `matrix.get_messages`, and
+  `fetch_context` using the `<provider>.<method>` naming convention.
+- Exclude admin-oriented dot-matrix tools such as `set_lead`, `invite_agent`,
+  and `poller_status` from the general `MatrixToolProvider` surface.
 - Document the host-bootstrap path that installs the MCP config without
   requiring every harness to be launched through agents-js.
 - Keep metrics as a provider concern so harness-native telemetry can be
   consumed without duplicating work in agents-js.
-

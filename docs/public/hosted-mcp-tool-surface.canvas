@@ -17,7 +17,7 @@
       "y": 70,
       "width": 310,
       "height": 185,
-      "text": "## Codex / Claude harness\n\n- Runs on olthoi0, malar, or another host\n- Starts MCP servers over stdio today\n- Carries a Matrix-facing identity such as `codex-hostname-null`\n- Should not need to be launched through agents-js just to use tools",
+      "text": "## Codex / Claude harness\n\n- Runs on olthoi0, malar, or another host\n- Starts MCP servers over stdio today\n- Carries a Matrix-facing identity such as `olthoi0-codex-app`\n- Should not need to be launched through agents-js just to use tools",
       "color": "brand"
     },
     {
@@ -57,7 +57,7 @@
       "y": 410,
       "width": 330,
       "height": 225,
-      "text": "## Provider-backed tools\n\n- agents-js hosts MCP tools such as `SendMessage` and `FetchContext`\n- `MatrixToolProvider` hides the backend (`dot-matrix`, proxy, or future service)\n- `MetricsProvider` consumes harness-native telemetry\n- Host bootstrap provisions identity and config",
+      "text": "## Provider-backed tools\n\n- agents-js hosts tools such as `matrix.send_message` and `fetch_context`\n- AJS-57 JWT verifies caller identity and scopes\n- `MatrixToolProvider` uses a narrow dot-matrix adapter, not raw `mcp-server.py`\n- Host bootstrap provisions identity and config",
       "color": "success"
     },
     {
@@ -77,7 +77,7 @@
       "y": 450,
       "width": 310,
       "height": 180,
-      "text": "## Shared room transport\n\n- Matrix homeserver owns room events\n- dot-matrix bridge observes events and routes mentions\n- Bridge policy decides which agent senders can fan out to gated agents",
+      "text": "## Shared room transport\n\n- Matrix homeserver owns room events\n- dot-matrix bridge observes events and routes mentions\n- Hosted tools resolve Matrix sender server-side\n- Client tool args never carry Matrix tokens or `as_agent`",
       "color": "brand"
     }
   ],
@@ -104,7 +104,7 @@
       "toNode": "target",
       "fromSide": "bottom",
       "toSide": "left",
-      "label": "hosted MCP tools"
+      "label": "AJS-57-scoped MCP tools"
     },
     {
       "id": "target-to-matrix",
@@ -112,7 +112,7 @@
       "toNode": "matrix",
       "fromSide": "left",
       "toSide": "right",
-      "label": "MatrixToolProvider backend"
+      "label": "narrow adapter backend"
     }
   ]
 }
