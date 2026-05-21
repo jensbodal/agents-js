@@ -150,6 +150,16 @@
         "@types/bun": "catalog:",
       },
     },
+    "extras/gitea-bridge": {
+      "name": "@agents-js/gitea-bridge",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/host": "0.5.1",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "extras/matrix-bridge": {
       "name": "@agents-js/matrix-bridge",
       "version": "0.5.1",
@@ -566,6 +576,8 @@
     "@agents-js/gateway": ["@agents-js/gateway@workspace:apps/internal-gateway"],
 
     "@agents-js/gateway-runtime": ["@agents-js/gateway-runtime@workspace:packages/gateway-runtime"],
+
+    "@agents-js/gitea-bridge": ["@agents-js/gitea-bridge@workspace:extras/gitea-bridge"],
 
     "@agents-js/host": ["@agents-js/host@workspace:packages/host"],
 

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-19T21:20:41.285Z",
-  "package_count": 33,
+  "generated_at": "2026-05-21T07:44:58.701Z",
+  "package_count": 34,
   "publishable_count": 22,
   "packages": [
     {
@@ -224,6 +224,18 @@
       "external_deps": [
         "@agentclientprotocol/sdk"
       ],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
+      "name": "@agents-js/gitea-bridge",
+      "dir": "extras/gitea-bridge",
+      "private": true,
+      "version": "0.5.1",
+      "internal_deps": [
+        "@agents-js/host"
+      ],
+      "external_deps": [],
       "external_peer": [],
       "exports_count": 0
     },
@@ -516,7 +528,8 @@
       "@agents-js/cli",
       "@agents-js/gateway",
       "@agents-js/mcp-bus-bridge",
-      "@agents-js/matrix-bridge"
+      "@agents-js/matrix-bridge",
+      "@agents-js/gitea-bridge"
     ],
     "@agents-js/memory": [
       "@agents-js/memory-local",
@@ -638,6 +651,7 @@
       "@agents-js/gateway"
     ],
     "@agents-js/pi-extension": [],
+    "@agents-js/gitea-bridge": [],
     "@agents-js/trial-agent": []
   }
 }
