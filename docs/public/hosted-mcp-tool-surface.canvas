@@ -1,0 +1,118 @@
+{
+  "nodes": [
+    {
+      "id": "client-host",
+      "type": "group",
+      "x": 30,
+      "y": 20,
+      "width": 360,
+      "height": 270,
+      "label": "CLIENT HOST",
+      "color": "brand"
+    },
+    {
+      "id": "client-host-text",
+      "type": "text",
+      "x": 55,
+      "y": 70,
+      "width": 310,
+      "height": 185,
+      "text": "## Codex / Claude harness\n\n- Runs on olthoi0, malar, or another host\n- Starts MCP servers over stdio today\n- Carries a Matrix-facing identity such as `codex-hostname-null`\n- Should not need to be launched through agents-js just to use tools",
+      "color": "brand"
+    },
+    {
+      "id": "today",
+      "type": "group",
+      "x": 460,
+      "y": 20,
+      "width": 380,
+      "height": 270,
+      "label": "TODAY: PROVISION EVERYWHERE",
+      "color": "warning"
+    },
+    {
+      "id": "today-text",
+      "type": "text",
+      "x": 485,
+      "y": 70,
+      "width": 330,
+      "height": 185,
+      "text": "## dot-matrix MCP stdio\n\n- `mcp-server.py` runs as a local child process\n- Reads homeserver, room id, and token from local `gopass`\n- `send_message` chooses identity with `as_agent`\n- Fast path for first olthoi0 smoke",
+      "color": "warning"
+    },
+    {
+      "id": "target",
+      "type": "group",
+      "x": 460,
+      "y": 360,
+      "width": 380,
+      "height": 310,
+      "label": "TARGET: AGENTS-JS HOSTED MCP",
+      "color": "success"
+    },
+    {
+      "id": "target-text",
+      "type": "text",
+      "x": 485,
+      "y": 410,
+      "width": 330,
+      "height": 225,
+      "text": "## Provider-backed tools\n\n- agents-js hosts MCP tools such as `SendMessage` and `FetchContext`\n- `MatrixToolProvider` hides the backend (`dot-matrix`, proxy, or future service)\n- `MetricsProvider` consumes harness-native telemetry\n- Host bootstrap provisions identity and config",
+      "color": "success"
+    },
+    {
+      "id": "matrix",
+      "type": "group",
+      "x": 30,
+      "y": 400,
+      "width": 360,
+      "height": 270,
+      "label": "MATRIX + BRIDGE",
+      "color": "brand"
+    },
+    {
+      "id": "matrix-text",
+      "type": "text",
+      "x": 55,
+      "y": 450,
+      "width": 310,
+      "height": 180,
+      "text": "## Shared room transport\n\n- Matrix homeserver owns room events\n- dot-matrix bridge observes events and routes mentions\n- Bridge policy decides which agent senders can fan out to gated agents",
+      "color": "brand"
+    }
+  ],
+  "edges": [
+    {
+      "id": "client-to-today",
+      "fromNode": "client-host",
+      "toNode": "today",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "stdio MCP child"
+    },
+    {
+      "id": "today-to-matrix",
+      "fromNode": "today",
+      "toNode": "matrix",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "label": "Matrix Client API"
+    },
+    {
+      "id": "client-to-target",
+      "fromNode": "client-host",
+      "toNode": "target",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "label": "hosted MCP tools"
+    },
+    {
+      "id": "target-to-matrix",
+      "fromNode": "target",
+      "toNode": "matrix",
+      "fromSide": "left",
+      "toSide": "right",
+      "label": "MatrixToolProvider backend"
+    }
+  ]
+}

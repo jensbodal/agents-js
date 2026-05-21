@@ -20,6 +20,15 @@ let host: DocsCanvasViewer | null = null;
 let abortController: AbortController | null = null;
 let disposed = false;
 
+const props = withDefaults(
+  defineProps<{
+    src?: string;
+  }>(),
+  {
+    src: "architecture.canvas",
+  },
+);
+
 onMounted(async () => {
   disposed = false;
   await import("./docs-canvas-viewer.ts"); // registers <docs-canvas-viewer>
@@ -39,12 +48,12 @@ onMounted(async () => {
   host = viewer;
   container.appendChild(viewer);
 
-  // BASE_URL always ends in `/` (Vite convention). The canvas file is a
-  // static asset under docs/public/ — VitePress copies it to /architecture.canvas.
+  // BASE_URL always ends in `/` (Vite convention). Canvas files live under
+  // docs/public/ and are copied to the site root by VitePress.
   const controller = new AbortController();
   abortController = controller;
   try {
-    const resp = await fetch(`${import.meta.env.BASE_URL}architecture.canvas`, {
+    const resp = await fetch(`${import.meta.env.BASE_URL}${props.src}`, {
       signal: controller.signal,
     });
     if (!resp.ok) {

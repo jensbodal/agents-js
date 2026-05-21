@@ -124,6 +124,7 @@ export default withMermaid(
             items: [
               { text: "Primitives", link: "/primitives" },
               { text: "Architecture", link: "/architecture" },
+              { text: "Hosted MCP Tool Surface", link: "/hosted-mcp-tool-surface" },
               { text: "Harness Guide", link: "/harness-guide" },
               { text: "Protocols", link: "/protocols" },
               { text: "Streaming, Events, and Concurrency", link: "/streaming-and-events" },
