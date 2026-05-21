@@ -57,8 +57,48 @@
       "y": 410,
       "width": 330,
       "height": 225,
-      "text": "## Provider-backed tools\n\n- agents-js hosts tools such as `matrix.send_message` and `fetch_context`\n- AJS-57 JWT verifies caller identity and scopes\n- `MatrixToolProvider` uses a narrow dot-matrix adapter, not raw `mcp-server.py`\n- Host bootstrap provisions identity and config",
+      "text": "## Hosted MCP server\n\n- Exposes canonical `agents.send_message` / `agents.get_messages`\n- AJS-57 JWT verifies caller identity and scopes\n- MCP dispatch resolves target capability\n- Providers stay substrate-specific",
       "color": "success"
+    },
+    {
+      "id": "router",
+      "type": "group",
+      "x": 900,
+      "y": 360,
+      "width": 380,
+      "height": 310,
+      "label": "MCP DISPATCH ROUTER",
+      "color": "success"
+    },
+    {
+      "id": "router-text",
+      "type": "text",
+      "x": 925,
+      "y": 410,
+      "width": 330,
+      "height": 225,
+      "text": "## Target routing\n\n- Lives in MCP dispatch, not a Provider\n- Gate 1: caller scope authorizes action\n- Gate 2: target capability resolves\n- Emits audit with source, target, substrate, and correlationId",
+      "color": "success"
+    },
+    {
+      "id": "inbox",
+      "type": "group",
+      "x": 900,
+      "y": 20,
+      "width": 380,
+      "height": 270,
+      "label": "AGENT INBOX FALLBACK",
+      "color": "warning"
+    },
+    {
+      "id": "inbox-text",
+      "type": "text",
+      "x": 925,
+      "y": 70,
+      "width": 330,
+      "height": 185,
+      "text": "## AgentInboxProvider\n\n- Explicit fallback for known agents without Matrix routing\n- Uses agent-msg SQLite mailbox\n- Missing Matrix scope never sends as a fallback Matrix identity\n- Unknown target returns structured error / DLQ",
+      "color": "warning"
     },
     {
       "id": "matrix",
@@ -107,12 +147,28 @@
       "label": "AJS-57-scoped MCP tools"
     },
     {
-      "id": "target-to-matrix",
+      "id": "target-to-router",
       "fromNode": "target",
+      "toNode": "router",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "agents.send_message"
+    },
+    {
+      "id": "target-to-matrix",
+      "fromNode": "router",
       "toNode": "matrix",
       "fromSide": "left",
       "toSide": "right",
-      "label": "narrow adapter backend"
+      "label": "MatrixToolProvider"
+    },
+    {
+      "id": "router-to-inbox",
+      "fromNode": "router",
+      "toNode": "inbox",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "AgentInboxProvider"
     }
   ]
 }

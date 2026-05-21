@@ -34,14 +34,18 @@ This is a provisioning pattern, not a hosted product surface.
 ## Target Shape
 
 The durable target is an agents-js-hosted MCP server that exposes
-identity-aware tools such as `matrix.send_message` and `fetch_context` to any
-harness.
+identity-aware tools such as `agents.send_message`, `agents.get_messages`,
+`matrix.send_message`, and `fetch_context` to any harness.
 The harness should not need to know whether Matrix is backed by `dot-matrix`,
 an HTTP proxy, a bus subscriber, or a future service.
 
 The boundary is provider-shaped:
 
+- The MCP dispatch layer owns target routing for canonical tools such as
+  `agents.send_message`. It is not a Provider itself.
 - `MatrixToolProvider` owns room send/read semantics.
+- `AgentInboxProvider` owns local agent-mailbox delivery as the explicit
+  fallback substrate for known agents without Matrix routing.
 - `ContextProvider` or the existing `fetchContext` primitive owns grounded
   context recall.
 - `MetricsProvider` owns harness-neutral telemetry.
@@ -56,9 +60,42 @@ The runtime contract is:
 - Hosted MCP tools verify `Authorization: Bearer <JWT>` before provider
   dispatch.
 - JWT `scopes` map one-to-one with MCP tool names such as
-  `matrix.send_message`.
+  `agents.send_message`, `matrix.send_message`, or `inbox.deliver`.
 - Matrix identity is server-resolved from the verified `sourcePrincipal`;
   clients never pass `as_agent`, Matrix tokens, or senders as tool arguments.
+
+The router has two independent gates:
+
+1. Caller scope must authorize the requested delivery action.
+2. Target capability must resolve to a substrate.
+
+If the caller lacks Matrix scope, hosted MCP must not silently send as a
+fallback Matrix identity. If the target is a known agent without Matrix routing,
+the router can deliver to the explicit inbox substrate. If the target is
+unknown, it returns a structured error and records the failed route.
+
+## Delivery Router
+
+The canonical user-facing tool is `agents.send_message(target, body, ...)`.
+Provider-direct tools remain available for diagnostics or explicit routing, but
+they do not own the target-routing policy.
+
+```text
+agents.send_message(target, body, ...)
+  -> verify AJS-57 JWT and caller scopes
+  -> resolve target capabilities from AJS-55 trust + gateway registry
+  -> route:
+       target has Matrix routing      -> MatrixToolProvider
+       known agent without Matrix     -> AgentInboxProvider
+       unknown target                 -> structured error / DLQ
+  -> emit audit event with source, target, substrate, and correlationId
+```
+
+| Surface | Owner | Backend |
+| --- | --- | --- |
+| `agents.send_message` / `agents.get_messages` | MCP dispatch router | Target capability resolver plus providers |
+| `matrix.send_message` / `matrix.get_messages` | `MatrixToolProvider` | Narrow dot-matrix adapter subprocess |
+| `inbox.deliver` / `inbox.read` | `AgentInboxProvider` | `agent-msg` SQLite mailbox |
 
 ## Source-Backed Anchors
 
@@ -68,6 +105,10 @@ The runtime contract is:
   registry primitives.
 - `extras/matrix-bridge/src/index.ts` already keeps Matrix-specific bridge
   event shaping outside the generic host package.
+- `dot-cognee/agent-msg/src/db.ts` already implements the SQLite mailbox used
+  by local agent-to-agent delivery; its default store is
+  `data/agent-msg/agent-msg.db` under the user's `dot-cognee` workspace unless
+  `AGENT_MSG_DB` is set.
 - `dot-matrix/mcp-server.py` is the current working Matrix MCP backend, but it
   is stdio-only and repo-local.
 - The hosted provider backend starts as a narrow Python adapter subprocess that
@@ -101,10 +142,14 @@ promise.
 
 ## Open Work
 
-- Define the `MatrixToolProvider` interface and identity binding contract.
+- Define the MCP delivery-router interface, `MatrixToolProvider` interface, and
+  identity binding contract.
 - Implement the narrow dot-matrix adapter subprocess for the first backend.
-- Add hosted MCP tools for `matrix.send_message`, `matrix.get_messages`, and
+- Add hosted MCP tools for canonical `agents.send_message` routing plus
+  provider-direct `matrix.send_message`, `matrix.get_messages`, and
   `fetch_context` using the `<provider>.<method>` naming convention.
+- File and implement the fast-follow `AgentInboxProvider` ticket for
+  `inbox.deliver` and `inbox.read`.
 - Exclude admin-oriented dot-matrix tools such as `set_lead`, `invite_agent`,
   and `poller_status` from the general `MatrixToolProvider` surface.
 - Document the host-bootstrap path that installs the MCP config without
