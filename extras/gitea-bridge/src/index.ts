@@ -157,3 +157,12 @@ export function publishGiteaEventToBus(
 function defaultGiteaSourcePrincipal(repo: string, actor: string): IdentityPrincipal {
   return { kind: GITEA_SOURCE_PRINCIPAL_KIND, id: `gitea:${repo}:${actor}` };
 }
+
+// In-process webhook receiver (AJS-59 v1 PR 2/3). HMAC-verifies the
+// inbound Gitea payload, extracts event fields, publishes the typed
+// envelope onto the bus via publishGiteaEventToBus above. See
+// ./receiver.ts for the full security boundary commentary.
+export {
+  type CreateGiteaWebhookHandlerOptions,
+  createGiteaWebhookHandler,
+} from "./receiver.ts";

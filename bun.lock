@@ -154,6 +154,7 @@
       "name": "@agents-js/gitea-bridge",
       "version": "0.5.1",
       "dependencies": {
+        "@agents-js/a2a": "0.5.1",
         "@agents-js/host": "0.5.1",
       },
       "devDependencies": {

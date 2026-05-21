@@ -32,6 +32,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
+    "@agents-js/a2a": "0.5.1",
     "@agents-js/host": "0.5.1"
   },
   "devDependencies": {

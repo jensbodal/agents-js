@@ -56,6 +56,20 @@ describe("packages/a2a/tests/http-status.test.ts", () => {
   });
 
   /**
+   * WHAT: `HTTP_STATUS.UNAUTHORIZED` equals 401.
+   * WHY: Emitted by the Gitea webhook receiver in
+   *      `extras/gitea-bridge/src/receiver.ts` when HMAC verification
+   *      fails or the signature header is missing. The 401 conveys
+   *      "auth required / failed" semantics distinct from 400
+   *      (malformed request) and 403 (auth ok, not allowed). A silent
+   *      off-by-one would let unauthenticated webhook traffic through
+   *      with a 200, which is a real security hazard.
+   */
+  test("HTTP_STATUS.UNAUTHORIZED is 401", () => {
+    expect(HTTP_STATUS.UNAUTHORIZED).toBe(401);
+  });
+
+  /**
    * WHAT: `HTTP_STATUS.NOT_FOUND` equals 404.
    * WHY: Returned by the catch-all branch in a2a/server.ts when a
    *      request matches no known route. Tools that gate retries on 404
@@ -142,6 +156,7 @@ describe("packages/a2a/tests/http-status.test.ts", () => {
       "NO_CONTENT",
       "OK",
       "PAYLOAD_TOO_LARGE",
+      "UNAUTHORIZED",
       "UPGRADE_REQUIRED",
     ]);
   });
