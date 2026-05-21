@@ -84,8 +84,8 @@ export async function evaluatePermission(
   }
   const effectiveRequest = hookRequest ?? request;
 
-  // YOLO mode: auto-approve everything
-  if (ctx.permissionMode === "yolo") {
+  // bypassPermissions mode: auto-approve everything
+  if (ctx.permissionMode === "bypassPermissions") {
     const allowOption = effectiveRequest.options?.find(
       (o) => o.kind === "allow_always" || o.kind === "allow_once",
     );
@@ -95,7 +95,7 @@ export async function evaluatePermission(
         effectiveRequest,
         ctx.permissionMode,
         "auto_approve",
-        "yolo mode",
+        "bypassPermissions mode",
       );
       const response: RequestPermissionResponse = {
         outcome: { outcome: "selected", optionId: allowOption.optionId },
@@ -107,8 +107,8 @@ export async function evaluatePermission(
     }
   }
 
-  // plan / ask / custom: auto-approve read-only operations
-  if (ctx.permissionMode !== "yolo") {
+  // plan / default / acceptEdits: auto-approve read-only operations
+  if (ctx.permissionMode !== "bypassPermissions") {
     const operationClass = classifyOperation(effectiveRequest);
     if (isReadOnly(operationClass)) {
       const allowOption = effectiveRequest.options?.find(

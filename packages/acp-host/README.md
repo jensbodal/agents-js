@@ -89,6 +89,7 @@ bun add @agents-js/acp-host
 - **`mapToolCallContent`**
 - **`mapToolCallStatus`**
 - **`normalizeAgentName`**
+- **`normalizePermissionMode`**
 - **`normalizeSessionModes`**
 - **`parseMentions`** — Extracts mention tokens from text. Only matches tokens like `.md` at word boundaries (after whitespace, start of line, or after newline).
 - **`requestWriteGateApproval`** — Determine whether a write should be auto-approved or requires a UI modal. Returns a resolved `Promise<boolean>` for auto-approved writes, or creates a pending write gate on `state` and emits the re...
@@ -205,13 +206,14 @@ bun add @agents-js/acp-host
 - **`AgentScenario`**
 - **`ElicitationScenario`**
 - **`FrontmatterWriteTarget`** — Browser-safe entry point for -js/acp-host/editor. The mention-parser helpers and the frontmatter-only-write detector are pure framework-agnostic TypeScript functions with no Node-specific runtime d...
+- **`LegacyPermissionMode`** — Legacy permission-mode strings retained for one release cycle for back-compat. Inputs at public boundaries (ws-bridge JSON messages, embedder API calls) are run through {normalizePermissionMode} be...
 - **`Listener`**
 - **`LogCategory`**
 - **`LogLevel`**
 - **`ModeFallbackReason`**
 - **`OpenFileEntry`**
 - **`PermissionLifetime`**
-- **`PermissionMode`** — Permission mode controlling the host's auto-approve/prompt strategy.
+- **`PermissionMode`** — Permission mode controlling the host's auto-approve/prompt strategy. Canonical vocabulary aligned with ACP / Claude Code semantics: - `default` — prompt user for every gated action (read-auto, writ...
 - **`PromptScenario`**
 - **`ReadonlySpan`**
 - **`RenderDescriptor`** — Discriminated union of all render descriptor types
@@ -244,6 +246,7 @@ bun add @agents-js/acp-host
 ### Exports
 
 - **`type BuildMinimalEnvInput`**
+- **`type LegacyPermissionMode`**
 - **`type NormalizedAgentName`**
 
 

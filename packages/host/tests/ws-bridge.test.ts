@@ -505,7 +505,7 @@ describe("createWSBridge", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },
@@ -586,7 +586,7 @@ describe("createWSBridge", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },
@@ -674,7 +674,7 @@ describe("createWSBridge", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },
@@ -774,7 +774,7 @@ describe("createWSBridge", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },

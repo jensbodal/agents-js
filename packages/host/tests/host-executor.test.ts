@@ -668,7 +668,7 @@ describe("HostA2AExecutor.cancelTask — dispatch non-cancelable", () => {
       async cancel() {
         throw new Error("cancel must NOT be called for dispatch tasks");
       },
-      permissionMode: "ask" as const,
+      permissionMode: "default" as const,
     };
 
     const executor = new HostA2AExecutor(controller as never);
@@ -716,7 +716,7 @@ describe("HostA2AExecutor.cancelTask — dispatch non-cancelable", () => {
       async cancel() {
         cancelCalls += 1;
       },
-      permissionMode: "ask" as const,
+      permissionMode: "default" as const,
     };
 
     const executor = new HostA2AExecutor(controller as never);
@@ -746,7 +746,7 @@ describe("HostA2AExecutor.cancelTask — dispatch non-cancelable", () => {
       async cancel() {
         cancelCalls += 1;
       },
-      permissionMode: "ask" as const,
+      permissionMode: "default" as const,
     };
 
     const executor = new HostA2AExecutor(controller as never);

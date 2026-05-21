@@ -70,6 +70,7 @@ export { PermissionStore } from "./permission-store.ts";
 export { type BuildMinimalEnvInput, buildMinimalEnv, createHostACPProcess } from "./process.ts";
 export type { PermissionMode } from "./session-controller.ts";
 export { ACPSessionController } from "./session-controller.ts";
+export { type LegacyPermissionMode, normalizePermissionMode } from "./session-state.ts";
 export {
   createTerminalHandlers,
   type TerminalHandlers,

@@ -709,15 +709,15 @@ describe("ACPSessionController", () => {
   });
 
   test("setPermissionMode updates the mode", async () => {
-    expect(controller.permissionMode).toBe("ask");
-    await controller.setPermissionMode("yolo");
-    expect(controller.permissionMode).toBe("yolo");
+    expect(controller.permissionMode).toBe("default");
+    await controller.setPermissionMode("bypassPermissions");
+    expect(controller.permissionMode).toBe("bypassPermissions");
     await controller.setPermissionMode("plan");
     expect(controller.permissionMode).toBe("plan");
-    await controller.setPermissionMode("hub");
-    expect(controller.permissionMode).toBe("hub");
-    await controller.setPermissionMode("ask");
-    expect(controller.permissionMode).toBe("ask");
+    await controller.setPermissionMode("acceptEdits");
+    expect(controller.permissionMode).toBe("acceptEdits");
+    await controller.setPermissionMode("default");
+    expect(controller.permissionMode).toBe("default");
   });
 
   test("plan mode attempts to activate agent plan mode when available", async () => {
@@ -2252,7 +2252,7 @@ describe("permission gating status", () => {
     const events: ACPSessionEvent[] = [];
     controller.subscribe((event) => events.push(event));
 
-    await controller.setPermissionMode("ask");
+    await controller.setPermissionMode("default");
 
     const gatingEvent = events.find((e) => e.type === "permission_gating_status");
     expect(gatingEvent).toBeDefined();

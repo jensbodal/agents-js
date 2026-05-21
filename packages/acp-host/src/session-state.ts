@@ -15,8 +15,91 @@ import type {
   TurnState,
 } from "./types/session.ts";
 
-/** Permission mode controlling the host's auto-approve/prompt strategy. */
-export type PermissionMode = "yolo" | "plan" | "ask" | "hub";
+/**
+ * Permission mode controlling the host's auto-approve/prompt strategy.
+ *
+ * Canonical vocabulary aligned with ACP / Claude Code semantics:
+ * - `default` — prompt user for every gated action (read-auto, write-prompt).
+ *   Aliased from legacy `"ask"` via {@link normalizePermissionMode}.
+ * - `acceptEdits` — auto-approve edit operations without prompting.
+ * - `plan` — agent enters plan mode (reads auto-approve, agent emits plan blocks).
+ * - `bypassPermissions` — skip permission gating entirely (auto-approve all).
+ *   Aliased from legacy `"yolo"` via {@link normalizePermissionMode}.
+ *
+ * Folder-scoped auto-approve (the legacy `"hub"` mode's documented intent) is
+ * driven separately by {@link ACPSessionState.hubPath} and the
+ * {@link session-file-adapters.requestWriteGateApproval} write-gate path
+ * check — it is independent of the mode flag, so the legacy `"hub"` mode
+ * normalizes to `"default"` (ask-via-hub semantics; the folder auto-approve
+ * survives via `hubPath`).
+ */
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+
+/**
+ * Legacy permission-mode strings retained for one release cycle for
+ * back-compat. Inputs at public boundaries (ws-bridge JSON messages,
+ * embedder API calls) are run through {@link normalizePermissionMode}
+ * before reaching the internal pipeline.
+ *
+ * @deprecated Use the canonical {@link PermissionMode} vocabulary instead.
+ */
+export type LegacyPermissionMode = "yolo" | "plan" | "ask" | "hub";
+
+/**
+ * Normalize a permission-mode string from any vintage to the canonical
+ * {@link PermissionMode}. Maps legacy strings:
+ * - `"ask"` → `"default"`
+ * - `"yolo"` → `"bypassPermissions"`
+ * - `"hub"` → `"default"` (ask-via-hub; folder auto-approve flows via
+ *   {@link ACPSessionState.hubPath}, not the mode flag)
+ * - `"plan"` → `"plan"` (unchanged)
+ *
+ * Canonical strings pass through unchanged. Unknown strings fall back
+ * to `"default"` with a one-time `console.warn`.
+ */
+let _legacyWarned = false;
+export function normalizePermissionMode(
+  mode: PermissionMode | LegacyPermissionMode | string,
+): PermissionMode {
+  switch (mode) {
+    case "default":
+    case "acceptEdits":
+    case "plan":
+    case "bypassPermissions":
+      return mode;
+    case "ask":
+      if (!_legacyWarned) {
+        _legacyWarned = true;
+        console.warn(
+          '[agents-js] PermissionMode "ask" is deprecated; use "default". ' +
+            "Legacy aliases will be removed in the next breaking release.",
+        );
+      }
+      return "default";
+    case "yolo":
+      if (!_legacyWarned) {
+        _legacyWarned = true;
+        console.warn(
+          '[agents-js] PermissionMode "yolo" is deprecated; use "bypassPermissions". ' +
+            "Legacy aliases will be removed in the next breaking release.",
+        );
+      }
+      return "bypassPermissions";
+    case "hub":
+      if (!_legacyWarned) {
+        _legacyWarned = true;
+        console.warn(
+          '[agents-js] PermissionMode "hub" is deprecated; use "default" ' +
+            "(folder-scoped auto-approve flows via hubPath, not the mode flag). " +
+            "Legacy aliases will be removed in the next breaking release.",
+        );
+      }
+      return "default";
+    default:
+      console.warn(`[agents-js] Unknown PermissionMode "${mode}"; falling back to "default".`);
+      return "default";
+  }
+}
 
 export function createInitialState(): ACPSessionState {
   return {

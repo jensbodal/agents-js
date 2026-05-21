@@ -15,7 +15,7 @@ import { HostA2AExecutor } from "../src/host-executor.ts";
 
 function createIdleControllerStub() {
   return {
-    permissionMode: "ask" as const,
+    permissionMode: "default" as const,
     getState: () => ({
       status: "ready",
       sessionId: "session-1",

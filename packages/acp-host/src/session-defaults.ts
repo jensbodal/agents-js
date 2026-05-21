@@ -23,7 +23,7 @@ interface DefaultsContext {
 }
 
 export interface ApplyDefaultsResult {
-  /** Whether permission-gating mode sync succeeded (relevant for ask/hub modes). */
+  /** Whether permission-gating mode sync succeeded (relevant for default/acceptEdits modes). */
   permissionGatingSynced: boolean;
   /** Whether the host is enforcing permission gating without a protocol mode sync. */
   permissionGatingHostManaged: boolean;
@@ -71,7 +71,7 @@ export async function applyAgentDefaults(
   // After per-agent defaults, sync permission mode to runtime
   let permissionGatingSynced = true;
   let permissionGatingHostManaged = false;
-  if (ctx.permissionMode === "ask" || ctx.permissionMode === "hub") {
+  if (ctx.permissionMode === "default" || ctx.permissionMode === "acceptEdits") {
     const result = await trySetAgentMode(
       "default",
       "Agent default mode activated for permission gating",

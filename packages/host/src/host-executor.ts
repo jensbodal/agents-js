@@ -858,8 +858,8 @@ export class HostA2AExecutor implements InitializableExecutor {
    *    — those remain primary-prompt-only (Gamma's invariant, commit e70d2f5).
    *
    * Permission mode is **inherited** from the primary gateway controller
-   * — operators who launched the gateway in "ask"/"plan"/"hub" get those
-   * modes for dispatched runs too. A dispatch directive does not
+   * — operators who launched the gateway in `"default"`/`"plan"`/`"acceptEdits"`
+   * get those modes for dispatched runs too. A dispatch directive does not
    * implicitly grant elevated trust.
    *
    * Cancel semantics: dispatch is **non-cancelable** for this release.
@@ -1381,11 +1381,11 @@ export class HostA2AExecutor implements InitializableExecutor {
  *
  * Permission / write-gate / elicitation events are treated as terminal
  * failures: dispatch is non-interactive — it has no UI to prompt the
- * operator. Under inherited `"ask"`/`"plan"`/`"hub"` modes the agent
- * may still emit one of these events; we publish a failed status
+ * operator. Under inherited `"default"`/`"plan"`/`"acceptEdits"` modes the
+ * agent may still emit one of these events; we publish a failed status
  * update *and* call `controller.cancel()` so the in-flight `sendPrompt`
  * unblocks instead of hanging forever waiting for a `resolvePermission`
- * call that no surface will make. Under `"yolo"` the agent should not
+ * call that no surface will make. Under `"bypassPermissions"` the agent should not
  * emit these in practice; if it does, the same fail+cancel path
  * applies.
  *
@@ -1536,7 +1536,7 @@ export function subscribeDispatchController(
  *   dispatches
  * - **fresh** in-memory `PermissionEngine` + `PermissionStore` with no
  *   rule loading — dispatch is non-interactive: under inherited
- *   `"ask"`/`"plan"`/`"hub"` modes any permission/write-gate/elicitation
+ *   `"default"`/`"plan"`/`"acceptEdits"` modes any permission/write-gate/elicitation
  *   event is converted to a failed terminal + controller cancel by
  *   `subscribeDispatchController` (so dispatch never hangs awaiting a
  *   resolution from a UI that does not exist for it). Sharing the

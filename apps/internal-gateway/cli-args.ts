@@ -1,7 +1,20 @@
-import type { PermissionMode } from "@agents-js/acp-host";
+import { normalizePermissionMode, type PermissionMode } from "@agents-js/acp-host";
 import { parseGatewayPort } from "./discovery.ts";
 
-export const VALID_PERMISSION_MODES: PermissionMode[] = ["ask", "yolo", "plan", "hub"];
+export const VALID_PERMISSION_MODES: PermissionMode[] = [
+  "default",
+  "acceptEdits",
+  "plan",
+  "bypassPermissions",
+];
+
+/**
+ * Legacy CLI strings (`ask`/`yolo`/`hub`) accepted for one release cycle.
+ * Operators get a `normalizePermissionMode` deprecation warning if they
+ * pass a legacy string; the value is mapped to canonical before reaching
+ * the controller.
+ */
+const LEGACY_PERMISSION_MODES = ["ask", "yolo", "hub"] as const;
 
 export interface GatewayCliArgs {
   check: boolean;
@@ -52,7 +65,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   let check = false;
   const runtimeOverrides: string[] = [];
   let workspace: string = process.cwd();
-  let permissionMode: PermissionMode = "ask";
+  let permissionMode: PermissionMode = "default";
   let defaultModel: string | undefined;
   let hostname: string | undefined;
   let port: number | undefined;
@@ -108,12 +121,14 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       if (!next) {
         throw new Error('[Gateway] Missing value for "--permission-mode".');
       }
-      if (!VALID_PERMISSION_MODES.includes(next as PermissionMode)) {
+      const isCanonical = VALID_PERMISSION_MODES.includes(next as PermissionMode);
+      const isLegacy = (LEGACY_PERMISSION_MODES as readonly string[]).includes(next);
+      if (!isCanonical && !isLegacy) {
         throw new Error(
-          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")}`,
+          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")} (legacy aliases ${LEGACY_PERMISSION_MODES.join("/")} accepted with deprecation warning).`,
         );
       }
-      permissionMode = next as PermissionMode;
+      permissionMode = normalizePermissionMode(next);
       index += 1;
       continue;
     }

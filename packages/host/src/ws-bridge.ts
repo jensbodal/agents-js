@@ -8,11 +8,12 @@
 
 import { HTTP_STATUS } from "@agents-js/a2a";
 import { A2UI_WS_FRAME_TYPE, type A2uiMessage } from "@agents-js/a2ui-types";
-import type {
-  ACPSessionEvent,
-  ACPSessionState,
-  PermissionMode,
-  WriteGateResolution,
+import {
+  type ACPSessionEvent,
+  type ACPSessionState,
+  normalizePermissionMode,
+  type PermissionMode,
+  type WriteGateResolution,
 } from "@agents-js/acp-host";
 import { SESSION_RESTORE_FAILURE_MESSAGE } from "@agents-js/acp-host/session-restore";
 import type { ServerWebSocket } from "bun";
@@ -67,7 +68,13 @@ export type WSClientMessage =
   | { type: "load_session"; sessionId: string }
   | { type: "set_runtime"; runtimeId: string; origin: RuntimeSwitchOrigin }
   | { type: "set_model"; modelId: ModelId }
-  | { type: "set_permission_mode"; mode: PermissionMode }
+  /**
+   * Accepts either canonical ({@link PermissionMode}) or legacy
+   * (`"yolo" | "ask" | "hub" | "plan"`) strings — the bridge normalises
+   * at the boundary via {@link normalizePermissionMode}. Legacy strings
+   * will be removed in the next breaking release.
+   */
+  | { type: "set_permission_mode"; mode: PermissionMode | "yolo" | "ask" | "hub" }
   | { type: "request_state" }
   | { type: "cancel" }
   /**
@@ -429,7 +436,10 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
               await controller.setModel(msg.modelId);
               break;
             case "set_permission_mode":
-              await controller.setPermissionMode(msg.mode);
+              // Normalize legacy strings (`yolo`/`ask`/`hub`) → canonical at
+              // the wire boundary so older WS clients keep working through the
+              // deprecation window. See `normalizePermissionMode` JSDoc.
+              await controller.setPermissionMode(normalizePermissionMode(msg.mode));
               broadcastSnapshot();
               break;
             case "request_state": {

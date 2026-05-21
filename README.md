@@ -137,14 +137,18 @@ agents-js mcp setup --claude   # register via `claude mcp add`
 
 ## Permission mediation
 
-Four modes control what the agent can do without asking:
+Four modes control what the agent can do without asking — aligned with ACP / Claude Code vocabulary:
 
 | Mode | Behavior |
 |------|----------|
-| `ask` | Prompt before every action (default) |
-| `yolo` | Allow everything without prompting |
-| `plan` | Allow reads, prompt for writes |
-| `hub` | Central permission hub decides |
+| `default` | Prompt before every gated action (reads auto-approve, writes prompt) |
+| `acceptEdits` | Auto-approve edit operations without prompting |
+| `plan` | Reads auto-approve, agent enters plan mode |
+| `bypassPermissions` | Skip permission gating entirely (auto-approve all) |
+
+Folder-scoped auto-approve (the legacy `hub` mode's documented intent) is independent of the mode flag — it's driven by the `hubPath` session field and the write-gate path check, so any mode can use it.
+
+Legacy strings (`ask` / `yolo` / `hub`) are accepted by the WS bridge for one release cycle and normalized to the canonical vocab; they will be removed in the next breaking release.
 
 ## Architecture
 

@@ -2588,7 +2588,7 @@ Currently-defined namespaced custom events include:
 - `agents-js.stop_reason` — terminal reason codes (`completed`, `canceled`, `turn_limit`,
   `policy_denied`, etc.) that do not fit cleanly into `RUN_FINISHED.result`.
 - `agents-js.plan` — host-owned plan surface updates produced by the ACP layer.
-- `agents-js.mode_changed` — permission-mode transitions (e.g., `plan` → `accept_all`).
+- `agents-js.mode_changed` — permission-mode transitions (e.g., `plan` → `acceptEdits`).
 - `agents-js.usage` — token/cost accounting where the upstream runtime exposes it.
 - `agents-js.permission_request`, `agents-js.permission_response` — ACP permission gating
   events surfaced through the AG-UI stream.

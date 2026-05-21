@@ -166,7 +166,7 @@ describe("applyAgentDefaults", () => {
 
   function makeCtx(
     overrides: {
-      permissionMode?: "ask" | "hub" | "yolo" | "plan";
+      permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions";
       modes?: { currentModeId: string; availableModes: { id: string; name: string }[] } | null;
       agentAdvertisedModes?: boolean;
       modeFallbackReason?: "missing" | "empty" | null;
@@ -184,7 +184,7 @@ describe("applyAgentDefaults", () => {
         },
         modes: overrides.modes ?? null,
         models: null,
-        permissionMode: overrides.permissionMode ?? "ask",
+        permissionMode: overrides.permissionMode ?? "default",
         agentAdvertisedModes: overrides.agentAdvertisedModes ?? true,
         modeFallbackReason: overrides.modeFallbackReason ?? null,
         log: noopLog,
@@ -193,9 +193,9 @@ describe("applyAgentDefaults", () => {
     };
   }
 
-  test("syncs to default mode when permissionMode is ask and mode exists", async () => {
+  test("syncs to default mode when permissionMode is default and mode exists", async () => {
     const { calls, ctx } = makeCtx({
-      permissionMode: "ask",
+      permissionMode: "default",
       agentAdvertisedModes: true,
       modes: {
         currentModeId: "code",
@@ -215,7 +215,7 @@ describe("applyAgentDefaults", () => {
 
   test('uses host-managed gating when the runtime does not advertise "default" mode', async () => {
     const { ctx } = makeCtx({
-      permissionMode: "ask",
+      permissionMode: "default",
       agentAdvertisedModes: true,
       modes: { currentModeId: "code", availableModes: [{ id: "code", name: "Code" }] },
     });
@@ -228,9 +228,9 @@ describe("applyAgentDefaults", () => {
     });
   });
 
-  test("syncs to default mode when permissionMode is hub", async () => {
+  test("syncs to default mode when permissionMode is acceptEdits", async () => {
     const { calls, ctx } = makeCtx({
-      permissionMode: "hub",
+      permissionMode: "acceptEdits",
       agentAdvertisedModes: true,
       modes: { currentModeId: "code", availableModes: [{ id: "default", name: "Default" }] },
     });
@@ -254,9 +254,9 @@ describe("applyAgentDefaults", () => {
     expect(calls).toContain("setMode:plan");
   });
 
-  test("does not attempt mode sync for yolo", async () => {
+  test("does not attempt mode sync for bypassPermissions", async () => {
     const { calls, ctx } = makeCtx({
-      permissionMode: "yolo",
+      permissionMode: "bypassPermissions",
       agentAdvertisedModes: true,
       modes: { currentModeId: "code", availableModes: [{ id: "default", name: "Default" }] },
     });
@@ -270,7 +270,7 @@ describe("applyAgentDefaults", () => {
 
   test("returns host-managed permission gating when agent did not advertise modes", async () => {
     const { calls, ctx } = makeCtx({
-      permissionMode: "ask",
+      permissionMode: "default",
       agentAdvertisedModes: false,
       modes: {
         currentModeId: "default",

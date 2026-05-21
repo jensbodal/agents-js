@@ -38,12 +38,20 @@ describe("parseCliArgs — workspace trust gate", () => {
 
   test("does not break existing flags — workspace and permission-mode still parse", () => {
     const args = parseCliArgs(
-      ["--trust-workspace", "--workspace", "/tmp/ws", "--permission-mode", "yolo"],
+      ["--trust-workspace", "--workspace", "/tmp/ws", "--permission-mode", "bypassPermissions"],
       {},
     );
     expect(args.workspace).toBe("/tmp/ws");
-    expect(args.permissionMode).toBe("yolo");
+    expect(args.permissionMode).toBe("bypassPermissions");
     expect(args.trustWorkspace).toBe(true);
+  });
+
+  test("legacy permission mode strings are accepted and normalized", () => {
+    expect(parseCliArgs(["--permission-mode", "yolo"], {}).permissionMode).toBe(
+      "bypassPermissions",
+    );
+    expect(parseCliArgs(["--permission-mode", "ask"], {}).permissionMode).toBe("default");
+    expect(parseCliArgs(["--permission-mode", "hub"], {}).permissionMode).toBe("default");
   });
 });
 

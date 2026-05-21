@@ -31,7 +31,7 @@ export interface GatewayTestServerOptions {
   acpEnv?: Record<string, string>;
   /** Workspace path (default: tmp dir) */
   workspacePath?: string;
-  /** Permission mode (default: "yolo") */
+  /** Permission mode (default: "bypassPermissions" for test ergonomics) */
   permissionMode?: PermissionMode;
   /** Port to listen on (default: 0 = OS-assigned) */
   port?: number;
@@ -79,7 +79,7 @@ export interface GatewayTestServerHandle {
 export async function createGatewayTestServer(
   options: GatewayTestServerOptions,
 ): Promise<GatewayTestServerHandle> {
-  const permissionMode: PermissionMode = options.permissionMode ?? "yolo";
+  const permissionMode: PermissionMode = options.permissionMode ?? "bypassPermissions";
   const port = options.port ?? 0;
 
   // Create a temp workspace only when the caller did not supply one.

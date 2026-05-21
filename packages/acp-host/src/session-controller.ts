@@ -187,8 +187,18 @@ export class ACPSessionController {
 
   /** Legacy public workspace path. This now reflects the effective session cwd. */
   workspacePath: string | null = null;
-  /** Permission mode: yolo/write (approve all), plan (reads auto + agent plan mode), ask (reads auto), hub (folder-scoped auto-approve) */
-  permissionMode: PermissionMode = "ask";
+  /**
+   * Permission mode (canonical ACP/Claude-Code vocabulary):
+   * - `default` — prompt user before gated actions (reads auto-approve, writes prompt)
+   * - `acceptEdits` — auto-approve edit operations (behavior parity with `default` today; edit-only auto-approve is a follow-up)
+   * - `plan` — reads auto-approve and agent enters plan mode
+   * - `bypassPermissions` — auto-approve everything (skip permission gating)
+   *
+   * Folder-scoped auto-approve is independent — driven by {@link hubDirectoryPath}
+   * via the write-gate path check in `session-file-adapters.requestWriteGateApproval`,
+   * not by the mode flag.
+   */
+  permissionMode: PermissionMode = "default";
   /** Hub directory path (workspace-identity-relative), auto-approved for writes. Set after session creation. */
   private hubDirectoryPath: string | null = null;
   /** Session-scoped writable folders added via the write-gate modal "Allow folder" button. */
@@ -293,7 +303,9 @@ export class ACPSessionController {
     };
     if (mode === "plan") {
       await trySetAgentMode("plan", "Agent plan mode activated", modeCtx);
-    } else if (mode === "ask" || mode === "hub") {
+    } else if (mode === "default" || mode === "acceptEdits") {
+      // `acceptEdits` shares the `default` agent-mode today (host still gates
+      // writes). Edit-only auto-approve at the write-gate is a follow-up.
       const syncResult = await trySetAgentMode(
         "default",
         "Agent default mode activated for permission gating",
@@ -1234,7 +1246,7 @@ export class ACPSessionController {
     this.closeToolCallContentHandlers();
     this.sessionStorage = null;
     this.fileAdapters = null;
-    this.permissionMode = "ask";
+    this.permissionMode = "default";
     this.hubDirectoryPath = null;
     this.sessionWritableFolders.clear();
     this.permissionEngine = null;
@@ -1590,7 +1602,7 @@ export class ACPSessionController {
       permLog: this.permLog,
     });
 
-    if (this.permissionMode === "ask" || this.permissionMode === "hub") {
+    if (this.permissionMode === "default" || this.permissionMode === "acceptEdits") {
       this.state.permissionGatingActive = result.permissionGatingSynced;
       const synced = result.permissionGatingSynced;
       this.emit({

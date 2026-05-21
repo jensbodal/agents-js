@@ -54,7 +54,7 @@ describe("buildLaneControllerFactory", () => {
     const factory = buildLaneControllerFactory({
       session,
       workspacePath: "/tmp/mock-workspace",
-      permissionMode: "ask",
+      permissionMode: "default",
       createController: stubCreateController,
     });
 
@@ -90,7 +90,7 @@ describe("buildLaneControllerFactory", () => {
     const factory = buildLaneControllerFactory({
       session,
       workspacePath: "/tmp/mock-workspace",
-      permissionMode: "ask",
+      permissionMode: "default",
       createController: stubCreateController,
     });
 
@@ -121,7 +121,7 @@ describe("buildLaneControllerFactory", () => {
     const factoryWithSurface = buildLaneControllerFactory({
       session,
       workspacePath: "/tmp/mock-workspace",
-      permissionMode: "ask",
+      permissionMode: "default",
       surfaceAdapter,
       createController: stubCreateController,
     });
@@ -131,7 +131,7 @@ describe("buildLaneControllerFactory", () => {
     const factoryWithoutSurface = buildLaneControllerFactory({
       session,
       workspacePath: "/tmp/mock-workspace",
-      permissionMode: "ask",
+      permissionMode: "default",
       createController: stubCreateController,
     });
     await factoryWithoutSurface(a);

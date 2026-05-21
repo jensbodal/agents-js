@@ -63,7 +63,7 @@ describe("createWSBridge — surface_event back-channel", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },
@@ -122,7 +122,7 @@ describe("createWSBridge — surface_event back-channel", () => {
 
     const bridge = createWSBridge({
       controller: {
-        permissionMode: "ask",
+        permissionMode: "default",
         subscribe() {
           return () => {};
         },

@@ -104,7 +104,7 @@ function createMockController(pid: number): MockController {
     resolveWriteGate() {},
     sendSurfaceEvent() {},
     setLastError() {},
-    permissionMode: "ask",
+    permissionMode: "default",
   } as unknown as GatewayHostController;
 
   return {
