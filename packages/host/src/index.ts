@@ -59,6 +59,16 @@ export {
   type WrapAuditEmitterAsBusPublisherOptions,
   wrapAuditEmitterAsBusPublisher,
 } from "./gateway-bus-publishers.ts";
+export {
+  DEFAULT_GITEA_EVENT_TYPES,
+  formatGiteaMatrixBody,
+  GITEA_BUS_CONSUMER_TOPIC,
+  type GiteaBusConsumerHandle,
+  type GiteaBusEventPayload,
+  type GiteaSendFunction,
+  type StartGiteaBusConsumerOptions,
+  startGiteaBusConsumer,
+} from "./gitea-bus-consumer.ts";
 export { HostA2AExecutor, type HostA2AExecutorOptions } from "./host-executor.ts";
 export {
   createHostSession,

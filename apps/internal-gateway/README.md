@@ -94,3 +94,46 @@ Environment contract:
 | `PLANE_WEBHOOK_MATRIX_ROOM` | unset | Matrix room alias or room id for notifications. |
 | `PLANE_WEBHOOK_MATRIX_CLIENT` | unset | Matrix CLI script path. Required when Matrix sends are enabled. |
 | `PLANE_WEBHOOK_BUN` | first `bun` on `PATH` | Bun executable used for the Matrix CLI. |
+
+## Gitea Webhook Bridge
+
+The gateway exposes an optional Gitea webhook receiver and matching
+Matrix-output bus consumer (AJS-59 v1):
+
+```text
+POST /webhooks/gitea
+```
+
+V1 behavior:
+
+- HMAC-SHA256 verification against the raw request body, before JSON parse.
+- Per-repo + per-event-type allowlists evaluated after HMAC.
+- In-memory dedupe by `X-Gitea-Delivery` with a 1-hour TTL.
+- Subscribes to `gateway.gitea.event-received` and sends a one-line Matrix
+  message per allowed event via the configured subprocess.
+
+The route is mounted ONLY when `GITEA_WEBHOOK_SECRET` is set — the
+gateway boots unchanged in dev. If the secret is set without
+`GITEA_BRIDGE_SEND_SCRIPT`, the gateway fails fast at startup with a
+clear error.
+
+Environment contract:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GITEA_WEBHOOK_SECRET` | unset | Enable gate + HMAC secret matching the Gitea webhook config. |
+| `GITEA_BRIDGE_SEND_SCRIPT` | unset (required when enabled) | Absolute path to a send-matrix subprocess. The script must accept `--as <identity>`, `--stdin`, and an optional `--room <id>`. |
+| `GITEA_BRIDGE_ROOM` | unset | Matrix room ID passed through to the send script as `--room`. |
+| `GITEA_BRIDGE_ALLOWED_REPOS` | unset (allow all) | CSV of `owner/name` entries; trailing commas and whitespace tolerated. |
+| `GITEA_BRIDGE_IDENTITY` | `gitea-bot` | Matrix identity passed as `--as` to the send script. |
+
+End-to-end shape:
+
+```
+Gitea repo ─▶ POST /webhooks/gitea ─▶ HMAC verify + dedupe ─▶ bus
+                                                                │
+                                              gitea-bus-consumer┘ ─▶ send-matrix subprocess ─▶ Matrix
+```
+
+See `extras/gitea-bridge/README.md` for the bridge package details and
+the Gitea webhook UI configuration table.

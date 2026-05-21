@@ -112,6 +112,35 @@ describe("createGiteaWebhookHandler — HMAC verification", () => {
     expect(received).toHaveLength(1);
   });
 
+  test("accepts a signature with the optional sha256= prefix (GitHub-compat shape)", async () => {
+    /**
+     * WHAT: A signature sent as `sha256=<hex>` (GitHub-compatible
+     *       convention, also seen from some Gitea reverse proxies)
+     *       verifies identically to the bare-hex shape.
+     * WHY: Mirrors the defensive prefix-strip in
+     *      `dot-notification/src/services/signature_validator.py`.
+     *      Without the strip, `Buffer.from("sha256=...", "hex")` would
+     *      silently produce garbage bytes and verification would 401
+     *      every legitimate request from those installations.
+     */
+    const bus = createGatewayBus();
+    const received: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((event) => received.push(event));
+
+    const handler = createGiteaWebhookHandler({ bus, secret: SECRET });
+    const body = pullRequestPayload();
+    const req = makeRequest({
+      body,
+      signature: `sha256=${sign(SECRET, body)}`,
+      event: "pull_request",
+      delivery: randomUUID(),
+    });
+
+    const res = await handler(req);
+    expect(res?.status).toBe(200);
+    expect(received).toHaveLength(1);
+  });
+
   test("rejects a request with an invalid HMAC signature (401, no publish)", async () => {
     const bus = createGatewayBus();
     const received: GatewayBusEvent<unknown>[] = [];
@@ -121,7 +150,7 @@ describe("createGiteaWebhookHandler — HMAC verification", () => {
     const body = pullRequestPayload();
     const req = makeRequest({
       body,
-      signature: "deadbeef" + sign(SECRET, body).slice(8), // tampered
+      signature: `deadbeef${sign(SECRET, body).slice(8)}`, // tampered
       event: "pull_request",
       delivery: randomUUID(),
     });

@@ -41,6 +41,7 @@ bun add @agents-js/host
 - **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
 - **`fetchRuntimeModels`**
 - **`formatAguiSseFrame`**
+- **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
 - **`getEnvRuntimeProfileName`**
 - **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
 - **`parseDispatchDirective`** — Parse `@...rest` from a Matrix message body. Returns `target: ""` when no directive prefix is present (consumer treats that as "no dispatch", but the body may still be useful for audit subscribers)...
@@ -50,6 +51,7 @@ bun add @agents-js/host
 - **`publishHarnessChildSpawned`** — Publish a `gateway.harness.child-spawned` event onto the bus. The source principal is annotated as `{ kind: "harness", id: harnessId }` so subscribers can route per-harness without inspecting the p...
 - **`resolveHostWorkspaceFlag`**
 - **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
+- **`startGiteaBusConsumer`** — Start the consumer. Returns a handle whose `stop()` unsubscribes. Per olthoi0-codex-app's validation checklist (matrix event `$ZpdDO3B7H_Li8JeYBgzT8XwhOm5TEb7DIk8D67HeUZ0`): - formats Gitea bus eve...
 - **`startMatrixBusConsumer`** — Start consuming `gateway.matrix.event-received` events from the bus and invoking the supplied dispatch handler. Returns a handle that can stop the subscription. Subscriber isolation: a throwing `di...
 - **`switchHostSessionRuntime`**
 - **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
@@ -75,6 +77,8 @@ bun add @agents-js/host
 - **`GatewaySurfaceBroadcasterConfig`**
 - **`GatewayTestServerHandle`**
 - **`GatewayTestServerOptions`**
+- **`GiteaBusConsumerHandle`** — Handle returned from {startGiteaBusConsumer}.
+- **`GiteaBusEventPayload`** — Structural duplicate of `-js/gitea-bridge.GiteaBridgeEventInput`. Kept here so `-js/host` does not depend on the extras package.
 - **`HarnessFleetEntry`** — One entry in the operator-configured harness fleet. `primary: true` marks the default routing target; {HarnessLaneManager.getPrimaryHarnessId} reads the (validated single) primary out of the entrie...
 - **`HarnessLaneManagerOptions`** — Constructor options for {HarnessLaneManager}. Pass the live `gatewayCard` reference (the manager mutates `capabilities.harnesses` in place), the in-process `bus`, and a `createController` factory t...
 - **`HostA2AExecutorOptions`**
@@ -92,6 +96,7 @@ bun add @agents-js/host
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
+- **`StartGiteaBusConsumerOptions`** — Options for {startGiteaBusConsumer}.
 - **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
 - **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
 - **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
@@ -110,6 +115,7 @@ bun add @agents-js/host
 - **`GatewayBusSubscriber`** — Subscriber callback shape. Receives every published event.
 - **`GatewayBusUnsubscribe`** — Unsubscribe handle returned from `subscribe`.
 - **`GatewayHostController`**
+- **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
 - **`RuntimeSwitchOrigin`**
 - **`SurfaceBroadcastFn`** — Fan-out callback handed to the broadcaster by the WS bridge.
 - **`WSBridgeState`**
@@ -123,11 +129,13 @@ bun add @agents-js/host
 - **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime regardless of harness. **Empty by design.** Earlier revisions forwarded `ANTHROPIC_API_KEY` and `MATRIX_ACCESS_TOKEN` to every runtime as a conve...
 - **`createAuditEmitter`**
 - **`CURATED_RUNTIME_IDS`**
+- **`DEFAULT_GITEA_EVENT_TYPES`** — Default event-type allowlist per AJS-59 v1 design fold (matrix event `$ifDfwkeFHpbiSHTPGr2ZFD79050wy_WsIRhQytVaiEs`): `pull_request`, `push`, `release`, `check_run`. Other event types (issue_commen...
 - **`E2E_RUNTIME_PROFILE_CONFIG_HOME_ENV`**
 - **`E2E_RUNTIME_PROFILE_DATA_HOME_ENV`**
 - **`E2E_RUNTIME_PROFILE_PREFIX_ENV`**
 - **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
 - **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
+- **`GITEA_BUS_CONSUMER_TOPIC`** — Canonical bus topic for Gitea webhook events.
 - **`MATRIX_INBOUND_TOPIC`** — Topic constants — kept in sync with `-js/matrix-bridge`.
 - **`MATRIX_REPLY_TOPIC`**
 - **`newCorrelationId`**

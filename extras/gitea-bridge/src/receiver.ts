@@ -227,11 +227,20 @@ export function createGiteaWebhookHandler(
  * the shared secret. Constant-time comparison via `timingSafeEqual`.
  *
  * Gitea signs with HMAC-SHA256, hex-encoded. Sent in `X-Gitea-Signature`.
+ *
+ * Defensive prefix-strip: some Gitea installations and reverse proxies
+ * send the signature with a leading `sha256=` (GitHub-compatible
+ * convention) even though Gitea's documented format is bare hex. Mirror
+ * the strip from `dot-notification/src/services/signature_validator.py`
+ * so both shapes verify identically.
  */
 function verifyHmac(secret: string, body: string, providedSig: string): boolean {
+  const normalized = providedSig.startsWith("sha256=")
+    ? providedSig.slice("sha256=".length)
+    : providedSig;
   const expectedHex = createHmac("sha256", secret).update(body).digest("hex");
   const expected = Buffer.from(expectedHex, "hex");
-  const provided = Buffer.from(providedSig, "hex");
+  const provided = Buffer.from(normalized, "hex");
   if (expected.length !== provided.length) return false;
   return timingSafeEqual(expected, provided);
 }

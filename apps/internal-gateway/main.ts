@@ -29,6 +29,7 @@ import {
   fetchRuntimeModels,
   type GatewayBus,
   type GatewayHostController,
+  type GiteaBusConsumerHandle,
   type HarnessFleetEntry,
   HarnessLaneManager,
   HostA2AExecutor,
@@ -44,6 +45,7 @@ import {
   resolveGatewayPort,
 } from "./discovery.ts";
 import { gatewayConfig } from "./gateway.config.ts";
+import { setupGiteaBridge } from "./gitea-bridge-mount.ts";
 import { buildLaneControllerFactory } from "./lane-controller-factory.ts";
 import { resolveGatewayRuntime } from "./runtimes.ts";
 
@@ -70,6 +72,8 @@ interface ServerSetup {
   executor: HostA2AExecutor;
   registrySync: { stop: () => void };
   httpPort: number;
+  /** Gitea bus consumer handle, when the bridge is enabled via env; else `null`. */
+  giteaBusConsumer: GiteaBusConsumerHandle | null;
 }
 
 interface SetupServerOptions {
@@ -138,7 +142,14 @@ export function composeAdditionalFetch(handlers: {
   busSubscribeHandler: (req: Request) => Promise<Response | null>;
   busPublishHandler: (req: Request) => Promise<Response | null>;
   syncEndpointHandler: ((req: Request) => Promise<Response | null>) | null;
+  /**
+   * Gitea webhook handler. `null` (or absent) when the bridge is
+   * disabled via env (the dev-mode default), in which case the route
+   * is not mounted at all.
+   */
+  giteaWebhookHandler?: ((req: Request) => Promise<Response | null>) | null;
 }): (req: Request) => Promise<Response | null> {
+  const giteaWebhookHandler = handlers.giteaWebhookHandler ?? null;
   return async (req: Request): Promise<Response | null> => {
     // Bus endpoints self-route on path (`/events`, `/admin/publish`)
     // and return null otherwise — safe to attempt before AG-UI's
@@ -151,6 +162,10 @@ export function composeAdditionalFetch(handlers: {
     if (busPublishResponse !== null) return busPublishResponse;
     const planeWebhookResponse = await handlers.planeWebhookHandler(req);
     if (planeWebhookResponse !== null) return planeWebhookResponse;
+    if (giteaWebhookHandler !== null) {
+      const giteaWebhookResponse = await giteaWebhookHandler(req);
+      if (giteaWebhookResponse !== null) return giteaWebhookResponse;
+    }
     const aguiResponse = await handlers.aguiHandler(req);
     if (aguiResponse !== null) return aguiResponse;
     if (handlers.syncEndpointHandler !== null) {
@@ -229,9 +244,20 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     : null;
   const busSubscribeHandler = createBusSubscribeHandler({ bus: opts.bus });
   const busPublishHandler = createBusPublishHandler({ bus: opts.bus });
+
+  // Optional Gitea webhook bridge. Opts in via `GITEA_WEBHOOK_SECRET`;
+  // when unset, both the route mount and the bus consumer are skipped
+  // entirely so dev-mode startup is unchanged. See
+  // `apps/internal-gateway/gitea-bridge-mount.ts` for the env contract.
+  const giteaBridge = setupGiteaBridge({ bus: opts.bus });
+  if (giteaBridge !== null) {
+    console.log("[Gateway] Gitea webhook bridge enabled (POST /webhooks/gitea)");
+  }
+
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
+      giteaWebhookHandler: giteaBridge?.fetchHandler ?? null,
       aguiHandler,
       busSubscribeHandler,
       busPublishHandler,
@@ -280,7 +306,13 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     );
   }
 
-  return { server, executor, registrySync, httpPort };
+  return {
+    server,
+    executor,
+    registrySync,
+    httpPort,
+    giteaBusConsumer: giteaBridge?.consumer ?? null,
+  };
 }
 
 interface SetupWsBridgeOptions {
@@ -463,6 +495,8 @@ interface ShutdownTargets {
   session: HostSession;
   laneManager: HarnessLaneManager;
   matrixBusConsumer: MatrixBusConsumerHandle;
+  /** Gitea bus consumer when the bridge is enabled via env; else `null`. */
+  giteaBusConsumer: GiteaBusConsumerHandle | null;
 }
 
 function installSignalHandlers(targets: ShutdownTargets): void {
@@ -470,6 +504,7 @@ function installSignalHandlers(targets: ShutdownTargets): void {
     console.log("[Gateway] Shutting down...");
     targets.registrySync.stop();
     targets.matrixBusConsumer.stop();
+    targets.giteaBusConsumer?.stop();
     targets.server.stop(true);
     targets.wsBridge.stop();
     targets.executor.destroy();
@@ -667,7 +702,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // the second `POST /agent` would see.
   const aguiCoordinator = new AguiRunCoordinator();
 
-  const { server, executor, registrySync, httpPort } = await setupServer({
+  const { server, executor, registrySync, httpPort, giteaBusConsumer } = await setupServer({
     cliArgs,
     resolvedPort,
     runtimes: harnessFleet,
@@ -809,6 +844,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     session,
     laneManager,
     matrixBusConsumer,
+    giteaBusConsumer,
   });
 
   await new Promise<void>(() => {});

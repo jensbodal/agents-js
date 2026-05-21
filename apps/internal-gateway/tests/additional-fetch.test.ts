@@ -158,4 +158,85 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
     expect(planeHandled).toBe(true);
     expect(aguiHandled).toBe(false);
   });
+
+  /**
+   * WHAT: When `giteaWebhookHandler` is absent (or `null`), the chain
+   *       behaves exactly as before — `/webhooks/gitea` falls through
+   *       and AG-UI's `/agent` route still wins for its own path.
+   * WHY: The bridge is opt-in via env. Existing call sites that don't
+   *       supply the field (every test in this file, plus any older
+   *       composeAdditionalFetch caller) must keep working without
+   *       opting into the new route surface.
+   */
+  test("gitea-webhook route NOT mounted when handler is absent (default)", async () => {
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      // giteaWebhookHandler intentionally omitted
+    });
+
+    const giteaRes = await compose(
+      new Request("http://gw.local/webhooks/gitea", { method: "POST" }),
+    );
+    expect(giteaRes).toBeNull();
+
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+  });
+
+  /**
+   * WHAT: When `giteaWebhookHandler` is provided, it handles its own
+   *       path and falls through (returns null) for unrelated paths so
+   *       AG-UI / sync continue to work.
+   * WHY: The receiver self-routes on `/webhooks/gitea` (returns null
+   *       for other paths); the chain composition must respect that
+   *       null-passthrough contract — otherwise a returned 405 from
+   *       the gitea handler on `/agent` would shadow AG-UI.
+   */
+  test("gitea-webhook route IS mounted when handler provided; non-matching paths pass through", async () => {
+    let giteaHandled = false;
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      giteaWebhookHandler: async (req) => {
+        if (new URL(req.url).pathname === "/webhooks/gitea") {
+          giteaHandled = true;
+          return new Response('{"accepted":true}', { status: 200 });
+        }
+        return null;
+      },
+    });
+
+    const giteaRes = await compose(
+      new Request("http://gw.local/webhooks/gitea", { method: "POST" }),
+    );
+    expect(giteaRes?.status).toBe(200);
+    expect(giteaHandled).toBe(true);
+    expect(aguiHandled).toBe(false);
+
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+  });
 });

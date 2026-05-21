@@ -18,6 +18,7 @@
     "@agents-js/acp-host": "workspace:*",
     "@agents-js/droid-acp": "workspace:*",
     "@agents-js/gateway-runtime": "workspace:*",
+    "@agents-js/gitea-bridge": "workspace:*",
     "@agents-js/host": "workspace:*",
     "@agents-js/matrix-bridge": "workspace:*",
     "@agents-js/pi-acp": "workspace:*",

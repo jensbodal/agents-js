@@ -63,6 +63,7 @@
         "@agents-js/acp-host": "workspace:*",
         "@agents-js/droid-acp": "workspace:*",
         "@agents-js/gateway-runtime": "workspace:*",
+        "@agents-js/gitea-bridge": "workspace:*",
         "@agents-js/host": "workspace:*",
         "@agents-js/matrix-bridge": "workspace:*",
         "@agents-js/pi-acp": "workspace:*",
@@ -143,8 +144,8 @@
       },
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/acp": "0.4.0",
-        "@agents-js/gateway-runtime": "0.4.0",
+        "@agents-js/acp": "0.5.1",
+        "@agents-js/gateway-runtime": "0.5.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -165,7 +166,7 @@
       "name": "@agents-js/matrix-bridge",
       "version": "0.5.1",
       "dependencies": {
-        "@agents-js/host": "0.4.0",
+        "@agents-js/host": "0.5.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -193,8 +194,8 @@
       },
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/acp": "0.4.0",
-        "@agents-js/gateway-runtime": "0.4.0",
+        "@agents-js/acp": "0.5.1",
+        "@agents-js/gateway-runtime": "0.5.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -218,7 +219,7 @@
       "name": "@agents-js/plane",
       "version": "0.5.1",
       "dependencies": {
-        "@agents-js/gateway-runtime": "0.4.0",
+        "@agents-js/gateway-runtime": "0.5.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
