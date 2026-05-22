@@ -26,6 +26,8 @@ bun add @agents-js/host
 - **`buildGatewayBusEvent`** — Construct a `GatewayBusEvent` envelope with the standard `id` + `ts` fields populated. Publishers should use this rather than building envelopes inline so that the id generation + timestamp shape s...
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`buildRuntimeProfileConfigEnv`**
+- **`checkScope`** — Reject the call unless `identity.scopes` includes `requiredScope` (strict, case-sensitive match). Returns `{ ok: false }` on: - null/undefined identity (defense-in-depth; never throws) - missing sc...
+- **`createAgentsDispatcher`** — Build the dispatcher. Pure factory — no side effects until a `sendMessage` call.
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
 - **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
@@ -39,6 +41,7 @@ bun add @agents-js/host
 - **`createTranslatorState`**
 - **`createWSBridge`**
 - **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
+- **`extractBearerToken`** — Extract a bearer token from an `Authorization` header value. Returns the token string for `"Bearer <token>"` (scheme name is case-insensitive per RFC 6750 section 2.1). Returns `null` for missing, ...
 - **`fetchRuntimeModels`**
 - **`formatAguiSseFrame`**
 - **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
@@ -55,12 +58,16 @@ bun add @agents-js/host
 - **`startMatrixBusConsumer`** — Start consuming `gateway.matrix.event-received` events from the bus and invoking the supplied dispatch handler. Returns a handle that can stop the subscription. Subscriber isolation: a throwing `di...
 - **`switchHostSessionRuntime`**
 - **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
+- **`verifyJwt`** — Verify a session JWT and resolve it to a caller identity. Returns `{ ok: true, identity }` on success or `{ ok: false, reason, message }` on any verification failure. Never throws on validation err...
 - **`wrapAuditEmitterAsBusPublisher`** — Wrap an existing {AuditEmitter} so every recorded event is also published on the gateway bus. The wrapped emitter has the same shape as the underlying one — callers swap it in at construction and n...
 
 ### Interfaces
 
+- **`AgentsDispatcher`** — The MCP-side dispatcher surface. v1 first-slice exposes ONLY `sendMessage` — no admin tools, no get_messages. Keys of this object are pinned by test `dispatcher exposes only sendMessage; no admin t...
+- **`AgentsDispatcherOptions`** — Options for {createAgentsDispatcher}.
 - **`AguiEndpointOptions`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`AuthenticatedIdentity`** — Resolved caller identity. Every Provider method receives one of these as its first argument; `agentName` is the `sub` claim, set by the gateway mint endpoint.
 - **`BuildBridgeBusEventOptions`** — Options for {buildBridgeBusEvent}.
 - **`BusEndpointOptions`** — Common construction options.
 - **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
@@ -88,6 +95,9 @@ bun add @agents-js/host
 - **`MatrixBusConsumerHandle`** — Handle returned from `startMatrixBusConsumer`.
 - **`MatrixBusEventPayload`** — Matrix event payload shape that this consumer recognizes. Mirrors `MatrixBridgeEventInput` in `-js/matrix-bridge` — duplicated here as a structural type so this package does not depend on the matri...
 - **`MatrixBusReplyPayload`** — Reply payload shape emitted by this consumer onto `gateway.matrix.reply-sent`. The bridge (or any other consumer subscribed to that topic) relays this back to the originating Matrix room.
+- **`MatrixSendArgs`** — Args passed to {MatrixTool.send}. Identity comes from the JWT only.
+- **`MatrixSendResult`** — Result of a successful Matrix send.
+- **`MatrixTool`** — Matrix substrate. Implementations: - Subprocess wrapper around `send-matrix.py` (v1; see `apps/internal-gateway/agents-mcp-mount.ts`) - Future: native MatrixToolProvider per AJS-56 Phase 2
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
@@ -96,9 +106,13 @@ bun add @agents-js/host
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
+- **`SendMessageArgs`** — Arguments for `agents.send_message`.
 - **`StartGiteaBusConsumerOptions`** — Options for {startGiteaBusConsumer}.
 - **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
+- **`TargetDirectory`** — Target directory — the AJS-55 trust manifest's read surface. V1 implementation is an in-memory Map populated from env. The AJS-55 loader will swap in a signed-peer-record-backed implementation with...
+- **`TargetDirectoryEntry`** — A target's routing capabilities, as registered in the directory.
 - **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
+- **`VerifyJwtOptions`** — Options for {verifyJwt}.
 - **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
 - **`WSBridgeConfig`**
 - **`WSBridgeHandle`**
@@ -117,7 +131,12 @@ bun add @agents-js/host
 - **`GatewayHostController`**
 - **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
 - **`RuntimeSwitchOrigin`**
+- **`ScopeCheckResult`** — Result of {checkScope}. Discriminated to mirror the verifier shape.
+- **`SendMessageError`** — Structured error reasons. Stable string union for transport mapping.
+- **`SendMessageResult`** — Result of a {AgentsDispatcher.sendMessage} call.
 - **`SurfaceBroadcastFn`** — Fan-out callback handed to the broadcaster by the WS bridge.
+- **`VerifyRejectionReason`** — Why a verification attempt failed. Stable string union so callers can match on it for telemetry + HTTP-status mapping without parsing free-text error messages.
+- **`VerifyResult`** — Discriminated result; ok-or-reason. Never throws on validation failure.
 - **`WSBridgeState`**
 - **`WSClientMessage`** — Client-to-server messages
 - **`WSServerMessage`** — Server-to-client messages
@@ -146,6 +165,7 @@ bun add @agents-js/host
 - **`type AguiEndpointOptions`**
 - **`type HostA2AExecutorOptions`**
 - **`type RuntimeModelInfo`**
+- **`type ScopeCheckResult`**
 
 
 ## Dependencies
@@ -162,6 +182,7 @@ bun add @agents-js/host
 - `@agents-js/gateway-runtime`
 - `@agents-js/policy`
 - `@agents-js/validation`
+- `jose`
 
 ## License
 

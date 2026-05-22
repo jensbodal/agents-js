@@ -137,3 +137,79 @@ Gitea repo ─▶ POST /webhooks/gitea ─▶ HMAC verify + dedupe ─▶ bus
 
 See `extras/gitea-bridge/README.md` for the bridge package details and
 the Gitea webhook UI configuration table.
+
+## Agents-MCP Tool Surface (AJS-56 / AJS-57)
+
+The gateway exposes an optional HTTP tool surface for the unified
+`agents.send_message` toolchain. Mounted ONLY when
+`AGENTS_MCP_JWT_SIGNING_KEY` is set in env; absent → no route mounted,
+no auth surface, no behavior change.
+
+```text
+POST /api/agents/send_message     # JWT-bearer; tool dispatch
+POST /api/agents/admin/mint       # admin-bearer; dev/dogfood JWT mint
+```
+
+V1 behavior:
+
+- HS256-signed session JWTs (AJS-57). Per-call verification of
+  signature + `iss` + `aud` + `exp` + `sub` + `cid`. Scope claim is
+  1:1 with MCP tool names (e.g. `["matrix.send_message", "matrix.read"]`).
+- Identity is server-resolved from the JWT `sub` claim. Caller
+  attempts to inject `as_agent` / `sender` / `from` in the request
+  body are silently ignored.
+- Per-tool scope ACL: `matrix.send_message` required for the Matrix
+  delivery path. Missing scope → 403 (not 401 — auth ok, not permitted).
+- Target directory is in-memory (v1 stub for the AJS-55 trust manifest;
+  populated from `AGENTS_MCP_TARGETS_JSON`). Unknown target → 404
+  with structured `{error, target, correlation_id}`.
+- Matrix substrate spawns the configured send-matrix subprocess
+  with `--as <identity>`, mirroring the AJS-59 adapter pattern.
+- `/admin/mint` is a deliberate v1 stub for AJS-55 challenge
+  verification; gate it with `AGENTS_MCP_ADMIN_TOKEN` (default
+  unset → 404).
+
+Environment contract:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AGENTS_MCP_JWT_SIGNING_KEY` | unset | Enable gate + HS256 secret (≥32 bytes). Loaded from gopass per host. |
+| `AGENTS_MCP_JWT_ISSUER` | unset (required when enabled) | Canonical gateway name (`iss` claim). |
+| `AGENTS_MCP_JWT_AUDIENCE` | `agents-js-mcp` | Expected `aud` claim. |
+| `AGENTS_MCP_SEND_SCRIPT` | unset (required when enabled) | Absolute path to send-matrix subprocess (`--as`, `--stdin`, `--room`). |
+| `AGENTS_MCP_TARGETS_JSON` | `{}` | JSON map `target → { matrix: { room } }`. Allow-list of routable agents. |
+| `AGENTS_MCP_ADMIN_TOKEN` | unset | When set, enables the `/admin/mint` endpoint. Disable in production until AJS-55 ships. |
+| `AGENTS_MCP_JWT_TTL_SECONDS` | `900` (15 min) | JWT expiry from mint time. |
+
+Dogfood quickstart:
+
+```sh
+# 1. Mint a JWT (admin-gated):
+curl -X POST http://gateway:9321/api/agents/admin/mint \
+  -H "Authorization: Admin $AGENTS_MCP_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sub":"codex-hostname-null","scopes":["matrix.send_message"],"cid":"smoke-001"}'
+# → { "jwt": "...", "expires_in": 900, ... }
+
+# 2. Call the tool with the JWT:
+curl -X POST http://gateway:9321/api/agents/send_message \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"target":"ajs-claude","body":"hello from codex"}'
+# → { "ok": true, "event_id": "$..." }
+```
+
+### Substrate prerequisites stubbed in v1
+
+Per AJS-56 design `docs/research/agents-js-hosted-mcp-tool-provider-design-2026-05-20.md`:
+
+- **AJS-55 trust manifest** stubbed by `AGENTS_MCP_TARGETS_JSON`.
+  Eventual signed-peer-record loader replaces this without changing
+  the read API (`TargetDirectory.resolve`).
+- **AJS-55 challenge verification** stubbed by `AGENTS_MCP_ADMIN_TOKEN`
+  + the `/admin/mint` endpoint. Eventual ed25519 challenge flow
+  replaces this without changing the JWT verify contract.
+- **AJS-54 host bootstrap** — env distribution + `services/agents-js/identity/<agent>/key` provisioning is the deployment role's responsibility (not this code).
+- **AJS-58 AgentInbox** — directory entries without `.matrix` routing
+  return `unknown-target` in v1; AJS-58 will route those to the
+  inbox provider.

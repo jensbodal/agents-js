@@ -65,7 +65,8 @@
     "@agents-js/agui-types": "0.5.1",
     "@agents-js/gateway-runtime": "0.5.1",
     "@agents-js/policy": "0.5.1",
-    "@agents-js/validation": "0.5.1"
+    "@agents-js/validation": "0.5.1",
+    "jose": "catalog:"
   },
   "publishConfig": {
     "access": "public"

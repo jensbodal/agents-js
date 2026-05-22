@@ -4,6 +4,19 @@ export {
   translateAcpEvent,
 } from "./acp-to-agui-translator.ts";
 export { type AgentRegistryMap, loadRegistryFromDisk } from "./agent-registry.ts";
+export {
+  type AgentsDispatcher,
+  type AgentsDispatcherOptions,
+  createAgentsDispatcher,
+  type MatrixSendArgs,
+  type MatrixSendResult,
+  type MatrixTool,
+  type SendMessageArgs,
+  type SendMessageError,
+  type SendMessageResult,
+  type TargetDirectory,
+  type TargetDirectoryEntry,
+} from "./agents-tool-surface.ts";
 export { type AguiEndpointOptions, createAguiFetchHandler } from "./agui-endpoint.ts";
 export {
   AguiRunBusyError,
@@ -78,6 +91,14 @@ export {
   type HostSessionConfig,
 } from "./host-session.ts";
 export {
+  type AuthenticatedIdentity,
+  extractBearerToken,
+  type VerifyJwtOptions,
+  type VerifyRejectionReason,
+  type VerifyResult,
+  verifyJwt,
+} from "./jwt-verifier.ts";
+export {
   type HarnessFleetEntry,
   HarnessLaneManager,
   type HarnessLaneManagerOptions,
@@ -108,6 +129,7 @@ export {
   getEnvRuntimeProfileName,
 } from "./runtime-profile-env.ts";
 export { resolveHostWorkspaceFlag } from "./runtime-workspace-flag.ts";
+export { checkScope, type ScopeCheckResult } from "./scope-acl.ts";
 export {
   createGatewaySurfaceBroadcaster,
   type GatewaySurfaceBroadcaster,

@@ -38,6 +38,7 @@ import {
   wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
 import { createPlaneWebhookFetchHandler } from "@agents-js/plane/mount";
+import { setupAgentsMcpMount } from "./agents-mcp-mount.ts";
 import { type GatewayCliArgs, parseCliArgs } from "./cli-args.ts";
 import {
   buildGatewayDiscovery,
@@ -148,8 +149,14 @@ export function composeAdditionalFetch(handlers: {
    * is not mounted at all.
    */
   giteaWebhookHandler?: ((req: Request) => Promise<Response | null>) | null;
+  /**
+   * AJS-56/57 agents-MCP HTTP tool surface. `null` (or absent) when
+   * `AGENTS_MCP_JWT_SIGNING_KEY` is unset.
+   */
+  agentsMcpHandler?: ((req: Request) => Promise<Response | null>) | null;
 }): (req: Request) => Promise<Response | null> {
   const giteaWebhookHandler = handlers.giteaWebhookHandler ?? null;
+  const agentsMcpHandler = handlers.agentsMcpHandler ?? null;
   return async (req: Request): Promise<Response | null> => {
     // Bus endpoints self-route on path (`/events`, `/admin/publish`)
     // and return null otherwise — safe to attempt before AG-UI's
@@ -165,6 +172,10 @@ export function composeAdditionalFetch(handlers: {
     if (giteaWebhookHandler !== null) {
       const giteaWebhookResponse = await giteaWebhookHandler(req);
       if (giteaWebhookResponse !== null) return giteaWebhookResponse;
+    }
+    if (agentsMcpHandler !== null) {
+      const agentsMcpResponse = await agentsMcpHandler(req);
+      if (agentsMcpResponse !== null) return agentsMcpResponse;
     }
     const aguiResponse = await handlers.aguiHandler(req);
     if (aguiResponse !== null) return aguiResponse;
@@ -254,10 +265,19 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     console.log("[Gateway] Gitea webhook bridge enabled (POST /webhooks/gitea)");
   }
 
+  // AJS-56/57 agents-MCP tool surface. Opts in via
+  // `AGENTS_MCP_JWT_SIGNING_KEY`; when unset, the route is not mounted
+  // at all so dev-mode startup is unchanged.
+  const agentsMcp = setupAgentsMcpMount({});
+  if (agentsMcp !== null) {
+    console.log("[Gateway] agents-MCP tool surface enabled (POST /api/agents/send_message)");
+  }
+
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
       giteaWebhookHandler: giteaBridge?.fetchHandler ?? null,
+      agentsMcpHandler: agentsMcp?.fetchHandler ?? null,
       aguiHandler,
       busSubscribeHandler,
       busPublishHandler,

@@ -69,6 +69,7 @@
         "@agents-js/pi-acp": "workspace:*",
         "@agents-js/plane": "workspace:*",
         "@zed-industries/codex-acp": "0.14.0",
+        "jose": "catalog:",
       },
     },
     "apps/web-ui": {
@@ -381,6 +382,7 @@
         "@agents-js/gateway-runtime": "0.5.1",
         "@agents-js/policy": "0.5.1",
         "@agents-js/validation": "0.5.1",
+        "jose": "catalog:",
       },
     },
     "packages/mcp-bridge": {
@@ -519,6 +521,7 @@
     "debug": "4.4.3",
     "esbuild": "0.28.0",
     "histoire": "1.0.0-beta.1",
+    "jose": "6.2.3",
     "lit": "3.3.2",
     "mermaid": "11.14.0",
     "tsdown": "0.21.10",
