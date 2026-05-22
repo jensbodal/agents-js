@@ -145,6 +145,16 @@ export {
   type SurfaceBroadcastFn,
 } from "./surface-broadcaster.ts";
 export {
+  type ChangeSet,
+  type CopiedReplicaBackendOptions,
+  type CreateReplicaInput,
+  createCopiedReplicaBackend,
+  type IsolatedWorkspace,
+  type ReplicaInspectionResult,
+  type WorkspaceIsolationProvider,
+  type WorkspacePolicy,
+} from "./workspace-isolation-provider.ts";
+export {
   createWSBridge,
   type RuntimeSnapshotInfo,
   type RuntimeSwapResult,

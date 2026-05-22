@@ -31,6 +31,7 @@ bun add @agents-js/host
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
 - **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
+- **`createCopiedReplicaBackend`** — Build a `CopiedReplicaBackend`. Replicas are stored under `replicaRoot/<workspaceId>/`; the source's `.git`, `.jj`, and `node_modules` are excluded at copy-time. Symlinks present in the source are ...
 - **`createEnsureSessionCoordinator`**
 - **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
 - **`createGatewaySurfaceBroadcaster`**
@@ -71,9 +72,12 @@ bun add @agents-js/host
 - **`AuthenticatedIdentity`** — Resolved caller identity. Every Provider method receives one of these as its first argument; `agentName` is the `sub` claim, set by the gateway mint endpoint.
 - **`BuildBridgeBusEventOptions`** — Options for {buildBridgeBusEvent}.
 - **`BusEndpointOptions`** — Common construction options.
+- **`ChangeSet`** — Result of `exportChangeSet`. **`format: "summary"`** — human-readable summary of what changed, NOT a git-applyable patch. Lists each modified path with its change kind (modified / added / deleted) ...
+- **`CopiedReplicaBackendOptions`** — Options for {createCopiedReplicaBackend}.
 - **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
 - **`CreateBusSubscribeHandlerOptions`** — SSE subscribe handler options.
 - **`CreateGatewayBusOptions`** — Optional construction-time hooks.
+- **`CreateReplicaInput`** — Input args to `createReplica`.
 - **`DispatchRequest`** — Dispatch invocation interface. The consumer translates a Matrix event into a `DispatchRequest` and the caller (typically wired to the host runtime via the gateway's own A2A endpoint) runs it and re...
 - **`DispatchResult`**
 - **`GatewayBus`** — Public surface of the bus primitive.
@@ -98,6 +102,7 @@ bun add @agents-js/host
 - **`InboxDeliverResult`** — Result of a successful inbox delivery.
 - **`InboxMessage`** — A single inbox message, returned by {AgentInboxTool.read}.
 - **`InboxReadArgs`** — Args passed to {AgentInboxTool.read}.
+- **`IsolatedWorkspace`** — Handle returned from `createReplica`.
 - **`MatrixBusConsumerHandle`** — Handle returned from `startMatrixBusConsumer`.
 - **`MatrixBusEventPayload`** — Matrix event payload shape that this consumer recognizes. Mirrors `MatrixBridgeEventInput` in `-js/matrix-bridge` — duplicated here as a structural type so this package does not depend on the matri...
 - **`MatrixBusReplyPayload`** — Reply payload shape emitted by this consumer onto `gateway.matrix.reply-sent`. The bridge (or any other consumer subscribed to that topic) relays this back to the originating Matrix room.
@@ -105,6 +110,7 @@ bun add @agents-js/host
 - **`MatrixSendResult`** — Result of a successful Matrix send.
 - **`MatrixTool`** — Matrix substrate. Implementations: - Subprocess wrapper around `send-matrix.py` (v1; see `apps/internal-gateway/agents-mcp-mount.ts`) - Future: native MatrixToolProvider per AJS-56 Phase 2
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
+- **`ReplicaInspectionResult`** — Result shape for `inspectReplica`.
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 - **`RuntimeBridgeSnapshot`**
@@ -119,6 +125,8 @@ bun add @agents-js/host
 - **`TargetDirectoryEntry`** — A target's routing capabilities, as registered in the directory.
 - **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
 - **`VerifyJwtOptions`** — Options for {verifyJwt}.
+- **`WorkspaceIsolationProvider`** — The Provider seam. Implementations are substrate-specific (`CopiedReplicaBackend` here; future `DockerBackend`, `ProxmoxLXCBackend`, etc.). All substrate-bound state lives in the concrete implement...
+- **`WorkspacePolicy`** — Caller-supplied policy controlling what's copied into the replica and what's flagged on inspection.
 - **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
 - **`WSBridgeConfig`**
 - **`WSBridgeHandle`**
