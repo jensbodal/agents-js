@@ -146,7 +146,8 @@ The gateway exposes an optional HTTP tool surface for the unified
 no auth surface, no behavior change.
 
 ```text
-POST /api/agents/send_message     # JWT-bearer; tool dispatch
+POST /api/agents/send_message     # JWT-bearer; routes to Matrix or inbox
+POST /api/agents/get_messages     # JWT-bearer; reads identity's own inbox
 POST /api/agents/admin/mint       # admin-bearer; dev/dogfood JWT mint
 ```
 
@@ -177,7 +178,8 @@ Environment contract:
 | `AGENTS_MCP_JWT_ISSUER` | unset (required when enabled) | Canonical gateway name (`iss` claim). |
 | `AGENTS_MCP_JWT_AUDIENCE` | `agents-js-mcp` | Expected `aud` claim. |
 | `AGENTS_MCP_SEND_SCRIPT` | unset (required when enabled) | Absolute path to send-matrix subprocess (`--as`, `--stdin`, `--room`). |
-| `AGENTS_MCP_TARGETS_JSON` | `{}` | JSON map `target → { matrix: { room } }`. Allow-list of routable agents. |
+| `AGENTS_MCP_AGENT_MSG_BIN` | unset | Absolute path to the `agent-msg` CLI binary. Enables `agents.get_messages` + inbox routing for `agents.send_message`. Without it, inbox-routed targets return `send-failed`. |
+| `AGENTS_MCP_TARGETS_JSON` | `{}` | JSON map `target → { matrix?: { room }, inbox?: { session } }`. Allow-list of routable agents; either route may be present. |
 | `AGENTS_MCP_ADMIN_TOKEN` | unset | When set, enables the `/admin/mint` endpoint. Disable in production until AJS-55 ships. |
 | `AGENTS_MCP_JWT_TTL_SECONDS` | `900` (15 min) | JWT expiry from mint time. |
 
@@ -210,6 +212,8 @@ Per AJS-56 design `docs/research/agents-js-hosted-mcp-tool-provider-design-2026-
   + the `/admin/mint` endpoint. Eventual ed25519 challenge flow
   replaces this without changing the JWT verify contract.
 - **AJS-54 host bootstrap** — env distribution + `services/agents-js/identity/<agent>/key` provisioning is the deployment role's responsibility (not this code).
-- **AJS-58 AgentInbox** — directory entries without `.matrix` routing
-  return `unknown-target` in v1; AJS-58 will route those to the
-  inbox provider.
+- **AJS-58 AgentInboxProvider** — directory entries with `.inbox.session`
+  route through a subprocess wrapper around the `agent-msg` CLI when
+  `AGENTS_MCP_AGENT_MSG_BIN` is set. Router precedence: matrix > inbox.
+  `agents.get_messages` reads the identity's OWN inbox session only;
+  cross-agent read requires a future `inbox.read_all` scope.

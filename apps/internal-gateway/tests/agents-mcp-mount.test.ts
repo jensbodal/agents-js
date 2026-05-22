@@ -17,10 +17,18 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { MatrixSendArgs, MatrixTool } from "@agents-js/host";
+import type {
+  AgentInboxTool,
+  InboxDeliverArgs,
+  InboxMessage,
+  InboxReadArgs,
+  MatrixSendArgs,
+  MatrixTool,
+} from "@agents-js/host";
 import { SignJWT } from "jose";
 import {
   type AgentsMcpEnvConfig,
+  buildAgentMsgDeliverArgv,
   readAgentsMcpEnv,
   setupAgentsMcpMount,
 } from "../agents-mcp-mount.ts";
@@ -52,6 +60,25 @@ function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
     async send(args) {
       calls.push(args);
       return { event_id: `$evt-${calls.length}` };
+    },
+  };
+}
+
+function makeRecordingInboxTool(opts?: {
+  readReturns?: InboxMessage[];
+}): AgentInboxTool & { delivers: InboxDeliverArgs[]; reads: InboxReadArgs[] } {
+  const delivers: InboxDeliverArgs[] = [];
+  const reads: InboxReadArgs[] = [];
+  return {
+    delivers,
+    reads,
+    async deliver(args) {
+      delivers.push(args);
+      return { message_id: `msg-${delivers.length}`, created_at: "2026-05-22T02:00:00Z" };
+    },
+    async read(args) {
+      reads.push(args);
+      return opts?.readReturns ?? [];
     },
   };
 }
@@ -403,6 +430,289 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    *      because the failure modes are distinct: disabled → 404
    *      (no such endpoint), enabled-but-bad-auth → 401 (auth required).
    */
+  // ──────────────────────────────────────────────────────────────────
+  // AJS-58 inbox routing + get_messages — HTTP-boundary tests
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * WHAT: Valid JWT + `inbox.deliver` scope + target with `inbox`
+   *       routing → 200, `{ok: true, delivery: "inbox", message_id}`,
+   *       and the recording inbox tool sees the JWT's `sub` as the
+   *       `from` identity.
+   * WHY: Pins the inbox-side mirror of cognee-codex's criterion #1
+   *      (vertical path) and #4 (server-resolved identity at the
+   *      provider boundary) for the AJS-58 substrate. The integration-
+   *      level test guards against drift between the dispatcher's
+   *      server-resolution contract and the HTTP layer's identity
+   *      threading.
+   */
+  test("send_message → inbox-only target with inbox.deliver scope → 200 delivery=inbox", async () => {
+    const inbox = makeRecordingInboxTool();
+    const wireup = setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig({
+          targets: { "ajs-claude": { inbox: { session: "ajs-claude" } } },
+        }),
+        matrixTool: makeRecordingMatrixTool(),
+        agentInboxTool: inbox,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["inbox.deliver"], sub: "codex-hostname-null" });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/send_message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({ target: "ajs-claude", body: "from inbox path" }),
+      }),
+    );
+    expect(res?.status).toBe(200);
+    const json = (await res?.json()) as { ok: boolean; delivery: string; message_id: string };
+    expect(json.ok).toBe(true);
+    expect(json.delivery).toBe("inbox");
+    expect(json.message_id).toBe("msg-1");
+    expect(inbox.delivers).toHaveLength(1);
+    expect(inbox.delivers[0]?.toSession).toBe("ajs-claude");
+    expect(inbox.delivers[0]?.identity.agentName).toBe("codex-hostname-null");
+  });
+
+  /**
+   * WHAT: `POST /api/agents/get_messages` with valid JWT + `inbox.read`
+   *       scope returns 200 with the inbox messages array. The
+   *       recording inbox tool sees `session === identity.agentName`
+   *       regardless of any args.
+   * WHY: Pins the read-side identity-bound contract end-to-end. v1
+   *      MUST refuse cross-agent reads; this asserts the HTTP layer
+   *      forwards the constraint.
+   */
+  test("get_messages → returns messages array; session derives from JWT sub only", async () => {
+    const messages: InboxMessage[] = [
+      {
+        message_id: "m1",
+        from_session: "ajs-claude",
+        to_session: "codex-hostname-null",
+        created_at: "2026-05-22T01:30:00Z",
+        body: "hello",
+      },
+    ];
+    const inbox = makeRecordingInboxTool({ readReturns: messages });
+    const wireup = setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        agentInboxTool: inbox,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["inbox.read"], sub: "codex-hostname-null" });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/get_messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res?.status).toBe(200);
+    const json = (await res?.json()) as { ok: boolean; messages: InboxMessage[] };
+    expect(json.ok).toBe(true);
+    expect(json.messages).toHaveLength(1);
+    expect(json.messages[0]?.message_id).toBe("m1");
+    expect(inbox.reads).toHaveLength(1);
+    expect(inbox.reads[0]?.session).toBe("codex-hostname-null");
+  });
+
+  /**
+   * WHAT: `get_messages` with `target` != identity.agentName → 403
+   *       `forbidden-target`. Inbox is NOT called.
+   * WHY: HTTP mapping of the v1 self-only-read invariant. 403 (not 401)
+   *      because auth succeeded; the caller just isn't allowed to read
+   *      another agent's inbox without the future `inbox.read_all`
+   *      scope.
+   */
+  test("get_messages with target != identity → 403 forbidden-target", async () => {
+    const inbox = makeRecordingInboxTool();
+    const wireup = setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        agentInboxTool: inbox,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["inbox.read"], sub: "codex-hostname-null" });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/get_messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({ target: "ajs-claude" }),
+      }),
+    );
+    expect(res?.status).toBe(403);
+    const json = (await res?.json()) as { error: string };
+    expect(json.error).toBe("forbidden-target");
+    expect(inbox.reads).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: `get_messages` without `inbox.read` scope → 403
+   *       `scope-not-granted`. Inbox is NOT called.
+   * WHY: ACL mapping at the HTTP boundary. Mirrors the equivalent
+   *      send_message scope check in PR #48.
+   */
+  test("get_messages without inbox.read scope → 403 scope-not-granted", async () => {
+    const inbox = makeRecordingInboxTool();
+    const wireup = setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        agentInboxTool: inbox,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.send_message"], sub: "codex-hostname-null" });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/get_messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res?.status).toBe(403);
+    const json = (await res?.json()) as { error: string };
+    expect(json.error).toBe("scope-not-granted");
+    expect(inbox.reads).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: `get_messages` accepts an EMPTY POST body (no JSON) as
+   *       "use defaults" — equivalent to `{}`. Returns 200.
+   * WHY: GET-shaped intent over POST. A REST client that POSTs with
+   *      no body should NOT 400; the args are all optional in v1.
+   */
+  test("get_messages with empty body → 200 (treats as defaults)", async () => {
+    const inbox = makeRecordingInboxTool();
+    const wireup = setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        agentInboxTool: inbox,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["inbox.read"], sub: "codex-hostname-null" });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/get_messages", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(200);
+  });
+
+  /**
+   * WHAT: `readAgentsMcpEnv` reads `AGENTS_MCP_AGENT_MSG_BIN` into
+   *       the parsed `agentMsgBin` field when present, leaves it
+   *       undefined when absent.
+   * WHY: Env contract pin — deployment automation reads this name,
+   *      so a future rename here without a coordinated role change
+   *      breaks the deploy silently.
+   */
+  /**
+   * WHAT: `buildAgentMsgDeliverArgv` includes `--correlation <uuid>`
+   *       when `correlationId` is UUID-shaped, AND omits the flag
+   *       when `correlationId` is a non-UUID string.
+   * WHY: Pinned by @cognee-codex source-review on PR #49 (matrix event
+   *      `$euNwxjn7bcz9ejs-2N9jC8-4gaGYStQ0YlkR-0CxeMU`). AJS-57
+   *      accepts any non-empty string as `cid`; `agent-msg`'s
+   *      `MessageMetaSchema` requires UUID. Forwarding a non-UUID
+   *      cid into `agent-msg --correlation` exits 1 with "invalid
+   *      uuid at meta.correlationId" — valid AJS-57 sessions using
+   *      human-readable cids would deliver over Matrix but fail
+   *      over inbox.
+   *
+   * Two-axis pin (UUID + non-UUID) catches both ends of the gate:
+   * a regression that always-includes or always-omits would fail
+   * the opposite axis.
+   */
+  test("buildAgentMsgDeliverArgv: UUID cid → --correlation included; non-UUID cid → omitted", () => {
+    const baseArgs = {
+      identity: {
+        agentName: "codex-hostname-null",
+        scopes: ["inbox.deliver"] as const,
+        correlationId: "x",
+        issuer: "test-gateway",
+        expiresAt: 0,
+      },
+      toSession: "ajs-claude",
+      body: "hi",
+    } satisfies Omit<Parameters<typeof buildAgentMsgDeliverArgv>[0], "correlationId">;
+
+    const withUuid = buildAgentMsgDeliverArgv({
+      ...baseArgs,
+      correlationId: "550e8400-e29b-41d4-a716-446655440000",
+    });
+    expect(withUuid).toContain("--correlation");
+    expect(withUuid).toContain("550e8400-e29b-41d4-a716-446655440000");
+
+    const withNonUuid = buildAgentMsgDeliverArgv({
+      ...baseArgs,
+      correlationId: "smoke-001", // valid AJS-57 cid; NOT UUID
+    });
+    expect(withNonUuid).not.toContain("--correlation");
+    expect(withNonUuid).not.toContain("smoke-001");
+  });
+
+  /**
+   * WHAT: `buildAgentMsgDeliverArgv` always includes `--from`,
+   *       `--no-notify`, the toSession, and the body. The UUID-gate
+   *       only affects `--correlation`.
+   * WHY: Pins the rest of the argv contract so a regression in the
+   *      UUID-gate logic that accidentally drops other args (e.g.
+   *      breaks the `--from` thread) would be caught immediately.
+   *      Identity is server-resolved; the test asserts `--from
+   *      <identity.agentName>` is present regardless of cid shape.
+   */
+  test("buildAgentMsgDeliverArgv: --from and --no-notify always present; toSession + body in argv", () => {
+    const argv = buildAgentMsgDeliverArgv({
+      identity: {
+        agentName: "codex-hostname-null",
+        scopes: ["inbox.deliver"] as const,
+        correlationId: "x",
+        issuer: "test-gateway",
+        expiresAt: 0,
+      },
+      toSession: "ajs-claude",
+      body: "hello",
+      // No correlationId — to ensure --from/--no-notify don't accidentally
+      // get gated on it.
+    });
+    expect(argv).toContain("send");
+    expect(argv).toContain("ajs-claude");
+    expect(argv).toContain("hello");
+    expect(argv).toContain("--from");
+    expect(argv).toContain("codex-hostname-null");
+    expect(argv).toContain("--no-notify");
+  });
+
+  test("env parser reads AGENTS_MCP_AGENT_MSG_BIN into config.agentMsgBin", () => {
+    const noBin = readAgentsMcpEnv({
+      AGENTS_MCP_JWT_SIGNING_KEY: SIGNING_KEY_TEXT,
+      AGENTS_MCP_JWT_ISSUER: ISSUER,
+      AGENTS_MCP_SEND_SCRIPT: "/x",
+    });
+    if (noBin === null) throw new Error("unreachable");
+    expect(noBin.agentMsgBin).toBeUndefined();
+
+    const withBin = readAgentsMcpEnv({
+      AGENTS_MCP_JWT_SIGNING_KEY: SIGNING_KEY_TEXT,
+      AGENTS_MCP_JWT_ISSUER: ISSUER,
+      AGENTS_MCP_SEND_SCRIPT: "/x",
+      AGENTS_MCP_AGENT_MSG_BIN: "/usr/local/bin/agent-msg",
+    });
+    if (withBin === null) throw new Error("unreachable");
+    expect(withBin.agentMsgBin).toBe("/usr/local/bin/agent-msg");
+  });
+
   test("admin mint enabled but wrong token → 401", async () => {
     const wireup = setupAgentsMcpMount({
       overrides: {

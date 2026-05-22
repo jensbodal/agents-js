@@ -27,7 +27,7 @@ bun add @agents-js/host
 - **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
 - **`buildRuntimeProfileConfigEnv`**
 - **`checkScope`** — Reject the call unless `identity.scopes` includes `requiredScope` (strict, case-sensitive match). Returns `{ ok: false }` on: - null/undefined identity (defense-in-depth; never throws) - missing sc...
-- **`createAgentsDispatcher`** — Build the dispatcher. Pure factory — no side effects until a `sendMessage` call.
+- **`createAgentsDispatcher`** — Build the dispatcher. Pure factory — no side effects until a `sendMessage` / `getMessages` call.
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
 - **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
@@ -63,7 +63,8 @@ bun add @agents-js/host
 
 ### Interfaces
 
-- **`AgentsDispatcher`** — The MCP-side dispatcher surface. v1 first-slice exposes ONLY `sendMessage` — no admin tools, no get_messages. Keys of this object are pinned by test `dispatcher exposes only sendMessage; no admin t...
+- **`AgentInboxTool`** — AgentInbox substrate. Implementations: - Subprocess wrapper around the `agent-msg` CLI (v1; see `apps/internal-gateway/agents-mcp-mount.ts`). - Future: native AgentInboxProvider per AJS-58 follow-up.
+- **`AgentsDispatcher`** — The MCP-side dispatcher surface. Exposes `sendMessage` (router-level agents.send_message; routes Matrix or inbox based on target + scope) and `getMessages` (agents.get_messages; v1 inbox-only, self...
 - **`AgentsDispatcherOptions`** — Options for {createAgentsDispatcher}.
 - **`AguiEndpointOptions`**
 - **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
@@ -84,6 +85,7 @@ bun add @agents-js/host
 - **`GatewaySurfaceBroadcasterConfig`**
 - **`GatewayTestServerHandle`**
 - **`GatewayTestServerOptions`**
+- **`GetMessagesArgs`** — Args for `agents.get_messages`.
 - **`GiteaBusConsumerHandle`** — Handle returned from {startGiteaBusConsumer}.
 - **`GiteaBusEventPayload`** — Structural duplicate of `-js/gitea-bridge.GiteaBridgeEventInput`. Kept here so `-js/host` does not depend on the extras package.
 - **`HarnessFleetEntry`** — One entry in the operator-configured harness fleet. `primary: true` marks the default routing target; {HarnessLaneManager.getPrimaryHarnessId} reads the (validated single) primary out of the entrie...
@@ -92,6 +94,10 @@ bun add @agents-js/host
 - **`HostSession`**
 - **`HostSessionConfig`**
 - **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land — at that point this alias is replaced with the imported type. Kept loose (open record) so the eventual replacem...
+- **`InboxDeliverArgs`** — Args passed to {AgentInboxTool.deliver}.
+- **`InboxDeliverResult`** — Result of a successful inbox delivery.
+- **`InboxMessage`** — A single inbox message, returned by {AgentInboxTool.read}.
+- **`InboxReadArgs`** — Args passed to {AgentInboxTool.read}.
 - **`MatrixBusConsumerHandle`** — Handle returned from `startMatrixBusConsumer`.
 - **`MatrixBusEventPayload`** — Matrix event payload shape that this consumer recognizes. Mirrors `MatrixBridgeEventInput` in `-js/matrix-bridge` — duplicated here as a structural type so this package does not depend on the matri...
 - **`MatrixBusReplyPayload`** — Reply payload shape emitted by this consumer onto `gateway.matrix.reply-sent`. The bridge (or any other consumer subscribed to that topic) relays this back to the originating Matrix room.
@@ -129,6 +135,8 @@ bun add @agents-js/host
 - **`GatewayBusSubscriber`** — Subscriber callback shape. Receives every published event.
 - **`GatewayBusUnsubscribe`** — Unsubscribe handle returned from `subscribe`.
 - **`GatewayHostController`**
+- **`GetMessagesError`** — Structured error reasons for {AgentsDispatcher.getMessages}.
+- **`GetMessagesResult`** — Result of a {AgentsDispatcher.getMessages} call.
 - **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
 - **`RuntimeSwitchOrigin`**
 - **`ScopeCheckResult`** — Result of {checkScope}. Discriminated to mirror the verifier shape.

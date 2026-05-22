@@ -5,9 +5,17 @@ export {
 } from "./acp-to-agui-translator.ts";
 export { type AgentRegistryMap, loadRegistryFromDisk } from "./agent-registry.ts";
 export {
+  type AgentInboxTool,
   type AgentsDispatcher,
   type AgentsDispatcherOptions,
   createAgentsDispatcher,
+  type GetMessagesArgs,
+  type GetMessagesError,
+  type GetMessagesResult,
+  type InboxDeliverArgs,
+  type InboxDeliverResult,
+  type InboxMessage,
+  type InboxReadArgs,
   type MatrixSendArgs,
   type MatrixSendResult,
   type MatrixTool,

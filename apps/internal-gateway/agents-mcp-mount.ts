@@ -22,10 +22,17 @@
 import { spawn } from "node:child_process";
 import { HTTP_STATUS } from "@agents-js/a2a";
 import {
+  type AgentInboxTool,
   type AgentsDispatcher,
   type AuthenticatedIdentity,
   createAgentsDispatcher,
   extractBearerToken,
+  type GetMessagesArgs,
+  type GetMessagesResult,
+  type InboxDeliverArgs,
+  type InboxDeliverResult,
+  type InboxMessage,
+  type InboxReadArgs,
   type MatrixSendArgs,
   type MatrixSendResult,
   type MatrixTool,
@@ -46,7 +53,15 @@ export interface AgentsMcpEnvConfig {
   issuer: string;
   audience: string;
   sendScript: string;
-  targets: Readonly<Record<string, { matrix?: { room: string } }>>;
+  /**
+   * Optional path to the `agent-msg` CLI binary. When set, the
+   * AgentInboxProvider is enabled (subprocess wrapper around
+   * `agent-msg send / agent-msg read --json`). When unset, the
+   * `agents.send_message` dispatcher will reject inbox-routed targets
+   * with `send-failed` and `agents.get_messages` returns `read-failed`.
+   */
+  agentMsgBin?: string;
+  targets: Readonly<Record<string, { matrix?: { room: string }; inbox?: { session: string } }>>;
   adminToken?: string;
   jwtTtlSeconds: number;
 }
@@ -106,6 +121,7 @@ export function readAgentsMcpEnv(
     issuer,
     audience: env.AGENTS_MCP_JWT_AUDIENCE ?? "agents-js-mcp",
     sendScript,
+    ...(env.AGENTS_MCP_AGENT_MSG_BIN ? { agentMsgBin: env.AGENTS_MCP_AGENT_MSG_BIN } : {}),
     targets,
     ...(env.AGENTS_MCP_ADMIN_TOKEN ? { adminToken: env.AGENTS_MCP_ADMIN_TOKEN } : {}),
     jwtTtlSeconds,
@@ -148,9 +164,160 @@ export function createSubprocessMatrixTool(scriptPath: string): MatrixTool {
   };
 }
 
+/**
+ * UUID v1-v5 pattern. agent-msg's `MessageMetaSchema.correlationId`
+ * uses `z.string().uuid()` which requires this exact shape. AJS-57's
+ * `cid` claim is loosely typed as "non-empty string" (operators mint
+ * human-readable cids like `"smoke-001"` for dogfood), so non-UUID
+ * cids MUST NOT be forwarded into `agent-msg --correlation` or the
+ * subprocess exits 1.
+ *
+ * Caught by @cognee-codex source-review on PR #49 (matrix event
+ * `$euNwxjn7bcz9ejs-2N9jC8-4gaGYStQ0YlkR-0CxeMU`).
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Build a {@link AgentInboxTool} that spawns the `agent-msg` CLI for
+ * each call. `send` writes a message to the target session's mailbox;
+ * `read --json` returns pending messages for the identity's session.
+ *
+ * Identity is server-resolved from the JWT — `--from <identity.sub>`
+ * is set from the verified session, never from caller args.
+ *
+ * Stdout from `agent-msg send` is a JSON object with `messageId` +
+ * `createdAt`; `agent-msg read --json` is an array of message objects
+ * matching the package's internal `MailboxItem` shape (we map down to
+ * the {@link InboxMessage} surface here).
+ *
+ * Correlation id boundary: `agent-msg` requires UUID-shaped correlation
+ * ids; AJS-57 `cid` claims are loosely typed. Only pass `--correlation`
+ * when the cid matches the UUID pattern. Non-UUID cids are valid AJS-57
+ * sessions and MUST inbox-deliver successfully; `agent-msg` generates
+ * its own correlationId when the flag is omitted.
+ */
+/**
+ * Build the argv array passed to `agent-msg send`. Extracted as a
+ * pure function so the UUID-gate logic for `--correlation` is
+ * unit-testable without spawning a subprocess.
+ *
+ * Exported for testing.
+ */
+export function buildAgentMsgDeliverArgv(args: InboxDeliverArgs): string[] {
+  const cliArgs = [
+    "send",
+    args.toSession,
+    args.body,
+    "--from",
+    args.identity.agentName,
+    "--no-notify",
+  ];
+  if (args.correlationId && UUID_PATTERN.test(args.correlationId)) {
+    cliArgs.push("--correlation", args.correlationId);
+  }
+  return cliArgs;
+}
+
+export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool {
+  return {
+    async deliver(args: InboxDeliverArgs): Promise<InboxDeliverResult> {
+      const cliArgs = buildAgentMsgDeliverArgv(args);
+      const stdout = await runSubprocess(binPath, cliArgs);
+      const parsed = JSON.parse(stdout) as { messageId?: unknown; createdAt?: unknown };
+      if (typeof parsed.messageId !== "string" || typeof parsed.createdAt !== "string") {
+        throw new Error(
+          `[agents-mcp-mount] agent-msg send returned unexpected JSON: ${stdout.slice(0, 200)}`,
+        );
+      }
+      return { message_id: parsed.messageId, created_at: parsed.createdAt };
+    },
+    async read(args: InboxReadArgs): Promise<InboxMessage[]> {
+      const cliArgs = [
+        "read",
+        "--session",
+        args.session,
+        "--json",
+        "--limit",
+        String(args.limit ?? 20),
+      ];
+      const stdout = await runSubprocess(binPath, cliArgs);
+      const parsed = JSON.parse(stdout) as Array<{
+        message?: {
+          meta?: {
+            messageId?: unknown;
+            fromSession?: unknown;
+            toSession?: unknown;
+            createdAt?: unknown;
+            priority?: unknown;
+          };
+          params?: { text?: unknown };
+        };
+      }>;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item): InboxMessage | null => {
+          const meta = item.message?.meta;
+          if (
+            typeof meta?.messageId !== "string" ||
+            typeof meta?.fromSession !== "string" ||
+            typeof meta?.toSession !== "string" ||
+            typeof meta?.createdAt !== "string"
+          ) {
+            return null;
+          }
+          const body =
+            typeof item.message?.params?.text === "string" ? item.message.params.text : "";
+          const priority =
+            meta.priority === "low" || meta.priority === "normal" || meta.priority === "high"
+              ? meta.priority
+              : undefined;
+          return {
+            message_id: meta.messageId,
+            from_session: meta.fromSession,
+            to_session: meta.toSession,
+            created_at: meta.createdAt,
+            body,
+            ...(priority ? { priority } : {}),
+          };
+        })
+        .filter((m): m is InboxMessage => m !== null);
+    },
+  };
+}
+
+/**
+ * Spawn a subprocess + capture stdout. Used by the inbox provider
+ * for both `send` and `read --json`. Throws with stderr context on
+ * non-zero exit.
+ */
+async function runSubprocess(bin: string, args: readonly string[]): Promise<string> {
+  const proc = spawn(bin, [...args], { stdio: ["ignore", "pipe", "pipe"] });
+  const outChunks: Uint8Array[] = [];
+  const errChunks: Uint8Array[] = [];
+  proc.stdout.on("data", (c: Uint8Array) => outChunks.push(c));
+  proc.stderr.on("data", (c: Uint8Array) => errChunks.push(c));
+  const code: number = await new Promise<number>((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("exit", (c) => resolve(c ?? 1));
+  });
+  const stdout = Buffer.concat(outChunks as Buffer[])
+    .toString("utf8")
+    .trim();
+  const stderr = Buffer.concat(errChunks as Buffer[])
+    .toString("utf8")
+    .trim();
+  if (code !== 0) {
+    throw new Error(
+      `[agents-mcp-mount] ${bin} ${args.join(" ")} exited ${code}: ${stderr || stdout}`,
+    );
+  }
+  return stdout;
+}
+
 /** Test seam — every collaborator that does real I/O is overridable. */
 export interface SetupAgentsMcpOverrides {
   matrixTool?: MatrixTool;
+  agentInboxTool?: AgentInboxTool;
   env?: Record<string, string | undefined>;
   config?: AgentsMcpEnvConfig | null;
   now?: () => Date;
@@ -181,7 +348,14 @@ export function setupAgentsMcpMount(opts: {
   };
 
   const matrixTool = overrides.matrixTool ?? createSubprocessMatrixTool(config.sendScript);
-  const dispatcher = createAgentsDispatcher({ matrixTool, targetDirectory });
+  const agentInboxTool =
+    overrides.agentInboxTool ??
+    (config.agentMsgBin ? createSubprocessAgentInboxTool(config.agentMsgBin) : undefined);
+  const dispatcher = createAgentsDispatcher({
+    matrixTool,
+    ...(agentInboxTool ? { agentInboxTool } : {}),
+    targetDirectory,
+  });
 
   const fetchHandler = createAgentsMcpFetchHandler({ config, dispatcher, now: overrides.now });
 
@@ -200,6 +374,9 @@ function createAgentsMcpFetchHandler(opts: {
     if (url.pathname === "/api/agents/send_message") {
       return handleSendMessage({ req, config: opts.config, dispatcher: opts.dispatcher });
     }
+    if (url.pathname === "/api/agents/get_messages") {
+      return handleGetMessages({ req, config: opts.config, dispatcher: opts.dispatcher });
+    }
     if (url.pathname === "/api/agents/admin/mint") {
       return handleAdminMint({ req, config: opts.config, now: opts.now });
     }
@@ -208,6 +385,75 @@ function createAgentsMcpFetchHandler(opts: {
       headers: JSON_HEADERS,
     });
   };
+}
+
+async function handleGetMessages(opts: {
+  req: Request;
+  config: AgentsMcpEnvConfig;
+  dispatcher: AgentsDispatcher;
+}): Promise<Response> {
+  const { req, config, dispatcher } = opts;
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "method not allowed" }), {
+      status: HTTP_STATUS.METHOD_NOT_ALLOWED,
+      headers: { ...JSON_HEADERS, Allow: "POST" },
+    });
+  }
+  const token = extractBearerToken(req.headers.get("Authorization"));
+  if (token === null) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "missing-bearer",
+        message: "Authorization: Bearer <jwt> required",
+      }),
+      {
+        status: HTTP_STATUS.UNAUTHORIZED,
+        headers: { ...JSON_HEADERS, "WWW-Authenticate": 'Bearer realm="agents-js-mcp"' },
+      },
+    );
+  }
+  const verification = await verifyJwt(token, {
+    signingKey: config.signingKey,
+    issuer: config.issuer,
+    audience: config.audience,
+  });
+  if (!verification.ok) {
+    return new Response(
+      JSON.stringify({ ok: false, error: verification.reason, message: verification.message }),
+      { status: HTTP_STATUS.UNAUTHORIZED, headers: JSON_HEADERS },
+    );
+  }
+
+  let rawArgs: GetMessagesArgs;
+  try {
+    // GET-shaped intent over POST so JSON body is the args carrier;
+    // accept empty body as "use defaults" rather than failing.
+    const text = await req.text();
+    rawArgs = text ? (JSON.parse(text) as GetMessagesArgs) : {};
+  } catch {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "invalid-args",
+        correlation_id: verification.identity.correlationId,
+        message: "request body must be valid JSON",
+      }),
+      { status: HTTP_STATUS.BAD_REQUEST, headers: JSON_HEADERS },
+    );
+  }
+
+  const result: GetMessagesResult = await dispatcher.getMessages(rawArgs, verification.identity);
+  const status = result.ok
+    ? HTTP_STATUS.OK
+    : result.error === "scope-not-granted"
+      ? 403
+      : result.error === "forbidden-target"
+        ? 403
+        : result.error === "invalid-args"
+          ? HTTP_STATUS.BAD_REQUEST
+          : HTTP_STATUS.INTERNAL_SERVER_ERROR;
+  return new Response(JSON.stringify(result), { status, headers: JSON_HEADERS });
 }
 
 async function handleSendMessage(opts: {

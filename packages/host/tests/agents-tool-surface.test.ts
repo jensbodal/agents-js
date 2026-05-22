@@ -24,6 +24,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  type AgentInboxTool,
   type AgentsDispatcher,
   createAgentsDispatcher,
   type MatrixSendArgs,
@@ -49,7 +50,7 @@ function identity(opts: Partial<AuthenticatedIdentity> = {}): AuthenticatedIdent
  * v1 stub takes a simple Map for test isolation.
  */
 function makeTargetDirectory(
-  entries: Record<string, { matrix?: { room: string } }>,
+  entries: Record<string, { matrix?: { room: string }; inbox?: { session: string } }>,
 ): TargetDirectory {
   return {
     resolve(target: string) {
@@ -76,10 +77,12 @@ function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
 
 function makeDispatcher(opts?: {
   matrixTool?: MatrixTool;
+  agentInboxTool?: AgentInboxTool;
   targetDirectory?: TargetDirectory;
 }): AgentsDispatcher {
   return createAgentsDispatcher({
     matrixTool: opts?.matrixTool ?? makeRecordingMatrixTool(),
+    ...(opts?.agentInboxTool ? { agentInboxTool: opts.agentInboxTool } : {}),
     targetDirectory:
       opts?.targetDirectory ??
       makeTargetDirectory({
@@ -99,12 +102,12 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *
    * Maps to cognee-codex review criterion #1.
    */
-  test("send_message with valid identity/scope/target → ok with event_id from Matrix provider", async () => {
+  test("send_message with valid identity/scope/target → ok with delivery=matrix + event_id", async () => {
     const matrix = makeRecordingMatrixTool();
     const dispatcher = makeDispatcher({ matrixTool: matrix });
     const result = await dispatcher.sendMessage({ target: "ajs-claude", body: "hi" }, identity());
     expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
+    if (!result.ok || result.delivery !== "matrix") throw new Error("expected matrix delivery");
     expect(result.event_id).toBe("$evt-1");
     expect(matrix.calls).toHaveLength(1);
     expect(matrix.calls[0]?.room).toBe("!ajs:matrix.example");
@@ -317,12 +320,380 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *      scopes is out of v1; pinning the absence here makes the
    *      addition deliberate.
    */
-  test("dispatcher exposes only sendMessage; no admin tool surface", () => {
+  test("dispatcher exposes only sendMessage + getMessages; no admin tool surface", () => {
     const dispatcher = makeDispatcher();
     expect(typeof dispatcher.sendMessage).toBe("function");
+    expect(typeof dispatcher.getMessages).toBe("function");
     // Negative existence: keys of the dispatcher object are exactly
-    // `["sendMessage"]`. Adding `setLead`, `inviteAgent`, etc. would
-    // fail this assertion and signal the AC violation.
-    expect(Object.keys(dispatcher)).toEqual(["sendMessage"]);
+    // `["sendMessage", "getMessages"]`. Adding `setLead`, `inviteAgent`,
+    // etc. would fail this assertion and signal the AC violation.
+    expect(Object.keys(dispatcher).sort()).toEqual(["getMessages", "sendMessage"]);
+  });
+
+  // ──────────────────────────────────────────────────────────────────
+  // AJS-58 AgentInboxProvider routing — new in this slice
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * WHAT: A target whose directory entry has `inbox.session` (but no
+   *       `matrix` route) is delivered through `AgentInboxTool.deliver`
+   *       when the caller has `inbox.deliver` scope. The success
+   *       response discriminates as `delivery: "inbox"` with
+   *       `message_id` + `created_at`, not `event_id`.
+   * WHY: Closes the gap PR #48 left as `unknown-target` for inbox-only
+   *      agents. The discriminated success shape lets callers (and
+   *      audit-log consumers) tell which substrate delivered the
+   *      message without parsing free-text fields.
+   */
+  test("inbox-only target → AgentInboxTool.deliver invoked, returns delivery=inbox + message_id", async () => {
+    const inboxCalls: Array<{ toSession: string; body: string; identity: AuthenticatedIdentity }> =
+      [];
+    const dispatcher = makeDispatcher({
+      targetDirectory: makeTargetDirectory({ "ajs-claude": { inbox: { session: "ajs-claude" } } }),
+      agentInboxTool: {
+        async deliver(args) {
+          inboxCalls.push({ toSession: args.toSession, body: args.body, identity: args.identity });
+          return { message_id: "msg-abc-001", created_at: "2026-05-22T02:00:00Z" };
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi inbox" },
+      identity({ scopes: ["inbox.deliver", "inbox.read"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.delivery !== "inbox") throw new Error("expected inbox delivery");
+    expect(result.message_id).toBe("msg-abc-001");
+    expect(result.created_at).toBe("2026-05-22T02:00:00Z");
+    expect(inboxCalls).toHaveLength(1);
+    expect(inboxCalls[0]?.toSession).toBe("ajs-claude");
+    expect(inboxCalls[0]?.body).toBe("hi inbox");
+    expect(inboxCalls[0]?.identity.agentName).toBe("codex-hostname-null");
+  });
+
+  /**
+   * WHAT: A target with BOTH `matrix` and `inbox` routes, when the
+   *       caller has both `matrix.send_message` and `inbox.deliver`
+   *       scopes, is delivered through MATRIX. The inbox provider is
+   *       NOT called.
+   * WHY: Router precedence is pinned at "matrix > inbox" because
+   *      Matrix is synchronous (the recipient gets a real-time ping)
+   *      and inbox is async-persistent (poll-based). When both are
+   *      possible, the live ping is preferred. Reversing this would
+   *      regress UX even though the code "still works."
+   */
+  test("target with both matrix + inbox, both scopes granted → Matrix wins; inbox NOT called", async () => {
+    const matrix = makeRecordingMatrixTool();
+    const inboxDelivered: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      matrixTool: matrix,
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      }),
+      agentInboxTool: {
+        async deliver(args) {
+          inboxDelivered.push(args);
+          return { message_id: "should-not-be-used", created_at: "" };
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.delivery !== "matrix") throw new Error("expected matrix delivery");
+    expect(matrix.calls).toHaveLength(1);
+    expect(inboxDelivered).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: A target with BOTH matrix + inbox routes, when the caller
+   *       has ONLY `inbox.deliver` scope (no matrix scope), is
+   *       delivered through INBOX. Matrix is NOT called.
+   * WHY: Pins the fall-through behavior. The caller authorized inbox
+   *      delivery; the target is reachable that way; the dispatcher
+   *      MUST honor the available path rather than reject with
+   *      "missing matrix scope" — that would surface a confusing
+   *      contract (the call worked! ... no it didn't).
+   */
+  test("dual-route target + only inbox.deliver scope → inbox path used", async () => {
+    const matrix = makeRecordingMatrixTool();
+    const inboxCalls: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      matrixTool: matrix,
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      }),
+      agentInboxTool: {
+        async deliver(args) {
+          inboxCalls.push(args);
+          return { message_id: "msg-x", created_at: "2026-05-22T02:00:00Z" };
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.delivery !== "inbox") throw new Error("expected inbox delivery");
+    expect(matrix.calls).toHaveLength(0);
+    expect(inboxCalls).toHaveLength(1);
+  });
+
+  /**
+   * WHAT: A target with ONLY `inbox.session` (no matrix), when the
+   *       caller has ONLY `matrix.send_message` scope (no inbox.deliver),
+   *       is rejected with `scope-not-granted` whose `message` names
+   *       `inbox.deliver`.
+   * WHY: Diagnostic clarity. The caller's request is well-formed and
+   *      the target exists; the only issue is they need a different
+   *      scope. Telling them "scope inbox.deliver not granted" gives
+   *      the operator the exact next action. Saying "unknown-target"
+   *      would be both wrong (the target IS known) and unhelpful.
+   */
+  test("inbox-only target + caller without inbox.deliver → scope-not-granted naming inbox.deliver", async () => {
+    const dispatcher = makeDispatcher({
+      targetDirectory: makeTargetDirectory({ "ajs-claude": { inbox: { session: "ajs-claude" } } }),
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("should not be called");
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["matrix.send_message"] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("scope-not-granted");
+    expect(result.message).toContain("inbox.deliver");
+  });
+
+  /**
+   * WHAT: `AgentInboxTool.deliver` throwing is wrapped into
+   *       `error: "send-failed"` with the underlying message,
+   *       mirroring the matrix-send failure-containment contract.
+   * WHY: Same failure-isolation guarantee Matrix has. The MCP transport
+   *      always returns a structured response; a thrown subprocess
+   *      error must NOT leak as a 500.
+   */
+  test("AgentInboxTool.deliver throws → send-failed wrapped error", async () => {
+    const dispatcher = makeDispatcher({
+      targetDirectory: makeTargetDirectory({ "ajs-claude": { inbox: { session: "ajs-claude" } } }),
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("agent-msg subprocess crashed");
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("send-failed");
+    expect(result.message).toContain("agent-msg subprocess crashed");
+  });
+
+  // ──────────────────────────────────────────────────────────────────
+  // AJS-58 getMessages — agents.get_messages MCP tool
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * WHAT: `getMessages` with `inbox.read` scope and no `target` arg
+   *       returns the identity's own inbox messages via
+   *       `AgentInboxTool.read`. The session passed to the tool is
+   *       `identity.agentName`, not anything from args.
+   * WHY: Identity-bound read is the v1 contract (no cross-agent). A
+   *      regression that passes an args-controlled `target` through
+   *      would let any authenticated caller read any other agent's
+   *      inbox — a serious privacy/security regression. Pin the
+   *      server-resolved session here.
+   */
+  test("getMessages with inbox.read scope, no target → reads own session via AgentInboxTool", async () => {
+    const readCalls: Array<{ session: string; limit?: number }> = [];
+    const dispatcher = makeDispatcher({
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("not called in this test");
+        },
+        async read(args) {
+          readCalls.push({
+            session: args.session,
+            ...(args.limit !== undefined ? { limit: args.limit } : {}),
+          });
+          return [
+            {
+              message_id: "m1",
+              from_session: "ajs-claude",
+              to_session: "codex-hostname-null",
+              created_at: "2026-05-22T01:00:00Z",
+              body: "first",
+            },
+          ];
+        },
+      },
+    });
+    const result = await dispatcher.getMessages({}, identity({ scopes: ["inbox.read"] }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]?.body).toBe("first");
+    expect(readCalls).toHaveLength(1);
+    expect(readCalls[0]?.session).toBe("codex-hostname-null");
+    expect(readCalls[0]?.limit).toBe(20);
+  });
+
+  /**
+   * WHAT: `getMessages` without `inbox.read` scope returns
+   *       `error: "scope-not-granted"` and does NOT call the inbox.
+   * WHY: ACL enforcement contract mirror of sendMessage's scope check.
+   *      The transport maps this to 403.
+   */
+  test("getMessages without inbox.read scope → scope-not-granted, inbox NOT called", async () => {
+    const readCalls: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("not called");
+        },
+        async read(args) {
+          readCalls.push(args);
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.getMessages({}, identity({ scopes: ["inbox.deliver"] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("scope-not-granted");
+    expect(readCalls).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: `getMessages({ target: "other-agent" })` when identity is
+   *       `codex-hostname-null` returns `error: "forbidden-target"`
+   *       and does NOT call the inbox.
+   * WHY: Self-only read is the v1 hard contract. A future
+   *      `inbox.read_all` scope will lift this restriction; v1 must
+   *      reject explicitly rather than silently honoring the arg.
+   *      The error message names the missing scope so operators have
+   *      the actionable hint.
+   */
+  test("getMessages with target != identity → forbidden-target (no inbox call)", async () => {
+    const readCalls: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("not called");
+        },
+        async read(args) {
+          readCalls.push(args);
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.getMessages(
+      { target: "other-agent" },
+      identity({ agentName: "codex-hostname-null", scopes: ["inbox.read"] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("forbidden-target");
+    expect(result.message).toContain("inbox.read_all");
+    expect(readCalls).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: `getMessages` when no `agentInboxTool` is configured returns
+   *       `error: "read-failed"` with a clear "inbox substrate not
+   *       configured" message.
+   * WHY: Dev-mode guard. The gateway may be started without inbox
+   *      env wired; rather than crashing or returning a confusing
+   *      "no messages" empty array, surface the misconfig explicitly.
+   */
+  test("getMessages with no agentInboxTool configured → read-failed (not configured)", async () => {
+    const dispatcher = makeDispatcher({}); // no agentInboxTool override
+    const result = await dispatcher.getMessages({}, identity({ scopes: ["inbox.read"] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("read-failed");
+    expect(result.message).toContain("not configured");
+  });
+
+  /**
+   * WHAT: `AgentInboxTool.read` throwing returns
+   *       `error: "read-failed"` with the underlying message, never
+   *       propagates the exception.
+   * WHY: Same failure-isolation contract as deliver. The transport
+   *      layer always gets structured JSON.
+   */
+  test("AgentInboxTool.read throws → read-failed wrapped error", async () => {
+    const dispatcher = makeDispatcher({
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("not called");
+        },
+        async read() {
+          throw new Error("agent-msg read crashed");
+        },
+      },
+    });
+    const result = await dispatcher.getMessages({}, identity({ scopes: ["inbox.read"] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe("read-failed");
+    expect(result.message).toContain("agent-msg read crashed");
+  });
+
+  /**
+   * WHAT: `getMessages({ limit: 5 })` passes through to
+   *       `AgentInboxTool.read` as `limit: 5`. Invalid limits
+   *       (negative, zero, non-numeric) fall back to the default 20.
+   * WHY: Defense against malformed args. Non-positive limit could
+   *      cause the substrate to return everything or error in an
+   *      unexpected way; clamp to the well-defined default rather
+   *      than propagating garbage.
+   */
+  test("getMessages limit passthrough; invalid limit falls back to default 20", async () => {
+    const observed: number[] = [];
+    const dispatcher = makeDispatcher({
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("not called");
+        },
+        async read(args) {
+          observed.push(args.limit ?? -1);
+          return [];
+        },
+      },
+    });
+    await dispatcher.getMessages({ limit: 5 }, identity({ scopes: ["inbox.read"] }));
+    expect(observed[observed.length - 1]).toBe(5);
+    // biome-ignore lint/suspicious/noExplicitAny: test asserts dispatcher clamps malformed limit
+    await dispatcher.getMessages({ limit: -1 } as any, identity({ scopes: ["inbox.read"] }));
+    expect(observed[observed.length - 1]).toBe(20);
+    // biome-ignore lint/suspicious/noExplicitAny: test asserts dispatcher clamps non-numeric limit
+    await dispatcher.getMessages({ limit: "abc" } as any, identity({ scopes: ["inbox.read"] }));
+    expect(observed[observed.length - 1]).toBe(20);
   });
 });
