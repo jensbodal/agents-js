@@ -29,6 +29,7 @@ import { SignJWT } from "jose";
 import {
   type AgentsMcpEnvConfig,
   buildAgentMsgDeliverArgv,
+  buildSendMatrixCliArgs,
   readAgentsMcpEnv,
   setupAgentsMcpMount,
 } from "../agents-mcp-mount.ts";
@@ -198,7 +199,44 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
     expect(json.event_id).toMatch(/^\$evt-/);
     expect(matrix.calls).toHaveLength(1);
     expect(matrix.calls[0]?.identity.agentName).toBe("codex-hostname-null");
+    expect(matrix.calls[0]?.target).toBe("ajs-claude");
     expect(matrix.calls[0]?.room).toBe("!ajs:matrix.example");
+  });
+
+  /**
+   * WHAT: Matrix notifications pass the resolved target as a structured
+   *       `send-matrix.py --to <target>` recipient, not only as body text.
+   * WHY: The Matrix bridge enforces recipient intent for agent senders;
+   *      the HTTP/MCP `target` field must carry through to Matrix
+   *      delivery so callers do not have to duplicate `@target` in the
+   *      message body.
+   */
+  test("send-matrix argv includes structured recipient target", () => {
+    const argv = buildSendMatrixCliArgs({
+      identity: {
+        agentName: "cognee-codex",
+        scopes: ["matrix.send_message"],
+        correlationId: "cid-test",
+        issuer: ISSUER,
+        expiresAt: 1_779_000_000,
+      },
+      target: "ajs-claude",
+      room: "!ajs:matrix.example",
+      body: "hello without a textual mention",
+      replyToEventId: "$reply",
+    });
+
+    expect(argv).toEqual([
+      "--as",
+      "cognee-codex",
+      "--stdin",
+      "--room",
+      "!ajs:matrix.example",
+      "--to",
+      "ajs-claude",
+      "--reply-to",
+      "$reply",
+    ]);
   });
 
   /**

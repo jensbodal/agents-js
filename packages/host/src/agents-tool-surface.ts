@@ -50,6 +50,8 @@ import { checkScope } from "./scope-acl.ts";
 export interface MatrixSendArgs {
   /** Server-resolved identity (from verified JWT `sub`). Never client-supplied. */
   identity: AuthenticatedIdentity;
+  /** Logical recipient target resolved from the target directory. */
+  target: string;
   /** Matrix room id (e.g. `"!abc:matrix.example"`). Resolved by the directory. */
   room: string;
   /** Message body. */
@@ -513,6 +515,7 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
           inboxResult !== null ? `see inbox: ${inboxResult.message_id}` : args.body;
         const matrixArgs: MatrixSendArgs = {
           identity,
+          target: args.target,
           room: entry.matrix.room,
           body: matrixBody,
           ...(typeof args.reply_to_event_id === "string"
