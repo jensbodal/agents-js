@@ -20,12 +20,16 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { HTTP_STATUS } from "@agents-js/a2a";
 import {
   type AgentInboxTool,
   type AgentsDispatcher,
   type AuthenticatedIdentity,
+  type ChallengeMintStore,
   createAgentsDispatcher,
+  createChallengeMintStore,
+  createIpRateLimiter,
   extractBearerToken,
   type GetMessagesArgs,
   type GetMessagesResult,
@@ -33,13 +37,18 @@ import {
   type InboxDeliverResult,
   type InboxMessage,
   type InboxReadArgs,
+  type IpRateLimiter,
   type MatrixSendArgs,
   type MatrixSendResult,
   type MatrixTool,
+  type PeerKeyDirectory,
+  type ReloadableTrustManifest,
+  redeemMintChallenge,
   type SendMessageArgs,
   type SendMessageResult,
   type TargetDirectory,
   verifyJwt,
+  watchTrustManifest,
 } from "@agents-js/host";
 import { SignJWT } from "jose";
 
@@ -64,6 +73,22 @@ export interface AgentsMcpEnvConfig {
   targets: Readonly<Record<string, { matrix?: { room: string }; inbox?: { session: string } }>>;
   adminToken?: string;
   jwtTtlSeconds: number;
+  /**
+   * AJS-55 trust manifest path (typically `/etc/agents-js/trust.json`).
+   * When set, the gateway loads + watches the manifest at startup,
+   * which enables `POST /api/agents/mint/challenge` + `/redeem`.
+   * When unset, mint endpoints return 503 (substrate not configured).
+   */
+  trustManifestPath?: string;
+  /** AJS-55 trust-root pubkey path (typically `/etc/agents-js/trust-root.pub`). Required if trustManifestPath is set. */
+  trustRootPath?: string;
+  /**
+   * AJS-55 challenge rate-limit spec: `<rate>/<window>:<burst>` (e.g. `30/min:10`).
+   * Currently `<window>` is `min` only; `<rate>` is requests per window;
+   * `<burst>` is initial bucket size. Defaults to `30/min:10` when
+   * trustManifestPath is set.
+   */
+  challengeRateLimit?: { ratePerMinute: number; burst: number };
 }
 
 /**
@@ -116,6 +141,32 @@ export function readAgentsMcpEnv(
   if (!Number.isFinite(jwtTtlSeconds) || jwtTtlSeconds <= 0) {
     throw new Error("[agents-mcp-mount] AGENTS_MCP_JWT_TTL_SECONDS must be a positive number");
   }
+  // AJS-55 trust manifest env parsing. Both paths must be set together;
+  // setting one without the other is a startup error so operators see
+  // the misconfig clearly.
+  const trustManifestPath = env.AGENTS_MCP_TRUST_MANIFEST_PATH;
+  const trustRootPath = env.AGENTS_MCP_TRUST_ROOT_PATH;
+  if ((trustManifestPath && !trustRootPath) || (trustRootPath && !trustManifestPath)) {
+    throw new Error(
+      "[agents-mcp-mount] AGENTS_MCP_TRUST_MANIFEST_PATH and AGENTS_MCP_TRUST_ROOT_PATH must be set together (AJS-55 challenge mint substrate). Set both or neither.",
+    );
+  }
+  let challengeRateLimit: { ratePerMinute: number; burst: number } | undefined;
+  const rateLimitRaw = env.AGENTS_MCP_CHALLENGE_RATE_LIMIT;
+  if (rateLimitRaw) {
+    // Spec: `<rate>/<window>:<burst>`. v1 supports `min` window only.
+    const match = /^(\d+)\/min:(\d+)$/.exec(rateLimitRaw);
+    if (!match) {
+      throw new Error(
+        `[agents-mcp-mount] AGENTS_MCP_CHALLENGE_RATE_LIMIT must match \`<rate>/min:<burst>\` (e.g. "30/min:10"); got "${rateLimitRaw}"`,
+      );
+    }
+    challengeRateLimit = {
+      ratePerMinute: Number(match[1]),
+      burst: Number(match[2]),
+    };
+  }
+
   return {
     signingKey: new TextEncoder().encode(signingKeyText),
     issuer,
@@ -125,6 +176,9 @@ export function readAgentsMcpEnv(
     targets,
     ...(env.AGENTS_MCP_ADMIN_TOKEN ? { adminToken: env.AGENTS_MCP_ADMIN_TOKEN } : {}),
     jwtTtlSeconds,
+    ...(trustManifestPath ? { trustManifestPath } : {}),
+    ...(trustRootPath ? { trustRootPath } : {}),
+    ...(challengeRateLimit ? { challengeRateLimit } : {}),
   };
 }
 
@@ -321,20 +375,43 @@ export interface SetupAgentsMcpOverrides {
   env?: Record<string, string | undefined>;
   config?: AgentsMcpEnvConfig | null;
   now?: () => Date;
+  /**
+   * AJS-55 substrate overrides. When omitted, /api/agents/mint/challenge
+   * + /api/agents/mint/redeem return 503 (substrate not configured).
+   * Test fixtures wire a stub `peerKeyDirectory` to exercise the mint
+   * flow without spinning up a real trust manifest.
+   */
+  peerKeyDirectory?: PeerKeyDirectory;
+  challengeStore?: ChallengeMintStore;
+  ipRateLimiter?: IpRateLimiter;
+  /** Test seam: override the cid generator (defaults to crypto.randomUUID). */
+  cidGenerator?: () => string;
 }
 
 /** Return shape for {@link setupAgentsMcpMount}. */
 export interface AgentsMcpWireup {
   fetchHandler: (req: Request) => Promise<Response | null>;
   dispatcher: AgentsDispatcher;
+  /**
+   * Stop any background work the mount started (trust-manifest fs.watch
+   * handle, future timer-based sweeps). Safe to call when no background
+   * work is running. Tests MUST call this in their teardown to avoid
+   * leaked fs.watch handles keeping the test process alive.
+   */
+  stop(): void;
 }
 
 /**
  * Compose the mount. Returns `null` when the feature gate is off.
+ *
+ * Now async because trust-manifest auto-load (env-driven AJS-55 wireup)
+ * calls `await watchTrustManifest(...)` to do an initial load + start
+ * the fs.watch debouncer. Synchronous override paths (tests + back-compat
+ * deploys without trust manifest) still resolve immediately.
  */
-export function setupAgentsMcpMount(opts: {
+export async function setupAgentsMcpMount(opts: {
   overrides?: SetupAgentsMcpOverrides;
-}): AgentsMcpWireup | null {
+}): Promise<AgentsMcpWireup | null> {
   const overrides = opts.overrides ?? {};
   const config =
     overrides.config !== undefined ? overrides.config : readAgentsMcpEnv(overrides.env);
@@ -357,15 +434,61 @@ export function setupAgentsMcpMount(opts: {
     targetDirectory,
   });
 
-  const fetchHandler = createAgentsMcpFetchHandler({ config, dispatcher, now: overrides.now });
+  // AJS-55 substrate auto-wire from env. When AGENTS_MCP_TRUST_MANIFEST_PATH +
+  // AGENTS_MCP_TRUST_ROOT_PATH are set, the gateway loads + watches the
+  // manifest at startup. The resulting peerKeyDirectory + challengeStore
+  // + ipRateLimiter are threaded into the mint endpoints (POST
+  // /api/agents/mint/challenge + /redeem). Tests wire concrete stubs via
+  // SetupAgentsMcpOverrides; production reads the env paths above.
+  let trustManifestHandle: ReloadableTrustManifest | null = null;
+  if (config.trustManifestPath && config.trustRootPath && !overrides.peerKeyDirectory) {
+    trustManifestHandle = await watchTrustManifest({
+      manifestPath: config.trustManifestPath,
+      trustRootPath: config.trustRootPath,
+    });
+  }
+  const peerKeyDirectory: PeerKeyDirectory | null =
+    overrides.peerKeyDirectory ?? trustManifestHandle?.peerKeyDirectory ?? null;
+  const challengeStore =
+    overrides.challengeStore ??
+    (peerKeyDirectory !== null
+      ? createChallengeMintStore({ ttlMs: 60_000, sizeCap: 10_000 })
+      : null);
+  const ipRateLimiter =
+    overrides.ipRateLimiter ??
+    (peerKeyDirectory !== null
+      ? createIpRateLimiter(config.challengeRateLimit ?? { ratePerMinute: 30, burst: 10 })
+      : null);
+  const cidGenerator = overrides.cidGenerator ?? (() => randomUUID());
 
-  return { fetchHandler, dispatcher };
+  const fetchHandler = createAgentsMcpFetchHandler({
+    config,
+    dispatcher,
+    now: overrides.now,
+    peerKeyDirectory,
+    challengeStore,
+    ipRateLimiter,
+    cidGenerator,
+  });
+
+  const stop = (): void => {
+    if (trustManifestHandle !== null) {
+      trustManifestHandle.stop();
+      trustManifestHandle = null;
+    }
+  };
+
+  return { fetchHandler, dispatcher, stop };
 }
 
 function createAgentsMcpFetchHandler(opts: {
   config: AgentsMcpEnvConfig;
   dispatcher: AgentsDispatcher;
   now?: () => Date;
+  peerKeyDirectory: PeerKeyDirectory | null;
+  challengeStore: ChallengeMintStore | null;
+  ipRateLimiter: IpRateLimiter | null;
+  cidGenerator: () => string;
 }): (req: Request) => Promise<Response | null> {
   return async (req: Request): Promise<Response | null> => {
     const url = new URL(req.url);
@@ -379,6 +502,24 @@ function createAgentsMcpFetchHandler(opts: {
     }
     if (url.pathname === "/api/agents/admin/mint") {
       return handleAdminMint({ req, config: opts.config, now: opts.now });
+    }
+    if (url.pathname === "/api/agents/mint/challenge") {
+      return handleMintChallenge({
+        req,
+        challengeStore: opts.challengeStore,
+        ipRateLimiter: opts.ipRateLimiter,
+        now: opts.now,
+      });
+    }
+    if (url.pathname === "/api/agents/mint/redeem") {
+      return handleMintRedeem({
+        req,
+        config: opts.config,
+        challengeStore: opts.challengeStore,
+        peerKeyDirectory: opts.peerKeyDirectory,
+        cidGenerator: opts.cidGenerator,
+        now: opts.now,
+      });
     }
     return new Response(JSON.stringify({ error: "unknown agents-mcp route" }), {
       status: HTTP_STATUS.NOT_FOUND,
@@ -536,12 +677,31 @@ async function handleAdminMint(opts: {
   now?: () => Date;
 }): Promise<Response> {
   const { req, config } = opts;
+  // AJS-55 v1 deprecation: when AGENTS_MCP_DISABLE_ADMIN_MINT=1, the
+  // /admin/mint endpoint is hard-disabled (404). Operators should
+  // migrate to /api/agents/mint/challenge + /redeem (cryptographic
+  // challenge mint) before flipping this kill-switch.
+  if (Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT === "1") {
+    return new Response(
+      JSON.stringify({
+        error:
+          "admin mint disabled by AGENTS_MCP_DISABLE_ADMIN_MINT=1; use /api/agents/mint/challenge + /redeem (AJS-55)",
+      }),
+      { status: HTTP_STATUS.NOT_FOUND, headers: JSON_HEADERS },
+    );
+  }
   if (!config.adminToken) {
     return new Response(
       JSON.stringify({ error: "admin mint disabled — set AGENTS_MCP_ADMIN_TOKEN to enable" }),
       { status: HTTP_STATUS.NOT_FOUND, headers: JSON_HEADERS },
     );
   }
+  // Deprecation log: every successful admin-mint call emits a warning so
+  // operators see migration pressure in their logs (vault doc §"Out of
+  // M1" admin-mint deprecation).
+  console.warn(
+    "[agents-mcp-mount] /api/agents/admin/mint is a v1 stub deprecated by AJS-55; migrate to /api/agents/mint/challenge + /redeem cryptographic challenge mint. Set AGENTS_MCP_DISABLE_ADMIN_MINT=1 once migrated.",
+  );
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method not allowed" }), {
       status: HTTP_STATUS.METHOD_NOT_ALLOWED,
@@ -593,6 +753,162 @@ async function handleAdminMint(opts: {
     .sign(config.signingKey);
   return new Response(
     JSON.stringify({ jwt, expires_in: config.jwtTtlSeconds, sub: body.sub, cid: body.cid }),
+    { status: HTTP_STATUS.OK, headers: JSON_HEADERS },
+  );
+}
+
+/**
+ * Extract the source IP from a Request. Bun's `request.headers.get`
+ * gives us the `X-Forwarded-For` / `X-Real-IP` chain that a reverse
+ * proxy (Caddy / nginx) would set. Falls back to `"unknown"` when no
+ * proxy header is present (no point in trying to read socket info from
+ * Request; that's bound by the Bun.serve adapter layer).
+ */
+function extractClientIp(req: Request): string {
+  const xff = req.headers.get("X-Forwarded-For");
+  if (xff !== null) {
+    // Take the leftmost (originating) IP from the chain.
+    const first = xff.split(",")[0]?.trim();
+    if (first && first.length > 0) return first;
+  }
+  const xri = req.headers.get("X-Real-IP");
+  if (xri !== null && xri.length > 0) return xri.trim();
+  return "unknown";
+}
+
+/**
+ * AJS-55 mint-challenge endpoint. Unauthenticated (gated by per-IP
+ * rate limiter); returns a 32-byte challenge + expires_at.
+ *
+ * Vault doc §"Challenge mint flow" step 2.
+ */
+async function handleMintChallenge(opts: {
+  req: Request;
+  challengeStore: ChallengeMintStore | null;
+  ipRateLimiter: IpRateLimiter | null;
+  now?: () => Date;
+}): Promise<Response> {
+  const { req, challengeStore, ipRateLimiter } = opts;
+  if (challengeStore === null || ipRateLimiter === null) {
+    return new Response(
+      JSON.stringify({
+        error: "AJS-55 challenge mint substrate not configured on this gateway",
+      }),
+      { status: 503, headers: JSON_HEADERS },
+    );
+  }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "method not allowed" }), {
+      status: HTTP_STATUS.METHOD_NOT_ALLOWED,
+      headers: { ...JSON_HEADERS, Allow: "POST" },
+    });
+  }
+  const nowMs = (opts.now ? opts.now() : new Date()).getTime();
+  const ip = extractClientIp(req);
+  const rateCheck = ipRateLimiter.check(ip, { now: nowMs });
+  if (!rateCheck.ok) {
+    return new Response(
+      JSON.stringify({ error: "rate-limited", retry_after_ms: rateCheck.retryAfterMs }),
+      {
+        status: 429,
+        headers: {
+          ...JSON_HEADERS,
+          "Retry-After": String(Math.ceil(rateCheck.retryAfterMs / 1000)),
+        },
+      },
+    );
+  }
+  const issued = challengeStore.issueChallenge({ now: nowMs });
+  if (!issued.ok) {
+    return new Response(JSON.stringify({ error: "challenge-store-full" }), {
+      status: 503,
+      headers: JSON_HEADERS,
+    });
+  }
+  return new Response(
+    JSON.stringify({ challenge: issued.challenge, expires_at: issued.expiresAt }),
+    { status: HTTP_STATUS.OK, headers: JSON_HEADERS },
+  );
+}
+
+/**
+ * AJS-55 mint-redeem endpoint. Verifies the caller's signed challenge
+ * against the trust manifest's peer pubkey + mints a JWT on success.
+ *
+ * Vault doc §"Challenge mint flow" steps 4-6.
+ */
+async function handleMintRedeem(opts: {
+  req: Request;
+  config: AgentsMcpEnvConfig;
+  challengeStore: ChallengeMintStore | null;
+  peerKeyDirectory: PeerKeyDirectory | null;
+  cidGenerator: () => string;
+  now?: () => Date;
+}): Promise<Response> {
+  const { req, config, challengeStore, peerKeyDirectory, cidGenerator } = opts;
+  if (challengeStore === null || peerKeyDirectory === null) {
+    return new Response(
+      JSON.stringify({
+        error: "AJS-55 challenge mint substrate not configured on this gateway",
+      }),
+      { status: 503, headers: JSON_HEADERS },
+    );
+  }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "method not allowed" }), {
+      status: HTTP_STATUS.METHOD_NOT_ALLOWED,
+      headers: { ...JSON_HEADERS, Allow: "POST" },
+    });
+  }
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "request body must be valid JSON" }), {
+      status: HTTP_STATUS.BAD_REQUEST,
+      headers: JSON_HEADERS,
+    });
+  }
+  const nowMs = (opts.now ? opts.now() : new Date()).getTime();
+  const result = redeemMintChallenge({
+    request: body as Parameters<typeof redeemMintChallenge>[0]["request"],
+    store: challengeStore,
+    peerKeyDirectory,
+    now: nowMs,
+    cidGenerator,
+  });
+  if (!result.ok) {
+    const status =
+      result.reason === "invalid-args"
+        ? HTTP_STATUS.BAD_REQUEST
+        : result.reason === "unknown-entity"
+          ? HTTP_STATUS.NOT_FOUND
+          : result.reason === "invalid-signature" || result.reason === "invalid-challenge"
+            ? HTTP_STATUS.UNAUTHORIZED
+            : result.reason === "invalid-scope"
+              ? HTTP_STATUS.BAD_REQUEST
+              : HTTP_STATUS.INTERNAL_SERVER_ERROR;
+    return new Response(JSON.stringify(result), { status, headers: JSON_HEADERS });
+  }
+  // Mint the JWT (same pattern as /admin/mint but with cryptographically-
+  // verified sub + scopes + cid from the redeem flow).
+  const nowSec = Math.floor(nowMs / 1000);
+  const jwt = await new SignJWT({ scopes: result.scopes, cid: result.cid })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(result.sub)
+    .setIssuer(config.issuer)
+    .setAudience(config.audience)
+    .setIssuedAt(nowSec)
+    .setExpirationTime(nowSec + config.jwtTtlSeconds)
+    .sign(config.signingKey);
+  return new Response(
+    JSON.stringify({
+      jwt,
+      expires_in: config.jwtTtlSeconds,
+      sub: result.sub,
+      scopes: result.scopes,
+      cid: result.cid,
+    }),
     { status: HTTP_STATUS.OK, headers: JSON_HEADERS },
   );
 }

@@ -269,7 +269,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // AJS-56/57 agents-MCP tool surface. Opts in via
   // `AGENTS_MCP_JWT_SIGNING_KEY`; when unset, the route is not mounted
   // at all so dev-mode startup is unchanged.
-  const agentsMcp = setupAgentsMcpMount({});
+  const agentsMcp = await setupAgentsMcpMount({});
   if (agentsMcp !== null) {
     console.log("[Gateway] agents-MCP tool surface enabled (POST /api/agents/send_message)");
   }

@@ -31,12 +31,14 @@ bun add @agents-js/host
 - **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
 - **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
 - **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
+- **`createChallengeMintStore`** — Factory for the challenge-mint store.
 - **`createCopiedReplicaBackend`** — Build a `CopiedReplicaBackend`. Replicas are stored under `replicaRoot/<workspaceId>/`; the source's `.git`, `.jj`, and `node_modules` are excluded at copy-time. Symlinks present in the source are ...
 - **`createEnsureSessionCoordinator`**
 - **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
 - **`createGatewaySurfaceBroadcaster`**
 - **`createGatewayTestServer`** — Construct a running gateway test server bound to the given ACP command. This assembles the same three layers as the production gateway: 1. `ACPSessionController` with Node file adapters + empty per...
 - **`createHostSession`**
+- **`createIpRateLimiter`** — Factory for the per-IP token-bucket rate limiter.
 - **`createRuntimeSwitchCoordinator`**
 - **`createStandaloneHostController`** — Spawn a standalone `GatewayHostController` detached from any `HostSession`. Used by `HostA2AExecutor`'s Phase-2 controller factory: every distinct A2A `contextId` gets its own freshly-started contr...
 - **`createTranslatorState`**
@@ -110,6 +112,7 @@ bun add @agents-js/host
 - **`MatrixSendArgs`** — Args passed to {MatrixTool.send}. Identity comes from the JWT only.
 - **`MatrixSendResult`** — Result of a successful Matrix send.
 - **`MatrixTool`** — Matrix substrate. Implementations: - Subprocess wrapper around `send-matrix.py` (v1; see `apps/internal-gateway/agents-mcp-mount.ts`) - Future: native MatrixToolProvider per AJS-56 Phase 2
+- **`MintRedeemRequest`** — Request body shape for `POST /api/agents/mint/redeem`.
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`ReplicaInspectionResult`** — Result shape for `inspectReplica`.
 - **`RunSessionOptions`**
@@ -147,6 +150,10 @@ bun add @agents-js/host
 - **`GetMessagesError`** — Structured error reasons for {AgentsDispatcher.getMessages}.
 - **`GetMessagesResult`** — Result of a {AgentsDispatcher.getMessages} call.
 - **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
+- **`IssueChallengeResult`** — Result of {ChallengeMintStore.issueChallenge}.
+- **`MintRedeemResult`** — Result of {redeemMintChallenge}.
+- **`RateLimitCheckResult`** — Result of {IpRateLimiter.check}.
+- **`RedeemChallengeResult`** — Result of {ChallengeMintStore.redeemChallenge}.
 - **`RuntimeSwitchOrigin`**
 - **`ScopeCheckResult`** — Result of {checkScope}. Discriminated to mirror the verifier shape.
 - **`SendMessageError`** — Structured error reasons. Stable string union for transport mapping.

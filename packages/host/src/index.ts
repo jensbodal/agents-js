@@ -60,6 +60,18 @@ export {
   createBusPublishHandler,
   createBusSubscribeHandler,
 } from "./bus-endpoint.ts";
+// AJS-55 substrate
+export {
+  type ChallengeMintStore,
+  type ChallengeMintStoreOptions,
+  createChallengeMintStore,
+  createIpRateLimiter,
+  type IpRateLimiter,
+  type IpRateLimiterOptions,
+  type IssueChallengeResult,
+  type RateLimitCheckResult,
+  type RedeemChallengeResult,
+} from "./challenge-mint-store.ts";
 export {
   buildGatewayBusEvent,
   type CreateGatewayBusOptions,
@@ -112,6 +124,16 @@ export {
   type HarnessLaneManagerOptions,
 } from "./lane-manager.ts";
 export {
+  type LoadTrustManifestLogger,
+  type LoadTrustManifestOptions,
+  loadTrustManifest,
+  type PeerKeyDirectory,
+  type ReloadableTrustManifest,
+  type TrustManifestLoadResult,
+  type WatchTrustManifestOptions,
+  watchTrustManifest,
+} from "./load-trust-manifest.ts";
+export {
   type DispatchHandler,
   type DispatchRequest,
   type DispatchResult,
@@ -124,7 +146,23 @@ export {
   type StartMatrixBusConsumerOptions,
   startMatrixBusConsumer,
 } from "./matrix-bus-consumer.ts";
+export {
+  buildChallengeMintSignedBytes,
+  CHALLENGE_MINT_DOMAIN_SEPARATOR,
+  type MintRedeemRequest,
+  type MintRedeemResult,
+  redeemMintChallenge,
+} from "./mint-redeem-flow.ts";
 export { fetchRuntimeModels, type RuntimeModelInfo } from "./model-cache.ts";
+export {
+  PEER_RECORD_DOMAIN_SEPARATOR,
+  type PeerRecordRejectionReason,
+  type SignedPeerRecord,
+  signPeerRecord,
+  type UnsignedPeerRecord,
+  type VerifyPeerRecordResult,
+  verifyPeerRecord,
+} from "./peer-record.ts";
 export {
   applyEnvRuntimeProfile,
   buildRuntimeProfileConfigEnv,

@@ -152,8 +152,8 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    * WHY: Pins the contract that the gateway boots unchanged in dev when
    *      `AGENTS_MCP_JWT_SIGNING_KEY` is absent.
    */
-  test("setupAgentsMcpMount returns null when env disables the mount", () => {
-    expect(setupAgentsMcpMount({ overrides: { env: {} } })).toBeNull();
+  test("setupAgentsMcpMount returns null when env disables the mount", async () => {
+    expect(await setupAgentsMcpMount({ overrides: { env: {} } })).toBeNull();
   });
 
   /**
@@ -171,7 +171,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("end-to-end happy path: JWT → verify → dispatch → recording Matrix; ignores caller `as_agent`", async () => {
     const matrix = makeRecordingMatrixTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: matrix },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -212,7 +212,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("no Authorization header → 401 missing-bearer + WWW-Authenticate; provider not called", async () => {
     const matrix = makeRecordingMatrixTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: matrix },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -237,7 +237,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    *      verification would still pass the missing-bearer test.
    */
   test("forged JWT (wrong signing key) → 401 signature-invalid", async () => {
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -270,7 +270,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("JWT without matrix.send_message scope → 403 scope-not-granted", async () => {
     const matrix = makeRecordingMatrixTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: matrix },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -298,7 +298,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("unknown target → 404 unknown-target with target + correlation_id echoed", async () => {
     const matrix = makeRecordingMatrixTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: matrix },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -326,7 +326,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    *      some clients pre-flight with GET to discover allowed methods.
    */
   test("GET /api/agents/send_message → 405 with Allow: POST", async () => {
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -348,7 +348,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    *      the unit test on the same property at the dispatcher level).
    */
   test("non-/api/agents/ paths pass through (return null)", async () => {
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -367,7 +367,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("admin mint → returns JWT that the same gateway verifies", async () => {
     const matrix = makeRecordingMatrixTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig({ adminToken: ADMIN_TOKEN }), matrixTool: matrix },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -408,7 +408,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    *      this test deliberately.
    */
   test("admin mint disabled by default (no AGENTS_MCP_ADMIN_TOKEN) → 404", async () => {
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
     });
     if (wireup === null) throw new Error("unreachable");
@@ -447,7 +447,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("send_message → inbox-only target with inbox.deliver scope → 200 with inbox_message_id (AJS-65)", async () => {
     const inbox = makeRecordingInboxTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig({
           targets: { "ajs-claude": { inbox: { session: "ajs-claude" } } },
@@ -500,7 +500,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       },
     ];
     const inbox = makeRecordingInboxTool({ readReturns: messages });
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig(),
         matrixTool: makeRecordingMatrixTool(),
@@ -535,7 +535,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("get_messages with target != identity → 403 forbidden-target", async () => {
     const inbox = makeRecordingInboxTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig(),
         matrixTool: makeRecordingMatrixTool(),
@@ -565,7 +565,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("get_messages without inbox.read scope → 403 scope-not-granted", async () => {
     const inbox = makeRecordingInboxTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig(),
         matrixTool: makeRecordingMatrixTool(),
@@ -595,7 +595,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("get_messages with empty body → 200 (treats as defaults)", async () => {
     const inbox = makeRecordingInboxTool();
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig(),
         matrixTool: makeRecordingMatrixTool(),
@@ -718,7 +718,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
   });
 
   test("admin mint enabled but wrong token → 401", async () => {
-    const wireup = setupAgentsMcpMount({
+    const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig({ adminToken: ADMIN_TOKEN }),
         matrixTool: makeRecordingMatrixTool(),
@@ -733,5 +733,492 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       }),
     );
     expect(res?.status).toBe(401);
+  });
+
+  // ============================================================
+  // AJS-55 MINT ENDPOINTS — P2 coverage per malar-codex-app review
+  // ============================================================
+
+  /**
+   * Test helper: builds an in-memory PeerKeyDirectory + signs a
+   * challenge-redeem request from the entity's private key. Avoids
+   * filesystem I/O so tests are deterministic + fast.
+   */
+  async function makeMintFixture(opts: {
+    entity: string;
+    capabilities: { scopes: string[]; matrix?: { room: string }; inbox?: { session: string } };
+  }): Promise<{
+    peerKeyDirectory: import("@agents-js/host").PeerKeyDirectory;
+    signChallenge: (challenge: string, requested_scopes: string[]) => string;
+  }> {
+    // @internal ed25519 helpers + buildChallengeMintSignedBytes — public
+    // surface from the host barrel; direct src import for the internal
+    // helpers keeps them @internal for npm consumers.
+    const { buildChallengeMintSignedBytes } = await import("@agents-js/host");
+    const { generateEd25519KeyPair, bytesToBase64 } = await import(
+      "../../../packages/host/src/ed25519.ts"
+    );
+    const { createPrivateKey, sign: nodeSign } = await import("node:crypto");
+    const { privateKeyPem, publicKeyPem } = generateEd25519KeyPair();
+    // Extract raw 32-byte pubkey from SPKI PEM for the PeerKeyDirectory.
+    const { createPublicKey } = await import("node:crypto");
+    const pubKey = createPublicKey(publicKeyPem);
+    const spkiDer = pubKey.export({ type: "spki", format: "der" });
+    const rawPubKey = new Uint8Array(spkiDer.subarray(spkiDer.length - 32));
+    const pubKeyBase64 = bytesToBase64(rawPubKey);
+    const priv = createPrivateKey(privateKeyPem);
+    const entity = opts.entity;
+    return {
+      peerKeyDirectory: {
+        getPubkey: (e) => (e === entity ? pubKeyBase64 : null),
+        getCapabilities: (e) => (e === entity ? { scopes: opts.capabilities.scopes } : null),
+      },
+      signChallenge: (challenge, requested_scopes) => {
+        const signedBytes = buildChallengeMintSignedBytes({
+          challenge,
+          entity,
+          requested_scopes,
+        });
+        const sig = nodeSign(null, signedBytes, priv);
+        return bytesToBase64(new Uint8Array(sig));
+      },
+    };
+  }
+
+  /**
+   * WHAT: AGENTS_MCP_TRUST_MANIFEST_PATH + AGENTS_MCP_TRUST_ROOT_PATH env
+   *       config makes /api/agents/mint/challenge reachable through the
+   *       REAL production setup path, with NO `peerKeyDirectory` override.
+   *       Real temp files for manifest + trust-root + signed peer record.
+   *       Returns 200 with challenge + expires_at.
+   * WHY: This is the actual regression test for malar-codex-app's
+   *      original P1 finding (`bb94de15` re-review). The OTHER test in
+   *      this file titled "with wired peerKeyDirectory" uses the
+   *      override seam — it pins the impl shape but does NOT exercise
+   *      the env→endpoint chain. THIS test does, by going through
+   *      `readAgentsMcpEnv → setupAgentsMcpMount → watchTrustManifest`
+   *      end-to-end. If the env-parse or auto-wire regresses, this test
+   *      goes red; the override test stays green.
+   *
+   *      Cleanup: wireup.stop() releases the fs.watch handle so the
+   *      test process doesn't hang on teardown. Temp dir rm'd after.
+   */
+  test("AJS-55 P1 regression: env paths through real setup → /mint/challenge 200 (NO peerKeyDirectory override)", async () => {
+    const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { generateEd25519KeyPair, bytesToBase64 } = await import(
+      "../../../packages/host/src/ed25519.ts"
+    );
+    const { signPeerRecord } = await import("@agents-js/host");
+
+    const tmpDir = mkdtempSync(join(tmpdir(), "ajs55-env-test-"));
+    let wireup: Awaited<ReturnType<typeof setupAgentsMcpMount>> = null;
+    try {
+      const { privateKeyPem, publicKeyPem } = generateEd25519KeyPair();
+      const trustRootPath = join(tmpDir, "trust-root.pub");
+      writeFileSync(trustRootPath, publicKeyPem, "utf-8");
+
+      // Signed peer record. Pubkey is raw base64 32-byte (B1 contract).
+      const peerKeyPair = generateEd25519KeyPair();
+      const { createPublicKey } = await import("node:crypto");
+      const peerPubKey = createPublicKey(peerKeyPair.publicKeyPem);
+      const peerSpkiDer = peerPubKey.export({ type: "spki", format: "der" });
+      const peerPubKeyRaw = bytesToBase64(
+        new Uint8Array(peerSpkiDer.subarray(peerSpkiDer.length - 32)),
+      );
+      const signedRecord = signPeerRecord(
+        {
+          entity: "env-test-peer",
+          pubkey: peerPubKeyRaw,
+          capabilities: { scopes: ["matrix.send_message"] },
+          signed_at: "2026-05-23T12:00:00Z",
+          signer: "fleet-root",
+        },
+        privateKeyPem,
+      );
+      const recordPath = join(tmpDir, "env-test-peer.signed.json");
+      writeFileSync(recordPath, JSON.stringify(signedRecord), "utf-8");
+
+      const manifestPath = join(tmpDir, "trust.json");
+      writeFileSync(
+        manifestPath,
+        JSON.stringify({ peers: [{ entity: "env-test-peer", record_path: recordPath }] }),
+        "utf-8",
+      );
+
+      // CRITICAL: pass ENV ONLY. NO peerKeyDirectory override. NO
+      // challengeStore override. If env-wire regresses, this test goes red
+      // because /mint/challenge returns 503 instead of 200.
+      wireup = await setupAgentsMcpMount({
+        overrides: {
+          env: {
+            AGENTS_MCP_JWT_SIGNING_KEY: SIGNING_KEY_TEXT,
+            AGENTS_MCP_JWT_ISSUER: ISSUER,
+            AGENTS_MCP_SEND_SCRIPT: "/unused-in-test",
+            AGENTS_MCP_TRUST_MANIFEST_PATH: manifestPath,
+            AGENTS_MCP_TRUST_ROOT_PATH: trustRootPath,
+          },
+          // Subprocess matrix tool needs a no-op override to avoid spawning
+          // the real send-matrix script (which would fail at /unused-in-test).
+          matrixTool: makeRecordingMatrixTool(),
+        },
+      });
+      if (wireup === null) throw new Error("setupAgentsMcpMount returned null with env set");
+
+      const res = await wireup.fetchHandler(
+        new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+      );
+      // The original P1 bug: this returned 503. The fix: env wire makes
+      // it return 200. If this assertion fails again, the auto-wire
+      // regressed (or got reverted to override-only behavior).
+      expect(res?.status).toBe(200);
+      const body = (await res?.json()) as { challenge: string; expires_at: number };
+      expect(typeof body.challenge).toBe("string");
+      expect(body.expires_at).toBeGreaterThan(Date.now());
+    } finally {
+      // Release fs.watch handle so the test process can exit.
+      wireup?.stop();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: Trust-manifest override path (via `peerKeyDirectory` override
+   *       seam) makes /api/agents/mint/challenge reachable. Returns 200
+   *       with challenge + expires_at.
+   * WHY: Pins the impl shape (challengeStore + ipRateLimiter auto-create
+   *      when peerKeyDirectory is non-null). NOT a regression test for
+   *      the env→endpoint chain — see the test above for that.
+   */
+  test("AJS-55: /mint/challenge with override peerKeyDirectory → 200 with challenge + expires_at", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    expect(res?.status).toBe(200);
+    const body = (await res?.json()) as { challenge: string; expires_at: number };
+    expect(typeof body.challenge).toBe("string");
+    expect(body.challenge.length).toBeGreaterThanOrEqual(43);
+    expect(body.expires_at).toBeGreaterThan(Date.now());
+  });
+
+  /**
+   * WHAT: Full challenge → redeem happy path returns a JWT that
+   *       successfully calls /api/agents/send_message.
+   * WHY: End-to-end production-path proof. Pins the contract Jens cares
+   *      about: peer signs challenge → gets JWT → uses JWT to call
+   *      tools, all via canonical endpoints.
+   */
+  test("AJS-55: challenge → sign → redeem → JWT bearer happy path", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const matrix = makeRecordingMatrixTool();
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig({
+          targets: { "ajs-claude": { matrix: { room: "!ajs:matrix.example" } } },
+        }),
+        matrixTool: matrix,
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    // 1. Get challenge.
+    const challengeRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    expect(challengeRes?.status).toBe(200);
+    const { challenge } = (await challengeRes?.json()) as { challenge: string };
+    // 2. Sign + redeem.
+    const sig = fixture.signChallenge(challenge, ["matrix.send_message"]);
+    const redeemRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challenge,
+          entity: "test-peer",
+          requested_scopes: ["matrix.send_message"],
+          sig,
+        }),
+      }),
+    );
+    expect(redeemRes?.status).toBe(200);
+    const { jwt, sub, scopes } = (await redeemRes?.json()) as {
+      jwt: string;
+      sub: string;
+      scopes: string[];
+    };
+    expect(sub).toBe("test-peer");
+    expect(scopes).toEqual(["matrix.send_message"]);
+    // 3. Use the minted JWT to call send_message.
+    const sendRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/send_message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({ target: "ajs-claude", body: "minted via AJS-55" }),
+      }),
+    );
+    expect(sendRes?.status).toBe(200);
+    expect(matrix.calls).toHaveLength(1);
+  });
+
+  /**
+   * WHAT: Redeem with invalid signature → 401 invalid-signature.
+   * WHY: Crypto verification gate; without this, fabricated sigs could
+   *      mint JWTs (catastrophic).
+   */
+  test("AJS-55: /mint/redeem with invalid sig → 401 invalid-signature", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const challengeRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    const { challenge } = (await challengeRes?.json()) as { challenge: string };
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challenge,
+          entity: "test-peer",
+          requested_scopes: ["matrix.send_message"],
+          // 64 zero bytes base64 = clearly invalid sig.
+          sig: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        }),
+      }),
+    );
+    expect(res?.status).toBe(401);
+  });
+
+  /**
+   * WHAT: Redeem with unknown entity → 404 unknown-entity.
+   * WHY: Trust manifest is the entity source-of-truth; entities not in
+   *      manifest cannot mint.
+   */
+  test("AJS-55: /mint/redeem with unknown entity → 404 unknown-entity", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const challengeRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    const { challenge } = (await challengeRes?.json()) as { challenge: string };
+    const sig = fixture.signChallenge(challenge, ["matrix.send_message"]);
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challenge,
+          entity: "ghost-entity-not-in-manifest",
+          requested_scopes: ["matrix.send_message"],
+          sig,
+        }),
+      }),
+    );
+    expect(res?.status).toBe(404);
+    const body = (await res?.json()) as { reason: string };
+    expect(body.reason).toBe("unknown-entity");
+  });
+
+  /**
+   * WHAT: Redeem with requested_scopes ⊄ entity capabilities → 400
+   *       invalid-scope with offending_scopes field. No silent downgrade.
+   * WHY: cognee-codex primary fix #2 (AJS-55 vault doc). Caller asking
+   *      for more scopes than their entity has must FAIL, not get a
+   *      downgraded JWT.
+   */
+  test("AJS-55: /mint/redeem with over-scoped request → 400 invalid-scope + offending_scopes (no silent downgrade)", async () => {
+    const fixture = await makeMintFixture({
+      entity: "limited-peer",
+      capabilities: { scopes: ["matrix.send_message"] }, // entity has only one scope
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const challengeRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    const { challenge } = (await challengeRes?.json()) as { challenge: string };
+    // Request a scope not in the entity's capabilities.
+    const sig = fixture.signChallenge(challenge, ["matrix.send_message", "inbox.read_all"]);
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challenge,
+          entity: "limited-peer",
+          requested_scopes: ["matrix.send_message", "inbox.read_all"],
+          sig,
+        }),
+      }),
+    );
+    expect(res?.status).toBe(400);
+    const body = (await res?.json()) as { reason: string; offending_scopes: string[] };
+    expect(body.reason).toBe("invalid-scope");
+    expect(body.offending_scopes).toEqual(["inbox.read_all"]);
+  });
+
+  /**
+   * WHAT: Replaying a successfully-redeemed challenge → 401 with
+   *       reason invalid-challenge (already-redeemed).
+   * WHY: Single-use semantics protect against capture-replay attacks
+   *      where an attacker intercepts a valid signed challenge.
+   */
+  test("AJS-55: /mint/redeem replay → 401 invalid-challenge", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const challengeRes = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/mint/challenge", { method: "POST" }),
+    );
+    const { challenge } = (await challengeRes?.json()) as { challenge: string };
+    const sig = fixture.signChallenge(challenge, ["matrix.send_message"]);
+    const req = () =>
+      wireup.fetchHandler(
+        new Request("http://gw.local/api/agents/mint/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            challenge,
+            entity: "test-peer",
+            requested_scopes: ["matrix.send_message"],
+            sig,
+          }),
+        }),
+      );
+    // First redeem succeeds.
+    expect((await req())?.status).toBe(200);
+    // Replay rejected.
+    const replayRes = await req();
+    expect(replayRes?.status).toBe(401);
+    const body = (await replayRes?.json()) as { reason: string; message: string };
+    expect(body.reason).toBe("invalid-challenge");
+    expect(body.message).toContain("already-redeemed");
+  });
+
+  /**
+   * WHAT: Per-IP rate limit on /mint/challenge → 429 with Retry-After
+   *       once burst exhausted.
+   * WHY: Prevents an attacker flooding the unauthenticated mint endpoint
+   *      to exhaust the challenge store. Caps + token bucket together
+   *      bound the attack surface.
+   */
+  test("AJS-55: /mint/challenge rate limit exhausts → 429 with Retry-After", async () => {
+    const fixture = await makeMintFixture({
+      entity: "test-peer",
+      capabilities: { scopes: ["matrix.send_message"] },
+    });
+    const { createIpRateLimiter } = await import("@agents-js/host");
+    const wireup = await setupAgentsMcpMount({
+      overrides: {
+        config: baseConfig(),
+        matrixTool: makeRecordingMatrixTool(),
+        peerKeyDirectory: fixture.peerKeyDirectory,
+        // Tight limiter to make test deterministic.
+        ipRateLimiter: createIpRateLimiter({ ratePerMinute: 30, burst: 2 }),
+      },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const req = () =>
+      wireup.fetchHandler(
+        new Request("http://gw.local/api/agents/mint/challenge", {
+          method: "POST",
+          headers: { "X-Forwarded-For": "192.0.2.99" },
+        }),
+      );
+    // Burst capacity of 2 → 2 succeed.
+    expect((await req())?.status).toBe(200);
+    expect((await req())?.status).toBe(200);
+    // 3rd request hits rate limit.
+    const limited = await req();
+    expect(limited?.status).toBe(429);
+    expect(limited?.headers.get("Retry-After")).not.toBeNull();
+  });
+
+  /**
+   * WHAT: AGENTS_MCP_DISABLE_ADMIN_MINT=1 → /api/agents/admin/mint
+   *       returns 404 with migration message pointing at AJS-55 endpoints.
+   * WHY: Migration kill-switch. Once operators have migrated to challenge
+   *      mint, they flip this env var to hard-disable the legacy endpoint.
+   */
+  test("AJS-55: AGENTS_MCP_DISABLE_ADMIN_MINT=1 → /admin/mint returns 404", async () => {
+    const originalEnv = Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT;
+    try {
+      Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT = "1";
+      const wireup = await setupAgentsMcpMount({
+        overrides: {
+          config: baseConfig({ adminToken: ADMIN_TOKEN }),
+          matrixTool: makeRecordingMatrixTool(),
+        },
+      });
+      if (wireup === null) throw new Error("unreachable");
+      const res = await wireup.fetchHandler(
+        new Request("http://gw.local/api/agents/admin/mint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Admin ${ADMIN_TOKEN}` },
+          body: JSON.stringify({ sub: "x", cid: "y" }),
+        }),
+      );
+      expect(res?.status).toBe(404);
+      const body = (await res?.json()) as { error: string };
+      expect(body.error).toContain("AJS-55");
+      expect(body.error).toContain("mint/challenge");
+    } finally {
+      if (originalEnv === undefined) {
+        delete Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT;
+      } else {
+        Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT = originalEnv;
+      }
+    }
   });
 });
