@@ -249,6 +249,11 @@ function main(): void {
     const filePath = join(GENERATED_DIR, spec.name);
     const generated = buildPartial(spec);
     if (writeMode) {
+      const current = existsSync(filePath) ? readFileSync(filePath, "utf-8") : "";
+      if (current && normalizeForDriftCheck(current) === normalizeForDriftCheck(generated)) {
+        console.log(`✓ docs/_generated/${spec.name}: current`);
+        continue;
+      }
       writeFileSync(filePath, generated, "utf-8");
       console.log(`✅ wrote docs/_generated/${spec.name}`);
       continue;

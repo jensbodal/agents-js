@@ -7,8 +7,8 @@
 #      Side-effectful; self-heals stale symlinks that drift when sibling
 #      packages are added/renamed between pushes. Idempotent (reports
 #      "(no changes)" on cache hit, ~10ms).
-#   2. `mise run ci` — the validation gate: install + check + typecheck +
-#      test via the serialized task graph in mise.toml.
+#   2. `mise run ci` — the validation gate: generated-doc drift checks,
+#      typecheck, lint, and tests via the serialized task graph in mise.toml.
 #
 # Why phase 1 exists: adding or renaming workspace packages can leave
 # node_modules/@agents-js/* symlinks stale until the next install. Refreshing
