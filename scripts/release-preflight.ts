@@ -914,9 +914,23 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     },
   },
   {
-    name: "README drift check is wired into bun run check",
+    name: "generated docs are wired into build and check gates",
     filePath: "package.json",
     validate: (contents) => {
+      if (
+        !/"docs:generated":\s*"bun run docs:readmes && bun run docs:reference && bun run docs:bundle"/.test(
+          contents,
+        )
+      ) {
+        return "package.json must define docs:generated for committed generated docs";
+      }
+      if (
+        !/"docs:generated:check":\s*"bun run docs:readmes:check && bun run docs:reference:check && bun run docs:bundle:check"/.test(
+          contents,
+        )
+      ) {
+        return "package.json must define docs:generated:check";
+      }
       if (
         !/"docs:readmes:check":\s*"bun scripts\/generate-package-readmes\.ts --check"/.test(
           contents,
@@ -924,8 +938,11 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
       ) {
         return "package.json must define docs:readmes:check";
       }
-      if (!/"check":\s*"[^"]*bun run docs:readmes:check/.test(contents)) {
-        return "package.json check script must run docs:readmes:check";
+      if (!/"docs:build":\s*"bun run docs:generated &&/.test(contents)) {
+        return "package.json docs:build script must run docs:generated before building";
+      }
+      if (!/"check":\s*"[^"]*bun run docs:generated:check/.test(contents)) {
+        return "package.json check script must run docs:generated:check";
       }
       return null;
     },

@@ -48,7 +48,7 @@ const MUTATIONS: Record<string, string> = {
   "wire schema is A2A-only and rejects ACP launch fields": `export const WireAgentRegistryRecordSchema = z.object({ kind: z.string(), command: z.string() }).passthrough();`,
   "dashboard status vocabulary has no deferred state": `type StatusKey = "green" | "warn" | "blocked" | "pending" | "deferred";`,
   "dashboard status data has no deferred package statuses": `{"packages":{"@agents-js/example":{"status":"deferred"}}}`,
-  "README drift check is wired into bun run check": `{"scripts":{"docs:readmes":"bun scripts/generate-package-readmes.ts","check":"bun run typecheck"}}`,
+  "generated docs are wired into build and check gates": `{"scripts":{"docs:generated":"bun run docs:readmes","docs:generated:check":"bun run docs:readmes:check","docs:build":"bun run docs:api","check":"bun run typecheck"}}`,
 };
 
 describe("release-readiness source guards", () => {
