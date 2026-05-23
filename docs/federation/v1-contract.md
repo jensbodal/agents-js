@@ -191,7 +191,11 @@ in isolation:
   protocol is its own contract.
 - Cross-host auth — federation auth is tracked separately. The v1
   contract assumes a trusted network or pre-existing transport-level
-  auth between parent and child.
+  auth between parent and child. See
+  [Federation peer-record signing & trust manifest](./peer-record-signing-and-trust-manifest.md)
+  for the AJS-55 substrate that two federated gateways use to issue
+  short-lived scoped JWTs to each other without sharing a long-lived
+  admin token.
 - Federated bus replay — the parent re-broadcast is best-effort and
   live-only. Late subscribers do not see historical child events.
 
