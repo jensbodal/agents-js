@@ -12,24 +12,16 @@ When two or more agents-js gateways need to issue short-lived scoped
 JWTs to each other's agents without sharing a long-lived admin token,
 they negotiate via a challenge-mint flow grounded in a static trust
 manifest of fleet-root-signed peer records. This document is the
-canonical reference for the env-var contract, manifest schema, signing
-byte recipe, hot-reload semantics, and HTTP mint/redeem endpoints
-introduced in AJS-55.
+reference for the env-var contract, manifest schema, signing byte
+recipe, hot-reload semantics, and HTTP mint/redeem endpoints.
 
 Audience: an operator wiring an agents-js gateway against federated
-peers, or a future agent provisioning trust material on a new host.
-Every type name, env var, and file path below points at a real,
-exported symbol or live code path in this repository — there are no
-aspirational placeholders.
-
-This is the contract surface. The operator deployment guide
-([Operator guide](#operator-guide)) describes the prod-side procedure
-(key locations, rotation runbook, peer registration) and is owned by
-the deployment lane.
+peers. Every type name, env var, and file path below points at a
+real, exported symbol or live code path in this repository.
 
 ## Two surfaces
 
-The AJS-55 substrate has two independent surfaces wired by the
+The federation substrate has two independent surfaces wired by the
 gateway HTTP layer:
 
 1. **Static trust** — a JSON trust manifest pointing at one signed
@@ -52,10 +44,10 @@ authority for the cryptographic surface.
 ## Env-var contract
 
 The gateway's MCP mount (`apps/internal-gateway/agents-mcp-mount.ts`)
-parses these env vars at startup. All AJS-55 vars are independent
-from the AJS-56/57 JWT signing vars (`AGENTS_MCP_JWT_SIGNING_KEY`,
-`AGENTS_MCP_JWT_ISSUER`, etc.); the mint endpoints reuse the same
-HS256 signing path once a peer has redeemed a challenge.
+parses these env vars at startup. They are independent from the JWT
+signing vars (`AGENTS_MCP_JWT_SIGNING_KEY`, `AGENTS_MCP_JWT_ISSUER`,
+etc.); the mint endpoints reuse the same HS256 signing path once a
+peer has redeemed a challenge.
 
 | Variable                                 | Required                       | Format                          | Notes                                                                                          |
 | ---------------------------------------- | ------------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -71,8 +63,7 @@ silent-failure shape; loud failure at startup is the right surface.
 
 When neither path is set, the mint endpoints return `503 Service Unavailable`
 with `reason: "substrate-not-configured"` — the gateway boots cleanly
-but federation is off. This is the v1 default for fleets not yet
-running AJS-55.
+but federation is off. This is the v1 default.
 
 ## Manifest schema
 
@@ -84,9 +75,9 @@ signed peer record JSON for that entity.
 ```json
 {
   "peers": [
-    { "entity": "lxc-prod-1",  "record_path": "./records/lxc-prod-1.json" },
-    { "entity": "lxc-prod-2",  "record_path": "./records/lxc-prod-2.json" },
-    { "entity": "lxc-stage-1", "record_path": "./records/lxc-stage-1.json" }
+    { "entity": "gateway-1", "record_path": "./records/gateway-1.json" },
+    { "entity": "gateway-2", "record_path": "./records/gateway-2.json" },
+    { "entity": "gateway-3", "record_path": "./records/gateway-3.json" }
   ]
 }
 ```
@@ -103,12 +94,12 @@ Each per-peer file at `record_path` is a JSON document of shape
 
 ```json
 {
-  "entity": "lxc-prod-1",
+  "entity": "gateway-1",
   "pubkey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
   "capabilities": {
     "scopes": ["agents.send_message", "agents.get_messages"],
-    "matrix": { "room": "!cJxcDspkqBHcoALJCy:matrix.q4m.dev" },
-    "inbox":  { "session": "lxc-prod-1-inbox" }
+    "matrix": { "room": "!example:matrix.example.com" },
+    "inbox":  { "session": "gateway-1-inbox" }
   },
   "signed_at": "2026-05-22T18:30:00Z",
   "signer": "fleet-root",
@@ -118,7 +109,7 @@ Each per-peer file at `record_path` is a JSON document of shape
 
 | Field                  | Type                                | Notes                                                                                          |
 | ---------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `entity`               | non-empty string                    | Stable peer identifier (typically `<hostname>` or `<hostname>-<role>`). MUST match manifest.   |
+| `entity`               | non-empty string                    | Stable peer identifier (typically `<hostname>` or `<hostname>-<role>`). Must match manifest.   |
 | `pubkey`               | base64-encoded **raw 32-byte** ed25519 public key | NOT SPKI PEM. Generated alongside the peer's ed25519 private key at provisioning time.        |
 | `capabilities.scopes`  | `string[]`                          | Scope strings the peer is permitted to request from the mint endpoint. Subset-enforced; see [Scope-subset enforcement](#scope-subset-enforcement). |
 | `capabilities.matrix.room`   | optional string             | Matrix room ID this peer is permitted to route messages into.                                  |
@@ -220,8 +211,8 @@ take down the federation surface until the gateway restarts.
 - **Rotate the trust root**: replace `trust-root.pub` with the new
   pubkey, re-sign every peer record under the new fleet key, then
   restart the gateway. There is no zero-downtime rotation path in
-  v1; this is a security-mode procedure documented in the
-  [Operator guide](#operator-guide).
+  v1; this is a security-mode procedure documented under
+  [Operator guidance](#operator-guidance).
 
 ## Challenge mint flow
 
@@ -246,8 +237,8 @@ The flow:
 4. The gateway looks up the peer's pubkey + capabilities from the
    trust manifest, verifies the sig, redeems the challenge
    (single-use), enforces `requested_scopes ⊆ entity.capabilities.scopes`,
-   then mints an HS256 JWT (same signing path as the AJS-56/57 admin
-   mint) and returns `{ token, expires_at, cid }`.
+   then mints an HS256 JWT (same signing path as the admin mint) and
+   returns `{ token, expires_at, cid }`.
 
 The redeem-request signing byte recipe mirrors the peer-record recipe:
 
@@ -275,8 +266,8 @@ mode so operators can diagnose without reading server logs:
 **no silent downgrade**. If the peer requests a scope it is not
 permitted to hold, the entire redeem fails — the JWT is not minted
 and the offending scope set is returned to the caller. This matches
-the AJS-56/57 admin mint behavior and prevents the "asked for too
-much, got reduced silently, didn't notice" failure shape.
+the admin mint behavior and prevents the "asked for too much, got
+reduced silently, didn't notice" failure shape.
 
 ### Replay detection
 
@@ -335,158 +326,65 @@ Explicitly deferred to v1.1 or later:
   v1.1+ will define how two fleet roots cross-sign or how a peer can
   be declared trustworthy by multiple fleets.
 
-## Operator guide
+## Operator guidance
 
-This section covers the prod-side procedure for deploying the AJS-55
-federation surface against our reference infrastructure
-(`agents-gateway` on Proxmox LXC 189). The contract surface above is
-host-agnostic; this section is the LXC189-specific operator material
-— host paths, ansible role variables, gopass conventions, and the
-runbooks for peer onboarding + rotation.
+The contract above is deployment-agnostic. What an operator needs to
+provide is:
 
-### Deployment topology
+- A path to a JSON trust manifest matching the
+  [Manifest schema](#manifest-schema), exposed via
+  `AGENTS_MCP_TRUST_MANIFEST_PATH`. The directory must be readable
+  by the gateway runtime user.
+- A path to the fleet root's ed25519 public key in PEM form, exposed
+  via `AGENTS_MCP_TRUST_ROOT_PATH`. The fleet root private key
+  **never** sits on the gateway host — signing happens off-host
+  (operator workstation or ceremony machine). Only the public key +
+  signed records flow into the gateway.
+- One signed peer record file per peer, at the `record_path`
+  referenced by each manifest entry. Records are non-secret (they
+  contain only public keys + capability declarations) and can flow
+  through normal config-management surfaces.
 
-The reference gateway runs as a systemd service inside a Proxmox LXC
-container, deployed via an `agents_gateway` ansible role in the
-fleet's infra repo.
+### Adding a peer
 
-| Surface             | Value                                                  |
-| ------------------- | ------------------------------------------------------ |
-| Proxmox node        | `princess` (`10.0.0.2`)                                |
-| Container ID        | LXC 189                                                |
-| Hostname            | `agents-gateway`                                       |
-| DNS                 | `agents-gateway.q4m.dev`                               |
-| LXC IP              | `10.0.1.192`                                           |
-| Systemd unit        | `agents-js-gateway.service`                            |
-| Runtime user        | `agents:agents` (unprivileged)                         |
-| Working directory   | `/opt/agents-js`                                       |
-| Env file            | `/etc/agents-js-gateway.env` (root-owned, mode `0600`) |
-| Listening port      | `9321` (`0.0.0.0` inside LXC)                          |
-| Ansible role        | `ansible/roles/agents_gateway/` (fleet infra repo)     |
+1. The peer generates an ed25519 keypair and shares the public key +
+   their `entity` name with the fleet operator.
+2. The operator constructs the unsigned peer record JSON
+   ([Signed peer record](#signed-peer-record)) and signs it via
+   JCS canonicalization + ed25519 against the fleet root private
+   key (per [Signing byte recipe](#signing-byte-recipe)).
+3. The signed record is written to the manifest's `record_path` for
+   that peer, and a `{entity, record_path}` entry is appended to the
+   manifest JSON.
+4. The gateway's trust-manifest watcher picks up the change within
+   the debounce window — no restart. The new peer can immediately
+   mint challenges.
 
-### Host-side file conventions
+### Rotation
 
-The trust material referenced by `AGENTS_MCP_TRUST_MANIFEST_PATH` and
-`AGENTS_MCP_TRUST_ROOT_PATH` lives under
-`/var/lib/agents-js-gateway/` on the LXC, provisioned by the ansible
-role:
+- **Peer re-key**: replace the peer's signed record file with one
+  containing the new pubkey + a fresh fleet-root signature. The
+  watcher reloads; no restart.
+- **Fleet trust root rotation**: replace `trust-root.pub` with the
+  new pubkey, re-sign every peer record under the new fleet key,
+  then restart the gateway. There is no zero-downtime rotation in
+  v1.
 
-| Material                     | Host path                                                 | Ownership        | Mode   |
-| ---------------------------- | --------------------------------------------------------- | ---------------- | ------ |
-| Trust root public key        | `/var/lib/agents-js-gateway/trust-root.pub`               | `agents:agents`  | `0644` |
-| Trust manifest JSON          | `/var/lib/agents-js-gateway/trust-manifest.json`          | `agents:agents`  | `0644` |
-| Peer records directory       | `/var/lib/agents-js-gateway/peer-records/`                | `agents:agents`  | `0750` |
-| Signed peer record (per peer)| `/var/lib/agents-js-gateway/peer-records/<peer>.json`     | `agents:agents`  | `0644` |
+### Smoke procedure
 
-The fleet root private key is **never** present on the gateway host —
-signing happens off-host (operator workstation or ceremony machine).
-Only the public key + signed records flow into the gateway.
+After enabling the env vars + provisioning trust material:
 
-### Gopass + ansible variable conventions
-
-Source-of-truth for trust material lives in gopass (for the public
-key) and as ansible variables (for the public signed peer records,
-which contain no secret material).
-
-| Material                           | Source                                                                                                   |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Trust root public key              | gopass: `services/agents-js/gateway/<hostname>/trust-root.pub`                                            |
-| Per-peer signed records            | ansible role var: `agents_gateway_agents_mcp_peer_records["<peer-name>"]` (canonical signed JSON string) |
-| Federation toggle                  | ansible role var: `agents_gateway_agents_mcp_federation_enabled` (`true` to render the four AJS-55 vars) |
-| Challenge rate limit override      | ansible role var: `agents_gateway_agents_mcp_challenge_rate_limit` (default `30`)                        |
-| Admin-mint disable                 | ansible role var: `agents_gateway_agents_mcp_disable_admin_mint` (default `false`)                       |
-
-The `<hostname>` segment follows the existing JWT-signing-key
-convention (`services/agents-js/gateway/<hostname>/jwt-signing-key`)
-so all per-gateway material is grouped under one gopass tree per
-deployment.
-
-### Peer onboarding runbook
-
-Adding a new peer to the trust manifest:
-
-1. **Peer**: generate an ed25519 keypair; share the public key + the
-   entity name (matches `entity` in the signed peer record) with the
-   fleet operator.
-2. **Operator**: construct the unsigned peer record JSON (see
-   [Manifest schema](#manifest-schema)) and sign it via JCS
-   canonicalization + ed25519 against the fleet root private key.
-3. **Operator**: commit the signed record JSON as an ansible role
-   variable under `agents_gateway_agents_mcp_peer_records["<peer>"]`
-   in the inventory (`group_vars` or `host_vars` for the gateway).
-4. **Operator**: run the playbook with the `peer-records` tag:
-   ```bash
-   ansible-playbook -i inventory/<fleet>.yml \
-     playbooks/agents-gateway.yml --tags peer-records
-   ```
-   The role writes the JSON file to
-   `/var/lib/agents-js-gateway/peer-records/<peer>.json` and appends
-   the manifest entry. The gateway's trust-manifest watcher picks up
-   the change within the debounce window (see
-   [Hot-reload semantics](#hot-reload-semantics)).
-5. **Verify**: the new peer can immediately mint challenges. Failure
-   modes (manifest stale, record sig invalid, scope subset violation)
-   are surfaced as wire-visible reasons documented in the contract
-   section above.
-
-### Rotation runbook
-
-**Peer key re-key** maps onto the contract's "Re-key a peer" case:
-update the ansible variable with the new signed record, re-run the
-playbook with `--tags peer-records`. No restart.
-
-**Fleet trust root rotation** is the security-mode procedure flagged
-in the contract section. Steps:
-
-1. Generate new fleet root keypair off-host.
-2. Re-sign **every** peer record under the new fleet key. Old records
-   become invalid in one cutover.
-3. Update gopass: `gopass insert services/agents-js/gateway/<hostname>/trust-root.pub`
-   with the new public key bytes.
-4. Update each `agents_gateway_agents_mcp_peer_records["<peer>"]`
-   ansible variable with the newly-signed record JSON.
-5. Run the playbook with both `trust-root` and `peer-records` tags.
-   The role restages all material atomically and triggers a service
-   restart (zero-downtime rotation is not supported in v1).
-6. Distribute the new fleet pubkey to any peers that verify gateway
-   announcements out-of-band.
-
-### Production deployment status
-
-::: warning AJS-55 not yet deployed
-As of this doc's publish date, the reference `agents-gateway` is
-running at an HEAD that predates the AJS-55 merge; the four AJS-55
-env vars are not yet rendered into the prod env file, so mint
-endpoints return `503 substrate-not-configured` per the contract
-above. Activation requires a code redeploy + ansible role extension
-+ trust material provisioning — rollout sequencing is tracked
-out-of-band in the fleet's deployment audit doc. This section will
-be updated when the surface is live.
-:::
-
-### Smoke acceptance procedure
-
-Post-deployment, the operator verifies the federation surface is
-operative by:
-
-1. **Env vars rendered**: `sudo grep AGENTS_MCP_TRUST /etc/agents-js-gateway.env`
-   shows both `_PATH` vars pointing at the expected locations.
-2. **Files present**: `ls -la /var/lib/agents-js-gateway/{trust-root.pub,trust-manifest.json,peer-records/}`
-   matches the [Host-side file conventions](#host-side-file-conventions)
-   table.
-3. **Service healthy**: `systemctl is-active agents-js-gateway.service`
-   reports `active`; `journalctl -u agents-js-gateway.service --since '5 min ago'`
-   contains no `trust-manifest-load` errors.
-4. **503 no longer returned**: `curl -X POST -H 'content-type: application/json' \
-   -d '{"entity":"<known-peer>"}' http://10.0.1.192:9321/api/agents/mint/challenge`
-   returns `200` with a challenge nonce (not `503 substrate-not-configured`).
-5. **Hot-reload works**: drop a fresh peer record into the directory,
-   wait the debounce window, repeat step 4 with the new entity name —
-   should return `200`. No service restart between steps.
+1. The gateway should boot cleanly with no `trust-manifest-load`
+   errors in its logs.
+2. `POST /api/agents/mint/challenge` should return `200` with a
+   challenge nonce (not `503 substrate-not-configured`).
+3. Drop a fresh peer record into the manifest directory, wait the
+   debounce window, repeat step 2 with the new entity name — should
+   return `200`. No service restart between steps.
 
 A failure at any step is a deploy regression; consult the contract
-section's failure-reason table to map the wire-visible reason back to
-a substrate state.
+section's failure-reason table to map the wire-visible reason back
+to a substrate state.
 
 ## Source-of-truth references
 
@@ -521,8 +419,5 @@ Related contracts:
 
 - [Remote gateway federation — v1 contract](./v1-contract.md) — how
   parent gateways advertise + dispatch to remote-backed harnesses.
-  AJS-55 is the trust layer underneath this surface for federated
-  hosts that need to issue scoped JWTs to each other.
-- AJS-56/57 hosted-MCP tool surface + runtime session protocol —
-  same HS256 JWT signing path the mint endpoints reuse once a
-  challenge has been redeemed.
+  This document covers the trust layer underneath that surface for
+  federated hosts that need to issue scoped JWTs to each other.

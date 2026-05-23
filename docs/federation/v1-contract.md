@@ -193,7 +193,7 @@ in isolation:
   contract assumes a trusted network or pre-existing transport-level
   auth between parent and child. See
   [Federation peer-record signing & trust manifest](./peer-record-signing-and-trust-manifest.md)
-  for the AJS-55 substrate that two federated gateways use to issue
+  for the substrate two federated gateways can use to issue
   short-lived scoped JWTs to each other without sharing a long-lived
   admin token.
 - Federated bus replay — the parent re-broadcast is best-effort and
