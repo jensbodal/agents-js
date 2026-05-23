@@ -2,7 +2,7 @@
 
 > The `agents-js` executable: serve, bridge, and proxy ACP runtimes; talk to A2A agents; expose registered agents as MCP tools.
 
-`agents-js` is a CLI for running and interacting with ACP-compatible coding agents (claude, codex, opencode, ...) over the A2A protocol. It bundles seven subcommands covering the full lifecycle: spinning up a gateway, proxying stdio, sending one-shot prompts, exposing agents as MCP tools, and managing the shared agent registry.
+`agents-js` is a CLI for running and interacting with ACP-compatible coding agents (claude, codex, opencode, ...) over the A2A protocol. It bundles subcommands covering the full lifecycle: spinning up a gateway, proxying stdio, sending one-shot prompts, exposing agents as MCP tools, managing the shared agent registry, and printing an installable agent skill.
 
 ## Install
 
@@ -249,6 +249,21 @@ agents-js registry remove planner
 ```
 
 **stdout/stderr:** confirmations and listings go to stdout; usage errors go to stderr. Invisible characters in `<name>` are stripped; the normalized name is used and a warning is printed.
+
+---
+
+### `agents-js skill`
+
+Print the installable `agents-js` skill document to stdout so an AI coding agent can install durable command guidance into its skill directory.
+
+**Examples:**
+
+```sh
+agents-js skill > ~/.codex/skills/agents-js/SKILL.md
+agents-js skill > .agents/skills/agents-js/SKILL.md
+```
+
+**stdout/stderr:** the `SKILL.md` content goes to stdout; usage errors go to stderr.
 
 ---
 
