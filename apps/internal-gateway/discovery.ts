@@ -1,3 +1,5 @@
+import { buildAgentCardBaseUrl } from "@agents-js/a2a";
+
 export const gatewayDiscoveryHost = "127.0.0.1";
 
 export interface GatewayDiscovery {
@@ -53,6 +55,44 @@ export function resolveGatewayPort(options: {
   }
 
   return 0;
+}
+
+export function normalizeGatewayPublicUrl(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`[Gateway] Invalid ${label}: expected a non-empty URL.`);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(`[Gateway] Invalid ${label} "${value}". Expected a valid URL.`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`[Gateway] Invalid ${label} "${value}". Expected an http:// or https:// URL.`);
+  }
+
+  if (parsed.search || parsed.hash) {
+    throw new Error(
+      `[Gateway] Invalid ${label} "${value}". Query strings and fragments are not supported.`,
+    );
+  }
+
+  return parsed.toString();
+}
+
+export function resolveGatewayPublicUrl(options: {
+  hostname?: string;
+  port: number;
+  publicUrl?: string;
+}): string {
+  if (options.publicUrl !== undefined) {
+    return normalizeGatewayPublicUrl(options.publicUrl, "publicUrl");
+  }
+
+  return buildAgentCardBaseUrl(options.port, options.hostname);
 }
 
 export function buildGatewayDiscovery(
