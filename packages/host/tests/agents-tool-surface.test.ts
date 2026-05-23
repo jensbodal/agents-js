@@ -102,13 +102,15 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *
    * Maps to cognee-codex review criterion #1.
    */
-  test("send_message with valid identity/scope/target → ok with delivery=matrix + event_id", async () => {
+  test("send_message with valid identity/scope/target → ok with event_id (matrix-only target back-compat)", async () => {
     const matrix = makeRecordingMatrixTool();
     const dispatcher = makeDispatcher({ matrixTool: matrix });
     const result = await dispatcher.sendMessage({ target: "ajs-claude", body: "hi" }, identity());
     expect(result.ok).toBe(true);
-    if (!result.ok || result.delivery !== "matrix") throw new Error("expected matrix delivery");
+    if (!result.ok) throw new Error("expected ok=true");
     expect(result.event_id).toBe("$evt-1");
+    // Matrix-only target has no inbox.session, so no inbox_message_id:
+    expect(result.inbox_message_id).toBeUndefined();
     expect(matrix.calls).toHaveLength(1);
     expect(matrix.calls[0]?.room).toBe("!ajs:matrix.example");
     expect(matrix.calls[0]?.body).toBe("hi");
@@ -337,15 +339,15 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
   /**
    * WHAT: A target whose directory entry has `inbox.session` (but no
    *       `matrix` route) is delivered through `AgentInboxTool.deliver`
-   *       when the caller has `inbox.deliver` scope. The success
-   *       response discriminates as `delivery: "inbox"` with
-   *       `message_id` + `created_at`, not `event_id`.
+   *       when the caller has `inbox.deliver` scope. Response carries
+   *       `inbox_message_id` + `inbox_created_at`; no `event_id` (no
+   *       matrix.room configured for this target).
    * WHY: Closes the gap PR #48 left as `unknown-target` for inbox-only
-   *      agents. The discriminated success shape lets callers (and
-   *      audit-log consumers) tell which substrate delivered the
-   *      message without parsing free-text fields.
+   *      agents. AJS-65 flat-fields shape replaces the prior `delivery`
+   *      discriminator; consumers narrow on which optional field is
+   *      present rather than a tag.
    */
-  test("inbox-only target → AgentInboxTool.deliver invoked, returns delivery=inbox + message_id", async () => {
+  test("inbox-only target → AgentInboxTool.deliver invoked, returns inbox_message_id (no event_id)", async () => {
     const inboxCalls: Array<{ toSession: string; body: string; identity: AuthenticatedIdentity }> =
       [];
     const dispatcher = makeDispatcher({
@@ -365,9 +367,10 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       identity({ scopes: ["inbox.deliver", "inbox.read"] }),
     );
     expect(result.ok).toBe(true);
-    if (!result.ok || result.delivery !== "inbox") throw new Error("expected inbox delivery");
-    expect(result.message_id).toBe("msg-abc-001");
-    expect(result.created_at).toBe("2026-05-22T02:00:00Z");
+    if (!result.ok) throw new Error("expected ok=true");
+    expect(result.inbox_message_id).toBe("msg-abc-001");
+    expect(result.inbox_created_at).toBe("2026-05-22T02:00:00Z");
+    expect(result.event_id).toBeUndefined(); // no matrix.room for this target
     expect(inboxCalls).toHaveLength(1);
     expect(inboxCalls[0]?.toSession).toBe("ajs-claude");
     expect(inboxCalls[0]?.body).toBe("hi inbox");
@@ -377,17 +380,23 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
   /**
    * WHAT: A target with BOTH `matrix` and `inbox` routes, when the
    *       caller has both `matrix.send_message` and `inbox.deliver`
-   *       scopes, is delivered through MATRIX. The inbox provider is
-   *       NOT called.
-   * WHY: Router precedence is pinned at "matrix > inbox" because
-   *      Matrix is synchronous (the recipient gets a real-time ping)
-   *      and inbox is async-persistent (poll-based). When both are
-   *      possible, the live ping is preferred. Reversing this would
-   *      regress UX even though the code "still works."
+   *       scopes, has BOTH paths invoked. The response carries both
+   *       `inbox_message_id` (durable storage) and `event_id` (matrix
+   *       notification). No discriminator field — both fields are
+   *       optional and either may be present.
+   * WHY: AJS-65 route-model correction (Jens via codex-hostname-null
+   *      2026-05-23T05:47 UTC, event $LaPSo1WDFUGT4xccWpsdrM130shpI8-hwExtQDi_J_I).
+   *      Inbox is the durable delivery substrate; matrix is the
+   *      notification + return-route overlay. Replaces the previous
+   *      "matrix > inbox exclusive" precedence — that was a layering
+   *      bug where matrix-wins suppressed durable storage. Reversing
+   *      it back would re-introduce the failure mode that motivated
+   *      AJS-65 (codex-hostname-null couldn't receive inbox-readable
+   *      messages because matrix-wins skipped the inbox write).
    */
-  test("target with both matrix + inbox, both scopes granted → Matrix wins; inbox NOT called", async () => {
+  test("target with both matrix + inbox, both scopes granted → BOTH called; matrix body is pointer-only (AJS-65 P2)", async () => {
     const matrix = makeRecordingMatrixTool();
-    const inboxDelivered: unknown[] = [];
+    const inboxCalls: unknown[] = [];
     const dispatcher = makeDispatcher({
       matrixTool: matrix,
       targetDirectory: makeTargetDirectory({
@@ -395,7 +404,61 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       }),
       agentInboxTool: {
         async deliver(args) {
-          inboxDelivered.push(args);
+          inboxCalls.push(args);
+          return { message_id: "inbox-msg-001", created_at: "2026-05-23T07:30:00Z" };
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "full original body content" },
+      identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok=true");
+    // Inbox-write succeeded — full body lands in the durable substrate:
+    expect(result.inbox_message_id).toBe("inbox-msg-001");
+    expect(result.inbox_created_at).toBe("2026-05-23T07:30:00Z");
+    expect(inboxCalls).toHaveLength(1);
+    expect((inboxCalls[0] as { body: string }).body).toBe("full original body content");
+    // Matrix-notify also succeeded:
+    expect(result.event_id).toBe("$evt-1");
+    expect(matrix.calls).toHaveLength(1);
+    // P2 body-shape rule: matrix carries POINTER ONLY for dual-route.
+    // Inbox is single source of truth; matrix is the wake signal.
+    expect(matrix.calls[0]?.body).toBe("see inbox: inbox-msg-001");
+    expect(matrix.calls[0]?.body).not.toBe("full original body content");
+    // No matrix_notification_error since notification succeeded:
+    expect(result.matrix_notification_error).toBeUndefined();
+  });
+
+  /**
+   * WHAT: A target with BOTH matrix + inbox routes, when the caller has
+   *       ONLY `matrix.send_message` scope (no inbox.deliver), returns
+   *       `{ok:false, error:"scope-not-granted"}` naming inbox.deliver.
+   *       Matrix is NOT called.
+   * WHY: AJS-65 P1 contract blocker fix (malar-codex-app review on
+   *       commit 6f21372a, event $61b0WXySzK4MONwCeSos2qVUJTDzxMbUjQ_IRf1_SqQ).
+   *       Route presence determines required scope, not whichever scope
+   *       the caller happens to carry. The earlier impl let matrix-only-
+   *       scope callers bypass the inbox write entirely for dual-route
+   *       targets — that was exactly the notification-without-storage
+   *       failure mode AJS-65 is supposed to fix. Reversing it would
+   *       re-introduce the bug that motivated the entire ticket.
+   */
+  test("AJS-65 P1: dual-route target + only matrix.send_message scope → scope-not-granted; matrix NOT called", async () => {
+    const matrix = makeRecordingMatrixTool();
+    const inboxCalls: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      matrixTool: matrix,
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      }),
+      agentInboxTool: {
+        async deliver(args) {
+          inboxCalls.push(args);
           return { message_id: "should-not-be-used", created_at: "" };
         },
         async read() {
@@ -404,26 +467,32 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       },
     });
     const result = await dispatcher.sendMessage(
-      { target: "ajs-claude", body: "hi" },
-      identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
+      { target: "ajs-claude", body: "matrix-only scope but target has inbox route" },
+      identity({ scopes: ["matrix.send_message"] }),
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok || result.delivery !== "matrix") throw new Error("expected matrix delivery");
-    expect(matrix.calls).toHaveLength(1);
-    expect(inboxDelivered).toHaveLength(0);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected ok=false (P1: no bypass via missing inbox scope)");
+    expect(result.error).toBe("scope-not-granted");
+    expect(result.message).toContain("inbox.deliver");
+    // CRITICAL: matrix MUST NOT have been called. The whole point of
+    // AJS-65 is that matrix-only-scope must NOT bypass durable storage.
+    expect(matrix.calls).toHaveLength(0);
+    expect(inboxCalls).toHaveLength(0);
   });
 
   /**
    * WHAT: A target with BOTH matrix + inbox routes, when the caller
-   *       has ONLY `inbox.deliver` scope (no matrix scope), is
-   *       delivered through INBOX. Matrix is NOT called.
-   * WHY: Pins the fall-through behavior. The caller authorized inbox
-   *      delivery; the target is reachable that way; the dispatcher
-   *      MUST honor the available path rather than reject with
-   *      "missing matrix scope" — that would surface a confusing
-   *      contract (the call worked! ... no it didn't).
+   *       has ONLY `inbox.deliver` scope (no matrix.send_message), is
+   *       delivered through INBOX ONLY. Matrix notification is NOT
+   *       fired because the caller lacks the matrix scope. Response
+   *       carries inbox_message_id only (no event_id).
+   * WHY: Per AJS-65 model, matrix.send_message is now an opt-in scope
+   *      for the notification overlay. Without it, the durable inbox
+   *      write still happens; only the matrix notification is
+   *      suppressed. This is the right shape because inbox is the
+   *      contract (durable substrate); matrix is best-effort overlay.
    */
-  test("dual-route target + only inbox.deliver scope → inbox path used", async () => {
+  test("dual-route target + only inbox.deliver scope → inbox written, matrix NOT notified", async () => {
     const matrix = makeRecordingMatrixTool();
     const inboxCalls: unknown[] = [];
     const dispatcher = makeDispatcher({
@@ -446,9 +515,95 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       identity({ scopes: ["inbox.deliver"] }),
     );
     expect(result.ok).toBe(true);
-    if (!result.ok || result.delivery !== "inbox") throw new Error("expected inbox delivery");
-    expect(matrix.calls).toHaveLength(0);
+    if (!result.ok) throw new Error("expected ok=true");
+    expect(result.inbox_message_id).toBe("msg-x");
     expect(inboxCalls).toHaveLength(1);
+    expect(result.event_id).toBeUndefined();
+    expect(matrix.calls).toHaveLength(0);
+  });
+
+  /**
+   * WHAT: A target with BOTH matrix + inbox routes, when the caller
+   *       has BOTH scopes, but the matrix notification THROWS, returns
+   *       a degraded success: `{ok:true, inbox_message_id, inbox_created_at,
+   *       matrix_notification_error: "..."}`. HTTP 200, NOT 500.
+   * WHY: AJS-65 failure semantics. Inbox is the durable contract; matrix
+   *      is best-effort overlay. If inbox succeeds (the durable write
+   *      took), the call is fundamentally successful — the recipient
+   *      can read the message via agents.get_messages. Matrix's failure
+   *      to fire the notification is surfaced as degraded info, not as
+   *      a hard call failure.
+   */
+  test("matrix notify FAILS but inbox write succeeds → ok:true with matrix_notification_error (degraded)", async () => {
+    const inboxCalls: unknown[] = [];
+    const dispatcher = makeDispatcher({
+      matrixTool: {
+        async send() {
+          throw new Error("matrix homeserver unreachable");
+        },
+      },
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      }),
+      agentInboxTool: {
+        async deliver(args) {
+          inboxCalls.push(args);
+          return { message_id: "msg-degraded", created_at: "2026-05-23T07:35:00Z" };
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok=true (degraded success)");
+    expect(result.inbox_message_id).toBe("msg-degraded");
+    expect(result.event_id).toBeUndefined();
+    expect(result.matrix_notification_error).toContain("matrix homeserver unreachable");
+    expect(inboxCalls).toHaveLength(1);
+  });
+
+  /**
+   * WHAT: A target with BOTH matrix + inbox routes, when the caller has
+   *       BOTH scopes, but the inbox WRITE throws, returns hard failure:
+   *       `{ok:false, error:"inbox-write-failed", ...}`. Matrix
+   *       notification MUST NOT be attempted because the durable write
+   *       didn't take — notifying about a non-existent message would
+   *       lie to the recipient.
+   * WHY: AJS-65 failure semantics + AC#6 ordering: inbox-first, matrix-
+   *      second, with hard-fail on inbox. The durable substrate is the
+   *      contract; without storage, notification is meaningless.
+   */
+  test("inbox write FAILS → ok:false with inbox-write-failed; matrix NOT called", async () => {
+    const matrix = makeRecordingMatrixTool();
+    const dispatcher = makeDispatcher({
+      matrixTool: matrix,
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      }),
+      agentInboxTool: {
+        async deliver() {
+          throw new Error("sqlite locked");
+        },
+        async read() {
+          return [];
+        },
+      },
+    });
+    const result = await dispatcher.sendMessage(
+      { target: "ajs-claude", body: "hi" },
+      identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected ok=false");
+    expect(result.error).toBe("inbox-write-failed");
+    expect(result.message).toContain("sqlite locked");
+    // CRITICAL: matrix MUST NOT have been called — durable failed, no notification.
+    expect(matrix.calls).toHaveLength(0);
   });
 
   /**
@@ -492,7 +647,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *      always returns a structured response; a thrown subprocess
    *      error must NOT leak as a 500.
    */
-  test("AgentInboxTool.deliver throws → send-failed wrapped error", async () => {
+  test("AgentInboxTool.deliver throws → inbox-write-failed wrapped error (AJS-65)", async () => {
     const dispatcher = makeDispatcher({
       targetDirectory: makeTargetDirectory({ "ajs-claude": { inbox: { session: "ajs-claude" } } }),
       agentInboxTool: {
@@ -510,7 +665,10 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
     );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toBe("send-failed");
+    // AJS-65: inbox failures get the specific 'inbox-write-failed' reason
+    // (was 'send-failed' in the matrix-or-inbox-exclusive era). Distinct
+    // reason surfaces inbox-substrate problems vs other send failures.
+    expect(result.error).toBe("inbox-write-failed");
     expect(result.message).toContain("agent-msg subprocess crashed");
   });
 

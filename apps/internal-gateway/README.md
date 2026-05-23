@@ -159,8 +159,14 @@ V1 behavior:
 - Identity is server-resolved from the JWT `sub` claim. Caller
   attempts to inject `as_agent` / `sender` / `from` in the request
   body are silently ignored.
-- Per-tool scope ACL: `matrix.send_message` required for the Matrix
-  delivery path. Missing scope → 403 (not 401 — auth ok, not permitted).
+- Per-tool scope ACL: route presence in the target's `AGENTS_MCP_TARGETS_JSON`
+  entry determines required scope, NOT whichever scope the caller carries.
+  If the entry has an `inbox.session` route, `inbox.deliver` is MANDATORY
+  (inbox is the durable substrate per AJS-65; a caller cannot bypass
+  inbox-write by lacking the inbox scope). `matrix.send_message` is
+  additionally required if the entry has `matrix.room` AND the caller
+  wants the matrix notification overlay to fire. Missing scope → 403
+  (not 401 — auth ok, not permitted).
 - Target directory is in-memory (v1 stub for the AJS-55 trust manifest;
   populated from `AGENTS_MCP_TARGETS_JSON`). Unknown target → 404
   with structured `{error, target, correlation_id}`.
@@ -186,11 +192,14 @@ Environment contract:
 Dogfood quickstart:
 
 ```sh
-# 1. Mint a JWT (admin-gated):
+# 1. Mint a JWT (admin-gated). Per AJS-65 inbox-durable contract, the
+#    primary required scope for any send_message call to an inbox-
+#    enabled target is `inbox.deliver`. Add `matrix.send_message` if you
+#    also want the matrix notification overlay to fire (dual-route case).
 curl -X POST http://gateway:9321/api/agents/admin/mint \
   -H "Authorization: Admin $AGENTS_MCP_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sub":"codex-hostname-null","scopes":["matrix.send_message"],"cid":"smoke-001"}'
+  -d '{"sub":"codex-hostname-null","scopes":["inbox.deliver","matrix.send_message","inbox.read"],"cid":"smoke-001"}'
 # → { "jwt": "...", "expires_in": 900, ... }
 
 # 2. Call the tool with the JWT:
@@ -198,7 +207,24 @@ curl -X POST http://gateway:9321/api/agents/send_message \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{"target":"ajs-claude","body":"hello from codex"}'
-# → { "ok": true, "event_id": "$..." }
+# → For a dual-route target (matrix + inbox configured):
+#   {
+#     "ok": true,
+#     "inbox_message_id": "019e...",          // durable storage id
+#     "inbox_created_at": "2026-05-23T...",   // present iff inbox_message_id present
+#     "event_id": "$..."                       // matrix notification id (pointer-only body)
+#   }
+# → For a matrix-only target (legacy back-compat):
+#   { "ok": true, "event_id": "$..." }
+# → For an inbox-only target:
+#   { "ok": true, "inbox_message_id": "...", "inbox_created_at": "..." }
+#
+# Failure shapes:
+# → 403 scope-not-granted: `{"ok":false,"error":"scope-not-granted","message":"..."}`
+# → 500 inbox-write-failed: `{"ok":false,"error":"inbox-write-failed","message":"..."}`
+#   (matrix NOT attempted — durable storage failed)
+# → 200 degraded success (matrix notification failed but inbox written):
+#   {"ok":true,"inbox_message_id":"...","matrix_notification_error":"..."}
 ```
 
 ### Substrate prerequisites stubbed in v1
@@ -214,6 +240,12 @@ Per AJS-56 design `docs/research/agents-js-hosted-mcp-tool-provider-design-2026-
 - **AJS-54 host bootstrap** — env distribution + `services/agents-js/identity/<agent>/key` provisioning is the deployment role's responsibility (not this code).
 - **AJS-58 AgentInboxProvider** — directory entries with `.inbox.session`
   route through a subprocess wrapper around the `agent-msg` CLI when
-  `AGENTS_MCP_AGENT_MSG_BIN` is set. Router precedence: matrix > inbox.
-  `agents.get_messages` reads the identity's OWN inbox session only;
-  cross-agent read requires a future `inbox.read_all` scope.
+  `AGENTS_MCP_AGENT_MSG_BIN` is set. Per AJS-65 (replacing the prior
+  matrix > inbox exclusive precedence): inbox is the durable delivery
+  substrate; matrix is the notification overlay. For a dual-route entry
+  (both inbox.session + matrix.room), `agents.send_message` writes the
+  full body to the inbox FIRST then fires a pointer-only matrix
+  notification (`see inbox: ${inbox_message_id}`). Matrix-only entries
+  (legacy back-compat, no inbox.session) keep the full-body matrix-send
+  semantics. `agents.get_messages` reads the identity's OWN inbox
+  session only; cross-agent read requires a future `inbox.read_all` scope.

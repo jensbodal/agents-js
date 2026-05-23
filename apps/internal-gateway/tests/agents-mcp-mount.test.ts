@@ -436,17 +436,16 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
 
   /**
    * WHAT: Valid JWT + `inbox.deliver` scope + target with `inbox`
-   *       routing → 200, `{ok: true, delivery: "inbox", message_id}`,
+   *       routing → 200, `{ok: true, inbox_message_id, inbox_created_at}`,
    *       and the recording inbox tool sees the JWT's `sub` as the
    *       `from` identity.
    * WHY: Pins the inbox-side mirror of cognee-codex's criterion #1
    *      (vertical path) and #4 (server-resolved identity at the
-   *      provider boundary) for the AJS-58 substrate. The integration-
-   *      level test guards against drift between the dispatcher's
-   *      server-resolution contract and the HTTP layer's identity
-   *      threading.
+   *      provider boundary) for the AJS-58 substrate. AJS-65 flat-fields
+   *      shape replaces the prior `delivery: "inbox"` discriminator;
+   *      consumers narrow on `inbox_message_id` presence instead.
    */
-  test("send_message → inbox-only target with inbox.deliver scope → 200 delivery=inbox", async () => {
+  test("send_message → inbox-only target with inbox.deliver scope → 200 with inbox_message_id (AJS-65)", async () => {
     const inbox = makeRecordingInboxTool();
     const wireup = setupAgentsMcpMount({
       overrides: {
@@ -467,10 +466,15 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       }),
     );
     expect(res?.status).toBe(200);
-    const json = (await res?.json()) as { ok: boolean; delivery: string; message_id: string };
+    const json = (await res?.json()) as {
+      ok: boolean;
+      inbox_message_id?: string;
+      event_id?: string;
+    };
     expect(json.ok).toBe(true);
-    expect(json.delivery).toBe("inbox");
-    expect(json.message_id).toBe("msg-1");
+    expect(json.inbox_message_id).toBe("msg-1");
+    // No matrix.room configured for this inbox-only target → no event_id:
+    expect(json.event_id).toBeUndefined();
     expect(inbox.delivers).toHaveLength(1);
     expect(inbox.delivers[0]?.toSession).toBe("ajs-claude");
     expect(inbox.delivers[0]?.identity.agentName).toBe("codex-hostname-null");

@@ -7,14 +7,22 @@
  *
  *  - Identity is server-resolved from a verified JWT (passed in by
  *    the MCP transport layer; never read from tool args).
- *  - Scope ACL enforced at dispatch time. Matrix path needs
- *    `matrix.send_message`; inbox-deliver path needs `inbox.deliver`;
- *    inbox-read path needs `inbox.read`.
+ *  - Scope ACL enforced at dispatch time. Route presence in the
+ *    target's directory entry determines the required scope, NOT
+ *    whichever scope the caller happens to carry. If `entry.inbox`
+ *    exists, `inbox.deliver` is MANDATORY. If `entry.matrix` exists
+ *    AND caller has `matrix.send_message`, matrix-notify also fires.
+ *    `inbox.read` is required for `agents.get_messages`.
  *  - Target routing resolved via {@link TargetDirectory} (v1 stub for
  *    the AJS-55 trust manifest).
- *  - Router precedence: matrix > inbox > unknown. Matrix is preferred
- *    when both routes exist because it delivers synchronously
- *    (notification) vs the asynchronous mailbox semantics of inbox.
+ *  - **Route model** (AJS-65 — replaces the prior matrix > inbox
+ *    exclusive precedence): inbox is the durable delivery substrate;
+ *    matrix is the notification overlay. For a dual-route entry, the
+ *    dispatcher writes inbox FIRST (hard-fails with `inbox-write-failed`
+ *    if it throws — matrix is NOT attempted; notification without
+ *    storage would lie), then fires matrix-notify with a pointer-only
+ *    body (`"see inbox: ${inbox_message_id}"`). For a matrix-only
+ *    legacy back-compat entry, full-body matrix-send is preserved.
  *  - Scope-vs-routing mismatch surfaces as `scope-not-granted` with a
  *    message naming the missing scope, rather than `unknown-target`.
  *    Operators get the actionable hint without leaking target
@@ -175,12 +183,55 @@ export type SendMessageError =
   | "invalid-args"
   | "scope-not-granted"
   | "unknown-target"
-  | "send-failed";
+  | "send-failed"
+  | "inbox-write-failed";
 
-/** Result of a {@link AgentsDispatcher.sendMessage} call. */
+/**
+ * Result of a {@link AgentsDispatcher.sendMessage} call.
+ *
+ * AJS-65 route-model: inbox is the durable substrate; matrix is the
+ * notification overlay. Success-shape carries flat fields rather than a
+ * `delivery` discriminator — both `inbox_message_id` and `event_id`
+ * may be present together when target has both routes + caller has both
+ * scopes.
+ *
+ * Shape semantics (runtime invariants):
+ * - `inbox_message_id` + `inbox_created_at` present iff inbox-write succeeded
+ *   (i.e. target had inbox.session + caller had inbox.deliver scope)
+ * - `event_id` present iff matrix-notify fired AND succeeded
+ * - `matrix_notification_error` present iff matrix-notify fired AND failed
+ *   (degraded success — inbox-write took, matrix-notify did not)
+ * - At least one of {inbox_message_id, event_id} is present when ok=true
+ *
+ * **Back-compat for matrix-only legacy targets**: targets registered with
+ * matrix.room but NO inbox.session skip the inbox-write entirely. Success
+ * response then has `event_id` but no `inbox_message_id`. This is the
+ * pre-AJS-65 contract preserved during the TARGETS_JSON migration window;
+ * post-migration (every entity gets inbox.session), matrix-only targets
+ * disappear and `inbox_message_id` becomes effectively-always-present.
+ * Callers that REQUIRE the durable-storage guarantee at the type level
+ * use the {@link isDurableSendResult} type guard to narrow.
+ *
+ * Hard-fail (ok=false) shapes:
+ * - `inbox-write-failed`: target has inbox.session + caller has inbox.deliver
+ *   scope + dispatcher attempted inbox-write + it threw. Matrix MUST NOT
+ *   have been attempted (no notification without durable storage).
+ * - `send-failed`: matrix-only target + matrix-send threw (no inbox to
+ *   fall back to). Back-compat path for matrix-only targets.
+ * - `scope-not-granted` / `unknown-target` / `invalid-args`: unchanged.
+ */
 export type SendMessageResult =
-  | { ok: true; delivery: "matrix"; event_id: string }
-  | { ok: true; delivery: "inbox"; message_id: string; created_at: string }
+  | {
+      ok: true;
+      /** Present iff durable inbox-write succeeded (target had inbox.session + scope). */
+      inbox_message_id?: string;
+      /** Present iff inbox_message_id present. */
+      inbox_created_at?: string;
+      /** Present iff matrix notification fired AND succeeded. */
+      event_id?: string;
+      /** Present iff matrix notification fired AND failed (degraded success). */
+      matrix_notification_error?: string;
+    }
   | {
       ok: false;
       error: SendMessageError;
@@ -188,6 +239,55 @@ export type SendMessageResult =
       correlation_id: string;
       message: string;
     };
+
+/**
+ * A {@link SendMessageResult} that carries the durable-storage invariant
+ * at the type level: `ok === true` AND `inbox_message_id` is present.
+ * The matrix overlay fields (`event_id`, `matrix_notification_error`)
+ * remain optional because the matrix path is independent of the durable
+ * storage path.
+ *
+ * Used by callers that need to consume the durable inbox id without
+ * a null-check — e.g. audit logging, reply-routing, message threading.
+ *
+ * @internal exported for {@link isDurableSendResult}; consumers should
+ *           use the type guard rather than the type directly.
+ */
+export type DurableSendMessageResult = {
+  ok: true;
+  inbox_message_id: string;
+  inbox_created_at: string;
+  event_id?: string;
+  matrix_notification_error?: string;
+};
+
+/**
+ * Narrow a {@link SendMessageResult} to the durable-storage shape.
+ * Returns true iff the call succeeded AND a durable inbox message was
+ * written (the canonical AJS-65 path). Returns false for matrix-only
+ * back-compat successes (event_id without inbox_message_id) and for all
+ * failure shapes.
+ *
+ * Callers that REQUIRE the durable id should pattern this guard:
+ *
+ *     const result = await dispatcher.sendMessage(args, identity);
+ *     if (!isDurableSendResult(result)) {
+ *       // matrix-only back-compat OR failure — handle accordingly
+ *       return;
+ *     }
+ *     // result.inbox_message_id is now guaranteed string at the type level
+ *     audit.record(result.inbox_message_id, ...);
+ *
+ * Why a type guard instead of a stricter `SendMessageResult` shape:
+ * matrix-only back-compat targets (no inbox.session) legitimately produce
+ * success without `inbox_message_id` during the TARGETS_JSON migration
+ * window. Forcing inbox_message_id at the type level would force a
+ * coordinated TARGETS_JSON migration before AJS-65 lands, which would
+ * couple two changes that should be sequenced independently.
+ */
+export function isDurableSendResult(result: SendMessageResult): result is DurableSendMessageResult {
+  return result.ok === true && typeof result.inbox_message_id === "string";
+}
 
 /** Args for `agents.get_messages`. */
 export interface GetMessagesArgs {
@@ -297,54 +397,73 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         };
       }
 
-      // Router precedence: matrix > inbox. Matrix is synchronous
-      // delivery (notification); inbox is async-persistent. When both
-      // routes exist, prefer Matrix so the recipient gets the live
-      // ping. If the caller lacks the matrix scope, fall through to
-      // inbox if the route + scope exist.
+      // AJS-65 route-model (Jens via codex-hostname-null 2026-05-23
+      // event $LaPSo1WDFUGT4xccWpsdrM130shpI8-hwExtQDi_J_I; refined by
+      // malar-codex-app P1 review on 6f21372a): inbox is the durable
+      // delivery substrate; matrix is the notification overlay.
+      //
+      // **Scope-gating rule** (malar-codex-app P1, contract blocker):
+      // route presence in the directory entry is what determines required
+      // scopes, NOT the scopes the caller happens to carry. If the entry
+      // advertises an inbox route, `inbox.deliver` is MANDATORY — a caller
+      // with only `matrix.send_message` cannot bypass inbox-write by
+      // accidentally lacking the inbox scope. Reversing this would
+      // re-introduce the notification-without-storage failure mode AJS-65
+      // is supposed to fix.
+      //
+      // Algorithm:
+      //   1. If entry.inbox exists → caller MUST have `inbox.deliver`.
+      //      Missing scope → scope-not-granted (matrix NOT attempted).
+      //      Then attempt inbox-write FIRST. Hard-fail if it throws.
+      //   2. If entry.matrix exists AND caller has `matrix.send_message` →
+      //      attempt matrix-notify. Degraded success if it throws.
+      //      The notification body is shape-dependent (see body-shape rule
+      //      below).
+      //   3. If entry is matrix-only (no inbox.session — legacy back-compat) →
+      //      caller MUST have `matrix.send_message`. Missing → scope-not-granted.
+      //      Then attempt matrix-send with FULL body (legacy contract).
+      //
+      // **Body-shape rule** (malar-codex-app P2): in the dual-route case
+      // (entry has both inbox + matrix), the matrix notification carries a
+      // POINTER ONLY (`see inbox: ${inbox_message_id}`), not the full
+      // body. Inbox is the single source of truth; matrix is the wake
+      // signal. The matrix-only legacy back-compat case keeps the full
+      // body (matrix IS the storage for those entries).
       const matrixScope = checkScope(identity, "matrix.send_message");
       const inboxScope = checkScope(identity, "inbox.deliver");
 
-      if (entry.matrix && matrixScope.ok) {
-        const matrixArgs: MatrixSendArgs = {
-          identity,
-          room: entry.matrix.room,
-          body: args.body,
-          ...(typeof args.reply_to_event_id === "string"
-            ? { replyToEventId: args.reply_to_event_id }
-            : {}),
+      // Scope gating: route presence determines required scope, NOT
+      // whichever scope happens to be present. This is the P1 fix.
+      if (entry.inbox && !inboxScope.ok) {
+        return {
+          ok: false,
+          error: "scope-not-granted",
+          target: args.target,
+          correlation_id,
+          message: `scope inbox.deliver not granted to ${identity.agentName}; entry '${args.target}' advertises inbox route and inbox is the AJS-65 durable substrate`,
         };
-        try {
-          const result = await options.matrixTool.send(matrixArgs);
-          return { ok: true, delivery: "matrix", event_id: result.event_id };
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn("[agents-tool-surface] matrix send failed", {
-            target: args.target,
-            correlation_id,
-            message,
-          });
-          return {
-            ok: false,
-            error: "send-failed",
-            target: args.target,
-            correlation_id,
-            message,
-          };
-        }
+      }
+      // Matrix-only target (legacy back-compat) requires matrix.send_message.
+      if (!entry.inbox && entry.matrix && !matrixScope.ok) {
+        return {
+          ok: false,
+          error: "scope-not-granted",
+          target: args.target,
+          correlation_id,
+          message: `scope matrix.send_message not granted to ${identity.agentName}`,
+        };
       }
 
-      if (entry.inbox && inboxScope.ok) {
+      // Step 1: inbox-write. Required to succeed before matrix-notify
+      // is attempted (no notification without durable storage).
+      let inboxResult: InboxDeliverResult | null = null;
+      if (entry.inbox) {
         if (!options.agentInboxTool) {
           // Directory advertises inbox routing but operator hasn't
-          // wired the substrate. Operator-friendly error rather than
-          // a generic 500.
+          // wired the substrate. Operator-friendly error.
           logger.warn(
             "[agents-tool-surface] inbox routing requested but agentInboxTool not configured",
-            {
-              target: args.target,
-              correlation_id,
-            },
+            { target: args.target, correlation_id },
           );
           return {
             ok: false,
@@ -355,18 +474,12 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
           };
         }
         try {
-          const result = await options.agentInboxTool.deliver({
+          inboxResult = await options.agentInboxTool.deliver({
             identity,
             toSession: entry.inbox.session,
             body: args.body,
             correlationId: correlation_id,
           });
-          return {
-            ok: true,
-            delivery: "inbox",
-            message_id: result.message_id,
-            created_at: result.created_at,
-          };
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           logger.warn("[agents-tool-surface] inbox deliver failed", {
@@ -374,9 +487,11 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
             correlation_id,
             message,
           });
+          // Hard fail: matrix MUST NOT be attempted. Notification
+          // without durable storage would lie to the recipient.
           return {
             ok: false,
-            error: "send-failed",
+            error: "inbox-write-failed",
             target: args.target,
             correlation_id,
             message,
@@ -384,17 +499,67 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         }
       }
 
-      // Target HAS a route but caller lacks the matching scope.
-      // Surface this as scope-not-granted with a message naming the
-      // missing scope, so operators get an actionable hint.
-      const missingScope = entry.matrix ? "matrix.send_message" : "inbox.deliver";
-      return {
-        ok: false,
-        error: "scope-not-granted",
-        target: args.target,
-        correlation_id,
-        message: `scope ${missingScope} not granted to ${identity.agentName}`,
-      };
+      // Step 2: matrix-notify. Fires iff target has matrix.room AND caller
+      // has matrix.send_message scope. Body shape depends on route shape:
+      //   - dual-route (inbox + matrix): pointer-only (`see inbox: ${id}`)
+      //   - matrix-only (legacy back-compat): full body
+      let matrixEventId: string | null = null;
+      let matrixNotificationError: string | null = null;
+      if (entry.matrix && matrixScope.ok) {
+        // P2 body-shape rule: pointer-only for dual-route, full body for
+        // matrix-only back-compat. Inbox is single source of truth; the
+        // matrix notification is just the wake signal in the dual case.
+        const matrixBody =
+          inboxResult !== null ? `see inbox: ${inboxResult.message_id}` : args.body;
+        const matrixArgs: MatrixSendArgs = {
+          identity,
+          room: entry.matrix.room,
+          body: matrixBody,
+          ...(typeof args.reply_to_event_id === "string"
+            ? { replyToEventId: args.reply_to_event_id }
+            : {}),
+        };
+        try {
+          const result = await options.matrixTool.send(matrixArgs);
+          matrixEventId = result.event_id;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn("[agents-tool-surface] matrix notify failed", {
+            target: args.target,
+            correlation_id,
+            message,
+          });
+          matrixNotificationError = message;
+          // Back-compat: matrix-only target (no inbox-write to fall back on)
+          // + matrix-send fails = hard fail. Without the inbox safety net,
+          // there's no durable record to claim success on.
+          if (inboxResult === null) {
+            return {
+              ok: false,
+              error: "send-failed",
+              target: args.target,
+              correlation_id,
+              message,
+            };
+          }
+        }
+      }
+
+      // Assemble success result. At least one of {inbox_message_id, event_id}
+      // is present when we reach here (we returned early if neither path was
+      // exercisable).
+      const out: SendMessageResult & { ok: true } = { ok: true };
+      if (inboxResult) {
+        out.inbox_message_id = inboxResult.message_id;
+        out.inbox_created_at = inboxResult.created_at;
+      }
+      if (matrixEventId) {
+        out.event_id = matrixEventId;
+      }
+      if (matrixNotificationError) {
+        out.matrix_notification_error = matrixNotificationError;
+      }
+      return out;
     },
 
     async getMessages(
