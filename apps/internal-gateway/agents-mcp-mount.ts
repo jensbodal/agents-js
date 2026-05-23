@@ -191,10 +191,7 @@ export function readAgentsMcpEnv(
 export function createSubprocessMatrixTool(scriptPath: string): MatrixTool {
   return {
     async send(args: MatrixSendArgs): Promise<MatrixSendResult> {
-      const cliArgs = ["--as", args.identity.agentName, "--stdin", "--room", args.room];
-      if (args.replyToEventId) {
-        cliArgs.push("--reply-to", args.replyToEventId);
-      }
+      const cliArgs = buildSendMatrixCliArgs(args);
       const proc = spawn(scriptPath, cliArgs, { stdio: ["pipe", "pipe", "inherit"] });
       proc.stdin.end(args.body);
       const chunks: Uint8Array[] = [];
@@ -216,6 +213,22 @@ export function createSubprocessMatrixTool(scriptPath: string): MatrixTool {
       return { event_id };
     },
   };
+}
+
+export function buildSendMatrixCliArgs(args: MatrixSendArgs): string[] {
+  const cliArgs = [
+    "--as",
+    args.identity.agentName,
+    "--stdin",
+    "--room",
+    args.room,
+    "--to",
+    args.target,
+  ];
+  if (args.replyToEventId) {
+    cliArgs.push("--reply-to", args.replyToEventId);
+  }
+  return cliArgs;
 }
 
 /**
