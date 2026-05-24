@@ -58,6 +58,28 @@ export interface MatrixSendArgs {
   body: string;
   /** Optional reply threading. */
   replyToEventId?: string;
+  /**
+   * AJS-67 structured recipient envelope for the Matrix bridge. Travels
+   * alongside `body` rather than embedded in body text — bridge consumes
+   * `recipients.explicit` directly for routing decisions and
+   * `quorum_attested` as a defense-in-depth signal to its own quorum
+   * guard. v1 emits directory-canonical target identifiers (target
+   * names); the bridge maps name → MXID via its own registry.
+   *
+   * Present for matrix-notify calls whenever the call involves at least
+   * one Matrix-visible target (single-target or multi-target). Absent
+   * when all targets are inbox-only.
+   */
+  recipients?: {
+    /** Directory-canonical target identifiers for matrix_visible_targets. */
+    explicit: string[];
+    /**
+     * True iff recipient intent is satisfied, either by singular
+     * Matrix-visible recipient inference (n=1) or by a satisfying
+     * caller-supplied `recipient_quorum`.
+     */
+    quorum_attested: boolean;
+  };
 }
 
 /** Result of a successful Matrix send. */
@@ -217,6 +239,25 @@ export interface SendMessageArgs {
    */
   target_timeout_ms?: number;
   /**
+   * Recipient-intent quorum for Matrix-visible recipients. ORTHOGONAL to
+   * delivery `threshold`: `threshold` answers "when may the tool return
+   * success?" (dispatcher accounting); `recipient_quorum` answers "did
+   * the caller explicitly mean to notify/broadcast to this Matrix-visible
+   * recipient set?" (caller-intent safety check). A caller's `threshold`
+   * does NOT satisfy a `recipient_quorum` requirement; the two are
+   * independently asserted.
+   *
+   * Multi-target only. Required when more than one target in the fan-out
+   * resolves to a Matrix-visible directory entry; recommended for clarity
+   * on single Matrix-visible target (gateway infers `at_least: 1` from
+   * the singular). `at_least` must be an integer in
+   * `[1, matrix_visible_targets.length]`.
+   *
+   * See AJS-67 design doc for the full contract surface (vault path:
+   * `agents-js/docs/protocols/ajs-67-recipient-intent-quorum.md`).
+   */
+  recipient_quorum?: { at_least: number };
+  /**
    * Any other field a caller might pass — `as_agent`, `sender`,
    * `from`, `identity` — is IGNORED. Identity is server-resolved
    * from the JWT. This rest-prop documents the security invariant at
@@ -281,7 +322,23 @@ export type SendMessageError =
   | "send-failed"
   | "inbox-write-failed"
   /** Per-target only; surfaces inside `PerTargetResult.error`. */
-  | "timeout";
+  | "timeout"
+  /**
+   * AJS-67 top-level only. Multi-target fan-out with more than one
+   * Matrix-visible target supplied no `recipient_quorum`. Pre-send
+   * rejection (no per-target sends initiated). Per-target results
+   * cannot carry this error.
+   */
+  | "recipient-intent-required"
+  /**
+   * AJS-67 top-level only. `recipient_quorum.at_least` is outside the
+   * range `[1, matrix_visible_targets.length]`, either because the
+   * caller asked for more confirmations than there are Matrix-visible
+   * recipients, or because no Matrix-visible recipients exist for the
+   * call shape. Pre-send rejection (no per-target sends initiated).
+   * Per-target results cannot carry this error.
+   */
+  | "recipient-quorum-unsatisfiable";
 
 /**
  * Result of a {@link AgentsDispatcher.sendMessage} call.
@@ -356,6 +413,36 @@ export type SendMessageResult =
       threshold_met: boolean;
       /** Per-target results. Length === targets.length - in_flight. */
       results: PerTargetResult[];
+      /**
+       * AJS-67: recipient-intent observability. Present when at least one
+       * fan-out target resolved to a Matrix-visible directory entry;
+       * absent when every target is inbox-only (or unknown). Callers can
+       * cross-reference `matrix_visible_targets` against `results[]` by
+       * the `target` field to identify which deliveries also carried
+       * recipient-intent semantics.
+       */
+      recipient_intent?: {
+        /**
+         * True iff `matrix_visible_targets.length > 1` (the caller MUST
+         * have supplied a `recipient_quorum` for the call to succeed).
+         * False when intent was inferred from a singular Matrix-visible
+         * recipient.
+         */
+        required: boolean;
+        /**
+         * True iff either (a) caller supplied a satisfying
+         * `recipient_quorum`, or (b) intent was inferred from a singular
+         * Matrix-visible recipient. Mirrors the bridge envelope's
+         * `recipients.quorum_attested` value.
+         */
+        satisfied: boolean;
+        /**
+         * Directory-canonical target identifiers for the Matrix-visible
+         * subset of `targets[]`. Cross-references PerTargetResult by
+         * name (callers can `results.filter(r => mvt.includes(r.target))`).
+         */
+        matrix_visible_targets: string[];
+      };
     }
   | {
       ok: false;
@@ -517,8 +604,17 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
     body: string;
     replyToEventId?: string;
     identity: AuthenticatedIdentity;
+    /**
+     * AJS-67 bridge envelope passed through to the matrix-notify call.
+     * Single-target back-compat path computes this inline for n=1
+     * Matrix-visible inference; multi-target path computes once for the
+     * whole broadcast and passes the same envelope to every per-target
+     * matrix-notify (so every matrix event carries the same broadcast
+     * recipient set). Absent when no targets in the call are Matrix-visible.
+     */
+    recipientsEnvelope?: { explicit: string[]; quorum_attested: boolean };
   }): Promise<PerTargetResult> {
-    const { target, body, replyToEventId, identity } = opts;
+    const { target, body, replyToEventId, identity, recipientsEnvelope } = opts;
     const correlation_id = identity.correlationId;
     const timestamp = (): string => new Date().toISOString();
 
@@ -615,6 +711,7 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         room: entry.matrix.room,
         body: matrixBody,
         ...(typeof replyToEventId === "string" ? { replyToEventId } : {}),
+        ...(recipientsEnvelope !== undefined ? { recipients: recipientsEnvelope } : {}),
       };
       try {
         const result = await options.matrixTool.send(matrixArgs);
@@ -721,7 +818,25 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         const replyToEventId =
           typeof args.reply_to_event_id === "string" ? args.reply_to_event_id : undefined;
         const target = args.target as string;
-        const per = await sendOne({ target, body: args.body, replyToEventId, identity });
+        // AJS-67 single-target envelope: n=1 Matrix-visible inference.
+        // Resolve once here for envelope computation; sendOne re-resolves
+        // for its own routing logic (back-compat with the per-target
+        // dispatch pattern; double-resolve cost is negligible at the
+        // hot-path layer above this).
+        const singleEntry = options.targetDirectory.resolve(target);
+        const singleRecipientsEnvelope =
+          singleEntry?.matrix !== undefined
+            ? { explicit: [target], quorum_attested: true }
+            : undefined;
+        const per = await sendOne({
+          target,
+          body: args.body,
+          replyToEventId,
+          identity,
+          ...(singleRecipientsEnvelope !== undefined
+            ? { recipientsEnvelope: singleRecipientsEnvelope }
+            : {}),
+        });
         if (per.status !== "delivered") {
           return {
             ok: false,
@@ -840,6 +955,100 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
       const replyToEventId =
         typeof args.reply_to_event_id === "string" ? args.reply_to_event_id : undefined;
 
+      // ====================================================================
+      // AJS-67 RECIPIENT-INTENT VALIDATION (pre-send).
+      //
+      // Runs BEFORE any per-target send is initiated. Failure rejects at
+      // the top-level — no per-target results, no in-flight cleanup, no
+      // leaked setTimeout handles. Design doc:
+      //   agents-js/docs/protocols/ajs-67-recipient-intent-quorum.md
+      //
+      // 1. Resolve every target's directory entry. Unknown targets
+      //    contribute null entries (they later surface as per-target
+      //    `unknown-target` failures, but for visibility computation
+      //    they're treated as not-Matrix-visible).
+      // 2. Compute matrix_visible_targets via the existing
+      //    `entry.matrix !== undefined` predicate (AJS-65 dual-route /
+      //    matrix-only entries both qualify).
+      // 3. Apply intent rules:
+      //    - matrix_visible.length > 1 + no recipient_quorum →
+      //      reject `recipient-intent-required`
+      //    - recipient_quorum.at_least not in [1, matrix_visible.length] →
+      //      reject `recipient-quorum-unsatisfiable` (collapses the
+      //      "supplied quorum for an all-inbox call" case via the
+      //      at_least > 0 visible check; message hint distinguishes)
+      // 4. Build the per-broadcast recipients envelope shared across
+      //    every per-target matrix-notify call.
+      // ====================================================================
+      const matrixVisibleTargets = targets.filter((t) => {
+        const entry = options.targetDirectory.resolve(t);
+        return entry?.matrix !== undefined;
+      });
+      const recipientIntentRequired = matrixVisibleTargets.length > 1;
+
+      if (recipientIntentRequired && args.recipient_quorum === undefined) {
+        return {
+          ok: false,
+          error: "recipient-intent-required",
+          correlation_id,
+          message: `multi-target call has ${matrixVisibleTargets.length} Matrix-visible recipients (${matrixVisibleTargets.join(", ")}); explicit \`recipient_quorum.at_least\` is required to confirm broadcast intent`,
+        };
+      }
+
+      let recipientQuorumAtLeast: number | null = null;
+      if (args.recipient_quorum !== undefined) {
+        if (
+          typeof args.recipient_quorum !== "object" ||
+          args.recipient_quorum === null ||
+          typeof (args.recipient_quorum as { at_least?: unknown }).at_least !== "number"
+        ) {
+          return {
+            ok: false,
+            error: "invalid-args",
+            correlation_id,
+            message:
+              "`recipient_quorum.at_least` (number) is required when `recipient_quorum` is set",
+          };
+        }
+        const n = (args.recipient_quorum as { at_least: number }).at_least;
+        if (!Number.isInteger(n) || n < 1) {
+          return {
+            ok: false,
+            error: "recipient-quorum-unsatisfiable",
+            correlation_id,
+            message: `\`recipient_quorum.at_least\` must be an integer >= 1; got ${n}`,
+          };
+        }
+        if (matrixVisibleTargets.length === 0) {
+          return {
+            ok: false,
+            error: "recipient-quorum-unsatisfiable",
+            correlation_id,
+            message: `\`recipient_quorum\` supplied but no Matrix-visible targets in \`targets\` (all entries are inbox-only or unknown); recipient-intent semantics do not apply`,
+          };
+        }
+        if (n > matrixVisibleTargets.length) {
+          return {
+            ok: false,
+            error: "recipient-quorum-unsatisfiable",
+            correlation_id,
+            message: `\`recipient_quorum.at_least\` (${n}) exceeds Matrix-visible target count (${matrixVisibleTargets.length}); cannot be satisfied`,
+          };
+        }
+        recipientQuorumAtLeast = n;
+      }
+
+      // Build the bridge envelope shared across every per-target
+      // matrix-notify. `quorum_attested` is TRUE in both paths that reach
+      // here: singular Matrix-visible target (intent inferred from n=1) OR
+      // multi-target with a satisfying recipient_quorum (validated above).
+      // The envelope is undefined when no targets are Matrix-visible so
+      // bridges don't see synthetic empty `recipients.explicit` arrays.
+      const recipientsEnvelope =
+        matrixVisibleTargets.length > 0
+          ? { explicit: [...matrixVisibleTargets], quorum_attested: true }
+          : undefined;
+
       // Per-target dispatch. Each target's send is wrapped in a timeout
       // race; the timeout result surfaces as status: "timeout". We track
       // terminal results as they resolve so the early-return /
@@ -890,7 +1099,13 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         };
 
         targets.forEach((target, idx) => {
-          const sendPromise = sendOne({ target, body: args.body, replyToEventId, identity });
+          const sendPromise = sendOne({
+            target,
+            body: args.body,
+            replyToEventId,
+            identity,
+            ...(recipientsEnvelope !== undefined ? { recipientsEnvelope } : {}),
+          });
           let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
           const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((res) => {
             timeoutHandle = setTimeout(() => res(TIMEOUT_SENTINEL), targetTimeoutMs);
@@ -949,7 +1164,7 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
       });
 
       const reachedTerminal = results.filter((r): r is PerTargetResult => r !== undefined);
-      return {
+      const out: Extract<SendMessageResult, { results: PerTargetResult[] }> = {
         ok: true,
         delivered,
         failed: terminalFailed,
@@ -957,6 +1172,21 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         threshold_met: delivered >= thresholdAtLeast,
         results: reachedTerminal,
       };
+      // AJS-67 recipient_intent metadata. Populate when any target was
+      // Matrix-visible (caller observability per design doc §6.2). Absent
+      // for all-inbox-only multi-target calls to keep the response shape
+      // minimal when intent semantics didn't apply.
+      if (matrixVisibleTargets.length > 0) {
+        out.recipient_intent = {
+          required: recipientIntentRequired,
+          // Satisfied iff we passed the pre-send gate: either n=1 inference
+          // (recipientIntentRequired === false) or a satisfying quorum
+          // (recipientQuorumAtLeast set).
+          satisfied: !recipientIntentRequired || recipientQuorumAtLeast !== null,
+          matrix_visible_targets: [...matrixVisibleTargets],
+        };
+      }
+      return out;
     },
 
     async getMessages(
