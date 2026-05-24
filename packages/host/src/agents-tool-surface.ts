@@ -163,14 +163,59 @@ export interface TargetDirectory {
   resolve(target: string): TargetDirectoryEntry | null;
 }
 
-/** Arguments for `agents.send_message`. */
+/**
+ * Arguments for `agents.send_message`.
+ *
+ * Two call shapes, mutually exclusive:
+ *
+ * - **Single-target** (`target: string`): legacy back-compat call shape.
+ *   Returns a success result with top-level `inbox_message_id` / `event_id`.
+ * - **Multi-target fan-out** (`targets: string[]`): server-side fan-out
+ *   to multiple recipients with optional quorum + per-target timeout.
+ *   Returns a success result with `results: PerTargetResult[]` plus the
+ *   aggregate `delivered`/`failed`/`in_flight`/`threshold_met` fields.
+ *
+ * Validation rejects calls that set both `target` + `targets`, neither,
+ * an empty `targets` array, duplicates within `targets`, more targets
+ * than {@link FAN_OUT_TARGET_CAP}, a `threshold.at_least` outside
+ * `1..targets.length`, or `threshold` set alongside `target` (single).
+ */
 export interface SendMessageArgs {
-  /** Target agent name (e.g. `"ajs-claude"`). Looked up in the directory. */
-  target: string;
-  /** Message body. */
+  /** Single-target call shape. Mutually exclusive with `targets`. */
+  target?: string;
+  /**
+   * Multi-target fan-out call shape. Each target is resolved independently
+   * through the same directory + scope rules as a single-target call.
+   * Mutually exclusive with `target`. Empty array and duplicates are
+   * rejected.
+   */
+  targets?: string[];
+  /** Message body. Shared across all targets when fanning out. */
   body: string;
   /** Optional reply threading; ignored if not a string. */
   reply_to_event_id?: string;
+  /**
+   * Optional quorum. Absent → "wait for every target to reach a terminal
+   * state; success is the all-terminal state". Present → "return when
+   * `at_least` targets have delivered OR when remaining targets cannot
+   * possibly reach the threshold". Multi-target only.
+   */
+  threshold?: { at_least: number };
+  /**
+   * When true (default), the call returns as soon as `threshold` is met
+   * or the remaining-targets short-circuit fires; in-flight per-target
+   * sends continue server-side but their results are not surfaced to
+   * the caller. When false, the call waits for every target to reach
+   * a terminal state regardless of threshold. Multi-target only.
+   */
+  early_return?: boolean;
+  /**
+   * Per-target send timeout in milliseconds. Defaults to
+   * {@link DEFAULT_TARGET_TIMEOUT_MS}. A target whose send exceeds this
+   * surface as a per-target result with `status: "timeout"` and counts
+   * toward the `failed` aggregate. Multi-target only.
+   */
+  target_timeout_ms?: number;
   /**
    * Any other field a caller might pass — `as_agent`, `sender`,
    * `from`, `identity` — is IGNORED. Identity is server-resolved
@@ -180,13 +225,63 @@ export interface SendMessageArgs {
   [extraField: string]: unknown;
 }
 
+/** Hard upper bound on multi-target fan-out. DoS bound. */
+export const FAN_OUT_TARGET_CAP = 50;
+
+/** Default per-target timeout for multi-target fan-out (30s). */
+export const DEFAULT_TARGET_TIMEOUT_MS = 30_000;
+
+/**
+ * Per-target result inside a multi-target {@link SendMessageResult}.
+ *
+ * `status: "delivered"` mirrors the single-target success shape: an
+ * `inbox_message_id` is present iff the durable inbox-write succeeded;
+ * an `event_id` is present iff the matrix-notify fired AND succeeded;
+ * a `matrix_notification_error` is present iff the matrix-notify fired
+ * AND failed (degraded delivered, mirroring single-target semantics).
+ *
+ * `status: "failed"` carries the same error reasons the single-target
+ * shape uses (`unknown-target`, `scope-not-granted`, `inbox-write-failed`,
+ * `send-failed`, `invalid-args`). `scope-not-granted` populates
+ * `offending_scopes` with the scope(s) the caller lacked for this
+ * target, matching the AJS-55 mint-redeem `invalid-scope` shape.
+ *
+ * `status: "timeout"` indicates the per-target send did not reach a
+ * terminal state before `target_timeout_ms` elapsed. Distinguished from
+ * `failed` so callers can detect dead-peer vs explicit-NACK shapes.
+ */
+export interface PerTargetResult {
+  /** Target agent name (mirrors the `targets[]` entry that produced this). */
+  target: string;
+  /** Terminal disposition for this target. */
+  status: "delivered" | "failed" | "timeout";
+  /** Present iff status === "delivered" AND inbox-write succeeded. */
+  inbox_message_id?: string;
+  /** Present iff inbox_message_id present. */
+  inbox_created_at?: string;
+  /** Present iff status === "delivered" AND matrix-notify succeeded. */
+  event_id?: string;
+  /** Present iff matrix-notify fired AND failed (status remains "delivered"). */
+  matrix_notification_error?: string;
+  /** Present iff status === "failed". */
+  error?: SendMessageError;
+  /** Present iff error === "scope-not-granted". */
+  offending_scopes?: string[];
+  /** Free-text diagnostic; present on every non-delivered status. */
+  message?: string;
+  /** ISO 8601 UTC when this target reached terminal. */
+  timestamp: string;
+}
+
 /** Structured error reasons. Stable string union for transport mapping. */
 export type SendMessageError =
   | "invalid-args"
   | "scope-not-granted"
   | "unknown-target"
   | "send-failed"
-  | "inbox-write-failed";
+  | "inbox-write-failed"
+  /** Per-target only; surfaces inside `PerTargetResult.error`. */
+  | "timeout";
 
 /**
  * Result of a {@link AgentsDispatcher.sendMessage} call.
@@ -224,6 +319,8 @@ export type SendMessageError =
  */
 export type SendMessageResult =
   | {
+      // Single-target success (back-compat). Distinguished from the
+      // multi-target shape by the absence of the `results` field.
       ok: true;
       /** Present iff durable inbox-write succeeded (target had inbox.session + scope). */
       inbox_message_id?: string;
@@ -235,12 +332,49 @@ export type SendMessageResult =
       matrix_notification_error?: string;
     }
   | {
+      // Multi-target fan-out success. Distinguished from single-target
+      // by the presence of `results`. `ok: true` here means the request
+      // was well-formed and the fan-out executed — per-target failures
+      // surface in `results[].status` and the `failed`/`delivered` counts.
+      // Callers wanting "did the whole broadcast succeed" should check
+      // `threshold_met`.
+      ok: true;
+      /** Count of `results[]` entries with status === "delivered". */
+      delivered: number;
+      /** Count of `results[]` entries with status in {"failed", "timeout"}. */
+      failed: number;
+      /**
+       * Count of targets whose send was still in flight when the call
+       * returned. Always 0 unless `early_return: true` (default) AND the
+       * threshold short-circuit fired before all targets terminated.
+       */
+      in_flight: number;
+      /**
+       * True iff `delivered >= (threshold?.at_least ?? targets.length)`
+       * at return time. The aggregate "did the broadcast succeed" flag.
+       */
+      threshold_met: boolean;
+      /** Per-target results. Length === targets.length - in_flight. */
+      results: PerTargetResult[];
+    }
+  | {
       ok: false;
       error: SendMessageError;
       target?: string;
       correlation_id: string;
       message: string;
     };
+
+/**
+ * Type guard: narrow a {@link SendMessageResult} to the multi-target
+ * success shape. Useful for consumers that need to enumerate per-target
+ * outcomes without a runtime field-presence check.
+ */
+export function isFanOutSendResult(
+  result: SendMessageResult,
+): result is Extract<SendMessageResult, { results: PerTargetResult[] }> {
+  return result.ok === true && Array.isArray((result as { results?: unknown }).results);
+}
 
 /**
  * A {@link SendMessageResult} that carries the durable-storage invariant
@@ -288,7 +422,15 @@ export type DurableSendMessageResult = {
  * couple two changes that should be sequenced independently.
  */
 export function isDurableSendResult(result: SendMessageResult): result is DurableSendMessageResult {
-  return result.ok === true && typeof result.inbox_message_id === "string";
+  // Multi-target results never satisfy this guard — their per-target inbox
+  // ids live under `results[].inbox_message_id`. Callers fanning out should
+  // enumerate `results[]` directly (via {@link isFanOutSendResult}) and
+  // check each entry's `status` + `inbox_message_id`.
+  if (isFanOutSendResult(result)) return false;
+  return (
+    result.ok === true &&
+    typeof (result as { inbox_message_id?: unknown }).inbox_message_id === "string"
+  );
 }
 
 /** Args for `agents.get_messages`. */
@@ -358,6 +500,167 @@ export interface AgentsDispatcher {
 export function createAgentsDispatcher(options: AgentsDispatcherOptions): AgentsDispatcher {
   const logger = options.logger ?? console;
 
+  // ============================================================================
+  // Per-target send (used by both single-target back-compat and multi-target
+  // fan-out paths). Returns a PerTargetResult — never throws on per-target
+  // failures (errors surface as status: "failed"). Capturing this as a
+  // closure rather than a free function keeps logger + options access local
+  // and avoids exposing implementation details on the module surface.
+  //
+  // AJS-65 route-model rules preserved in full (route presence determines
+  // required scope, inbox-write FIRST then matrix-notify, pointer-only body
+  // for dual-route, full body for matrix-only back-compat). See the original
+  // sendMessage commit (13142c27) for the design rationale.
+  // ============================================================================
+  async function sendOne(opts: {
+    target: string;
+    body: string;
+    replyToEventId?: string;
+    identity: AuthenticatedIdentity;
+  }): Promise<PerTargetResult> {
+    const { target, body, replyToEventId, identity } = opts;
+    const correlation_id = identity.correlationId;
+    const timestamp = (): string => new Date().toISOString();
+
+    const entry = options.targetDirectory.resolve(target);
+    if (!entry || (!entry.matrix && !entry.inbox)) {
+      return {
+        target,
+        status: "failed",
+        error: "unknown-target",
+        message: `target '${target}' has no Matrix or inbox routing`,
+        timestamp: timestamp(),
+      };
+    }
+
+    const matrixScope = checkScope(identity, "matrix.send_message");
+    const inboxScope = checkScope(identity, "inbox.deliver");
+
+    // Scope gating: route presence determines required scope, NOT whichever
+    // scope happens to be present (AJS-65 P1 rule). Missing scope surfaces
+    // the offending scope set to the caller — matches AJS-55 mint-redeem
+    // `invalid-scope` shape.
+    if (entry.inbox && !inboxScope.ok) {
+      return {
+        target,
+        status: "failed",
+        error: "scope-not-granted",
+        offending_scopes: ["inbox.deliver"],
+        message: `scope inbox.deliver not granted to ${identity.agentName}; entry '${target}' advertises inbox route and inbox is the durable substrate`,
+        timestamp: timestamp(),
+      };
+    }
+    if (!entry.inbox && entry.matrix && !matrixScope.ok) {
+      return {
+        target,
+        status: "failed",
+        error: "scope-not-granted",
+        offending_scopes: ["matrix.send_message"],
+        message: `scope matrix.send_message not granted to ${identity.agentName}`,
+        timestamp: timestamp(),
+      };
+    }
+
+    // Step 1: inbox-write. Required to succeed before matrix-notify is
+    // attempted. No notification without durable storage.
+    let inboxResult: InboxDeliverResult | null = null;
+    if (entry.inbox) {
+      if (!options.agentInboxTool) {
+        logger.warn(
+          "[agents-tool-surface] inbox routing requested but agentInboxTool not configured",
+          { target, correlation_id },
+        );
+        return {
+          target,
+          status: "failed",
+          error: "send-failed",
+          message: "inbox substrate not configured",
+          timestamp: timestamp(),
+        };
+      }
+      try {
+        inboxResult = await options.agentInboxTool.deliver({
+          identity,
+          toSession: entry.inbox.session,
+          body,
+          correlationId: correlation_id,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn("[agents-tool-surface] inbox deliver failed", {
+          target,
+          correlation_id,
+          message,
+        });
+        return {
+          target,
+          status: "failed",
+          error: "inbox-write-failed",
+          message,
+          timestamp: timestamp(),
+        };
+      }
+    }
+
+    // Step 2: matrix-notify. Body shape depends on route shape — dual-route
+    // sends pointer-only ("see inbox: <id>"), matrix-only legacy back-compat
+    // sends the full body (matrix IS the storage for those entries).
+    let matrixEventId: string | null = null;
+    let matrixNotificationError: string | null = null;
+    if (entry.matrix && matrixScope.ok) {
+      const matrixBody = inboxResult !== null ? `see inbox: ${inboxResult.message_id}` : body;
+      const matrixArgs: MatrixSendArgs = {
+        identity,
+        target,
+        room: entry.matrix.room,
+        body: matrixBody,
+        ...(typeof replyToEventId === "string" ? { replyToEventId } : {}),
+      };
+      try {
+        const result = await options.matrixTool.send(matrixArgs);
+        matrixEventId = result.event_id;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn("[agents-tool-surface] matrix notify failed", {
+          target,
+          correlation_id,
+          message,
+        });
+        matrixNotificationError = message;
+        // Back-compat: matrix-only target (no inbox to fall back on) +
+        // matrix-send fails = hard fail. Without the inbox safety net,
+        // there's no durable record to claim delivered on.
+        if (inboxResult === null) {
+          return {
+            target,
+            status: "failed",
+            error: "send-failed",
+            message,
+            timestamp: timestamp(),
+          };
+        }
+      }
+    }
+
+    // Delivered. At least one of {inbox_message_id, event_id} is present.
+    const result: PerTargetResult = {
+      target,
+      status: "delivered",
+      timestamp: timestamp(),
+    };
+    if (inboxResult) {
+      result.inbox_message_id = inboxResult.message_id;
+      result.inbox_created_at = inboxResult.created_at;
+    }
+    if (matrixEventId) {
+      result.event_id = matrixEventId;
+    }
+    if (matrixNotificationError) {
+      result.matrix_notification_error = matrixNotificationError;
+    }
+    return result;
+  }
+
   // Pinned to `["sendMessage", "getMessages"]` keys — see contract test
   // `dispatcher exposes only sendMessage + getMessages; no admin tool surface`.
   // Adding other methods here requires updating that test deliberately.
@@ -368,17 +671,7 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
     ): Promise<SendMessageResult> {
       const correlation_id = identity.correlationId;
 
-      // Structural arg validation. Loose runtime check because the
-      // MCP transport's schema validation runs at the transport
-      // boundary; direct test/dev callers bypass it.
-      if (typeof args?.target !== "string" || args.target.length === 0) {
-        return {
-          ok: false,
-          error: "invalid-args",
-          correlation_id,
-          message: "`target` (string) is required",
-        };
-      }
+      // Common arg validation (applies to both single + multi paths).
       if (typeof args?.body !== "string") {
         return {
           ok: false,
@@ -388,181 +681,282 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         };
       }
 
-      const entry = options.targetDirectory.resolve(args.target);
-      if (!entry || (!entry.matrix && !entry.inbox)) {
+      const hasTarget = typeof args.target === "string" && args.target.length > 0;
+      const hasTargets = Array.isArray(args.targets);
+
+      // Mutually-exclusive call shapes.
+      if (hasTarget && hasTargets) {
         return {
           ok: false,
-          error: "unknown-target",
-          target: args.target,
+          error: "invalid-args",
           correlation_id,
-          message: `target '${args.target}' has no Matrix or inbox routing`,
+          message: "`target` and `targets` are mutually exclusive — provide exactly one",
+        };
+      }
+      if (!hasTarget && !hasTargets) {
+        return {
+          ok: false,
+          error: "invalid-args",
+          correlation_id,
+          message: "`target` (string) or `targets` (string[]) is required",
         };
       }
 
-      // AJS-65 route-model (Jens via codex-hostname-null 2026-05-23
-      // event $LaPSo1WDFUGT4xccWpsdrM130shpI8-hwExtQDi_J_I; refined by
-      // malar-codex-app P1 review on 6f21372a): inbox is the durable
-      // delivery substrate; matrix is the notification overlay.
-      //
-      // **Scope-gating rule** (malar-codex-app P1, contract blocker):
-      // route presence in the directory entry is what determines required
-      // scopes, NOT the scopes the caller happens to carry. If the entry
-      // advertises an inbox route, `inbox.deliver` is MANDATORY — a caller
-      // with only `matrix.send_message` cannot bypass inbox-write by
-      // accidentally lacking the inbox scope. Reversing this would
-      // re-introduce the notification-without-storage failure mode AJS-65
-      // is supposed to fix.
-      //
-      // Algorithm:
-      //   1. If entry.inbox exists → caller MUST have `inbox.deliver`.
-      //      Missing scope → scope-not-granted (matrix NOT attempted).
-      //      Then attempt inbox-write FIRST. Hard-fail if it throws.
-      //   2. If entry.matrix exists AND caller has `matrix.send_message` →
-      //      attempt matrix-notify. Degraded success if it throws.
-      //      The notification body is shape-dependent (see body-shape rule
-      //      below).
-      //   3. If entry is matrix-only (no inbox.session — legacy back-compat) →
-      //      caller MUST have `matrix.send_message`. Missing → scope-not-granted.
-      //      Then attempt matrix-send with FULL body (legacy contract).
-      //
-      // **Body-shape rule** (malar-codex-app P2): in the dual-route case
-      // (entry has both inbox + matrix), the matrix notification carries a
-      // POINTER ONLY (`see inbox: ${inbox_message_id}`), not the full
-      // body. Inbox is the single source of truth; matrix is the wake
-      // signal. The matrix-only legacy back-compat case keeps the full
-      // body (matrix IS the storage for those entries).
-      const matrixScope = checkScope(identity, "matrix.send_message");
-      const inboxScope = checkScope(identity, "inbox.deliver");
-
-      // Scope gating: route presence determines required scope, NOT
-      // whichever scope happens to be present. This is the P1 fix.
-      if (entry.inbox && !inboxScope.ok) {
-        return {
-          ok: false,
-          error: "scope-not-granted",
-          target: args.target,
-          correlation_id,
-          message: `scope inbox.deliver not granted to ${identity.agentName}; entry '${args.target}' advertises inbox route and inbox is the AJS-65 durable substrate`,
-        };
-      }
-      // Matrix-only target (legacy back-compat) requires matrix.send_message.
-      if (!entry.inbox && entry.matrix && !matrixScope.ok) {
-        return {
-          ok: false,
-          error: "scope-not-granted",
-          target: args.target,
-          correlation_id,
-          message: `scope matrix.send_message not granted to ${identity.agentName}`,
-        };
-      }
-
-      // Step 1: inbox-write. Required to succeed before matrix-notify
-      // is attempted (no notification without durable storage).
-      let inboxResult: InboxDeliverResult | null = null;
-      if (entry.inbox) {
-        if (!options.agentInboxTool) {
-          // Directory advertises inbox routing but operator hasn't
-          // wired the substrate. Operator-friendly error.
-          logger.warn(
-            "[agents-tool-surface] inbox routing requested but agentInboxTool not configured",
-            { target: args.target, correlation_id },
-          );
+      // Single-target back-compat path. Projects PerTargetResult into the
+      // pre-AJS-63 SendMessageResult shape: success → top-level
+      // {inbox_message_id, event_id, ...}; failure → outer
+      // {ok: false, error, target, correlation_id, message}.
+      if (hasTarget) {
+        // Reject multi-target-only knobs supplied with single-target call —
+        // silently ignoring them would surprise callers when their threshold
+        // doesn't do anything.
+        if (args.threshold !== undefined) {
           return {
             ok: false,
-            error: "send-failed",
-            target: args.target,
+            error: "invalid-args",
             correlation_id,
-            message: "inbox substrate not configured",
+            message: "`threshold` is multi-target only (use `targets`)",
           };
         }
-        try {
-          inboxResult = await options.agentInboxTool.deliver({
-            identity,
-            toSession: entry.inbox.session,
-            body: args.body,
-            correlationId: correlation_id,
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn("[agents-tool-surface] inbox deliver failed", {
-            target: args.target,
-            correlation_id,
-            message,
-          });
-          // Hard fail: matrix MUST NOT be attempted. Notification
-          // without durable storage would lie to the recipient.
+        const replyToEventId =
+          typeof args.reply_to_event_id === "string" ? args.reply_to_event_id : undefined;
+        const target = args.target as string;
+        const per = await sendOne({ target, body: args.body, replyToEventId, identity });
+        if (per.status !== "delivered") {
           return {
             ok: false,
-            error: "inbox-write-failed",
-            target: args.target,
+            error: per.error ?? "send-failed",
+            target,
             correlation_id,
-            message,
+            message: per.message ?? "send failed",
           };
         }
+        const out: SendMessageResult & { ok: true } = { ok: true };
+        if (per.inbox_message_id !== undefined) {
+          out.inbox_message_id = per.inbox_message_id;
+        }
+        if (per.inbox_created_at !== undefined) {
+          out.inbox_created_at = per.inbox_created_at;
+        }
+        if (per.event_id !== undefined) {
+          out.event_id = per.event_id;
+        }
+        if (per.matrix_notification_error !== undefined) {
+          out.matrix_notification_error = per.matrix_notification_error;
+        }
+        return out;
       }
 
-      // Step 2: matrix-notify. Fires iff target has matrix.room AND caller
-      // has matrix.send_message scope. Body shape depends on route shape:
-      //   - dual-route (inbox + matrix): pointer-only (`see inbox: ${id}`)
-      //   - matrix-only (legacy back-compat): full body
-      let matrixEventId: string | null = null;
-      let matrixNotificationError: string | null = null;
-      if (entry.matrix && matrixScope.ok) {
-        // P2 body-shape rule: pointer-only for dual-route, full body for
-        // matrix-only back-compat. Inbox is single source of truth; the
-        // matrix notification is just the wake signal in the dual case.
-        const matrixBody =
-          inboxResult !== null ? `see inbox: ${inboxResult.message_id}` : args.body;
-        const matrixArgs: MatrixSendArgs = {
-          identity,
-          target: args.target,
-          room: entry.matrix.room,
-          body: matrixBody,
-          ...(typeof args.reply_to_event_id === "string"
-            ? { replyToEventId: args.reply_to_event_id }
-            : {}),
+      // Multi-target fan-out path.
+      const targets = args.targets as string[];
+
+      // Multi-target arg validation. Loud-failure on shape errors;
+      // partial-validity (e.g. some targets exist, some don't) is NOT a
+      // validation failure — those surface as per-target results.
+      if (!targets.every((t) => typeof t === "string" && t.length > 0)) {
+        return {
+          ok: false,
+          error: "invalid-args",
+          correlation_id,
+          message: "`targets` must be a non-empty array of non-empty strings",
         };
-        try {
-          const result = await options.matrixTool.send(matrixArgs);
-          matrixEventId = result.event_id;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn("[agents-tool-surface] matrix notify failed", {
-            target: args.target,
+      }
+      if (targets.length === 0) {
+        return {
+          ok: false,
+          error: "invalid-args",
+          correlation_id,
+          message: "`targets` must contain at least one entry",
+        };
+      }
+      if (targets.length > FAN_OUT_TARGET_CAP) {
+        return {
+          ok: false,
+          error: "invalid-args",
+          correlation_id,
+          message: `\`targets\` exceeds fan-out cap of ${FAN_OUT_TARGET_CAP}; got ${targets.length}`,
+        };
+      }
+      if (new Set(targets).size !== targets.length) {
+        return {
+          ok: false,
+          error: "invalid-args",
+          correlation_id,
+          message: "`targets` contains duplicate entries",
+        };
+      }
+
+      // Implicit threshold (absent) means "wait for all terminal" — the
+      // early-fail short-circuit does NOT fire. Explicit threshold opts
+      // into both the delivered>=N early-return AND the
+      // remaining-cannot-satisfy short-circuit.
+      let thresholdAtLeast: number = targets.length;
+      let thresholdExplicit = false;
+      if (args.threshold !== undefined) {
+        thresholdExplicit = true;
+        if (
+          typeof args.threshold !== "object" ||
+          args.threshold === null ||
+          typeof (args.threshold as { at_least?: unknown }).at_least !== "number"
+        ) {
+          return {
+            ok: false,
+            error: "invalid-args",
             correlation_id,
-            message,
-          });
-          matrixNotificationError = message;
-          // Back-compat: matrix-only target (no inbox-write to fall back on)
-          // + matrix-send fails = hard fail. Without the inbox safety net,
-          // there's no durable record to claim success on.
-          if (inboxResult === null) {
-            return {
-              ok: false,
-              error: "send-failed",
-              target: args.target,
-              correlation_id,
-              message,
-            };
+            message: "`threshold.at_least` (number) is required when `threshold` is set",
+          };
+        }
+        const n = (args.threshold as { at_least: number }).at_least;
+        if (!Number.isInteger(n) || n < 1 || n > targets.length) {
+          return {
+            ok: false,
+            error: "invalid-args",
+            correlation_id,
+            message: `\`threshold.at_least\` must be an integer in [1, targets.length=${targets.length}]; got ${n}`,
+          };
+        }
+        thresholdAtLeast = n;
+      }
+
+      let targetTimeoutMs: number = DEFAULT_TARGET_TIMEOUT_MS;
+      if (args.target_timeout_ms !== undefined) {
+        if (
+          typeof args.target_timeout_ms !== "number" ||
+          !Number.isFinite(args.target_timeout_ms) ||
+          args.target_timeout_ms <= 0
+        ) {
+          return {
+            ok: false,
+            error: "invalid-args",
+            correlation_id,
+            message: "`target_timeout_ms` must be a positive number",
+          };
+        }
+        targetTimeoutMs = args.target_timeout_ms;
+      }
+
+      const earlyReturn = args.early_return !== false; // default true
+
+      const replyToEventId =
+        typeof args.reply_to_event_id === "string" ? args.reply_to_event_id : undefined;
+
+      // Per-target dispatch. Each target's send is wrapped in a timeout
+      // race; the timeout result surfaces as status: "timeout". We track
+      // terminal results as they resolve so the early-return /
+      // threshold-short-circuit logic can fire without waiting for the
+      // slowest in-flight target.
+      const results = new Array<PerTargetResult | undefined>(targets.length);
+      const TIMEOUT_SENTINEL = Symbol("timeout");
+
+      let delivered = 0;
+      let terminalFailed = 0;
+      let terminalCount = 0;
+
+      // Resolve the outer promise as soon as one of:
+      //   (a) every per-target promise terminated, OR
+      //   (b) early_return && delivered >= thresholdAtLeast, OR
+      //   (c) early_return && terminalCount === targets.length (all done; threshold
+      //       may or may not be met), OR
+      //   (d) early_return && (targets.length - terminalCount + delivered) < thresholdAtLeast
+      //       (remaining-targets short-circuit: even if every in-flight
+      //       target delivers, threshold cannot be met — return now).
+      await new Promise<void>((resolveOuter) => {
+        let outerResolved = false;
+        const resolveOnce = (): void => {
+          if (outerResolved) return;
+          outerResolved = true;
+          resolveOuter();
+        };
+        const maybeShortCircuit = (): void => {
+          if (terminalCount === targets.length) {
+            resolveOnce();
+            return;
           }
-        }
-      }
+          if (!earlyReturn) return;
+          if (delivered >= thresholdAtLeast) {
+            resolveOnce();
+            return;
+          }
+          // Remaining-cannot-satisfy short-circuit ONLY fires on explicit
+          // threshold. Implicit threshold (== targets.length) means
+          // "wait for every target terminal so caller can inspect every
+          // per-target result" — short-circuiting after the first failure
+          // would discard in-flight per-target results the caller needs.
+          if (!thresholdExplicit) return;
+          const stillReachable = delivered + (targets.length - terminalCount);
+          if (stillReachable < thresholdAtLeast) {
+            resolveOnce();
+          }
+        };
 
-      // Assemble success result. At least one of {inbox_message_id, event_id}
-      // is present when we reach here (we returned early if neither path was
-      // exercisable).
-      const out: SendMessageResult & { ok: true } = { ok: true };
-      if (inboxResult) {
-        out.inbox_message_id = inboxResult.message_id;
-        out.inbox_created_at = inboxResult.created_at;
-      }
-      if (matrixEventId) {
-        out.event_id = matrixEventId;
-      }
-      if (matrixNotificationError) {
-        out.matrix_notification_error = matrixNotificationError;
-      }
-      return out;
+        targets.forEach((target, idx) => {
+          const sendPromise = sendOne({ target, body: args.body, replyToEventId, identity });
+          let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+          const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((res) => {
+            timeoutHandle = setTimeout(() => res(TIMEOUT_SENTINEL), targetTimeoutMs);
+          });
+
+          Promise.race([sendPromise, timeoutPromise])
+            .finally(() => {
+              // Clear the per-target timer regardless of which promise won
+              // the race, so a fast-completing send doesn't leak a 30s timer
+              // (default) into the event loop.
+              if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+            })
+            .then((settled) => {
+              // Guard against late resolution after outer already returned.
+              if (outerResolved) return;
+              let per: PerTargetResult;
+              if (settled === TIMEOUT_SENTINEL) {
+                per = {
+                  target,
+                  status: "timeout",
+                  error: "timeout",
+                  message: `target send did not terminate within ${targetTimeoutMs}ms`,
+                  timestamp: new Date().toISOString(),
+                };
+              } else {
+                per = settled;
+              }
+              results[idx] = per;
+              terminalCount += 1;
+              if (per.status === "delivered") {
+                delivered += 1;
+              } else {
+                terminalFailed += 1;
+              }
+              maybeShortCircuit();
+            })
+            .catch((err) => {
+              // sendOne is contracted not to throw; this catches the
+              // hypothetical unhandled-rejection case so the outer call
+              // doesn't hang.
+              if (outerResolved) return;
+              const message = err instanceof Error ? err.message : String(err);
+              const per: PerTargetResult = {
+                target,
+                status: "failed",
+                error: "send-failed",
+                message,
+                timestamp: new Date().toISOString(),
+              };
+              results[idx] = per;
+              terminalCount += 1;
+              terminalFailed += 1;
+              maybeShortCircuit();
+            });
+        });
+      });
+
+      const reachedTerminal = results.filter((r): r is PerTargetResult => r !== undefined);
+      return {
+        ok: true,
+        delivered,
+        failed: terminalFailed,
+        in_flight: targets.length - reachedTerminal.length,
+        threshold_met: delivered >= thresholdAtLeast,
+        results: reachedTerminal,
+      };
     },
 
     async getMessages(

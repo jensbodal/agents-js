@@ -27,12 +27,40 @@ import {
   type AgentInboxTool,
   type AgentsDispatcher,
   createAgentsDispatcher,
+  isFanOutSendResult,
   type MatrixSendArgs,
   type MatrixTool,
   type SendMessageArgs,
+  type SendMessageResult,
   type TargetDirectory,
 } from "../src/agents-tool-surface.ts";
+
 import type { AuthenticatedIdentity } from "../src/jwt-verifier.ts";
+
+/**
+ * Test helper: narrow a {@link SendMessageResult} to the single-target
+ * success shape. After AJS-63 widened the result type with a multi-target
+ * variant, single-target tests need to assert "ok AND not fan-out" to
+ * access the top-level `inbox_message_id` / `event_id` fields. This
+ * helper centralises that two-step narrow + throw so each test stays
+ * focused on the behavior it pins.
+ */
+// Single-target success branch — back-compat shape preserved across AJS-63.
+type SingleTargetSuccess = Exclude<
+  Extract<SendMessageResult, { ok: true }>,
+  { results: unknown[] }
+>;
+
+function expectSingleTargetSuccess(
+  result: SendMessageResult,
+): asserts result is SingleTargetSuccess {
+  if (!result.ok) {
+    throw new Error(`expected ok=true; got error=${result.error} message=${result.message}`);
+  }
+  if (isFanOutSendResult(result)) {
+    throw new Error("expected single-target shape; got fan-out result");
+  }
+}
 
 function identity(opts: Partial<AuthenticatedIdentity> = {}): AuthenticatedIdentity {
   return {
@@ -106,8 +134,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
     const matrix = makeRecordingMatrixTool();
     const dispatcher = makeDispatcher({ matrixTool: matrix });
     const result = await dispatcher.sendMessage({ target: "ajs-claude", body: "hi" }, identity());
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok=true");
+    expectSingleTargetSuccess(result);
     expect(result.event_id).toBe("$evt-1");
     // Matrix-only target has no inbox.session, so no inbox_message_id:
     expect(result.inbox_message_id).toBeUndefined();
@@ -366,8 +393,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       { target: "ajs-claude", body: "hi inbox" },
       identity({ scopes: ["inbox.deliver", "inbox.read"] }),
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok=true");
+    expectSingleTargetSuccess(result);
     expect(result.inbox_message_id).toBe("msg-abc-001");
     expect(result.inbox_created_at).toBe("2026-05-22T02:00:00Z");
     expect(result.event_id).toBeUndefined(); // no matrix.room for this target
@@ -416,8 +442,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       { target: "ajs-claude", body: "full original body content" },
       identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok=true");
+    expectSingleTargetSuccess(result);
     // Inbox-write succeeded — full body lands in the durable substrate:
     expect(result.inbox_message_id).toBe("inbox-msg-001");
     expect(result.inbox_created_at).toBe("2026-05-23T07:30:00Z");
@@ -514,8 +539,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       { target: "ajs-claude", body: "hi" },
       identity({ scopes: ["inbox.deliver"] }),
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok=true");
+    expectSingleTargetSuccess(result);
     expect(result.inbox_message_id).toBe("msg-x");
     expect(inboxCalls).toHaveLength(1);
     expect(result.event_id).toBeUndefined();
@@ -559,8 +583,7 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       { target: "ajs-claude", body: "hi" },
       identity({ scopes: ["matrix.send_message", "inbox.deliver"] }),
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok=true (degraded success)");
+    expectSingleTargetSuccess(result);
     expect(result.inbox_message_id).toBe("msg-degraded");
     expect(result.event_id).toBeUndefined();
     expect(result.matrix_notification_error).toContain("matrix homeserver unreachable");

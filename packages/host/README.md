@@ -50,6 +50,7 @@ bun add @agents-js/host
 - **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
 - **`getEnvRuntimeProfileName`**
 - **`isDurableSendResult`** — Narrow a {SendMessageResult} to the durable-storage shape. Returns true iff the call succeeded AND a durable inbox message was written (the canonical AJS-65 path). Returns false for matrix-only bac...
+- **`isFanOutSendResult`** — Type guard: narrow a {SendMessageResult} to the multi-target success shape. Useful for consumers that need to enumerate per-target outcomes without a runtime field-presence check.
 - **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
 - **`parseDispatchDirective`** — Parse `@...rest` from a Matrix message body. Returns `target: ""` when no directive prefix is present (consumer treats that as "no dispatch", but the body may still be useful for audit subscribers)...
 - **`publishBridgeEventToBus`** — In-process convenience: build the envelope and publish it on the supplied bus. Returns the envelope so callers can inspect or assert on the server-populated `id` + `ts` fields. Out-of-process bridg...
@@ -113,6 +114,7 @@ bun add @agents-js/host
 - **`MatrixSendResult`** — Result of a successful Matrix send.
 - **`MatrixTool`** — Matrix substrate. Implementations: - Subprocess wrapper around `send-matrix.py` (v1; see `apps/internal-gateway/agents-mcp-mount.ts`) - Future: native MatrixToolProvider per AJS-56 Phase 2
 - **`MintRedeemRequest`** — Request body shape for `POST /api/agents/mint/redeem`.
+- **`PerTargetResult`** — Per-target result inside a multi-target {SendMessageResult}. `status: "delivered"` mirrors the single-target success shape: an `inbox_message_id` is present iff the durable inbox-write succeeded; a...
 - **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
 - **`ReplicaInspectionResult`** — Result shape for `inspectReplica`.
 - **`RunSessionOptions`**
@@ -122,7 +124,7 @@ bun add @agents-js/host
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
-- **`SendMessageArgs`** — Arguments for `agents.send_message`.
+- **`SendMessageArgs`** — Arguments for `agents.send_message`. Two call shapes, mutually exclusive: - **Single-target** (`target: string`): legacy back-compat call shape. Returns a success result with top-level `inbox_messa...
 - **`StartGiteaBusConsumerOptions`** — Options for {startGiteaBusConsumer}.
 - **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
 - **`TargetDirectory`** — Target directory — the AJS-55 trust manifest's read surface. V1 implementation is an in-memory Map populated from env. The AJS-55 loader will swap in a signed-peer-record-backed implementation with...
@@ -173,11 +175,13 @@ bun add @agents-js/host
 - **`createAuditEmitter`**
 - **`CURATED_RUNTIME_IDS`**
 - **`DEFAULT_GITEA_EVENT_TYPES`** — Default event-type allowlist per AJS-59 v1 design fold (matrix event `$ifDfwkeFHpbiSHTPGr2ZFD79050wy_WsIRhQytVaiEs`): `pull_request`, `push`, `release`, `check_run`. Other event types (issue_commen...
+- **`DEFAULT_TARGET_TIMEOUT_MS`** — Default per-target timeout for multi-target fan-out (30s).
 - **`E2E_RUNTIME_PROFILE_CONFIG_HOME_ENV`**
 - **`E2E_RUNTIME_PROFILE_DATA_HOME_ENV`**
 - **`E2E_RUNTIME_PROFILE_PREFIX_ENV`**
 - **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
 - **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
+- **`FAN_OUT_TARGET_CAP`** — Hard upper bound on multi-target fan-out. DoS bound.
 - **`GITEA_BUS_CONSUMER_TOPIC`** — Canonical bus topic for Gitea webhook events.
 - **`MATRIX_INBOUND_TOPIC`** — Topic constants — kept in sync with `-js/matrix-bridge`.
 - **`MATRIX_REPLY_TOPIC`**
