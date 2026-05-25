@@ -22,6 +22,31 @@
 
 - [observability.md](https://agents-js.bodal.dev/observability.html): Logger, logStore, EvalTransport, and the tool-call-trace v0.1 structured event schema for observability and audit.
 
+## Per-package indexes
+
+- [@agents-js/a2a](https://agents-js.bodal.dev/per-package/agents-js-a2a-llms.txt): A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
+- [@agents-js/a2a-client](https://agents-js.bodal.dev/per-package/agents-js-a2a-client-llms.txt): A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.
+- [@agents-js/a2ui-host](https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt): Browser-side A2UI v0.9 host and bridge for agents-js.
+- [@agents-js/a2ui-renderer](https://agents-js.bodal.dev/per-package/agents-js-a2ui-renderer-llms.txt): Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.
+- [@agents-js/a2ui-types](https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt): Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+- [@agents-js/acp](https://agents-js.bodal.dev/per-package/agents-js-acp-llms.txt): Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.
+- [@agents-js/acp-host](https://agents-js.bodal.dev/per-package/agents-js-acp-host-llms.txt): Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.
+- [@agents-js/agui-types](https://agents-js.bodal.dev/per-package/agents-js-agui-types-llms.txt): AG-UI core re-exports plus first-party message, reasoning, run, tool-call, and stream helpers for agents-js.
+- [@agents-js/canvas-model](https://agents-js.bodal.dev/per-package/agents-js-canvas-model-llms.txt): Dependency-free canvas document model helpers for agents-js A2UI payload handoff, OCIF-style preservation, and JSON Canvas preview export.
+- [@agents-js/cli](https://agents-js.bodal.dev/per-package/agents-js-cli-llms.txt): Terminal TUI and server commands for agents-js. Provides the agents-js executable with serve, client, and acp subcommands.
+- [@agents-js/gateway-runtime](https://agents-js.bodal.dev/per-package/agents-js-gateway-runtime-llms.txt): Gateway runtime config, env parsing, runtime registry/detection, install descriptors, and sub-session spawn helpers.
+- [@agents-js/host](https://agents-js.bodal.dev/per-package/agents-js-host-llms.txt): Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.
+- [@agents-js/mcp-bridge](https://agents-js.bodal.dev/per-package/agents-js-mcp-bridge-llms.txt): MCP server that exposes A2A agents as MCP tools. Each configured agent becomes a callable tool.
+- [@agents-js/memory](https://agents-js.bodal.dev/per-package/agents-js-memory-llms.txt): Library-agnostic write-side memory primitive for agents-js. Defines MemoryProvider, actor/scope/record types, and a conformance harness for backend implementations.
+- [@agents-js/memory-local](https://agents-js.bodal.dev/per-package/agents-js-memory-local-llms.txt): Local single-process MemoryProvider for agents-js (Bun runtime only — depends on `bun:sqlite`). Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.
+- [@agents-js/memory-postgres](https://agents-js.bodal.dev/per-package/agents-js-memory-postgres-llms.txt): PostgreSQL Storage backend for the agents-js MemoryProvider. Plugs into @agents-js/memory-local's LocalMemoryProvider via the public Storage seam. Implements substrate read primitives (get + listByScope) per ADR 0001 using indexed cursor-based pagination.
+- [@agents-js/policy](https://agents-js.bodal.dev/per-package/agents-js-policy-llms.txt): Stateless permission policy evaluation for ACP hosts. Pure functions with no framework dependencies.
+- [@agents-js/schema-utils](https://agents-js.bodal.dev/per-package/agents-js-schema-utils-llms.txt): Shared schema property parsing for ACP elicitation forms. Extracts field metadata from JSON Schema-like property definitions.
+- [@agents-js/skills](https://agents-js.bodal.dev/per-package/agents-js-skills-llms.txt): TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.
+- [@agents-js/tools](https://agents-js.bodal.dev/per-package/agents-js-tools-llms.txt): Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.
+- [@agents-js/ui-components](https://agents-js.bodal.dev/per-package/agents-js-ui-components-llms.txt): Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.
+- [@agents-js/validation](https://agents-js.bodal.dev/per-package/agents-js-validation-llms.txt): Schema validation for ACP envelopes, A2A requests/responses, runtime manifests, and JSON-RPC messages.
+
 ## Optional
 
 - [develop/contribute.md](https://agents-js.bodal.dev/develop/contribute.html): Contributor + release-playbook reference. Not needed for first-time readers.
@@ -4290,4 +4315,2817 @@ intentional throw.
 - Server-only packages throw intentionally instead of pretending to run in
   the browser.
 - `src/browser.ts` does not re-export `./index.ts` as a bundler workaround.
+
+---
+
+# Per-package indexes
+
+The sections below mirror the per-package files under /per-package/agents-js-<name>-llms.txt. Each is a focused index for one publishable package; pull the per-package file directly for a smaller context-window slice.
+
+---
+
+# @agents-js/a2a
+
+> A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2a-llms.txt
+
+---
+# @agents-js/a2a
+
+> A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
+
+## Installation
+
+```sh
+bun add @agents-js/a2a
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`ACPtoA2AExecutor`** — Bridges A2A execution requests to an ACP agent. Acts as an ACP Client.
+- **`SessionIdStore`**
+- **`UniversalA2AServer`**
+
+### Functions
+
+- **`buildACPA2AContinuationMetadata`**
+- **`buildACPA2ATaskMetadata`**
+- **`buildAgentCard`**
+- **`buildAgentCardBaseUrl`**
+- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status.
+- **`buildTerminalTask`** — Build a terminal Task snapshot with an agent message in the history. Used for final (completed/failed/rejected/canceled) task publications.
+- **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
+- **`createConsoleLogger`**
+- **`extractACPA2AContinuationMetadata`**
+- **`extractValidAgentMessageId`**
+- **`formatBindAddress`**
+- **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
+- **`formatHttpAuthorityHost`**
+- **`getMessageText`** — Extract text content from an A2A Message's parts array
+- **`isACPAuthRequiredError`**
+- **`isAgentEventMetadata`** — Type guard: does this `metadata` carry a known agent-event kind?
+- **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
+- **`newCorrelationId`** — Generate a fresh correlation id.
+- **`normalizeAdvertisedHost`**
+- **`nowIso`**
+- **`resolveAgentMessageId`**
+- **`selectPermissionOutcome`**
+- **`serveACPOverA2A`**
+- **`withAuthRetry`** — Retry an async operation when it fails with an ACP auth_required error. - The operation to attempt - Called on auth errors; returns true if auth was handled and retry should proceed - Maximum numbe...
+
+### Interfaces
+
+- **`A2AHttpServerHandle`**
+- **`A2ALogger`**
+- **`ACPA2AContinuationMetadata`**
+- **`ACPA2ATaskMetadata`**
+- **`AuditEmitter`** — Public emitter handle.
+- **`CommandsMetadata`** — Metadata for an `available_commands_update` notification — the set of slash-commands currently available from the harness. Uses the SDK's typed `AvailableCommand` shape so consumers get the full pe...
+- **`DiscoveredPrompt`**
+- **`DiscoveredResource`**
+- **`ExecutorHooks`** — Lifecycle hooks for the {ACPtoA2AExecutor}. Mirrors the subset of {import("-js/acp-host").SessionHooks} that applies to the A2A-to-ACP bridge. Hosts that want to transform prompt content before it ...
+- **`InitializableExecutor`** — An AgentExecutor that also supports ACP initialization. Used by UniversalA2AServer to discover agent capabilities before serving the A2A agent card. Both ACPtoA2AExecutor and HostA2AExecutor implem...
+- **`ModeChangedMetadata`** — Metadata for a `current_mode_update` notification — mode transitions like plan→execute or model swaps. ACP's `CurrentModeUpdate` only carries the new `currentModeId`; the available-modes list is de...
+- **`PlanMetadata`** — Metadata for an ACP `plan` notification — the agent's structured todo-list. Always carries the FULL set of entries; consumers replace state wholesale on receipt. Entries reuse the SDK's typed `Plan...
+- **`ServeACPOverA2AHandle`**
+- **`ServeACPOverA2AOptions`**
+- **`SessionInfoUpdatedMetadata`** — Metadata for a `session_info_update` notification — the harness mutating session-level metadata (title, last-activity timestamp). Three-state per field: `undefined` = no change, `null` = explicit c...
+- **`ThoughtMetadata`** — Metadata for an `agent_thought_chunk` ACP notification. The `delta` is the incremental text added by this chunk; `cumulativeText` is the running concatenation per `messageId`.
+- **`ToolCallEndMetadata`** — Metadata for a terminal tool-call transition (`completed` / `failed`). Receivers move the call from active to completed. Carries the full final ACP `ToolCall` payload so receivers don't need to ret...
+- **`ToolCallProgressMetadata`** — Metadata for a non-terminal tool-call status transition (e.g. `pending` → `in_progress`) or a payload-only update (content / locations / raw I/O) without a status change. Receivers should update th...
+- **`ToolCallStartMetadata`** — Metadata for the initial registration of a tool call. Carries the full ACP `ToolCall` payload so receivers can render rich detail (diff/terminal content, file locations, raw input/output, tool kind...
+- **`UniversalA2AServerOptions`**
+- **`UsageMetadata`** — Metadata for a `usage_update` notification — token-budget telemetry. `cost` reuses the SDK's `Cost` type (`{ amount: number; currency: string }`) so structured multi-currency values are preserved e...
+
+### Types
+
+- **`AgentCard`**
+- **`AgentEventKind`** — Allowed values for `TaskStatusUpdateEvent.metadata.kind`.
+- **`AgentEventMetadata`** — Discriminated union of all agent-event metadata shapes that ride on `TaskStatusUpdateEvent.metadata`. Use this as the type for `metadata` when emitting a non-text agent event.
+- **`AgentExecutor`**
+- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
+- **`AuditEventInput`**
+- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`AvailableCommand`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
+- **`Cost`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ExecutionEventBus`**
+- **`GatewayAgentCapabilities`**
+- **`GatewayAgentCard`**
+- **`GatewayCardInput`**
+- **`HarnessCapabilityEntry`** — One entry in the gateway agent-card's `capabilities.harnesses` array. Federated A2A peers consume this to learn which curated harnesses the gateway can route to without trial-and-error. `primary` m...
+- **`HttpStatus`** — Union of the numeric values in {HTTP_STATUS}. Useful for typing custom handler return values or status-code routing tables that should only accept codes the monorepo emits.
+- **`Message`**
+- **`PlanEntry`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`RequestContext`**
+- **`Task`**
+- **`TaskStatus`**
+- **`TaskStatusUpdateEvent`**
+- **`ToolCallContent`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ToolCallEndStatus`** — Terminal status values for tool-call-end metadata. ACP defines `pending` / `in_progress` as non-terminal and `completed` / `failed` as terminal. We accept any string here so receivers see what the ...
+- **`ToolCallLocation`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ToolKind`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+
+### Constants
+
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
+- **`CURRENT_A2A_PROTOCOL_VERSION`**
+- **`DEFAULT_MAX_REQUEST_BODY_SIZE`** — Default maximum request body size in bytes (4 MB).
+- **`DEFAULT_MAX_TEXT_BUFFER_SIZE`** — Default maximum text buffer size in bytes (256 KB).
+- **`HTTP_STATUS`** — Centralized HTTP status code constants for any module in the monorepo that constructs a `Response` object. **Inclusion policy**: this list is intentionally narrow — only codes the monorepo actually...
+
+### Exports
+
+- **`type A2ALogger`**
+- **`type HttpStatus`**
+
+
+## Dependencies
+
+- `@a2a-js/sdk`
+- `@agentclientprotocol/sdk`
+- `@agents-js/acp`
+- `@agents-js/validation`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/a2a-client
+
+> A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2a-client-llms.txt
+
+---
+# @agents-js/a2a-client
+
+> A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.
+
+## Installation
+
+```sh
+bun add @agents-js/a2a-client
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`A2AClientController`**
+- **`A2AClientProvider`** — Event-driven A2A client provider -- the **Provider** layer for A2A communication. Orchestrates turn execution (send, stream, resume), target resolution, and event emission. Delegates all protocol I...
+- **`AgentRegistry`** — Agent registry that resolves `-name` references to A2A endpoints. Reads agent entries from a JSON config file and fetches + caches agent cards from the resolved URLs. `kind: "acp"` entries are pars...
+- **`AgentRegistryConfigError`** — Thrown when the registry config file cannot be read or parsed.
+- **`AGUIStreamError`** — Thrown by {parseAguiSseStream} / {AGUITransport} when the server-sent event stream is malformed, emits an invalid AG-UI event, or is torn down unexpectedly.
+- **`AguiToA2ATransportAdapter`** — Adapts an {AGUITransport} so it can sit behind the existing `A2AClientProvider` and session reducer without them knowing about the underlying protocol. Semantic bridging: - `sendMessageStream(param...
+- **`AGUITransport`** — Native AG-UI client transport. This is a **parallel** surface to {A2ATransport}, not a subtype. AG-UI has no task lifecycle, so the task-shaped methods on `A2ATransport` have no AG-UI counterpart. ...
+- **`AGUIUnsupportedOperationError`** — Thrown by {AguiToA2ATransportAdapter} when a caller invokes an A2A task-shaped method that has no AG-UI counterpart (e.g. `getTask`, `cancelTask`, push-notification config). AG-UI has no task lifec...
+- **`PeerSyncError`** — Thrown when a peer's sync endpoint is unreachable, non-200, or returns an invalid payload.
+- **`SdkA2ATransport`** — Default A2A transport implementation backed by the A2A SDK. Handles HTTP/SSE communication with A2A agents: target resolution via agent card discovery, message sending (immediate and streaming), ta...
+
+### Functions
+
+- **`adaptTarget`** — Orchestrates the probe → auth → transform pipeline for a given TargetAdapter. 1. Constructs the probe URL from baseUrl + adapter.probePath 2. Calls adapter.authHeader (if defined) to get an Authori...
+- **`applyJsonPatch`** — Apply an array of JSON Patch (RFC 6902) operations to a state object immutably. Returns a new state object with all operations applied. The input state is not modified. Throws descriptive errors fo...
+- **`autoRegister`** — Idempotent auto-registration. Writes a v2 record for `options.name`, replacing any prior entry with the same name. Synthesizes provenance (`gateway_id`, `source=auto-reg`, `registered_at`, `agent_i...
+- **`buildA2ADelegationFramingText`** — Build the framing prompt that wraps a remote agent's response so the receiving LLM recognizes it as "the answer from ``" rather than ambient context. Without this framing, Claude tends to ignore an...
+- **`buildAcpElicitationResponseMetadata`**
+- **`buildSyncPayload`** — Produce the wire payload this gateway would serve at its sync endpoint. Three filters apply, in order: 1. `source !== "sync"` — loop prevention on the send side; we never re-serve records we receiv...
+- **`collectTextParts`**
+- **`createA2AMentionMiddleware`**
+- **`createDebugFetch`**
+- **`createInitialSessionState`**
+- **`createSharedAgentRegistry`**
+- **`createSyncEndpointHandler`** — Build a `(req: Request) => Promise<Response | null>` compatible with `UniversalA2AServerOptions.additionalFetch`. The gateway wires this into its existing fetch hook so the sync endpoint lives on t...
+- **`describeSessionStatus`** — Map an {A2ASessionState} to a polished, protocol-neutral {SessionStatusViewModel} suitable for rendering in UI clients (Raycast, web-ui, Obsidian plugin, terminal CLIs, etc.). Discriminator priorit...
+- **`escapeA2ADelegationInnerText`** — Escape a delegated agent's response so it cannot break out of the outer `<a2a-delegation-response>` markers. Rewrites any literal occurrences of the open or close tags inside `innerText` with zero-...
+- **`extractA2AResponseText`**
+- **`extractAcpAuthRequiredMetadata`**
+- **`extractAcpElicitationMetadata`**
+- **`extractLatestAgentMessage`**
+- **`extractLatestAgentText`**
+- **`extractMessageText`**
+- **`fetchPeerRecords`** — GET the peer gateway's sync endpoint and return the records it serves. Throws {PeerSyncError} on network failure, non-2xx, or malformed payload.
+- **`groupDiscoveredTargets`** — Group/dedupe a raw list of discovered targets by `name`, picking a canonical `preferred` entry per group under the configured policy. The function is pure and opt-in — passing no `options` (or `{}`...
+- **`isTerminalTaskState`**
+- **`mergeRecords`** — Pure-function merge surface — exported for white-box tests of the matrix.
+- **`normalizeAgentTargetInput`**
+- **`normalizeHeaders`**
+- **`originCardFallback`** — Returns an origin-level variant of `normalized` when the base path is non-empty. Used as a resolution fallback for the common misuse pattern where the caller passes a JSON-RPC endpoint URL (e.g. `h...
+- **`parseAgentMentions`** — Extracts `-name` mentions from text content. Returns an array of {ParsedMention} objects describing each valid mention found. Email addresses (e.g. `user.com`) are NOT matched because the `@` must ...
+- **`parseDispatchDirective`** — Parses a `@-name payload` dispatch directive from the user text. Unlike `` which are annotations that can appear anywhere, `@@` is a deterministic routing directive: the entire message is consumed ...
+- **`randomUuid`** — Secure-context-safe RFC 4122 v4 UUID generator. Browsers only expose `crypto.randomUUID()` in secure contexts (HTTPS origins or `localhost` / `127.0.0.1`). Serving the reference web-ui over plain H...
+- **`readAgentRegistryRecords`** — Read the v2 record shape, applying v1→v2 migration in-memory. Returns an empty map when the file is absent or unparsable (fails open).
+- **`reduceA2ASessionState`**
+- **`resolveSharedAgentRegistryPath`**
+- **`runFederationTransportConformanceTests`** — Federation transport conformance suite. v1 surface only — test bodies are `test.todo` and become real assertions in v2 when an actual transport implementation lands (likely the HTTP A2A RemoteHarne...
+- **`serializeRecords`** — Build the on-disk JSON payload from a record map, preserving v2 shape. Exported so the sync module can write the merged state using the same serializer autoRegister uses — one source of truth for t...
+- **`startRegistrySync`** — Wire auto-registration and peer-sync into a gateway startup path. Returns immediately — auto-registration is fire-and-forget. ```ts const sync = startRegistrySync({ name: "my-gateway", url: baseUrl...
+- **`stripMention`** — Removes a previously-parsed mention from the source text. Returns the text with the mention's `fullMatch` removed at the correct position. Trailing whitespace immediately after the mention is colla...
+- **`summarizeCapabilities`**
+- **`syncFromPeer`** — Pull-sync from a single peer. Fetches the peer's sync endpoint, drops self-originated records, merges the rest into the local registry, and writes the result to disk. Returns a {SyncSummary} descri...
+- **`truncateText`**
+
+### Interfaces
+
+- **`A2AAbortSendEvent`** — Send was aborted by an `AbortSignal` before any transport request was issued. Emitted instead of `error` when {SendTurnOptions.signal} is already aborted on entry to `sendTurn`/`resumeTurn`, or whe...
+- **`A2AAbortStreamEvent`** — Send/resume stream was aborted by an `AbortSignal` mid-flight. Emitted when the abort fires after the streaming connection opened but before it reaches a terminal task state. Distinguishes user-ini...
+- **`A2AAgentEntry`** — A registry entry describing a remote A2A agent reachable over HTTP. `A2AAgentEntry` is also the v1 dispatch primitive for parent→child gateway federation when a `HarnessCapabilityEntry` carries `so...
+- **`A2AAuthRequiredState`** — Lightweight typed view of an active auth-required prompt for UI consumers. Each `authMethods[]` entry carries the protocol-level method id alongside optional human-presentable fields. `link` is the...
+- **`A2AAvailableCommandsUpdatedEvent`** — The set of slash-commands currently available from the harness. Replaces state wholesale on receipt.
+- **`A2ACancellationFailedEvent`** — Remote-side `cancelTask` rejected. The corresponding `error` event carries the underlying transport message; this event lets consumers distinguish cancellation-failure from a generic operation error.
+- **`A2ACancellationRequestedEvent`** — Local cancellation was requested by the caller. Useful for UI consumers that want to render a "canceling..." state before a remote-cancel result (`cancellation.succeeded` / `cancellation.failed`) l...
+- **`A2ACancellationSucceededEvent`** — Remote-side `cancelTask` completed successfully. UI consumers can use this to confirm to the user that the remote agent actually accepted the cancellation, vs falling back to local-only teardown (w...
+- **`A2AClientControllerOptions`**
+- **`A2ACustomEvent`**
+- **`A2ADebugRecordEvent`**
+- **`A2ADelegationFramingTemplate`** — Declarative template for the delegation framing prompt. Consumers (tests, host integrations, alternate `buildResponseBlock` implementations) should import this rather than rebuild the literal strin...
+- **`A2AErrorEvent`**
+- **`A2AMentionDispatchError`**
+- **`A2AMentionDispatchOptions`**
+- **`A2AMentionDispatchSuccess`**
+- **`A2AMentionResponseBlockOptions`**
+- **`A2AMessageCompletedEvent`**
+- **`A2AMessageDeltaEvent`** — A partial message update. **Note on `text` vs `delta` semantics:** - `text` carries the **accumulated** message text (all content so far). - `delta` (AG-UI spec alias) carries the **incremental** c...
+- **`A2AMessageEndEvent`**
+- **`A2AMessageStartEvent`** — Signals the start of a new message. The `role` union is widened beyond the AG-UI spec to keep `"agent"` as an agents-js-local alias for `"assistant"` (pre-existing semantics). All spec values (`"de...
+- **`A2AModeChangedEvent`** — Mode transition reported by the harness (e.g. plan→execute, model swap). ACP `current_mode_update` carries only the new `modeId`; the available-modes list lives in session metadata.
+- **`A2APlanUpdatedEvent`** — The agent's structured todo-list. ACP `plan` notifications always carry the FULL set of entries; receivers replace state wholesale.
+- **`A2AReasoningEncryptedEvent`** — Encrypted reasoning payload. `data` is the agents-js legacy field carrying the encrypted value. The AG-UI spec shape uses `subtype`, `entityId`, and `encryptedValue`. When an emitter populates the ...
+- **`A2AReasoningEndEvent`**
+- **`A2AReasoningMessageChunkEvent`** — Streams an incremental reasoning chunk. Emitters should populate both `text` (agents-js legacy) and `delta` (AG-UI spec alias) with the same value during the transition window.
+- **`A2AReasoningMessageContentEvent`** — Streams a full reasoning content block. Emitters should populate both `text` (agents-js legacy) and `delta` (AG-UI spec alias) with the same value during the transition window.
+- **`A2AReasoningMessageEndEvent`**
+- **`A2AReasoningMessageStartEvent`**
+- **`A2AReasoningStartEvent`**
+- **`A2ARequestSentEvent`** — Lifecycle signals for streaming/non-streaming sends. Lifecycle events are pure diagnostics: they never participate in `transcript` / `pendingAgentText` / task-state transitions. UI consumers can re...
+- **`A2ARunErrorEvent`** — AG-UI spec: signals that an agent run failed. Emitted alongside the existing agents-js `error` event during the transition window. `runId`/`threadId` are populated when an in-flight turn context is...
+- **`A2ARunFinishedEvent`** — AG-UI spec: signals the successful completion of an agent run. Emitted alongside the existing agents-js `message.completed` event during the transition window. Shares `runId`/`threadId` with the pr...
+- **`A2ARunStartedEvent`** — AG-UI spec: signals the start of an agent run (one user turn). Emitted alongside the existing agents-js `turn.started` event during the transition window. `runId` is unique per turn; `threadId` is ...
+- **`A2ASessionInfoUpdatedEvent`** — Session-level metadata mutation from ACP `session_info_update`. Both fields use three-state semantics: omitted (`undefined`) → no change, `null` → explicit clear, string → replacement. Receivers me...
+- **`A2ASessionState`**
+- **`A2ASessionUpdatedEvent`**
+- **`A2AStepFinishedEvent`**
+- **`A2AStepStartedEvent`**
+- **`A2AStreamClosedEvent`** — Stream closed cleanly (terminal task state reached or generator exhausted).
+- **`A2AStreamFirstEventEvent`** — First event has been received from the stream (or first response from non-streaming).
+- **`A2AStreamIdleEvent`** — Stream has been silent for the configured idle threshold without reaching a terminal state. UI consumers should surface a user-facing "no stream event for N seconds" warning. Idle timer clears on e...
+- **`A2AStreamLastEventEvent`** — A new event has arrived; useful for clients that want to track last-activity.
+- **`A2AStreamOpenedEvent`**
+- **`A2ATargetResolvedEvent`**
+- **`A2ATaskArtifactUpdatedEvent`**
+- **`A2ATaskStatusUpdatedEvent`**
+- **`A2ATaskUpdatedEvent`**
+- **`A2AToolCallArgsEvent`** — Incremental JSON argument chunk for a tool call. Emitters should populate both `argsChunk` (agents-js legacy) and `delta` (AG-UI spec alias) with the same value during the transition window.
+- **`A2AToolCallEndEvent`** — Marks the end of a tool call. Emitted once per `toolCallId` after all `tool_call.args` events and when the underlying tool call reaches a terminal state (completed or failed). Carries the final ACP...
+- **`A2AToolCallProgressEvent`** — Non-terminal mid-call update. ACP `tool_call_update` notifications carry status transitions (`pending` → `in_progress`) and/or payload mutations (content/locations/raw I/O) without ending the call....
+- **`A2AToolCallStartEvent`** — Marks the start of a tool call. Emitted once per `toolCallId` before any `tool_call.args` or `tool_call.end` event. Carries the full ACP `ToolCall` payload forwarded from the wire so receivers can ...
+- **`A2ATransport`** — Transport interface for A2A protocol I/O. This is the **Transport** port in the Ports & Adapters architecture. The default implementation is {SdkA2ATransport} (HTTP/SSE via the A2A SDK). Implement ...
+- **`A2ATurnStartedEvent`**
+- **`A2AUsageUpdatedEvent`** — Token-budget telemetry. `size` = total context window tokens, `used` = consumed so far, `cost` = structured `Cost` from the SDK (`{ amount, currency }`) preserved verbatim — `null` is a valid harne...
+- **`ACPA2AElicitation`**
+- **`ACPA2AElicitationResponse`**
+- **`ACPA2AElicitationSchema`**
+- **`ACPAgentEntry`** — A registry entry describing a locally spawnable ACP harness.
+- **`ActiveToolCall`** — Snapshot of a single in-flight or recently-completed tool call. Mirrored on session state so the TUI can render an inline status row that swaps in place as the call progresses. Optional fields mirr...
+- **`AdaptedTarget`** — Result of a successful adapt flow.
+- **`AdaptTargetContext`** — Context passed to TargetAdapter hooks during card adaptation.
+- **`AdaptTargetOptions`** — Options for adaptTarget. Allows injecting a custom fetch for testing.
+- **`AgentMentionRegistry`**
+- **`AgentRegistryOptions`** — Options for constructing an {AgentRegistry}.
+- **`AgentRegistryRecord`** — Full v2 on-disk record shape.
+- **`AgentsJsRegistrySyncPayload`** — Wire-format payload served by the sync endpoint and consumed by peers. Records are typed as the wire shape — `kind="acp"` and the operator- controlled launch fields (`command`, `args`, `env`, `work...
+- **`AgentTargetInput`**
+- **`AGUIRunResult`** — Result of a single AG-UI `runAgent` call.
+- **`AGUITransportOptions`** — Options for constructing an {AGUITransport}.
+- **`AutoRegisterA2AOptions`** — Transport-a2a auto-reg options.
+- **`AutoRegisterACPOptions`** — Transport-acp auto-reg options.
+- **`AutoRegisterOptionsBase`** — Options shared by all {autoRegister} calls.
+- **`CancelTaskOptions`** — Options for {A2AClientController.cancelTask}. When `taskId` is omitted, the controller defaults to the active session's `taskId` if present, falling back to `resumableTaskId`. This matches what UI ...
+- **`CapabilitySummary`**
+- **`CreateA2AMentionMiddlewareOptions`**
+- **`DebugRecord`**
+- **`DiscoveredTarget`** — Input shape consumed by {groupDiscoveredTargets}. Wraps a registry record with the optional probe-derived reachability + error reason. Consumers produce these from `AgentRegistry.list()` results pa...
+- **`DiscoveredTargetGroup`** — Output of {groupDiscoveredTargets} — one bucket per unique agent name. The `preferred` entry is the canonical pick under the configured policy; `alternates` carries the rest of the duplicates (gate...
+- **`FederationConformanceOptions`** — Options to construct the conformance harness against a candidate federation transport implementation. Mirrors the `runProviderConformanceTests` signature shape from `-js/memory/testing`.
+- **`FederationTransport`** — Contract any federation transport must satisfy to participate in parent→child gateway dispatch under the v1 federation contract (see `docs/federation/v1-contract.md`). Mirrors the `runProviderConfo...
+- **`FetchPeerRecordsOptions`** — Options for {fetchPeerRecords}.
+- **`GroupDiscoveredTargetsOptions`** — Behavior knobs for {groupDiscoveredTargets}. All flags default to `false` so the helper is a pass-through unless callers opt in.
+- **`JsonPatchOperation`** — A single JSON Patch (RFC 6902) operation.
+- **`NormalizedAgentTargetInput`**
+- **`ParsedDispatchDirective`**
+- **`ParsedMention`** — Pure functions for parsing `-name` mentions from text content. Agent names are alphanumeric + hyphens (e.g. `knowledge-compiler`, `code-reviewer`). A mention is valid when preceded by whitespace or...
+- **`ProbeResult`**
+- **`RegistrySyncHandle`** — Handle returned by {startRegistrySync}.
+- **`ResolvedAgentTarget`**
+- **`ResumeTurnOptions`**
+- **`SendTurnOptions`**
+- **`SharedAgentRegistry`**
+- **`SharedAgentRegistryOptions`**
+- **`StartRegistrySyncOptions`** — Options for {startRegistrySync}.
+- **`SyncEndpointHandlerOptions`** — Options for {createSyncEndpointHandler}.
+- **`SyncFromPeerOptions`** — Options for {syncFromPeer}.
+- **`SyncLogger`** — Logger shape — compatible with `console` and the gateway's A2ALogger subset we use.
+- **`SyncSummary`** — Summary returned by {syncFromPeer}. Each record surfaces in exactly one array + one action.
+- **`TargetAdapter`** — Adapter interface for non-standard A2A agents. Implement this to teach `adaptTarget` how to: 1. Find the agent card at a non-standard path (`probePath`) 2. Optionally authenticate the probe (`authH...
+- **`TargetInspection`**
+- **`TranscriptEntry`**
+
+### Types
+
+- **`A2AEvent`**
+- **`A2AEventListener`**
+- **`A2ASendResult`**
+- **`A2AStreamEvent`** — AG-UI event types that may appear in SSE streams alongside standard A2A events.
+- **`ACPA2AElicitationContentValue`**
+- **`AgentActorType`** — Who or what is behind an agent. Governance classifier; distinct from transport `kind`.
+- **`AgentEntry`** — A single entry from the registry config file (discriminated on `kind`).
+- **`AgentKind`** — Kind of agent transport — `a2a` entries are routable over HTTP A2A; `acp` entries describe a spawnable ACP harness.
+- **`AgentMentionMap`**
+- **`AgentMentionResolver`**
+- **`AgentRegistrySource`** — How a registry record got here on this gateway.
+- **`AgentTargetMode`**
+- **`AutoRegisterOptions`**
+- **`CancelTaskResult`** — Result of {A2AClientController.cancelTask}. `outcome` distinguishes: - `"canceled"` — the transport's `cancelTask` call resolved successfully. `task` carries the resulting Task (typically with stat...
+- **`FetchLike`**
+- **`RawAgentCard`** — Raw card shape returned by a non-standard agent probe endpoint. Kept as a loose record to avoid over-constraining what Agent Zero returns.
+- **`SessionStatus`**
+- **`SessionStatusAction`** — Re-export for convenience — consumers can override action labels.
+- **`SessionStatusViewModel`** — Re-export for convenience — consumers can override action labels.
+- **`StartupLogger`** — Console-shaped logger subset used by {startRegistrySync}.
+- **`SyncAction`** — Why a single record changed (or did not change) during a sync merge.
+- **`TargetInspectionStatus`**
+- **`TargetReachability`** — Per-target health/probe status as seen by a UI client. Discovery implementations can map their own probe results to this triplet: `online` (target responded), `offline` (probe failed), `unknown` (p...
+
+### Constants
+
+- **`A2A_DELEGATION_FRAMING_TEMPLATE`** — Canonical framing template used by `defaultBuildResponseBlock`. Exported so the framing-contract regression test can assert against the exact strings, and so downstream consumers that emit equivale...
+- **`A2A_DELEGATION_RESPONSE_CLOSE_TAG`** — Outer close-tag for the A2A delegation framing. Paired with `A2A_DELEGATION_RESPONSE_OPEN_TAG`.
+- **`A2A_DELEGATION_RESPONSE_OPEN_TAG`** — Outer open-tag for the A2A delegation framing. Consumers (tests, host integrations, alternate `buildResponseBlock` implementations) should import this constant rather than hardcode the string.
+- **`ACP_A2A_AUTH_REQUIRED_METADATA_KEY`**
+- **`ACP_A2A_ELICITATION_METADATA_KEY`**
+- **`ACP_A2A_ELICITATION_RESPONSE_METADATA_KEY`**
+- **`AGENTS_JS_REGISTRY_WELL_KNOWN_PATH`** — Well-known path the peer sync endpoint is mounted at.
+
+### Exports
+
+- **`parseAguiSseStream`**
+- **`type A2AClientControllerOptions`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@a2a-js/sdk`
+- `@agents-js/a2a`
+- `@agents-js/agui-types`
+- `@agents-js/validation`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/a2ui-host
+
+> Browser-side A2UI v0.9 host and bridge for agents-js.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt
+
+---
+# @agents-js/a2ui-host
+
+> Browser-side A2UI v0.9 host and bridge for agents-js.
+
+## Installation
+
+```sh
+bun add @agents-js/a2ui-host
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`A2uiBridge`** — Wires an {A2uiHost} onto a transport. The bridge owns no host state of its own — it is pure glue.
+- **`A2uiHost`** — Renders a live `SurfaceGroupModel` into a DOM mount point, applying A2UI lifecycle messages as they arrive.
+- **`SurfaceSession`**
+
+### Functions
+
+- **`createA2uiToolCallContentHandler`**
+- **`createBridgeSurfaceAdapter`** — Build a {HostSurfaceAdapter} that forwards every incoming A2UI lifecycle message through the given bridge. Pass the returned adapter into `createA2uiToolCallContentHandler({ surfaceAdapter })` and ...
+
+### Interfaces
+
+- **`A2uiBridgeOptions`** — Options for constructing an {A2uiBridge}.
+- **`A2uiHostOptions`** — Options for constructing an {A2uiHost}.
+- **`CreateA2uiToolCallContentHandlerOptions`**
+- **`HostSurfaceAdapter`**
+- **`SurfaceEventSink`** — Minimal shape of a sink that can ferry surface events back to the agent. The `<P>` generic narrows the payload envelope. Consumers that know their wire contract at the wiring site can narrow once h...
+- **`SurfaceSessionOptions`**
+
+### Types
+
+- **`A2uiHostEventHandler`** — Callback invoked when a rendered ACP primitive emits an action. The `<P>` generic narrows the surface-event payload envelope so consumers that know their wire contract can typecheck payloads end-to...
+- **`SurfaceRenderer`** — Renderer function matching `renderSurface` from `-js/a2ui-renderer`. Injected so the host module stays renderer-agnostic (and unit-testable without a DOM-capable `lit` import chain). The renderer's...
+
+### Exports
+
+- **`type SurfaceSessionOptions`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@agents-js/acp-host`
+
+### Peer Dependencies
+
+- `@agents-js/a2ui-types`
+- `@agents-js/ui-components`
+- `@agents-js/validation`
+- `lit`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/a2ui-renderer
+
+> Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-renderer-llms.txt
+
+---
+# @agents-js/a2ui-renderer
+
+> Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.
+
+## Installation
+
+```sh
+bun add @agents-js/a2ui-renderer
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`A2uiRendererError`** — Error thrown by the A2UI renderer when it cannot map an A2UI component onto a concrete host primitive (unknown catalog id, unknown component name, or property-binding failure).
+
+### Functions
+
+- **`bindAuthSelector`**
+- **`bindChatApp`**
+- **`bindCodeBlock`**
+- **`bindConnectDialog`**
+- **`bindDebugPanel`**
+- **`bindElicitationForm`**
+- **`bindMessage`**
+- **`bindModelSelector`**
+- **`bindPermissionModal`**
+- **`bindPermissionModeSelector`**
+- **`bindPromptInput`**
+- **`bindStatusBar`**
+- **`bindStreamingText`**
+- **`bindTranscript`**
+- **`bindWriteGateModal`**
+- **`renderA2uiComponent`** — Render a single A2UI component node into a Lit `TemplateResult`. Throws `A2uiRendererError` when the catalog id is unknown or when the component name is not present in the ACP catalog.
+- **`renderSurface`** — Render a full A2UI surface (or every surface in a group) into a single Lit `TemplateResult`.
+
+### Interfaces
+
+- **`A2uiComponentNode`** — Minimum shape this renderer needs from an A2UI component entry.
+- **`BindingContext`** — Context passed to every binding function.
+- **`ComponentLike`** — Minimal shape of a `/web_core` `ComponentModel` that the surface view reads. Both real models and plain-object fakes satisfy this shape.
+- **`RenderOptions`** — Options accepted by the renderer.
+- **`RenderSurfaceOptions`** — Options for {renderSurface}.
+- **`SurfaceGroupLike`** — Minimal shape of a `SurfaceGroupModel` as the renderer needs it.
+- **`SurfaceLike`** — Minimal shape of a surface as the renderer needs it.
+
+### Types
+
+- **`A2uiAction`** — An A2UI `Action` — either an action name string or a `{ action: string }` object.
+- **`A2uiEventHandler`** — Handler fired whenever an ACP primitive emits an event that should be forwarded.
+- **`BindingResult`** — Type-shape returned by the binding functions.
+- **`DynamicValue`** — An A2UI `DynamicString` / `DynamicBoolean` — a literal or a `{ path }` binding.
+
+### Constants
+
+- **`ACP_BINDINGS`** — Map from A2UI ACP component name (per `ComponentApi.name`) to binding function. Populated once at module load — matches the frozen 15-component ACP catalog.
+- **`DEFAULT_SURFACE_ID`** — Surface id used by {renderA2uiComponent} when callers omit an explicit `surfaceId`. Hosts that render a single surface can rely on this value when wiring up their action-event handlers.
+
+
+## Dependencies
+
+- `@agents-js/a2ui-types`
+- `@agents-js/ui-components`
+
+### Peer Dependencies
+
+- `lit`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/a2ui-types
+
+> Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt
+
+---
+# @agents-js/a2ui-types
+
+> Thin re-export layer over [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) v0.9 plus a curated ACP component catalog for agents-js.
+
+`@agents-js/a2ui-types` gives consumers a single, version-aligned import for
+A2UI lifecycle types (`A2uiMessage`, `Catalog`, `BASIC_COMPONENTS`) and adds
+an opinionated `AcpCatalog` describing the ACP-aware component APIs
+(`ChatApp`, `Transcript`, `PromptInput`, `PermissionModal`, …) that agents-js
+hosts and renderers know how to draw.
+
+## Installation
+
+```sh
+npm install @agents-js/a2ui-types
+```
+
+```sh
+bun add @agents-js/a2ui-types
+```
+
+## Usage
+
+Validate a lifecycle message against the A2UI basic catalog and the ACP
+catalog together:
+
+```ts
+import { AcpCatalog } from "@agents-js/a2ui-types/catalog";
+import { BasicCatalog } from "@a2ui/web_core/v0_9/basic_catalog";
+import { MessageProcessor } from "@a2ui/web_core/v0_9/message_processor";
+
+const processor = new MessageProcessor({
+  catalogs: [BasicCatalog, AcpCatalog],
+});
+
+processor.handle({
+  type: "createSurface",
+  surfaceId: "main",
+  components: [
+    { component: "ChatApp", id: "chat", weight: 1 },
+  ],
+});
+```
+
+Iterate over every ACP component API to register a renderer:
+
+```ts
+import { ACP_COMPONENT_APIS } from "@agents-js/a2ui-types";
+
+for (const api of ACP_COMPONENT_APIS) {
+  registerRenderer(api.name, defaultRendererFor(api));
+}
+```
+
+The `/catalog` subpath exposes `AcpCatalog`, `ACP_COMPONENT_APIS`, and the
+per-component `*Api` zod schemas; the bare entry point re-exports the
+A2UI-host-relevant `@a2ui/web_core` v0.9 surface (catalog, component,
+message-processor types) so consumers do not have to depend on
+`@a2ui/web_core` directly.
+
+## Documentation
+
+Full API reference and protocol guides: <https://agents-js.bodal.dev/>.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+<!-- This README is hand-maintained. -->
+
+---
+
+# @agents-js/acp
+
+> Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-acp-llms.txt
+
+---
+# @agents-js/acp
+
+> Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.
+
+## Installation
+
+```sh
+bun add @agents-js/acp
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`ACPClientController`** — Low-level ACP client controller managing the full agent lifecycle. This is the **Provider** for ACP communication. It owns the connection state machine, sends protocol messages over a stdio/NDJSON ...
+- **`AcpStreamingTranslator`** — Stateful per-session translator. Instantiate one per ACP session. The translator does no I/O and holds no transport handles — it's a pure data transformer with private accumulator state. Tests shou...
+- **`CwdResolutionError`**
+- **`ResilientACPProcess`**
+
+### Functions
+
+- **`buildSpawnEnv`** — Build the env map for the spawned child. When `inheritedEnvKeys` is supplied, parent env is filtered to those keys (everything else is dropped before overrides are layered on); otherwise the full `...
+- **`createErrorAwareReadable`** — Wrap a ReadableStreamDefaultReader in an error-aware ReadableStream that propagates child-process spawn/exit errors instead of silently closing. Attaches `error` and `close` event handlers to the c...
+- **`extractPromptText`** — Extract the concatenated textual representation of an ACP `PromptRequest`. Local-process agent adapters (pi-acp, droid-acp, trial-agent, ...) all need to flatten the structured `prompt` array into ...
+- **`extractRequestErrorDetails`** — Extract the most useful human-readable string from a JSON-RPC error's `data` field. Priority: 1. `data.details` (string) 2. `data.message` (string) 3. JSON-stringified `data` (non-empty, non-`{}` o...
+- **`formatRequestError`** — Format an error into a single human-readable string that includes both `error.message` AND any `data.details` / `data.message` context from a JSON-RPC `RequestError`. Falls back to `error.message` ...
+- **`resolveSessionCwd`**
+- **`runAcpWrapperBinary`** — Run an in-repo wrapper ACP binary. Returns once `--help`/`--version` exit paths fire; otherwise resolves immediately after the `AgentSideConnection` is wired up — the connection keeps the process a...
+- **`spawnACPAgent`** — Spawn an ACP agent as a subprocess and create an ndJSON stream for communication.
+
+### Interfaces
+
+- **`ACPClientControllerOptions`**
+- **`ACPClientState`** — State machine for the ACP client controller. Transitions follow this lifecycle: ``` idle -> initializing -> ready -> starting_session -> session_ready | ^ v | prompting --+ | v cancelling -> sessio...
+- **`ACPHostAdapters`** — Host platform callbacks injected into the ACP client controller at construction time. This is the primary **Adapter** interface in the Ports & Adapters architecture. The controller delegates all ho...
+- **`ACPProcess`**
+- **`ACPProcessOptions`**
+- **`AcpStreamingSink`** — Sink contract: consumers implement these methods to receive translated streaming events. Methods are invoked synchronously; the sink owns any downstream async dispatch (e.g. publishing on an event ...
+- **`AcpWrapperBinarySpec`**
+- **`AvailableCommandsUpdateCall`** — Argument shape for `AcpStreamingSink.onAvailableCommandsUpdate`. Carries the FULL set of commands available from the harness via the SDK's typed `AvailableCommand` shape (preserves description, inp...
+- **`ErrorAwareStreamOptions`**
+- **`ErrorSignal`** — Handle for signalling errors into an error-aware readable stream. Attach child-process event handlers that call `signal()` on failure.
+- **`LogSink`**
+- **`ModeChangeCall`** — Argument shape for `AcpStreamingSink.onModeChange`. ACP `current_mode_update` notifications only carry `currentModeId` (the available-modes list lives in initial session metadata, not on transition...
+- **`PlanUpdateCall`** — Argument shape for `AcpStreamingSink.onPlanUpdate`. ACP `plan` notifications always carry the FULL set of entries — consumers replace plan state wholesale on receipt. Entries reuse the SDK's typed ...
+- **`ResilientACPProcessOptions`**
+- **`SessionInfoUpdateCall`** — Argument shape for `AcpStreamingSink.onSessionInfoUpdate`. Mirrors ACP `SessionInfoUpdate` (title + updatedAt). Both fields are `string | null | undefined` per the SDK: `null` is an explicit clear ...
+- **`TextDeltaCall`** — Argument shape for `AcpStreamingSink.onTextDelta` and `onThoughtDelta`. Both `delta` (incremental text added by this chunk) and `cumulativeText` (running total per `messageId`) are surfaced so sink...
+- **`ToolCallStartCall`** — Argument shape for `AcpStreamingSink.onToolCallStart`.
+- **`ToolCallUpdateCall`** — Argument shape for `AcpStreamingSink.onToolCallUpdate`. Mirrors the ACP `ToolCallUpdate` shape with three-state semantics for `content` / `locations`: `undefined` = no change, `null` = explicit cle...
+- **`UsageUpdateCall`** — Argument shape for `AcpStreamingSink.onUsageUpdate`.
+
+### Types
+
+- **`ACPControllerEvent`**
+- **`ACPWorkspaceRootPolicy`**
+- **`ExhaustionCallback`**
+- **`SessionNotification`**
+- **`SessionUpdate`**
+- **`Stream`**
+
+### Constants
+
+- **`consoleLogSink`**
+
+### Exports
+
+- **`CLIENT_METHODS`**
+- **`ClientSideConnection`**
+- **`ndJsonStream`**
+- **`PROTOCOL_VERSION`**
+- **`RequestError`**
+- **`type AcpWrapperBinarySpec`**
+- **`type LogSink`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@agents-js/policy`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/acp-host
+
+> Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-acp-host-llms.txt
+
+---
+# @agents-js/acp-host
+
+> Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.
+
+## Installation
+
+```sh
+bun add @agents-js/acp-host
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`ACPSessionController`** — High-level session orchestrator for ACP agent communication. This is the top-level **Provider** for host applications. It composes an {ACPClientController} with host-level concerns: permission eval...
+- **`CapabilityCache`** — Parses and caches agent capabilities from InitializeResponse. Provides boolean helpers for capability-gating UI and behavior. "Advertised" flags reflect what the CLIENT advertises to the agent. The...
+- **`EvalTransport`** — `LogTransport` that captures per-prompt evaluation records (prompt content, response, stop reason, errors) for offline regression suites.
+- **`Logger`** — Structured console logger with category prefixes. Provides debug visibility for session lifecycle, permissions, and errors. All log calls are also pushed to the global logStore for the debug panel.
+- **`PermissionEngine`**
+- **`PermissionStore`** — Persistence layer for permission rules. Session-scoped rules are held in memory. Persistent rules are saved via a host-provided callback.
+- **`SpanLogTransport`** — `LogTransport` that buckets entries into spans keyed by `entry.spanId`, tracking active and completed spans for the debug panel and trace export.
+- **`TerminalManager`**
+
+### Functions
+
+- **`applyAgentDefaults`**
+- **`atomicWrite`** — Atomic CAS write: stages content to a temp file, verifies the target is unchanged since the last read, then renames the staging file into place. If `snapshot` is null (file was never read, or is a ...
+- **`buildCompletedTurnSnapshot`**
+- **`buildControllerAdapters`** — Build the `ACPHostAdapters` config object for `ACPClientController`. Wires each adapter closure to the session controller's internal handlers without exposing the full controller instance.
+- **`buildForbiddenEnvKeys`** — Compute the set of env-var keys that callers must not override via agent `extraEnv`. The result is the union of {SYSTEM_FORBIDDEN_ENV_KEYS}, the policy's `agentSecretEnvKeys`, and the policy's `for...
+- **`buildInlineContext`** — Builds inline text with file content embedded in a fenced code block.
+- **`buildMcpServersList`** — Build the list of MCP servers to pass when creating or loading a session.
+- **`buildMinimalEnv`**
+- **`callHook`** — Safely invoke a session hook function. If the hook throws, the error is logged and `undefined` is returned.
+- **`cancelPendingElicitation`** — Cancel a pending elicitation request by resolving it with "cancel" action. Emits an `elicitation_resolved` event if there was a pending request.
+- **`cancelPendingPermission`** — Cancel a pending permission request by resolving it as "cancelled". Emits a `permission_resolved` event if there was a pending request.
+- **`cancelPendingWriteGate`** — Cancel a pending write-gate request by resolving it as "reject". Emits a `write_gate_resolved` event if there was a pending gate.
+- **`captureReadSnapshot`** — Capture a snapshot of a file for later CAS comparison. - Absolute path to the file (already resolved). A snapshot containing the content hash and mtime.
+- **`cleanupStagingDir`** — Remove a session's staging directory. - Absolute path to the staging directory to remove.
+- **`clearCancelSafetyTimer`** — Clear the cancel safety timer, if active. Returns `null` so the caller can assign back: `this.timer = clearCancelSafetyTimer(this.timer)`.
+- **`clonePlanEntries`**
+- **`clonePromptContent`**
+- **`cloneTurnItems`**
+- **`collectToolCallStats`**
+- **`configureLogging`**
+- **`createCrashableAgent`** — Creates a mock agent whose transport can be aborted mid-session. Useful for host crash/recovery tests that need a hard stream failure.
+- **`createEchoAgent`**
+- **`createFallbackModes`**
+- **`createHangingAgent`**
+- **`createHostACPProcess`**
+- **`createInitialState`**
+- **`createMockAgent`**
+- **`createNodeFileAdapters`** — Creates {HostFileAdapters} that use Node.js `fs` APIs for file I/O. Relative paths resolve against the session cwd. Reads and writes are then enforced against the normalized read/write/scratch root...
+- **`createOpencodeDefaultAgentRecoveredConfig`**
+- **`createTerminalHandlers`** — Create a scoped set of terminal handlers backed by a dedicated TerminalManager. Each ACPSessionController should call this once and own the returned handlers.
+- **`createTurnState`**
+- **`deriveActivitySurface`**
+- **`deriveComposerSurface`**
+- **`deriveInterruptSurface`**
+- **`derivePlanSurface`**
+- **`deriveTerminalEntries`**
+- **`deriveTranscriptSurface`**
+- **`deriveWorkflowSurfaceState`**
+- **`describeElicitationTarget`**
+- **`describeQueuedFollowUpBoundary`**
+- **`describeRunningTools`**
+- **`describeWorkflowError`**
+- **`detectFrontmatterOnlyWrite`**
+- **`emitEvent`** — Emit an event to all registered listeners. Individual listener errors are caught and logged so one bad listener does not break others.
+- **`emptyToolCallStats`**
+- **`ensureStagingDir`** — Create the staging directory for a session under the configured scratch root. Idempotent -- safe to call multiple times. - Absolute path to the scratch root (for example `<workspace>/.tmp`). - Sess...
+- **`evaluatePermission`** — Full permission evaluation pipeline: 1. beforePermission hook (fail-closed) 2. YOLO mode auto-approve 3. Read-only auto-approve 4. Remembered rules 5. Fall through to user prompt
+- **`filterFiles`** — Filters open files by a query string (fuzzy match against name and basename).
+- **`formatToolCallStatus`**
+- **`getHostManagedPermissionReason`**
+- **`getMentionAtCursor`** — Finds the mention token being typed at the cursor position in a textarea. Returns the query text after `@` (empty string if the user just typed `@`), or `null` if the cursor is not currently inside...
+- **`getPromptQueueCount`**
+- **`getToolCallById`**
+- **`getToolCalls`**
+- **`getTrailingToolBlockStats`**
+- **`getValidMessageId`**
+- **`handleSessionUpdate`** — Process a session notification and update state accordingly. Returns nothing -- all mutations happen on the `state` parameter.
+- **`isOpencodeDefaultAgentMissing`**
+- **`isSessionRestoreFailureMessage`**
+- **`isWithinAnyWorkspaceRoot`**
+- **`logPermissionDecision`** — Log a structured permission decision.
+- **`mapToolCallContent`**
+- **`mapToolCallStatus`**
+- **`normalizeAgentName`**
+- **`normalizePermissionMode`**
+- **`normalizeSessionModes`**
+- **`parseMentions`** — Extracts mention tokens from text. Only matches tokens like `.md` at word boundaries (after whitespace, start of line, or after newline).
+- **`requestWriteGateApproval`** — Determine whether a write should be auto-approved or requires a UI modal. Returns a resolved `Promise<boolean>` for auto-approved writes, or creates a pending write gate on `state` and emits the re...
+- **`resetLogging`**
+- **`resolveHostEnvPolicy`**
+- **`resolveMentions`** — Resolves mention tokens to open file paths.
+- **`resolveWorkflowCopy`** — Resolve a full copy map from optional partial overrides. Missing keys fall back to the default English copy.
+- **`resolveWorkspaceContext`**
+- **`resolveWorkspaceFilePath`**
+- **`sandboxHomePath`** — Compute the deterministic sandbox HOME directory for a given workspace identity root. The hash ensures each logical workspace gets its own isolated HOME without collisions.
+- **`snapshotToolCalls`**
+- **`splitMarkdownFrontmatter`**
+- **`summarizeToolGroup`**
+- **`toWorkspaceDisplayPath`**
+- **`trySetAgentMode`**
+- **`waitForReady`** — Returns a promise that resolves when the session status becomes "ready", or rejects after the given timeout.
+
+### Interfaces
+
+- **`ACPSessionState`**
+- **`ActivitySurfaceState`**
+- **`AgentConfig`**
+- **`ApplyDefaultsResult`**
+- **`BuildMinimalEnvInput`**
+- **`CodeDescriptor`** — A code block with language annotation
+- **`CompletedToolCallSnapshot`**
+- **`CompletedTurnSnapshot`**
+- **`ComponentDescriptor`** — An escape hatch for host-specific components
+- **`ComposerSurfaceState`**
+- **`ControllerAdapterContext`**
+- **`CreateTerminalHandlersOptions`**
+- **`DependencyRegistry`** — Registry for querying host-provided integrations and capabilities at runtime. This is an **Adapter** interface that host platforms can implement to advertise available services (MCP servers, extern...
+- **`DiffDescriptor`** — A file diff
+- **`DirectoryPolicy`** — Directory policy: what the agent is ALLOWED to read, write, and stage to, plus the auto-approved write zones that bypass the write-gate modal. This is intentionally separate from {WorkspaceContextC...
+- **`EvalRecord`**
+- **`FileSnapshot`** — Snapshot of a file's content hash and modification time, captured after a read for later CAS comparison.
+- **`FormDescriptor`** — A form rendered inline (not as a modal) — for read-only display of elicitation results
+- **`HostACPProcessOptions`** — Host-specific process spawn options, extending the low-level `ACPProcessOptions` from `-js/acp` with fields that only `createHostACPProcess` (in this package) interprets. `workspaceFlag` lived on `...
+- **`HostElicitationAdapter`** — Optional elicitation adapter that the host platform can provide to handle agent elicitation requests (e.g., form-based user input). If omitted, the session controller manages elicitation state inte...
+- **`HostEnvPolicyInput`** — Caller-supplied environment-variable policy. `acp-host` cannot know which env vars are credentials for a given harness; embedders with that knowledge populate this shape so the spawn-env builder fo...
+- **`HostFileAdapters`** — File I/O adapters that the host platform must implement. The writeTextFile adapter receives a `requestApproval` callback for write-gate approval flows.
+- **`HostSessionStorageAdapter`** — Optional session storage adapter for persisting session state across backend restarts. Required for seamless transcript reloading if the host process crashes or restarts.
+- **`IntegrationStatus`**
+- **`InterruptActionState`**
+- **`InterruptSurfaceState`**
+- **`JsonRpcError`**
+- **`JsonRpcRequest`** — MCP protocol types for the local workspace MCP server. Covers JSON-RPC 2.0 request/response shapes and MCP tool definitions needed for the HTTP transport. These are intentionally minimal -- only wh...
+- **`JsonRpcResponse`**
+- **`LogEntry`**
+- **`LoggerConfig`**
+- **`LogTransport`** — Sink for structured log entries. Implementors handle each `LogEntry` synchronously (any async work must be self-managed) and decide where it goes — console, span buffer, eval transport, or a host-s...
+- **`ManagedTerminal`**
+- **`McpInitializeResult`**
+- **`McpPropertySchema`**
+- **`McpToolCallParams`**
+- **`McpToolCallResult`**
+- **`McpToolContent`**
+- **`McpToolDefinition`**
+- **`McpToolInputSchema`**
+- **`McpToolsListResult`**
+- **`ModeSyncResult`**
+- **`NodeFileAdapterOptions`**
+- **`NormalizedAgentName`**
+- **`PendingElicitation`**
+- **`PendingPermission`**
+- **`PendingWriteGate`**
+- **`PermissionDecision`**
+- **`PermissionEvaluationContext`**
+- **`PlanEntryInfo`**
+- **`PlanSurfaceState`**
+- **`ProcessExitInfo`** — Exit info surfaced from `ACPSessionController.onProcessExit` listeners. The `crash` boolean reflects INTENT, not exit code: - `crash: false` ← gateway called `destroy()` first (operator-initiated t...
+- **`RenderHint`** — Metadata hint that can be attached to ACP session_update _meta fields to suggest structured rendering for tool call outputs.
+- **`ResolvedHostEnvPolicy`** — Resolved view of {HostEnvPolicyInput} with defaults applied.
+- **`ResolvedWorkspaceContext`**
+- **`SessionHooks`**
+- **`SessionUpdateContentHandlerHooks`**
+- **`Span`**
+- **`StartConfig`** — Configuration for starting an ACP session controller. Replaces the old positional parameters with a structured config object.
+- **`TerminalDescriptor`** — Terminal output
+- **`TerminalHandlers`**
+- **`TerminalManagerOptions`**
+- **`TerminalWorkspaceContext`**
+- **`TextDescriptor`** — A text block rendered as markdown
+- **`ToolBlockSurfaceState`**
+- **`ToolCallContentHandler`**
+- **`ToolCallContentHandlerContext`**
+- **`ToolCallContentInfo`** — Flattened ACP `ToolCallContent` representation. The SDK's `ToolCallContent` is a discriminated union of three nested shapes (`content`, `diff`, `terminal`); this type pulls the relevant fields up s...
+- **`ToolCallInfo`**
+- **`ToolCallSummary`**
+- **`TranscriptSurfaceState`**
+- **`TurnState`**
+- **`WorkflowActivityEntryState`**
+- **`WorkflowCopyMap`** — Type-safe interface for all workflow surface UI copy strings. Consumers may supply a partial override to customize any subset of strings.
+- **`WorkflowErrorSummary`**
+- **`WorkflowPendingPermissionLike`**
+- **`WorkflowPendingWriteGateLike`**
+- **`WorkflowPlanEntryState`**
+- **`WorkflowSessionStateLike`**
+- **`WorkflowStatusOverride`**
+- **`WorkflowSurfaceContext`**
+- **`WorkflowSurfaceState`**
+- **`WorkflowToolCallLike`**
+- **`WorkflowToolCallStats`**
+- **`WorkflowToolGroupSummary`**
+- **`WorkflowTurnStateLike`**
+- **`WorkspaceContext`**
+- **`WorkspaceContextConfig`**
+- **`WorkspaceContextProvider`**
+
+### Types
+
+- **`ACPSessionEvent`**
+- **`ACPSessionStatus`**
+- **`AgentScenario`**
+- **`ElicitationScenario`**
+- **`FrontmatterWriteTarget`** — Browser-safe entry point for -js/acp-host/editor. The mention-parser helpers and the frontmatter-only-write detector are pure framework-agnostic TypeScript functions with no Node-specific runtime d...
+- **`LegacyPermissionMode`** — Legacy permission-mode strings retained for one release cycle for back-compat. Inputs at public boundaries (ws-bridge JSON messages, embedder API calls) are run through {normalizePermissionMode} be...
+- **`Listener`**
+- **`LogCategory`**
+- **`LogLevel`**
+- **`ModeFallbackReason`**
+- **`OpenFileEntry`**
+- **`PermissionLifetime`**
+- **`PermissionMode`** — Permission mode controlling the host's auto-approve/prompt strategy. Canonical vocabulary aligned with ACP / Claude Code semantics: - `default` — prompt user for every gated action (read-auto, writ...
+- **`PromptScenario`**
+- **`ReadonlySpan`**
+- **`RenderDescriptor`** — Discriminated union of all render descriptor types
+- **`SessionInfo`**
+- **`TurnItem`** — Ordered item in a turn -- preserves interleaving of text and tool calls
+- **`WorkflowActivityKind`**
+- **`WorkflowActivityPhase`**
+- **`WorkflowActivityStatus`**
+- **`WorkflowComposerMode`**
+- **`WorkflowInterruptBlocker`**
+- **`WorkflowSurfaceSeverity`**
+- **`WriteGateResolution`** — Resolution returned by the write-gate modal UI.
+
+### Constants
+
+- **`DEFAULT_AGENT_CONFIG`**
+- **`DEFAULT_INHERITED_ENV_KEYS`** — Default non-secret keys inherited from the host environment into the spawned agent process. Hosts can override the inherited set via {HostEnvPolicyInput.inheritedEnvKeys}; secret credentials (provi...
+- **`DEFAULT_TERMINAL_ENV_KEYS`** — Default subset of {DEFAULT_INHERITED_ENV_KEYS} forwarded to terminal processes. SHELL is excluded because terminals spawn with `shell: false` (direct argv invocation), so the SHELL variable would b...
+- **`defaultWorkflowCopy`** — Default English copy map used when no overrides are provided.
+- **`DEV_AGENT_CONFIG`**
+- **`JSON_RPC_INTERNAL_ERROR`**
+- **`JSON_RPC_INVALID_PARAMS`**
+- **`JSON_RPC_INVALID_REQUEST`**
+- **`JSON_RPC_METHOD_NOT_FOUND`**
+- **`JSON_RPC_PARSE_ERROR`**
+- **`logStore`** — Singleton log store instance.
+- **`SESSION_RESTORE_FAILURE_MESSAGE`**
+- **`SYSTEM_FORBIDDEN_ENV_KEYS`** — System/loader keys that agent config (`extraEnv`) must never override. These guards apply regardless of the harness or caller-supplied policy because they protect the spawned process's loader contr...
+
+### Exports
+
+- **`type BuildMinimalEnvInput`**
+- **`type LegacyPermissionMode`**
+- **`type NormalizedAgentName`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@agents-js/acp`
+- `@agents-js/policy`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/agui-types
+
+> AG-UI core re-exports plus first-party message, reasoning, run, tool-call, and stream helpers for agents-js.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-agui-types-llms.txt
+
+---
+# @agents-js/agui-types
+
+> AG-UI core re-exports plus first-party adapters for the agents-js streaming model — text messages, tool calls, reasoning, run lifecycle, and custom events.
+
+`@agents-js/agui-types` re-exports the canonical AG-UI event schemas from
+[`@ag-ui/core`](https://www.npmjs.com/package/@ag-ui/core) and adds the
+stateful builder agents-js gateways and runtimes use to emit AG-UI event
+streams without re-implementing the open-message / tool-call dedup
+bookkeeping every time. It also pins the AG-UI core schema version it was
+built against (`AGUI_CORE_VERSION`) so consumers can assert protocol
+compatibility at startup.
+
+## Installation
+
+```sh
+npm install @agents-js/agui-types
+```
+
+```sh
+bun add @agents-js/agui-types
+```
+
+## Usage
+
+Build an AG-UI event stream for a single agent run:
+
+```ts
+import { createAguiEventStream } from "@agents-js/agui-types";
+
+const stream = createAguiEventStream();
+
+for (const event of stream.textMessageStart({ messageId: "m1", role: "assistant" })) {
+  yield event;
+}
+
+let acc = "";
+for (const chunk of llmTokenStream) {
+  acc += chunk;
+  for (const event of stream.textMessageContent({ messageId: "m1", text: acc, previousText: acc.slice(0, -chunk.length) })) {
+    yield event;
+  }
+}
+
+for (const event of stream.textMessageEnd({ messageId: "m1" })) {
+  yield event;
+}
+
+for (const event of stream.runFinished({ runId: "r1" })) {
+  yield event;
+}
+```
+
+Translate a single agents-js signal into the canonical AG-UI shape:
+
+```ts
+import { AGUI_CORE_VERSION, toAguiToolCallStart } from "@agents-js/agui-types";
+
+console.log(`emitting events compatible with ag-ui core ${AGUI_CORE_VERSION}`);
+
+const event = toAguiToolCallStart({
+  toolCallId: "tc-7",
+  toolCallName: "fetch_context",
+  parentMessageId: "m1",
+});
+transport.send(event);
+```
+
+## Documentation
+
+Full API reference and protocol guides: <https://agents-js.bodal.dev/>.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+<!-- This README is hand-maintained. -->
+
+---
+
+# @agents-js/canvas-model
+
+> Dependency-free canvas document model helpers for agents-js A2UI payload handoff, OCIF-style preservation, and JSON Canvas preview export.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-canvas-model-llms.txt
+
+---
+# @agents-js/canvas-model
+
+> Dependency-free canvas document model helpers for agents-js A2UI payload handoff, OCIF-style preservation, and JSON Canvas preview export.
+
+## Installation
+
+```sh
+bun add @agents-js/canvas-model
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Functions
+
+- **`createA2uiCanvasNode`** — Wrap an A2UI payload as a portable agents-js canvas node.
+- **`exportJsonCanvas`** — Export agents-js canvas nodes to a JSON Canvas 1.0-compatible preview.
+- **`exportOcif`** — Export agents-js canvas nodes to an OCIF-style document that preserves agents-js extensions beside a plain-text preview resource.
+- **`toInertJson`** — Convert arbitrary input into inert JSON by dropping executable values and normalizing values such as Date and bigint.
+
+### Interfaces
+
+- **`AgentsA2uiExtension`**
+- **`AgentsCanvasNode`** — Portable agents-js canvas node for an inert A2UI payload.
+- **`AgentsProvenanceExtension`**
+- **`CanvasExportWarning`**
+- **`CanvasPoint`**
+- **`CanvasSize`**
+- **`CreateA2uiCanvasNodeOptions`**
+- **`JsonCanvasDocument`**
+- **`JsonCanvasExportResult`**
+- **`JsonCanvasTextNode`**
+- **`OcifDocument`**
+- **`OcifNode`**
+- **`OcifResource`**
+- **`OcifSchemaEntry`**
+- **`OcifTextRepresentation`**
+
+### Types
+
+- **`AgentsCanvasExtension`**
+- **`CanvasProvenance`** — Provisional canvas provenance payload. Identity remains caller-owned until the agents-js identity contract lands; this package stores it as inert JSON.
+- **`JsonObject`**
+- **`JsonPrimitive`**
+- **`JsonValue`**
+
+### Constants
+
+- **`AGENTS_A2UI_EXTENSION`**
+- **`AGENTS_CANVAS_EXTENSION_VERSION`**
+- **`AGENTS_PROVENANCE_EXTENSION`**
+- **`OCIF_VERSION_URI`**
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/cli
+
+> Terminal TUI and server commands for agents-js. Provides the agents-js executable with serve, client, and acp subcommands.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-cli-llms.txt
+
+---
+# @agents-js/cli
+
+> The `agents-js` executable: serve, bridge, and proxy ACP runtimes; talk to A2A agents; expose registered agents as MCP tools.
+
+`agents-js` is a CLI for running and interacting with ACP-compatible coding agents (claude, codex, opencode, ...) over the A2A protocol. It bundles subcommands covering the full lifecycle: spinning up a gateway, proxying stdio, sending one-shot prompts, exposing agents as MCP tools, managing the shared agent registry, and printing an installable agent skill.
+
+## Install
+
+**Bun is required.** The CLI's TUI depends on `@opentui/core`, which ships non-JS assets (`.scm` Tree-sitter grammars) that only Bun's loader can resolve. Running the published `dist/bin.mjs` under plain Node fails with `ERR_UNKNOWN_FILE_EXTENSION`. Install Bun first: <https://bun.com/docs/installation>.
+
+```sh
+# Run on demand without a global install
+bunx @agents-js/cli --help
+
+# Install globally with Bun
+bun add -g @agents-js/cli
+agents-js --help
+ajs --help  # `ajs` ships as an alias for `agents-js`
+
+# Or add as a workspace dependency
+bun add @agents-js/cli
+```
+
+`npm`/`pnpm`/`yarn` install will download the package, but invoking the `agents-js` bin (or its `ajs` alias) requires Bun on `PATH`. Use `bunx`/`bun add -g` for the cleanest path. Standalone single-binary artifacts (no Bun required at runtime) can be built locally with `bun run build:standalone`; they are not included in the npm tarball.
+
+## Quick start
+
+```sh
+# Start a gateway exposing the claude harness over A2A
+agents-js serve --harness claude
+
+# In another shell, send a one-shot prompt to it
+agents-js send --url http://127.0.0.1:<port> "summarize the README"
+
+# Or open the interactive TUI
+agents-js client --url http://127.0.0.1:<port>
+```
+
+## Commands
+
+### `agents-js serve`
+
+Expose a configured ACP runtime over A2A as a long-lived gateway. Reads/writes user and project config, supports curated harnesses or custom ACP commands, and falls back to an interactive wizard when required inputs are missing on a TTY.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--harness <id\|custom>` | value | from config | Select a curated harness (claude, codex, opencode, ...) or `custom`. |
+| `--acp-command <command>` | value | — | Custom ACP binary to spawn. Mutually exclusive with curated harnesses; requires `--harness custom` when paired. |
+| `--acp-args-json <json>` | value | — | JSON array of args passed to the custom ACP command. Only valid with `--acp-command`. |
+| `--profile <name>` | value | — | Named profile under a curated runtime; not supported with `--harness custom`. |
+| `--host <host>` | value | `127.0.0.1` | Bind host for the A2A server. |
+| `--port <port>` | value | `0` (auto) | Bind port; `0` requests an ephemeral port. |
+| `--runtime-log-level <level>` | value | runtime default | `debug \| info \| warn \| error \| silent`. |
+| `--opencode-disable-external-plugins` | flag | off | Append `--pure` when launching `opencode`. |
+| `--default-model <id>` | value | — | Sets `AJS_DEFAULT_MODEL` for the runtime. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Config:**
+- User defaults: `~/.config/agents-js/config.json`
+- Project override: `.agents-js/config.json`
+- Example template: `.agents-js/config.example.json`
+
+**Examples:**
+
+```sh
+agents-js serve --harness claude --port 7878
+agents-js serve --harness codex --profile work
+agents-js serve --harness custom --acp-command ./bin/my-acp \
+  --acp-args-json '["--mode","release"]'
+```
+
+**stdout/stderr:** diagnostics (bind address, agent-card URL, mention-middleware status) go to stdout. The serve loop runs until the process is terminated.
+
+---
+
+### `agents-js bridge`
+
+Spawn an ephemeral A2A gateway for a single curated harness. No registry reads, no config writes; shuts down cleanly on `SIGINT` / `SIGTERM`. Use this for one-shot bridging where `serve`'s persistence is undesirable.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--harness <id>` | value | **required** | Curated harness id (claude, codex, opencode, ...). |
+| `--host <host>` | value | `127.0.0.1` | Bind host. |
+| `--port <port>` | value | `0` (auto) | Bind port. |
+| `--runtime-log-level <level>` | value | runtime default | `debug \| info \| warn \| error \| silent`. |
+| `--opencode-disable-external-plugins` | flag | off | Append `--pure` when launching `opencode`. |
+| `--default-model <id>` | value | — | Sets `AJS_DEFAULT_MODEL` for the runtime. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Examples:**
+
+```sh
+agents-js bridge --harness claude
+agents-js bridge --harness codex --port 9000 --runtime-log-level debug
+```
+
+**stdout/stderr:** the bind address line goes to stdout. Exits with code 0 on `SIGINT` / `SIGTERM`, code 1 on argument or runtime resolution errors.
+
+---
+
+### `agents-js acp`
+
+Proxy stdio between this process and a configured ACP runtime. Pipes raw bytes between parent stdin/stdout and the spawned child. **Never prompts interactively.** Defaults to the `claude` harness when no flag or config is provided.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--harness <id\|custom>` | value | from config or `claude` | Select a curated harness or `custom`. |
+| `--acp-command <command>` | value | — | Custom ACP command. |
+| `--acp-args-json <json>` | value | — | JSON array of custom ACP args. |
+| `--directory <path>` | value | — | Constrain runtime to a workspace directory. |
+| `--profile <name>` | value | — | Named profile for curated runtimes. |
+| `--runtime-log-level <level>` | value | runtime default | `debug \| info \| warn \| error \| silent`. |
+| `--opencode-disable-external-plugins` | flag | off | Append `--pure` when launching `opencode`. |
+| `--default-model <id>` | value | — | Sets `AJS_DEFAULT_MODEL`. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Examples:**
+
+```sh
+agents-js acp --harness claude
+agents-js acp --harness codex --directory ./project
+```
+
+**stdout/stderr:** stdout is reserved for ACP protocol bytes; all diagnostics go to stderr. The first stdout chunk from the runtime is validated as ndJSON with a `jsonrpc` field; on contamination the command fails fast (`EXIT_PROTOCOL_CONTAMINATION` = 70) instead of hanging.
+
+**Exit codes:** see the [Exit codes](#exit-codes) section — `acp` uses `EXIT_OK`, `EXIT_ERROR`, and `EXIT_PROTOCOL_CONTAMINATION`.
+
+---
+
+### `agents-js mcp`
+
+Start an MCP server (stdio transport) that exposes registered A2A agents as MCP tools, or generate MCP client config for Claude Code.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `setup` | positional subcommand | — | Switch from "start server" to "write config". |
+| `--claude` | flag | off | (with `setup`) Register via `claude mcp add` instead of writing a file. |
+| `--global` | flag | off | (with `setup`) Write to `~/.claude/settings.json` instead of `.mcp.json`. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Config resolution (server mode):**
+1. `AGENTS_JS_BRIDGE_CONFIG` env var (path to JSON file)
+2. `AGENTS_JS_BRIDGE_AGENTS` env var (inline JSON array)
+3. Shared agent registry (`~/.agents-js/registry.json`)
+
+**Examples:**
+
+```sh
+agents-js mcp                      # start MCP stdio server
+agents-js mcp setup                # write .mcp.json in cwd
+agents-js mcp setup --global       # write ~/.claude/settings.json
+agents-js mcp setup --claude       # register with `claude mcp add`
+```
+
+**stdout/stderr:** the MCP protocol uses stdio; diagnostics (no-agents warnings, setup confirmations) go to stderr.
+
+---
+
+### `agents-js client`
+
+Open the A2A client TUI against a running gateway, send a one-shot message, or probe endpoints without the TUI.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--url <base-url>` | value | — | Connect using a base A2A URL. Mutually exclusive with `--card`. |
+| `--card <card-url>` | value | — | Connect using a full agent-card URL. Mutually exclusive with `--url`. |
+| `--header <name:value>` | value | — | Repeatable custom request header. |
+| `--context-id <id>` | value | — | Reuse an existing context id. |
+| `--task-id <id>` | value | — | Reuse a specific task id. |
+| `--raw` | flag | off | Show raw JSON in the inspector / probe output. |
+| `--message`, `-m <text>` | value | — | Send a single message and print the response (no TUI). |
+| `--probe` | flag | off | Probe endpoints, print results, exit. |
+| `--no-poll` | flag | polling on | Send messages without polling task state to completion. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Examples:**
+
+```sh
+agents-js client --url http://127.0.0.1:7878
+agents-js client --card http://127.0.0.1:7878/.well-known/agent-card.json
+agents-js client --url http://127.0.0.1:7878 -m "hello"
+agents-js client --url http://127.0.0.1:7878 --probe --raw
+```
+
+**stdout/stderr:** TUI renders to stdout; probe output and `--message` responses go to stdout. The TUI requires a TTY — when stdout is not a terminal, the command refuses to start and writes a hint to stderr.
+
+---
+
+### `agents-js send`
+
+Non-interactive sibling of `client`: one-shot prompt to a running `agents-js serve`, response to stdout, exits. Does not load the TUI module.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--url <base-url>` | value | `$AGENTS_JS_SERVE_URL` | Target serve base URL. Overrides `--harness` routing. |
+| `--harness <id>` | value | — | Route to the first registered agent whose harness id matches. Also threaded as `metadata.harness` on the outbound message. |
+| `--raw` | flag | off | Stream `message.delta` chunks to stdout as they arrive. |
+| `--help`, `-h` | flag | — | Print usage. |
+| `<message>` | positional | **required** | Prompt text; multiple positional tokens are joined with spaces. |
+
+**Examples:**
+
+```sh
+agents-js send --url http://127.0.0.1:7878 "explain the build"
+AGENTS_JS_SERVE_URL=http://127.0.0.1:7878 agents-js send "what changed?"
+agents-js send --url http://127.0.0.1:7878 --raw "stream this"
+```
+
+**stdout/stderr:** final agent text (or streamed deltas with `--raw`) goes to stdout; errors and elicitation/auth refusals go to stderr.
+
+**Exit codes:** see the [Exit codes](#exit-codes) section — `send` uses `EXIT_OK`, `EXIT_ERROR`, and `EXIT_AUTH_REQUIRED`.
+
+---
+
+### `agents-js registry`
+
+Manage the shared agent registry at `~/.agents-js/registry.json`. Both A2A and ACP agent kinds are supported.
+
+**Subcommands:**
+
+```text
+agents-js registry add <name> <url>                       # A2A (positional URL, default kind)
+agents-js registry add <name> --kind a2a --url <url>      # A2A (explicit)
+agents-js registry add <name> --kind acp --harness <id>   # ACP
+       [--command <cmd>] [--args-json <json>]
+       [--env-json <json>] [--workspace-flag <flag>]
+agents-js registry remove <name>
+agents-js registry list
+agents-js registry --help
+```
+
+| Flag | Takes | Applies to | Effect |
+| --- | --- | --- | --- |
+| `--kind <a2a\|acp>` | value | `add` | Agent kind. Defaults to `a2a`. |
+| `--url <url>` | value | `add` (a2a) | A2A endpoint URL. Equivalent to the positional form. |
+| `--harness <id>` | value | `add` (acp) | Required for ACP entries; gateway runtime id. |
+| `--command <cmd>` | value | `add` (acp) | Override the harness's default ACP command. |
+| `--args-json <json>` | value | `add` (acp) | JSON array of strings passed as ACP args. |
+| `--env-json <json>` | value | `add` (acp) | JSON object of string env vars for the ACP child. |
+| `--workspace-flag <flag>` | value | `add` (acp) | Override the harness's default workspace flag (e.g. `--cwd`). |
+
+**Examples:**
+
+```sh
+agents-js registry add planner http://192.0.2.5:7878
+agents-js registry add reviewer --kind acp --harness claude
+agents-js registry list
+agents-js registry remove planner
+```
+
+**stdout/stderr:** confirmations and listings go to stdout; usage errors go to stderr. Invisible characters in `<name>` are stripped; the normalized name is used and a warning is printed.
+
+---
+
+### `agents-js skill`
+
+Print the installable `agents-js` skill document to stdout so an AI coding agent can install durable command guidance into its skill directory.
+
+**Examples:**
+
+```sh
+agents-js skill > ~/.codex/skills/agents-js/SKILL.md
+agents-js skill > .agents/skills/agents-js/SKILL.md
+```
+
+**stdout/stderr:** the `SKILL.md` content goes to stdout; usage errors go to stderr.
+
+---
+
+## Exit codes
+
+Exit codes are exported as named constants from `packages/cli/src/exit-codes.ts` so help text, tests, and runtime exits stay aligned. The values follow `sysexits.h` conventions where they map cleanly.
+
+| Constant | Code | Meaning | Used by |
+| --- | --- | --- | --- |
+| `EXIT_OK` | `0` | Success | all |
+| `EXIT_ERROR` | `1` | Generic failure (transport error, network error, agent-side failure, missing config) | all |
+| `EXIT_USAGE` | `64` | Argv mistake — unknown command, missing/conflicting required args | top-level dispatch, `client` |
+| `EXIT_DATAERR` | `65` | Malformed payload from a peer | reserved |
+| `EXIT_PROTOCOL_CONTAMINATION` | `70` | `acp`: first stdout chunk from the runtime is not valid ndJSON with a `jsonrpc` field | `acp` |
+| `EXIT_AUTH_REQUIRED` | `71` | `send`: agent requested elicitation or authentication, which the headless `send` mode cannot satisfy — re-run with `agents-js client` | `send` |
+
+`EXIT_PROTOCOL_CONTAMINATION` is also re-exported from the `acp` module as `ACP_CONTAMINATION_EXIT_CODE` for backwards-compatible embedder access.
+
+## Library API
+
+The `@agents-js/cli` package primarily ships the `agents-js` executable; the `runAgentsJsCli` entry and per-subcommand `parse*` / `run*` helpers plus their dependency-injection interfaces are exposed for embedders who want to invoke a subcommand programmatically (e.g. inside a test harness or a higher-level wrapper). The full type surface is documented in the typedoc output at <https://agents-js.bodal.dev/api/>.
+
+## License
+
+MIT
+
+<!-- This README is hand-maintained. Do not edit via scripts/generate-package-readmes.ts. -->
+
+---
+
+# @agents-js/gateway-runtime
+
+> Gateway runtime config, env parsing, runtime registry/detection, install descriptors, and sub-session spawn helpers.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-gateway-runtime-llms.txt
+
+---
+# @agents-js/gateway-runtime
+
+> Gateway runtime config, env parsing, runtime registry/detection, install descriptors, and sub-session spawn helpers.
+
+## Installation
+
+```sh
+bun add @agents-js/gateway-runtime
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`SpawnSubSessionTimeoutError`** — Sentinel error used to disambiguate timeout vs ACP-layer error in the catch block. Exposed for tests that want to assert on it.
+
+### Functions
+
+- **`applyGatewayRuntimeProfile`**
+- **`applyRuntimeEnvOverrides`** — Apply merged overrides back into `process.env` so downstream helpers that read `process.env` directly (e.g. `resolveRuntimeArgs`) observe the merged values. Returns a restore function that reverts ...
+- **`buildExtendedPath`** — Merge {DEFAULT_EXTRA_BIN_PATHS} (plus any caller-supplied extras) onto a base `PATH` string, de-duplicating while preserving order. Existing entries keep their position; new entries append in list ...
+- **`createAcpHarness`** — Factory for building a well-formed {GatewayRuntimeDefinition}. The curated ACP harnesses are constructed via this factory so the per-harness duplication (binary name + install metadata + auth env k...
+- **`createRuntimeSelectionFromArgs`**
+- **`createRuntimeSelectionsFromArgs`** — Build an ordered list of {GatewayRuntimeSelection} from CLI args. Returns `undefined` when no harness was specified (caller falls through to interactive prompt or default). Single-harness invocatio...
+- **`detectInstalledGatewayRuntimes`**
+- **`generateSpawnCorrelationId`** — Generate a stable-looking session id for callers that spawn multiple children and want local ordering even when the gateway's own session_id isn't yet assigned (e.g. when a harness_unavailable shor...
+- **`getAgentsJsConfigPaths`**
+- **`getCliVersion`** — Helper for CLI bin scripts to read their package's version without triplicating string literals that drift from the actual published version. Usage from a bin script (one level deep, e.g. `packages...
+- **`getConfiguredProfile`** — Wraps the internal profile lookup in the gateway-runtime config-paths shape so existing callers do not have to unpack `loaded.configPaths.{user,project}ConfigPath` themselves. The returned profile ...
+- **`getGatewayRuntimeDefinition`**
+- **`getPrimaryGatewayRuntime`** — Return the primary (first) runtime from a non-empty runtimes list. Throws on empty input — an empty fleet has no meaning, and the upstream `resolveAndApplyGatewayRuntimes` rejects empty selection l...
+- **`listGatewayRuntimeIds`**
+- **`loadAgentsJsConfig`**
+- **`mergeAgentsJsConfig`**
+- **`mergeRuntimeEnvOverrides`**
+- **`parseAgentsJsConfig`**
+- **`parseCustomArgsJson`**
+- **`resolveAcpAgentEntryToRuntime`** — Bridge an ACP registry entry to a {ResolvedGatewayRuntime} suitable for passing to `ACPSessionController.start()`. Used by the gateway's ACP-kind `@` path to spawn an ephemeral per-dispatch runtime.
+- **`resolveAndApplyGatewayRuntime`** — Apply env overrides, resolve a runtime selection, optionally apply a configured runtime profile, and restore env. Returns the (optionally profile-merged) `ResolvedGatewayRuntime`. Errors thrown by ...
+- **`resolveAndApplyGatewayRuntimes`** — Multi-harness variant of {resolveAndApplyGatewayRuntime}. Applies env overrides once, then resolves every supplied selection in argv order, then restores env. Returns the resolved runtimes as a rea...
+- **`resolveExistingCommandPath`**
+- **`resolveGatewayRuntime`**
+- **`resolveGatewayRuntimeCommand`**
+- **`resolveGatewayRuntimeProfile`** — Materialize a {GatewayRuntimeProfile} via the internal profile resolver. The narrower {GatewayRuntimeId} is preserved on the returned {ResolvedGatewayRuntimeProfile}.
+- **`resolveGatewayRuntimeSelection`**
+- **`resolveRemoteGatewayEnv`**
+- **`resolveRuntimeArgs`** — Resolve the runtime argv for a curated definition, honoring env-based overrides.
+- **`runCommand`**
+- **`spawnSubSession`** — Spawn a bounded-mode subagent session, run the subtask, return the terminal summary. See module-level docstring for v1 scope. Intentional invariant: cleanup runs on every path. The spawned child pr...
+- **`writeAgentsJsConfig`**
+
+### Interfaces
+
+- **`AcpAgentEntryInput`** — Structural shape required by `resolveAcpAgentEntryToRuntime`. Defined locally (rather than imported from `-js/a2a-client/node`) to avoid introducing a new workspace dependency from `gateway-runtime...
+- **`AgentsJsConfig`**
+- **`AgentsJsConfigPaths`**
+- **`AgentsJsServeConfig`**
+- **`ConfigPathOptions`**
+- **`CreateAcpHarnessInput`** — Input shape for {createAcpHarness}. Collocates the fields that a curated ACP harness needs to declare in one call site — binary name, npm package metadata, install hint, optional auth env keys, run...
+- **`CuratedGatewayRuntimeSelection`**
+- **`CustomGatewayRuntimeSelection`**
+- **`GatewayRuntimeDefinition`**
+- **`GatewayRuntimeInstall`**
+- **`GatewayRuntimeProfile`** — Gateway-runtime-flavored {RuntimeProfile}: identical shape, but the `runtime` field is narrowed to {GatewayRuntimeId} so the curated runtime registry is the source of truth for legal harness ids in...
+- **`GatewayRuntimeResolveArgsInput`**
+- **`LoadedAgentsJsConfig`**
+- **`ProfileLookupContext`**
+- **`RemoteGatewayEnvConfig`**
+- **`ResolveAndApplyGatewayRuntimeOptions`**
+- **`ResolveAndApplyGatewayRuntimesOptions`** — Options for {resolveAndApplyGatewayRuntimes} (plural).
+- **`ResolvedGatewayRuntime`**
+- **`ResolvedGatewayRuntimeACPOptions`** — Host-flavored {ACPProcessOptions} used for wiring resolved gateway runtimes into `-js/acp-host`'s `createHostACPProcess`. Mirrors the `HostACPProcessOptions` interface exported from `-js/acp-host` ...
+- **`ResolvedGatewayRuntimeProfile`** — Gateway-runtime-flavored {ResolvedRuntimeProfile}, narrowed so that the `definition.runtime` field carries {GatewayRuntimeId}.
+- **`RunCommandOptions`** — Canonical `runCommand` helper used by every gateway-runtime adjacent package (`reporting`, `extras`, future call sites). Wraps `Bun.spawn` with composable timeout + abort + stdin support and a unif...
+- **`RunCommandResult`**
+- **`RuntimeCommandResolver`**
+- **`RuntimeEnvOverrides`** — runtime-env-overrides.ts — Apply CLI-flag overrides onto a process env bag. The gateway runtime helpers (`resolveRuntimeArgs`, `internal-gateway` config loader, etc.) read AJS_* environment variabl...
+- **`RuntimeResolutionOptions`**
+- **`RuntimeSelectionArgs`**
+- **`RuntimeSelectionsArgs`** — Multi-harness arg shape. `harnesses` carries the ordered list of curated harness ids gathered from `--harness` (repeatable) and `--harnesses x,y` flags; index 0 is the primary routing target. Other...
+- **`SpawnSubSessionHints`** — Routing hints. All fields optional. `harness` is explicit opt-in to a specific execution boundary; unset falls back to the default. `worktree_isolation` / `model` are accepted in the shape for forw...
+- **`SpawnSubSessionOptions`** — Dependency injection seams. All optional; defaults wire production behavior. Tests that don't supply these get real filesystem + real subprocess spawn.
+- **`SpawnSubSessionParams`** — Input to {spawnSubSession}. `parent_session_id` is carried so downstream trace / audit surfaces can attribute the child to its spawning session; this layer does not enforce depth limits on it.
+- **`SpawnSubSessionResult`** — Result of a bounded-mode {spawnSubSession} call. `session_id` is the ACP session id of the spawned child (empty string when the call short-circuited before session creation, e.g. harness_unavailabl...
+
+### Types
+
+- **`EnvSource`**
+- **`GatewayRuntimeId`**
+- **`GatewayRuntimeProfileRoots`** — Gateway-runtime alias for internal runtime profile roots. The shape is preserved so existing downstream imports keep compiling without churn.
+- **`GatewayRuntimeSelection`**
+- **`HarnessSelectionPolicy`**
+- **`HostnameMode`**
+- **`ResolveGatewayRuntimeFn`** — Runtime resolver shape. Factored out so tests can inject a resolver that returns canned `ResolvedGatewayRuntime` values without touching the filesystem.
+- **`SpawnACPAgentFn`** — Abstraction over `spawnACPAgent` for test injection. Shape matches the imported function; tests substitute a fake that returns a controlled `Stream` / `kill` handle.
+- **`SpawnSubSessionStatus`** — Terminal status of a {spawnSubSession} call. - `completed` — subagent returned an `end_turn` stopReason within the timeout. - `errored` — subagent returned a non-`end_turn` stopReason, or the ACP h...
+
+### Constants
+
+- **`CLAUDE_AGENT_ACP_PACKAGE_NAME`**
+- **`CLAUDE_AGENT_ACP_VERSION`**
+- **`CODEX_ACP_PACKAGE_NAME`**
+- **`CODEX_ACP_VERSION`**
+- **`DEFAULT_AGENTS_JS_CONFIG`**
+- **`DEFAULT_EXTRA_BIN_PATHS`** — Browser-safe entry point for -js/gateway-runtime. The main entry (src/index.ts) pulls in runtime-registry + detection machinery that depends on `styleText` from `node:util`, which Bun's browser pol...
+- **`defaultRuntimeCommandResolver`**
+- **`EXTERNAL_RUNTIME_INSTALL_VERSIONS`** — Generated from the root `package.json` (`agentsJs.externalSDKs`) by `scripts/bump.ts`. Do not edit manually.
+- **`GATEWAY_RUNTIME_REGISTRY`** — Curated runtime registry, exposed as a read-only `Record` so the selection layer can iterate and look up entries. The type is widened from the literal `as const` shape to `Readonly<Record<…>>` so d...
+- **`HOME_PLACEHOLDER`** — Default directories the gateway prepends to `process.env.PATH` when resolving runtime binaries via the resolver in `./runtime-command-resolution.ts`. The host composition layer threads this list in...
+- **`MOCK_ACP_RUNTIME_ENV`** — Env var that gates registration of the in-repo `mock-acp` runtime in {listGatewayRuntimeIds}. Surfaced as a constant rather than an inline string so tests and consumers can reference the same key.
+- **`SPAWN_SUB_SESSION_DEFAULT_HARNESS`** — Default harness used when `hints.harness` is unspecified.
+- **`SPAWN_SUB_SESSION_DEFAULT_TIMEOUT_MS`** — Default subtask timeout (5 minutes).
+- **`SPAWN_SUB_SESSION_SUPPORTED_HARNESSES`** — Harness ids supported by `spawnSubSession` v1. Expand this set as harnesses land hardening gates for subagent spawning.
+- **`validateGatewayRuntimeProfileName`** — Re-export of {validateRuntimeProfileName} from the internal profile resolver. The gateway-runtime alias is preserved for callers that import via this package's barrel.
+
+### Exports
+
+- **`createParseEnv`**
+- **`EnvError`**
+- **`OptionalEnvVar`**
+- **`parseEnv`**
+- **`RequiredEnvVar`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@agents-js/a2a`
+- `@agents-js/acp`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/host
+
+> Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-host-llms.txt
+
+---
+# @agents-js/host
+
+> Host orchestration for the agents-js A2A gateway: ACP-backed A2A executor, AG-UI fetch handler, WebSocket bridge, and surface broadcaster.
+
+## Installation
+
+```sh
+bun add @agents-js/host
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`AguiRunBusyError`** — Thrown by {AguiRunCoordinator.acquire} when a run is already active. Endpoint code maps this to HTTP 409 (Conflict) before opening the SSE stream.
+- **`AguiRunCoordinator`** — Single-active-run coordinator for the shared primary controller. Concurrency model: AG-UI run-session work runs in the JavaScript event loop (no shared-memory concurrency to worry about), so the "i...
+- **`HarnessLaneManager`** — Owns harness-fleet bookkeeping for the gateway process: lazy-spawns per-session lane controllers via the injected factory, mutates the live `gatewayCard.capabilities.harnesses` slice in place to re...
+- **`HostA2AExecutor`** — Bridges A2A execution requests to an ACPSessionController. Unlike ACPtoA2AExecutor which manages raw ACP streams, this executor delegates all lifecycle management to the controller and focuses on t...
+
+### Functions
+
+- **`applyEnvRuntimeProfile`**
+- **`buildBridgeBusEvent`** — Build a bus envelope from a caller-supplied topic + payload. The returned envelope is ready for in-process publishing through {GatewayBus.publish}, or for serialization into the `/admin/publish` JS...
+- **`buildGatewayBusEvent`** — Construct a `GatewayBusEvent` envelope with the standard `id` + `ts` fields populated. Publishers should use this rather than building envelopes inline so that the id generation + timestamp shape s...
+- **`buildHostRuntimeEnvPolicy`** — Build the {HostEnvPolicyInput} for the gateway host. With no baseline keys, the policy is exactly the runtime's declared `authEnvKeys` (or empty when the runtime declares none). The host has the ha...
+- **`buildRuntimeProfileConfigEnv`**
+- **`checkScope`** — Reject the call unless `identity.scopes` includes `requiredScope` (strict, case-sensitive match). Returns `{ ok: false }` on: - null/undefined identity (defense-in-depth; never throws) - missing sc...
+- **`createAgentsDispatcher`** — Build the dispatcher. Pure factory — no side effects until a `sendMessage` / `getMessages` call.
+- **`createAguiFetchHandler`** — Build a `(req: Request) => Promise<Response | null>` handler suitable for `UniversalA2AServerOptions.additionalFetch`. Returns `null` when the request is not for this handler — the caller then fall...
+- **`createBusPublishHandler`** — Build a `POST /admin/publish` handler that injects events onto the bus from operator tooling. Returns `null` for non-matching paths. Body shape (generic — Matrix, Slack, GitHub bridges all share th...
+- **`createBusSubscribeHandler`** — Build a `GET /events` SSE handler that streams every bus event to subscribed clients. Returns `null` for non-matching paths so the caller can fall through to the next handler.
+- **`createChallengeMintStore`** — Factory for the challenge-mint store.
+- **`createCopiedReplicaBackend`** — Build a `CopiedReplicaBackend`. Replicas are stored under `replicaRoot/<workspaceId>/`; the source's `.git`, `.jj`, and `node_modules` are excluded at copy-time. Symlinks present in the source are ...
+- **`createEnsureSessionCoordinator`**
+- **`createGatewayBus`** — Create a new in-process gateway bus. Each call returns an independent bus instance — typical gateway deployments instantiate exactly one and pass the handle to publishers and transport adapters.
+- **`createGatewaySurfaceBroadcaster`**
+- **`createGatewayTestServer`** — Construct a running gateway test server bound to the given ACP command. This assembles the same three layers as the production gateway: 1. `ACPSessionController` with Node file adapters + empty per...
+- **`createHostSession`**
+- **`createIpRateLimiter`** — Factory for the per-IP token-bucket rate limiter.
+- **`createRuntimeSwitchCoordinator`**
+- **`createStandaloneHostController`** — Spawn a standalone `GatewayHostController` detached from any `HostSession`. Used by `HostA2AExecutor`'s Phase-2 controller factory: every distinct A2A `contextId` gets its own freshly-started contr...
+- **`createTranslatorState`**
+- **`createWSBridge`**
+- **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
+- **`extractBearerToken`** — Extract a bearer token from an `Authorization` header value. Returns the token string for `"Bearer <token>"` (scheme name is case-insensitive per RFC 6750 section 2.1). Returns `null` for missing, ...
+- **`fetchRuntimeModels`**
+- **`formatAguiSseFrame`**
+- **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
+- **`getEnvRuntimeProfileName`**
+- **`isDurableSendResult`** — Narrow a {SendMessageResult} to the durable-storage shape. Returns true iff the call succeeded AND a durable inbox message was written (the canonical AJS-65 path). Returns false for matrix-only bac...
+- **`isFanOutSendResult`** — Type guard: narrow a {SendMessageResult} to the multi-target success shape. Useful for consumers that need to enumerate per-target outcomes without a runtime field-presence check.
+- **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
+- **`parseDispatchDirective`** — Parse `@...rest` from a Matrix message body. Returns `target: ""` when no directive prefix is present (consumer treats that as "no dispatch", but the body may still be useful for audit subscribers)...
+- **`publishBridgeEventToBus`** — In-process convenience: build the envelope and publish it on the supplied bus. Returns the envelope so callers can inspect or assert on the server-populated `id` + `ts` fields. Out-of-process bridg...
+- **`publishHarnessCardChanged`** — Publish a `gateway.harness.card-changed` event onto the bus. Callers are responsible for diffing — this publisher does not. Including both `previousEntry` and `newEntry` in the payload keeps subscr...
+- **`publishHarnessChildExited`** — Publish a `gateway.harness.child-exited` event onto the bus. The `crash` boolean on the payload distinguishes gateway-initiated teardown from unexpected exit; both flow through this single publishe...
+- **`publishHarnessChildSpawned`** — Publish a `gateway.harness.child-spawned` event onto the bus. The source principal is annotated as `{ kind: "harness", id: harnessId }` so subscribers can route per-harness without inspecting the p...
+- **`resolveHostWorkspaceFlag`**
+- **`runAguiSession`** — Run one AG-UI run from start to finish. Caller is responsible for enqueuing the leading `RUN_STARTED` frame and closing the sink after this promise resolves. Why the sink is injected rather than ow...
+- **`startGiteaBusConsumer`** — Start the consumer. Returns a handle whose `stop()` unsubscribes. Per olthoi0-codex-app's validation checklist (matrix event `$ZpdDO3B7H_Li8JeYBgzT8XwhOm5TEb7DIk8D67HeUZ0`): - formats Gitea bus eve...
+- **`startMatrixBusConsumer`** — Start consuming `gateway.matrix.event-received` events from the bus and invoking the supplied dispatch handler. Returns a handle that can stop the subscription. Subscriber isolation: a throwing `di...
+- **`switchHostSessionRuntime`**
+- **`translateAcpEvent`** — Translate a single `ACPSessionEvent` into zero or more AG-UI events. Mutates only the caller-owned `state` (specifically, the embedded `AguiEventStream`'s open-message + dedup tracking).
+- **`verifyJwt`** — Verify a session JWT and resolve it to a caller identity. Returns `{ ok: true, identity }` on success or `{ ok: false, reason, message }` on any verification failure. Never throws on validation err...
+- **`wrapAuditEmitterAsBusPublisher`** — Wrap an existing {AuditEmitter} so every recorded event is also published on the gateway bus. The wrapped emitter has the same shape as the underlying one — callers swap it in at construction and n...
+
+### Interfaces
+
+- **`AgentInboxTool`** — AgentInbox substrate. Implementations: - Subprocess wrapper around the `agent-msg` CLI (v1; see `apps/internal-gateway/agents-mcp-mount.ts`). - Future: native AgentInboxProvider per AJS-58 follow-up.
+- **`AgentsDispatcher`** — The MCP-side dispatcher surface. Exposes `sendMessage` (router-level agents.send_message; routes Matrix or inbox based on target + scope) and `getMessages` (agents.get_messages; v1 inbox-only, self...
+- **`AgentsDispatcherOptions`** — Options for {createAgentsDispatcher}.
+- **`AguiEndpointOptions`**
+- **`AguiRunLease`** — Lease handle returned by {AguiRunCoordinator.acquire}. `release()` is idempotent so callers can wire it into both the happy-path `finally` and a separate abort-cancellation handler without worrying...
+- **`AuthenticatedIdentity`** — Resolved caller identity. Every Provider method receives one of these as its first argument; `agentName` is the `sub` claim, set by the gateway mint endpoint.
+- **`BuildBridgeBusEventOptions`** — Options for {buildBridgeBusEvent}.
+- **`BusEndpointOptions`** — Common construction options.
+- **`ChangeSet`** — Result of `exportChangeSet`. **`format: "summary"`** — human-readable summary of what changed, NOT a git-applyable patch. Lists each modified path with its change kind (modified / added / deleted) ...
+- **`CopiedReplicaBackendOptions`** — Options for {createCopiedReplicaBackend}.
+- **`CreateBusPublishHandlerOptions`** — Admin publish handler options.
+- **`CreateBusSubscribeHandlerOptions`** — SSE subscribe handler options.
+- **`CreateGatewayBusOptions`** — Optional construction-time hooks.
+- **`CreateReplicaInput`** — Input args to `createReplica`.
+- **`DispatchRequest`** — Dispatch invocation interface. The consumer translates a Matrix event into a `DispatchRequest` and the caller (typically wired to the host runtime via the gateway's own A2A endpoint) runs it and re...
+- **`DispatchResult`**
+- **`GatewayBus`** — Public surface of the bus primitive.
+- **`GatewayBusEvent`** — Typed envelope for every gateway bus event.
+- **`GatewayHarnessCardChangedPayload`** — Payload for `gateway.harness.card-changed` bus events. Emitted when the per-harness slice of `capabilities.harnesses` changes after subscribed lifecycle events (`mode_changed`, `permission_gating_s...
+- **`GatewayHarnessChildExitedPayload`** — Payload for `gateway.harness.child-exited` bus events. Emitted when the ACP child for a curated harness exits — either as part of gateway-initiated teardown (`crash: false`) or unexpectedly (`crash...
+- **`GatewayHarnessChildSpawnedPayload`** — Payload for `gateway.harness.child-spawned` bus events. Emitted when the gateway successfully spawns an ACP child process for a curated harness (whether eagerly at startup or lazily on first routed...
+- **`GatewaySurfaceBroadcaster`** — Adapter that plugs into the ACP host session and, once attached to a live broadcaster, forwards every lifecycle message to that broadcaster.
+- **`GatewaySurfaceBroadcasterConfig`**
+- **`GatewayTestServerHandle`**
+- **`GatewayTestServerOptions`**
+- **`GetMessagesArgs`** — Args for `agents.get_messages`.
+- **`GiteaBusConsumerHandle`** — Handle returned from {startGiteaBusConsumer}.
+- **`GiteaBusEventPayload`** — Structural duplicate of `-js/gitea-bridge.GiteaBridgeEventInput`. Kept here so `-js/host` does not depend on the extras package.
+- **`HarnessFleetEntry`** — One entry in the operator-configured harness fleet. `primary: true` marks the default routing target; {HarnessLaneManager.getPrimaryHarnessId} reads the (validated single) primary out of the entrie...
+- **`HarnessLaneManagerOptions`** — Constructor options for {HarnessLaneManager}. Pass the live `gatewayCard` reference (the manager mutates `capabilities.harnesses` in place), the in-process `bus`, and a `createController` factory t...
+- **`HostA2AExecutorOptions`**
+- **`HostSession`**
+- **`HostSessionConfig`**
+- **`IdentityPrincipal`** — Identity principal slot. Placeholder until the agents-js/identity phase-1 types land — at that point this alias is replaced with the imported type. Kept loose (open record) so the eventual replacem...
+- **`InboxDeliverArgs`** — Args passed to {AgentInboxTool.deliver}.
+- **`InboxDeliverResult`** — Result of a successful inbox delivery.
+- **`InboxMessage`** — A single inbox message, returned by {AgentInboxTool.read}.
+- **`InboxReadArgs`** — Args passed to {AgentInboxTool.read}.
+- **`IsolatedWorkspace`** — Handle returned from `createReplica`.
+- **`MatrixBusConsumerHandle`** — Handle returned from `startMatrixBusConsumer`.
+- **`MatrixBusEventPayload`** — Matrix event payload shape that this consumer recognizes. Mirrors `MatrixBridgeEventInput` in `-js/matrix-bridge` — duplicated here as a structural type so this package does not depend on the matri...
+- **`MatrixBusReplyPayload`** — Reply payload shape emitted by this consumer onto `gateway.matrix.reply-sent`. The bridge (or any other consumer subscribed to that topic) relays this back to the originating Matrix room.
+- **`MatrixSendArgs`** — Args passed to {MatrixTool.send}. Identity comes from the JWT only.
+- **`MatrixSendResult`** — Result of a successful Matrix send.
+- **`MatrixTool`** — Matrix substrate. Implementations: - Subprocess wrapper around `send-matrix.py` (v1; see `apps/internal-gateway/agents-mcp-mount.ts`) - Future: native MatrixToolProvider per AJS-56 Phase 2
+- **`MintRedeemRequest`** — Request body shape for `POST /api/agents/mint/redeem`.
+- **`PerTargetResult`** — Per-target result inside a multi-target {SendMessageResult}. `status: "delivered"` mirrors the single-target success shape: an `inbox_message_id` is present iff the durable inbox-write succeeded; a...
+- **`PublishBridgeEventToBusOptions`** — Options for {publishBridgeEventToBus}.
+- **`ReplicaInspectionResult`** — Result shape for `inspectReplica`.
+- **`RunSessionOptions`**
+- **`RunSessionResult`** — Result of running an AG-UI run session to completion.
+- **`RuntimeBridgeSnapshot`**
+- **`RuntimeModelInfo`** — Fetches and caches the list of available models from a runtime CLI command. Runs `<command> models` and parses the output into structured model info. Results are cached in memory so repeated calls ...
+- **`RuntimeSnapshotInfo`**
+- **`RuntimeSwapResult`**
+- **`RuntimeSwitchState`**
+- **`SendMessageArgs`** — Arguments for `agents.send_message`. Two call shapes, mutually exclusive: - **Single-target** (`target: string`): legacy back-compat call shape. Returns a success result with top-level `inbox_messa...
+- **`StartGiteaBusConsumerOptions`** — Options for {startGiteaBusConsumer}.
+- **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
+- **`TargetDirectory`** — Target directory — the AJS-55 trust manifest's read surface. V1 implementation is an in-memory Map populated from env. The AJS-55 loader will swap in a signed-peer-record-backed implementation with...
+- **`TargetDirectoryEntry`** — A target's routing capabilities, as registered in the directory.
+- **`TranslatorState`** — Mutable state carried across translator invocations for a single run. The translator delegates open-message tracking and tool-call dedup to the shared `createAguiEventStream` builder so this surfac...
+- **`VerifyJwtOptions`** — Options for {verifyJwt}.
+- **`WorkspaceIsolationProvider`** — The Provider seam. Implementations are substrate-specific (`CopiedReplicaBackend` here; future `DockerBackend`, `ProxmoxLXCBackend`, etc.). All substrate-bound state lives in the concrete implement...
+- **`WorkspacePolicy`** — Caller-supplied policy controlling what's copied into the replica and what's flagged on inspection.
+- **`WrapAuditEmitterAsBusPublisherOptions`** — Options for the audit-emitter wrapper publisher.
+- **`WSBridgeConfig`**
+- **`WSBridgeHandle`**
+
+### Types
+
+- **`AgentRegistryMap`** — Name-keyed agent map used by the gateway's dispatch path.
+- **`AuditEmitter`**
+- **`AuditEvent`**
+- **`AuditEventInput`**
+- **`AuditLogger`**
+- **`CorrelationId`**
+- **`DispatchHandler`**
+- **`GatewayBusSubscriber`** — Subscriber callback shape. Receives every published event.
+- **`GatewayBusUnsubscribe`** — Unsubscribe handle returned from `subscribe`.
+- **`GatewayHostController`**
+- **`GetMessagesError`** — Structured error reasons for {AgentsDispatcher.getMessages}.
+- **`GetMessagesResult`** — Result of a {AgentsDispatcher.getMessages} call.
+- **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
+- **`IssueChallengeResult`** — Result of {ChallengeMintStore.issueChallenge}.
+- **`MintRedeemResult`** — Result of {redeemMintChallenge}.
+- **`RateLimitCheckResult`** — Result of {IpRateLimiter.check}.
+- **`RedeemChallengeResult`** — Result of {ChallengeMintStore.redeemChallenge}.
+- **`RuntimeSwitchOrigin`**
+- **`ScopeCheckResult`** — Result of {checkScope}. Discriminated to mirror the verifier shape.
+- **`SendMessageError`** — Structured error reasons. Stable string union for transport mapping.
+- **`SendMessageResult`** — Result of a {AgentsDispatcher.sendMessage} call. AJS-65 route-model: inbox is the durable substrate; matrix is the notification overlay. Success-shape carries flat fields rather than a `delivery` d...
+- **`SurfaceBroadcastFn`** — Fan-out callback handed to the broadcaster by the WS bridge.
+- **`VerifyRejectionReason`** — Why a verification attempt failed. Stable string union so callers can match on it for telemetry + HTTP-status mapping without parsing free-text error messages.
+- **`VerifyResult`** — Discriminated result; ok-or-reason. Never throws on validation failure.
+- **`WSBridgeState`**
+- **`WSClientMessage`** — Client-to-server messages
+- **`WSServerMessage`** — Server-to-client messages
+
+### Constants
+
+- **`__testing`**
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
+- **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime regardless of harness. **Empty by design.** Earlier revisions forwarded `ANTHROPIC_API_KEY` and `MATRIX_ACCESS_TOKEN` to every runtime as a conve...
+- **`createAuditEmitter`**
+- **`CURATED_RUNTIME_IDS`**
+- **`DEFAULT_GITEA_EVENT_TYPES`** — Default event-type allowlist per AJS-59 v1 design fold (matrix event `$ifDfwkeFHpbiSHTPGr2ZFD79050wy_WsIRhQytVaiEs`): `pull_request`, `push`, `release`, `check_run`. Other event types (issue_commen...
+- **`DEFAULT_TARGET_TIMEOUT_MS`** — Default per-target timeout for multi-target fan-out (30s).
+- **`E2E_RUNTIME_PROFILE_CONFIG_HOME_ENV`**
+- **`E2E_RUNTIME_PROFILE_DATA_HOME_ENV`**
+- **`E2E_RUNTIME_PROFILE_PREFIX_ENV`**
+- **`E2E_RUNTIME_PROFILE_RUNTIMES_ENV`**
+- **`E2E_RUNTIME_PROFILE_STATE_HOME_ENV`**
+- **`FAN_OUT_TARGET_CAP`** — Hard upper bound on multi-target fan-out. DoS bound.
+- **`GITEA_BUS_CONSUMER_TOPIC`** — Canonical bus topic for Gitea webhook events.
+- **`MATRIX_INBOUND_TOPIC`** — Topic constants — kept in sync with `-js/matrix-bridge`.
+- **`MATRIX_REPLY_TOPIC`**
+- **`newCorrelationId`**
+
+### Exports
+
+- **`type AgentRegistryMap`**
+- **`type AguiEndpointOptions`**
+- **`type HostA2AExecutorOptions`**
+- **`type RuntimeModelInfo`**
+- **`type ScopeCheckResult`**
+
+
+## Dependencies
+
+- `@a2a-js/sdk`
+- `@agentclientprotocol/sdk`
+- `@agents-js/a2a`
+- `@agents-js/a2a-client`
+- `@agents-js/a2ui-host`
+- `@agents-js/a2ui-types`
+- `@agents-js/acp`
+- `@agents-js/acp-host`
+- `@agents-js/agui-types`
+- `@agents-js/gateway-runtime`
+- `@agents-js/policy`
+- `@agents-js/validation`
+- `jose`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/mcp-bridge
+
+> MCP server that exposes A2A agents as MCP tools. Each configured agent becomes a callable tool.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-mcp-bridge-llms.txt
+
+---
+# @agents-js/mcp-bridge
+
+> MCP server that exposes A2A agents as MCP tools. Each configured agent becomes a callable tool.
+
+## Installation
+
+```sh
+bun add @agents-js/mcp-bridge
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`DiscoveryIndex`** — In-memory index. Rebuilt at bridge start; no persistence. Search is a case-insensitive substring match over `name` and `description`. Empty / whitespace-only query returns the full catalog (bounded...
+
+### Functions
+
+- **`bridgeConfigFromRegistry`** — Build a {BridgeConfig} from the shared agent registry file. Reads the registry at the given path (or the default `~/.agents-js/registry.json` / `$AGENTS_JS_REGISTRY`), maps every A2A entry to an {A...
+- **`createBridgeServer`** — Create and configure an MCP server that bridges A2A agents as MCP tools. For each agent in the config, connects to the A2A endpoint, fetches its agent card, and registers an MCP tool. Tool calls ar...
+
+### Interfaces
+
+- **`AgentEndpoint`** — Configuration for a single A2A agent endpoint that the bridge will expose as an MCP tool.
+- **`BridgeConfig`** — Full bridge configuration: a list of agent endpoints to expose.
+- **`DiscoveryEntry`** — Lightweight metadata returned by `tool_search`. Intentionally not the full tool spec — just enough for an agent to decide whether to follow up with `load_tool` (or, in non-progressive mode, a direc...
+- **`SearchOptions`**
+
+### Types
+
+- **`DiscoveryEntrySource`** — Source system that contributed a discoverable entry. Existing sources: agents-bridged-as-MCP-tools, `-js/skills` registry entries, and freeform host-provided internal tools.
+
+
+## Dependencies
+
+- `@agents-js/a2a-client`
+- `@agents-js/skills`
+- `@modelcontextprotocol/sdk`
+- `zod`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/memory
+
+> Library-agnostic write-side memory primitive for agents-js. Defines MemoryProvider, actor/scope/record types, and a conformance harness for backend implementations.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-memory-llms.txt
+
+---
+# @agents-js/memory
+
+> Library-agnostic write-side memory primitive for agents-js. Defines MemoryProvider, actor/scope/record types, and a conformance harness for backend implementations.
+
+## Installation
+
+```sh
+bun add @agents-js/memory
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`InMemoryProvider`** — Reference provider — all capabilities = true. Lives in the package so the conformance harness has a known-good target. Consumers MAY use it as a test fixture; not intended for production storage.
+- **`MemoryAclError`** — Thrown by providers when `actor` lacks permission to act on `scope`.
+- **`MemoryRevisionConflictError`** — Thrown by providers when `expectedRevision` doesn't match current.
+
+### Functions
+
+- **`createMockActor`**
+- **`runProviderConformanceTests`** — Drop-in conformance suite. As of v0.6.0 (ADR 0001), providers expose substrate read primitives ({MemoryProvider.get}, {MemoryProvider.listByScope}). The harness uses `get` for independent read veri...
+
+### Interfaces
+
+- **`ConformanceOptions`** — Conformance harness arguments. Pass `describe`, `it`, and `expect` directly from `bun:test` / `vitest` / `jest` — keeps the package framework-agnostic via dependency injection.
+- **`DeleteMemoryInput`**
+- **`InMemoryProviderOptions`**
+- **`ListByScopeResult`** — Return shape for {MemoryProvider.listByScope}. `cursor` is an opaque-to-callers pagination token: pass it back unchanged on the next call to fetch the next page. `null` indicates no further pages. ...
+- **`MemoryActor`** — Caller principal. Every primitive operation carries one. The provider uses this to enforce scope ACL (if it implements ACL) and to populate record provenance. Future versions MAY add more principal...
+- **`MemoryProvider`** — Provider contract. Consumers implement this against the storage backend of their choice (in-process map, key-value store, document database, etc.) and pass the implementation to the runtime composi...
+- **`MemoryRecord`** — Canonical record shape returned by save/update. Providers MUST populate all required fields; optional fields are present iff the provider's capabilities advertise support.
+- **`ProviderCapabilities`** — Capability discovery — consumers can probe provider behavior without hard-coding backend assumptions. Providers MUST return this from `capabilities()`.
+- **`SaveMemoryInput`**
+- **`UpdateMemoryInput`**
+
+### Types
+
+- **`MemoryScope`** — Where a memory entry is visible. Caller resolves identity before calling — there is no `"self"` sentinel. The provider treats the scope as opaque for storage and as input to ACL when ACL is supported.
+- **`MemoryType`** — Open enum. Recommended initial subset; providers MAY accept additional type strings, but consumers SHOULD pick from this list when possible so cross-provider queries (via fetchContext) can filter c...
+
+### Exports
+
+- **`type InMemoryProviderOptions`**
+
+## Import paths
+
+The API section above lists every documented export across both
+the package's main entry and its `/testing` subpath. Real consumer
+imports are split between them — picking the wrong path is a
+compile error, so it pays to know which symbol lives where.
+
+**Main entry** — `@agents-js/memory` — runtime types and the
+provider contract (always available, zero runtime deps):
+
+```ts
+import {
+  type MemoryActor,
+  type MemoryScope,
+  type MemoryType,
+  type MemoryRecord,
+  type MemoryProvider,
+  type SaveMemoryInput,
+  type UpdateMemoryInput,
+  type DeleteMemoryInput,
+  type ProviderCapabilities,
+  MemoryAclError,
+  MemoryRevisionConflictError,
+} from "@agents-js/memory";
+```
+
+**Testing subpath** — `@agents-js/memory/testing` — conformance
+harness, reference provider, and helpers (test-time only; not
+intended for production code paths):
+
+```ts
+import {
+  runProviderConformanceTests,
+  type ConformanceOptions,
+  InMemoryProvider,
+  type InMemoryProviderOptions,
+  createMockActor,
+} from "@agents-js/memory/testing";
+```
+
+The conformance harness takes `describe`, `it`, and `expect`
+directly from any compatible framework (`bun:test`, `vitest`,
+`jest`):
+
+```ts
+import { describe, expect, it } from "bun:test";
+import {
+  InMemoryProvider,
+  runProviderConformanceTests,
+} from "@agents-js/memory/testing";
+
+runProviderConformanceTests({
+  describe,
+  it,
+  expect,
+  makeProvider: () => new InMemoryProvider(),
+});
+```
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/memory-local
+
+> Local single-process MemoryProvider for agents-js (Bun runtime only — depends on `bun:sqlite`). Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-memory-local-llms.txt
+
+---
+# @agents-js/memory-local
+
+> Local single-process MemoryProvider for agents-js (Bun runtime only — depends on `bun:sqlite`). Backed by a pluggable storage seam (sqlite by default) with an optional policy-gate hook.
+
+## Installation
+
+```sh
+bun add @agents-js/memory-local
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`LocalMemoryProvider`** — Local, single-process `MemoryProvider`. Orchestrates the policy-gate seam, idempotency lookup, creator-only ACL, and optimistic-concurrency checks on top of an injected `Storage` backend (typically...
+- **`SqliteStorage`** — sqlite-backed {Storage} impl. Uses `bun:sqlite` (a runtime built-in; no npm dependency). WAL is enabled so concurrent readers never block a writer, and `synchronous = NORMAL` trades a small crash-w...
+
+### Functions
+
+- **`cloneRecord`** — Local deep-clone helper. Why this exists: `-js/memory` does not currently export a `cloneRecord` helper, but the sqlite storage impl needs to defensively clone records on the way out (so a caller m...
+- **`migrate`** — Read `PRAGMA user_version`; if 0, apply {SCHEMA_DDL} and stamp `currentVersion`. If already equal, no-op. If greater than `currentVersion`, throw — refuse to open a file written by a newer binary. ...
+
+### Interfaces
+
+- **`LocalMemoryProviderOptions`**
+- **`MemoryPolicyGate`** — Optional policy hook injected into `LocalMemoryProvider`. Evaluated BEFORE the storage call; the provider lifts a `deny` (and, in v1, `ask`) into a `MemoryAclError`. The interactive `"ask"` variant...
+- **`MemoryPolicyInput`**
+- **`MemoryPolicyResult`**
+- **`SqliteStorageOptions`**
+- **`Storage`** — Storage seam used by `LocalMemoryProvider`. Public surface: external consumers can implement this interface to back the provider with their own durable storage (e.g. postgres, level, a remote KV) i...
+- **`StoredRecord`** — Backend-stored record shape. Extends the public `MemoryRecord` with provider-internal fields (creator provenance, idempotency key) that are not exposed across the `MemoryProvider` boundary.
+- **`StoredRecordPatch`** — Partial update payload accepted by the storage seam. Mirrors the caller-facing `UpdateMemoryInput` semantic: absent fields are untouched, present fields replace.
+
+### Types
+
+- **`MemoryPolicyDecision`**
+- **`MemoryPolicyOp`**
+- **`UpdateRecordResult`**
+
+### Constants
+
+- **`CURRENT_SCHEMA_VERSION`** — Bumped whenever the on-disk DDL changes incompatibly. The migration function stamps this into `PRAGMA user_version` after applying the DDL, and refuses to open a file whose stored version is newer ...
+- **`noopPolicyGate`** — Default gate — always allows. Lets the provider work out of the box with no policy plumbing. Callers opt in to enforcement by supplying their own gate.
+- **`SCHEMA_DDL`** — Canonical schema. `CREATE TABLE IF NOT EXISTS` makes the DDL safe to re-run; the migration function still only applies it on a fresh database (user_version = 0) so the per-process cost is one read....
+
+### Exports
+
+- **`MemoryAclError`**
+- **`MemoryRevisionConflictError`**
+- **`type LocalMemoryProviderOptions`**
+- **`type SqliteStorageOptions`**
+
+
+## Dependencies
+
+- `@agents-js/memory`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/memory-postgres
+
+> PostgreSQL Storage backend for the agents-js MemoryProvider. Plugs into @agents-js/memory-local's LocalMemoryProvider via the public Storage seam. Implements substrate read primitives (get + listByScope) per ADR 0001 using indexed cursor-based pagination.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-memory-postgres-llms.txt
+
+---
+<!-- This README is hand-maintained. -->
+
+# @agents-js/memory-postgres
+
+PostgreSQL `Storage` backend for the agents-js `MemoryProvider`.
+
+Plugs into [`@agents-js/memory-local`](../memory-local)'s `LocalMemoryProvider` via the public `Storage` seam to back agent memory with durable Postgres storage instead of local sqlite.
+
+## Status
+
+Implements the `Storage` contract from `@agents-js/memory-local` including the substrate read primitives added in [ADR 0001](../../docs/adrs/0001-memory-provider-substrate-read-primitives.md):
+
+- `insertRecord` / `updateRecord` / `getRecord` / `deleteRecord` / `findByIdempotency` / `close`
+- `listByScope` substrate-read primitive with cursor-based pagination (`id > $cursor` pattern, `ORDER BY id ASC`, over-fetch-by-one for `hasNext` detection)
+
+## Why not sqlite?
+
+`@agents-js/memory-local` ships `SqliteStorage` for single-process Bun runtimes. Use `PostgresStorage` when:
+
+- Multiple processes (or hosts) share one memory store
+- Memory needs to survive single-process restart at scale
+- You want centralized backup / replication / observability via your existing Postgres ops
+
+## Usage
+
+```typescript
+import { LocalMemoryProvider } from "@agents-js/memory-local";
+import { PostgresStorage } from "@agents-js/memory-postgres";
+
+const storage = new PostgresStorage({
+  connectionString: process.env.POSTGRES_URL!,
+  // Optional: pick a schema namespace so multiple memory stores coexist
+  schemaName: "agents_js_memory",
+});
+
+const provider = new LocalMemoryProvider({ storage });
+
+// Use provider exactly as you would with SqliteStorage
+const record = await provider.saveMemory(actor, {
+  scope: { kind: "agent", agentId: "demo" },
+  type: "feedback",
+  content: "Hello postgres",
+});
+```
+
+## Schema
+
+Tables live in a caller-chosen schema (default `agents_js_memory`). The schema is created lazily on first call.
+
+```sql
+CREATE TABLE <schema>.records (
+  id TEXT PRIMARY KEY,
+  scope_kind TEXT NOT NULL,
+  scope_key TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at_ms BIGINT NOT NULL,
+  updated_at_ms BIGINT NOT NULL,
+  revision INTEGER NOT NULL,
+  creator_kind TEXT NOT NULL,
+  creator_id TEXT NOT NULL,
+  idempotency_key TEXT
+);
+
+CREATE UNIQUE INDEX idx_records_idempotency
+  ON <schema>.records (creator_kind, creator_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX idx_records_scope_id
+  ON <schema>.records (scope_kind, scope_key, id);
+```
+
+The `(scope_kind, scope_key, id)` composite index supports `listByScope`'s cursor-based pagination efficiently — Postgres performs an index-only scan from the cursor position.
+
+## Connection pooling
+
+Uses the [`postgres`](https://github.com/porsager/postgres) client. Default pool size is `max: 4` (appropriate for memory-store workloads which are bursty but not high-concurrency). Override via `clientOptions`:
+
+```typescript
+new PostgresStorage({
+  connectionString: "...",
+  clientOptions: { max: 16, idle_timeout: 30 },
+});
+```
+
+## Tests
+
+Tests require a reachable Postgres instance. Set `POSTGRES_TEST_URL` to a writable database (the test suite uses an ephemeral schema per run and drops it on teardown).
+
+```bash
+export POSTGRES_TEST_URL='postgres://cognee:cognee@localhost:54321/cognee'
+bun test
+```
+
+## License
+
+MIT — see repo root.
+
+---
+
+# @agents-js/policy
+
+> Stateless permission policy evaluation for ACP hosts. Pure functions with no framework dependencies.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-policy-llms.txt
+
+---
+# @agents-js/policy
+
+> Stateless permission policy evaluation for ACP hosts. Pure functions with no framework dependencies.
+
+## Installation
+
+```sh
+bun add @agents-js/policy
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Functions
+
+- **`classifyOperation`** — Classify the operation type from a permission request. Uses heuristics on the tool name to determine the operation class. Includes workspace-specific operations (workspace.search, workspace.command...
+- **`closestParentFolder`** — Return the closest parent folder for a workspace-relative file path. Examples: - `closestParentFolder("projects/daily/note.md")` → `"projects/daily"` - `closestParentFolder("note.md")` → `""` (root...
+- **`createPermissionRule`** — Create a permission rule from a request and user choice.
+- **`createRememberedRule`** — Create a remembered rule from a permission request and response. Returns null for "once" lifetime (once-rules are not remembered).
+- **`describeOperationClass`** — Host-agnostic verb phrase for a canonical operation class. For unknown classes (including the `tool.<name>` fallback emitted by {classifyOperation} for unrecognised tool titles), falls back to the ...
+- **`describeReplayScope`** — Build the human-readable "replay will match X" copy for a permission request. Derives operation class + resource scope via {classifyOperation} / {extractResourceScope} and pairs them with host-iden...
+- **`evaluatePermissionRules`** — Evaluate a permission request against stored rules. Returns both the match result and a new array of rules with expired entries removed and consumed once-rules marked. The input array is not mutated.
+- **`evaluateWriteGate`** — Evaluates whether a write operation should be reviewed or blocked. Outside-workspace paths are blocked. Everything else goes to review (never auto-approved). Cross-platform: handles both POSIX and ...
+- **`extractResourceScope`** — Extract the resource scope from a permission request. Looks for common path-like arguments or command names.
+- **`extractShellCommandPathArgs`** — Extract path-like arguments from a shell-command permission request for workspace-boundary checking. Prefers structured `args` in `rawInput`; falls back to parsing `toolCall.title` for terminal-sty...
+- **`filterConsumedOnceRules`** — Remove consumed once-rules.
+- **`filterExpiredRules`** — Remove expired rules.
+- **`filterSessionRules`** — Filter to persistent rules only (removes session and once rules).
+- **`generateScopeCandidates`** — Generate an ordered list of scope candidates for a permission scope selection UI. Given an extracted resource scope (from {extractResourceScope}), produces candidates from most specific (exact file...
+- **`generateUnifiedDiff`** — Generates a simple unified diff between two strings. No external dependencies -- implements a basic line-based LCS diff.
+- **`isHighRisk`** — Check if an operation is high-risk and should never match remembered rules.
+- **`isReadOnly`** — Returns true if the given operation class represents a read-only operation that is safe to auto-approve without user confirmation.
+- **`isWithinDirectory`** — Check whether a candidate path is equal to or nested within a target directory. Both paths are workspace-relative (not absolute). Examples: - `isWithinDirectory("hub/acp", "hub/acp/file.md")` → tru...
+- **`isWithinWorkspace`** — Check whether a candidate path is equal to or within a workspace root. Handles both POSIX and Windows paths automatically. Resolves relative segments (`.`, `..`) and normalizes case on Windows befo...
+- **`policyError`** — Error for a policy violation -- the request is structurally valid but blocked by policy. Uses the reserved server-error range rather than `-32600`, which is reserved for malformed JSON-RPC requests.
+- **`scopeMatches`** — Check if a rule's resource scope matches the request's resource scope. IMPORTANT: This performs raw string prefix matching. Callers must normalize paths (resolve `..` and `.` segments) before stori...
+- **`usesWindowsPaths`** — Detect whether any of the provided path strings use Windows path conventions. Returns true if any value starts with a drive letter (C:\) or contains backslashes.
+- **`validateTerminalRequest`** — Validates a CreateTerminalRequest against the direct-exec-only policy. Rules: 1. command must be a non-empty string 2. command must not be a shell wrapper 3. command must not contain path separator...
+- **`validationError`** — Error for a validation failure -- the request parameters are invalid.
+
+### Interfaces
+
+- **`PermissionEvaluationResult`** — Result of evaluating permission rules, including any mutations (expired rules removed, once-rules marked consumed). Hosts decide whether to apply the updated rules.
+- **`PermissionRule`** — Scoped permission rule schema. Rules are scoped by agent identity, workspace, operation class, and resource scope. High-risk operations (shell execution, broad edits) are excluded from matching.
+- **`PolicyErrorInfo`** — Error helpers for ACP policy decisions. Returns code + message pairs that hosts can pass to `new RequestError(code, message)` from /sdk.
+- **`ReplayScopeDescription`**
+- **`ReplayScopeLabels`** — Host-identity labels plugged into {describeReplayScope} output copy. - `hostLabel` replaces the subject of the replay sentence (e.g. "Obsidian", "VS Code", "this host"). - `resourceLabel` names the...
+- **`RuleMatchResult`**
+- **`ScopeCandidate`** — A candidate scope that can be presented to the user for selection.
+
+### Types
+
+- **`KnownOperationClass`**
+- **`RememberedLifetime`** — Lifetime of a remembered permission rule.
+- **`ScopeLevel`** — Granularity level for a permission scope candidate.
+- **`TerminalValidationResult`**
+- **`WriteGateDecision`**
+
+### Constants
+
+- **`HIGH_RISK_OPERATIONS`** — Operation classes that can never be matched by remembered rules. Includes terminal operations, file deletion, and workspace command execution due to their potential for destructive or irreversible ...
+- **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {classifyOperation}. {describeOperationClass} is exhaustive against this union: adding a branch to `classifyOperation` without extending `KNOWN_O...
+- **`READ_ONLY_SHELL_COMMANDS`** — Read-only shell commands grouped by intent category. When a terminal/tool invocation's command word matches an entry here, `classifyOperation` returns the corresponding `workspace.shell.<category>`...
+- **`READ_OPERATIONS`** — Operation classes that are always safe to auto-approve. These represent read-only or navigational operations with no side effects. Note: `workspace.shell.*` classes are deliberately NOT in this set...
+- **`SHELL_COMMANDS`** — Commands that are always considered shell wrappers. Used by both the permission high-risk check and the terminal validation policy.
+- **`WORKSPACE_SHELL_OPERATIONS`** — Operation classes produced by the read-only shell-command branch of `classifyOperation`.
+
+### Exports
+
+- **`type PolicyErrorInfo`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/schema-utils
+
+> Shared schema property parsing for ACP elicitation forms. Extracts field metadata from JSON Schema-like property definitions.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-schema-utils-llms.txt
+
+---
+# @agents-js/schema-utils
+
+> Shared schema property parsing for ACP elicitation forms. Extracts field metadata from JSON Schema-like property definitions.
+
+## Installation
+
+```sh
+bun add @agents-js/schema-utils
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Functions
+
+- **`extractOneOf`**
+- **`toFieldMetas`**
+
+### Interfaces
+
+- **`ElicitationSchema`** — Shape of the schema prop — matches ACPA2AElicitationSchema from a2a-client.
+- **`FieldMeta`** — Parsed field metadata used internally for rendering and validation.
+- **`OneOfEntry`**
+- **`SchemaProperty`** — Schema property definition shape used for field rendering. Mirrors the inner values of ACPA2AElicitationSchema.properties.
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/skills
+
+> TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-skills-llms.txt
+
+---
+# @agents-js/skills
+
+> TypeScript-native skill loading, validation, and in-memory registry for SKILL.md-formatted skills. Pure, filesystem-only, no network or persistence.
+
+## Installation
+
+```sh
+bun add @agents-js/skills
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`InMemoryRegistry`** — Session-scoped in-memory skill registry. No persistence, no networking — callers hydrate at startup and discard on shutdown. The registry keys skills by `skill.name`. Re-adding a skill with the sam...
+- **`SkillLoadError`**
+- **`YamlParseError`** — Minimal YAML subset parser for SKILL.md frontmatter. SKILL.md files in practice use only a tiny slice of YAML: top-level key-scalar pairs, quoted scalars, inline flow arrays, and block arrays. This...
+
+### Functions
+
+- **`createStrictValidator`** — Strict-mode validator. Applies the authoring conventions captured in the SKILL.md authoring guide to a fully-loaded Skill object. These checks are advisory — they layer on top of the tolerant {vali...
+- **`createStrictValidatorWith`** — Options-accepting variant of the strict validator for callers that want to tune the description-length band.
+- **`discoverSkillDirs`** — Enumerate every subdirectory across the given search paths that contains a `SKILL.md`. Deduplicates by skill directory-basename: if the same name appears in multiple paths, the first (highest prece...
+- **`listSkills`** — Enumerate every skill visible across the given search paths. Produces lightweight {SkillMeta} records (no body). Skills that fail to parse are silently skipped so a single malformed skill cannot bl...
+- **`loadSkill`** — Load a skill by name from the given search paths. Throws {SkillLoadError} if the skill is not found or if SKILL.md cannot be parsed.
+- **`normalizeFrontmatter`** — Convert a permissively-parsed YAML record into the canonical {SkillFrontmatter} shape. Unknown keys are preserved on the `extra` field. Array fields with non-array input are coerced to an empty arr...
+- **`parseSkillDocument`**
+- **`parseSkillYaml`** — Parse a YAML frontmatter string (the text between the opening and closing `---` delimiters, excluding those delimiters) into a key-value record.
+- **`resolveSkillDir`** — Resolve a skill directory by name against an ordered list of search paths. Earlier entries in `searchPaths` take precedence — the first hit wins. Returns `null` if no search path contains a matchin...
+- **`splitSkillDocument`** — Split a SKILL.md document into its frontmatter fence and markdown body. Accepts CRLF and LF line endings.
+- **`validateSkill`** — Tolerant SKILL.md validator. Runs parse-correctness and required-field checks. Authoring-convention concerns (length thresholds, anti-triggers, etc) live in the strict validator. Accepts either a d...
+
+### Interfaces
+
+- **`LoadOptions`** — Options for {loadSkill}.
+- **`Skill`** — A fully-loaded skill: metadata, frontmatter, and body.
+- **`SkillFrontmatter`** — Canonical SKILL.md frontmatter shape after parsing. Unknown keys are preserved on the `extra` field so downstream consumers can read skill-system-specific metadata without forcing us to bless every...
+- **`SkillMeta`** — Lightweight metadata for listing/enumeration. Does NOT include the body.
+- **`SplitResult`** — Raw split of a SKILL.md document into frontmatter text + body. Returns `null` frontmatter when no valid fence is present so validators can report a specific "no frontmatter" error.
+- **`StrictOptions`**
+- **`ValidationResult`** — Result of a validation pass. `valid` is the aggregate verdict; `errors` are blocking issues; `warnings` are advisory.
+
+### Types
+
+- **`ParseFrontmatterResult`** — Parse result for the YAML block. Distinguishes the three failure modes validators care about: no fence, present-but-unparsable, and parsable-but-empty.
+
+### Constants
+
+- **`DESCRIPTION_MAX_LENGTH`**
+- **`NAME_MAX_LENGTH`** — Tolerant validator limits. Strict mode tightens the lower bound.
+- **`SKILL_FILENAME`** — Canonical filename for the SKILL authoring document. Lifted to a named constant so consumers can build paths without hardcoding the literal `"SKILL.md"`.
+- **`SKILL_KNOWN_KEYS`** — Known SKILL.md frontmatter keys. The parser preserves any extra keys on the `extra` field, so this list governs the tolerant validator's "unexpected key" warnings rather than hard rejection. Source...
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/tools
+
+> Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-tools-llms.txt
+
+---
+# @agents-js/tools
+
+> Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.
+
+## Installation
+
+```sh
+bun add @agents-js/tools
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`SigilResolutionError`** — Thrown when `resolve` is called for a `SigilKind` that has no registered resolver and every applicable resolver has returned `UNHANDLED`. `code` follows the `"tools/<slug>"` convention from the res...
+- **`SpawnAgentInvalidInputError`** — Structured error thrown when a caller passes invalid input to {spawnAgent}. Separate from the result-shape failure modes (`harness_unavailable`, `depth_limit_exceeded`, etc.) because invalid input ...
+- **`TraceEmitter`** — Construct a {ToolCallTrace} and forward to the configured sink. Callers typically don't use this directly — prefer {wrapToolWithTrace} or {TraceEmitter.record} around an arbitrary async call.
+
+### Functions
+
+- **`applyRedaction`** — Apply a top-level redaction spec to an object. Returns a shallow copy with listed keys replaced by {REDACTION_SENTINEL}. Non-object inputs pass through unchanged (no way to redact a scalar by key)....
+- **`createJsonlFileSink`** — Append-only JSONL sink. Each `emit` writes a single line (JSON.stringify(record) + "\n") to the given path, creating the parent directory if missing. Writes are serialized through a per-sink promis...
+- **`createMemorySink`** — In-memory sink. Retains every emitted record on a `records` array. Primarily for tests.
+- **`createNoopSink`** — No-op sink. Useful as an explicit default when trace infrastructure is wired but emission should be disabled (e.g. in production prior to a retention policy landing).
+- **`createRegistry`** — Create a fresh, isolated in-memory {ToolRegistry}. The module-level {defaultRegistry} is populated at load time with the two memory primitives. Callers that want isolation (tests, per-agent scopes,...
+- **`createSigilRegistry`** — Create a fresh, isolated {SigilRegistry}. The returned registry has the built-in `!command` fallback (which always returns `UNHANDLED`) pre-registered so the `"bang"` kind is always in the chain. H...
+- **`fetchContext`** — Grounded memory-recall coordinator (Shape 1). Picks memory primitives based on query-shape heuristics, runs them (in parallel when the router picks `"both"`), merges their `FetchContextResult` outp...
+- **`findTools`** — Narrow tool-discovery surface (Shape 2). Returns up to `limit` tools (default 3) from an in-memory registry, ranked by keyword overlap against each tool's name, keywords, and description via the sh...
+- **`parseSigil`** — Parse a raw input string into a {Sigil}. Returns `null` when the input does not start with a recognised sigil prefix (after optional leading whitespace). The prefix must be immediately followed by ...
+- **`registerBuiltins`** — Register the three built-in primitives into the default registry. Idempotent: registering the same name twice overwrites the prior entry, so callers may safely invoke this from any bootstrap path. ...
+- **`resolveSigil`** — Convenience wrapper: parse `input` and dispatch via `registry.resolve`. Equivalent to `registry.resolve(input, context)` — provided so callers that hold both a registry and a raw string do not need...
+- **`routeFetchContext`** — Pick a routing hint based on query-shape heuristics. Explicit `hint` passed by the caller always wins.
+- **`safeSerializeRecord`** — Serialize a `ToolCallTrace` record with a fallback for values that `JSON.stringify` rejects (functions, circular refs, BigInt, Symbol, etc.). The first attempt uses the native serializer; on failur...
+- **`scoreSnippet`** — Lightweight keyword-score for snippet ranking. Counts how many query tokens appear in `text`. Case-insensitive; no stemming.
+- **`scoreTool`** — Score a tool against a query. Higher score = better match. 0 means no match and the tool should be filtered out by the registry. Scoring: +2 per keyword hit, +1 per description token hit, +3 if the...
+- **`searchDocs`** — Grep-style search across markdown files under the given document root root, returning the best-matching line range from each file. Skips `node_modules`, `.git`, `.obsidian`, `.trash`, `dist`, `out`...
+- **`searchMemories`** — Search markdown memory files under `.agents/<name>/` inside the given workspace root and return the best-matching line range from each file. Every returned source is `source_type: "hub-file"` with ...
+- **`spawnAgent`** — Spawn a subagent, run the subtask, return the terminal summary with tool-layer provenance. See module docstring for scope. The call is purely a wrapper over {spawnSubSession} — all process spawn / ...
+- **`tokenize`** — Split on whitespace and non-word chars; lowercase; drop short tokens.
+- **`translateGatewayResult`** — Convert a gateway {SpawnSubSessionResult} into a tool-layer {SpawnAgentResult} by attaching provenance. Exposed for tests that want to assert on the mapping without spawning anything.
+- **`validateCompositionId`** — Validate a composition-chain id (parent or root event id). Accepts: - `null` / `undefined` — legitimate "no parent / no root override" - ULID or UUID v4 matching {COMPOSITION_ID_PATTERN} Invalid sh...
+- **`wrapToolWithTrace`** — Return a new {ToolDefinition} whose `invoke` records a trace record on every call. The returned tool retains the original name, description, keywords, and redaction spec — drop-in replacement. The ...
+
+### Interfaces
+
+- **`FetchContextOptions`** — Options for `fetchContext`. `workspaceRoot` / `hubRoot` exist so tests can point primitives at fixture directories without monkey-patching cwd.
+- **`FetchContextResult`** — Result of a `fetchContext` call.
+- **`FindToolsOptions`** — Options for `findTools`.
+- **`HandledResult`** — Successful resolution result. `value` is opaque at the registry layer; the resolver and its caller agree on the shape.
+- **`RedactionSpec`** — Per-tool redaction spec. Applied by the trace emitter before persistence so secret fields never land in the append-only log. See `tool-call-trace-schema-2026-04-21.md` §3 for design rationale. The ...
+- **`SearchDocsOptions`**
+- **`SearchMemoriesOptions`**
+- **`Sigil`** — A parsed sigil: its category (`kind`) and the bare token after the prefix (`name`). Trailing arguments are NOT part of the sigil; they belong in `SigilContext.args`. Example: `$skill run-docs arg1`...
+- **`SigilContext`** — Runtime context forwarded to every resolver invocation. `args` carries whitespace-split tokens that follow the sigil name in the original input string. Resolvers may inspect or forward them as need...
+- **`SigilRegistry`** — Registry surface for sigil resolvers. Use {createSigilRegistry} to obtain an isolated instance.
+- **`Snippet`** — A snippet of matched text from a source, carrying a back-index into `sources` and a relevance score (0..n, higher = better).
+- **`Source`** — Canonical 5-field provenance record. Every result must populate all five. `observed_at` is the source-side observation timestamp (file mtime, Matrix event origin, agent-msg created_at, etc). `retri...
+- **`SpawnAgentOptions`** — Input shape. `subtask` is positional. Every other field is optional and carries a sensible default. `parent_session_id` is carried so trace / audit records can correlate to the spawning session; v1...
+- **`SpawnAgentResult`** — Result of a tool-layer spawn. Mirrors the gateway result with provenance (`sources`) added and status widened to include `"depth_limit_exceeded"`.
+- **`ToolCallTrace`** — Single tool invocation event. Mirrors the JSON shape defined in the schema spec. `result` is optional because not every terminal record carries a success payload (error cases may have `null`); `arg...
+- **`ToolDefinition`** — Contract for a single tool in the Shape 2 registry. `keywords` bias the router; they do not need to be exhaustive because `description` is also scored. `invoke` is deliberately `unknown` in + out: ...
+- **`ToolRegistry`** — In-memory registry surface. The default module-level registry populates at load time with the two memory primitives; callers may instantiate an isolated registry via {createRegistry}.
+- **`TraceEmitterOptions`** — Construction options for {TraceEmitter}. Test seams for `now` and `generateEventId` exist so tests can produce deterministic records without monkey-patching globals.
+- **`TraceInvocationContext`** — Context carried per-invocation into {TraceEmitter.record}.
+- **`TraceSink`** — Destination for persisted trace records. Implementations must be idempotent with respect to concurrent writes — the emitter does not serialize calls.
+- **`UnhandledResult`** — Sentinel returned when a resolver declines to handle a sigil, passing control to the next registered resolver for the same kind.
+
+### Types
+
+- **`Confidence`** — Confidence classification for a source. - `responsible` — the current, canonical source of truth for this datum. - `supporting` — corroborating context, may be stale or derivative. Callers that wan...
+- **`FetchContextHint`** — Routing hint for `fetchContext`. `"both"` runs primitives in parallel and merges. Default routing picks a preference from query-shape heuristics.
+- **`ResolverResult`** — Discriminated union of {HandledResult} and {UnhandledResult}.
+- **`SigilKind`** — Discriminated union of all recognised sigil prefix categories. Three values, not four — `$keyword` and `$skill` are both `"dollar"` at parse time. See module docstring for rationale.
+- **`SigilResolver`** — A function that attempts to resolve a parsed sigil in the given context. Returns {UNHANDLED} to pass control to the next resolver in the chain.
+- **`SourceType`** — What kind of source a result came from. Kept narrow + explicit so the router + consumers can filter by source class without string parsing.
+- **`SpawnAgentHints`** — Re-export gateway hints for tool-layer callers.
+- **`SpawnAgentStatus`** — Terminal status of {spawnAgent}, including tool-layer-specific cases.
+
+### Constants
+
+- **`builtinCommandResolver`** — Built-in `!command` resolver. Always returns `UNHANDLED`. Hosts MUST register their own `"bang"` resolver that calls through `-js/policy`'s `validateTerminalRequest` before executing any shell comm...
+- **`DEFAULT_FETCH_CONTEXT_HUB_ROOT`**
+- **`defaultRegistry`** — Module-level registry. Populated lazily via {ensureDefaultPopulated} so primitive files can import the registry without triggering their own re-entry at import time.
+- **`REDACTION_SENTINEL`** — Sentinel used to replace redacted field values.
+- **`searchDocsTool`**
+- **`searchMemoriesTool`**
+- **`SPAWN_AGENT_DEFAULT_MAX_DEPTH`** — Default self-spawn depth cap. Configurable per-call.
+- **`spawnAgentTool`**
+- **`TOOL_CALL_TRACE_SCHEMA_VERSION`** — Current schema version emitted by this module.
+- **`UNHANDLED`** — Sentinel constant. Resolvers should `return UNHANDLED` rather than constructing `{ status: "unhandled" }` inline — it is more readable and the reference equality makes test assertions straightforward.
+
+
+## Dependencies
+
+- `@agents-js/gateway-runtime`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/ui-components
+
+> Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-ui-components-llms.txt
+
+---
+# @agents-js/ui-components
+
+> Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.
+
+## Installation
+
+```sh
+bun add @agents-js/ui-components
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`AcpAgentStatusBlock`**
+- **`AcpAuthSelector`**
+- **`AcpButton`**
+- **`AcpChatApp`**
+- **`AcpCheckbox`**
+- **`AcpChoicePicker`**
+- **`AcpCodeBlock`**
+- **`AcpColumn`**
+- **`AcpConnectDialog`**
+- **`AcpDateTimeInput`**
+- **`AcpDebugPanel`**
+- **`AcpDiffBlock`**
+- **`AcpDivider`**
+- **`AcpElicitationForm`**
+- **`AcpIcon`**
+- **`AcpImage`**
+- **`AcpMessage`**
+- **`AcpModal`**
+- **`AcpModelSelector`**
+- **`AcpOverlayStack`**
+- **`AcpPermissionModal`**
+- **`AcpPermissionModeSelector`**
+- **`AcpPlanPanel`**
+- **`AcpPromptInput`**
+- **`AcpRow`**
+- **`AcpSlider`**
+- **`AcpStatusBar`**
+- **`AcpStreamingText`**
+- **`AcpTerminalEmbed`**
+- **`AcpTextField`**
+- **`AcpToolCallDetail`**
+- **`AcpToolKindIcon`**
+- **`AcpTranscript`**
+- **`AcpWriteGateModal`**
+- **`ChatAppProfileManager`**
+- **`HostWSClient`**
+- **`PromptHistoryStore`**
+
+### Functions
+
+- **`clearConnectPreferences`** — Clear stored connection preferences and profiles.
+- **`clearIconRegistries`** — Clear all registered external icon sets, leaving only the built-in icons.
+- **`createLocalStoragePromptHistoryPersistence`**
+- **`createPermissionResolution`**
+- **`deleteConnectProfile`**
+- **`deriveAgentVisualState`** — Bucket one agent's raw `StatusSnapshotAgent` into a visual state plus a short human-readable activity label. Pure function, no side effects, no DOM access — usable from non-component contexts (CLI ...
+- **`deriveDisplayedSessionStatus`**
+- **`deriveFallbackModelId`**
+- **`deriveRuntimeNotice`**
+- **`deriveSessionState`** — Derive flat component properties from an incoming SessionStateLike. This is a pure function with no side effects — the caller is responsible for applying the result to Lit reactive properties with ...
+- **`formatActivityAge`** — Format an activity age (seconds) as a compact "Ns ago" / "Nm ago" / "Nh ago" / "Nd ago" string. Returns "unknown" when the age is absent, which is the upstream signal that the status provider had n...
+- **`isHostBridgeActiveForTarget`**
+- **`isKnownModelId`**
+- **`loadConnectPreferences`** — Load previously saved connection preferences. Returns the active profile's preferences, or `null` if nothing valid was saved.
+- **`loadConnectProfiles`**
+- **`mapModels`**
+- **`mapPendingElicitation`** — Map a raw `PendingElicitation` (as serialized by the gateway) into the display-only `PendingElicitationInfo` used by the browser. The gateway's JSON serializer strips the `resolve` function, so the...
+- **`mapPermissionRequest`** — Map a raw RequestPermissionRequest object into the minimal PendingPermissionInfo shape expected by the UI components.
+- **`mapRuntimeSwitchState`**
+- **`mapSnapshot`** — Extract host-relevant fields from a full ACPSessionState snapshot. The snapshot arrives as the serialized ACPSessionState. The pending permission lives at `currentTurn.pendingPermission.request` wh...
+- **`normalizeHostBridgeUrl`**
+- **`reconcileModelSelection`**
+- **`registerAllComponents`** — Marker function for hosts that prefer an explicit `registerAllComponents()` call after importing `-js/ui-components`. **The function body is intentionally empty.** Actual `<acp-*>` registration is ...
+- **`registerIconSet`** — Register an external icon set. Icons from this registry take priority over the built-in set and previously registered sets.
+- **`repairActiveSavedRuntimePreference`**
+- **`resolveBrowserLaunchConfig`**
+- **`safeCustomElement`** — Idempotent variant of Lit's `` decorator. Usage is identical to the Lit decorator: import { safeCustomElement } from "./safe-custom-element.ts"; \("acp-button") export class AcpButton extends LitEl...
+- **`saveConnectPreferences`** — Save connection preferences into a named profile. If `profileId` is omitted, a new profile is created unless the store is empty, in which case the default profile ID is used.
+- **`sessionViewStateChanged`** — Shallow-compare two `SessionViewState` objects. Returns `true` when at least one top-level value differs (meaning the component should re-render).
+- **`setActiveConnectProfile`**
+- **`shouldClearStaleSessionHash`**
+- **`shouldRepairSavedRuntimeRestore`**
+- **`statusCategory`** — Maps a session status string to a semantic category for styling.
+
+### Interfaces
+
+- **`AcpChoiceOption`**
+- **`AcpToolCallDetailData`** — Mirrors the shape of `ActiveToolCall` from the `agents-js/a2a-client` package without taking a runtime dependency on it — keeps `ui-components` framework-agnostic. Consumers can pass an `ActiveTool...
+- **`AgentCardLike`** — Unified agent card shape — covers preview, snapshot, and view uses.
+- **`BrowserLaunchConfig`**
+- **`ChatAppDerivedState`**
+- **`ConnectPreferences`**
+- **`ConnectProfile`**
+- **`ConnectProfilesState`**
+- **`DebugRecordLike`** — Debug record shape — mirrors DebugRecord from a2a-client types.
+- **`DeriveAgentVisualOptions`**
+- **`DerivedAgentVisual`**
+- **`ElicitationResolution`**
+- **`HistoryNavResult`**
+- **`HostState`** — Flat state object pushed to subscribers on every relevant event.
+- **`HostTurnSummary`**
+- **`HostWSClientOptions`** — Optional behaviour hooks for {HostWSClient}. All fields are optional so existing `new HostWSClient(url)` call sites keep working unchanged. Omitting a hook leaves the corresponding surface inert.
+- **`ModelInfo`**
+- **`ModelInfoLike`**
+- **`PendingElicitationInfo`** — Minimal elicitation request shape for display purposes. Mirrors the non-function fields of `PendingElicitation` on the host side (see `packages/acp-host/src/types/session.ts`). The gateway's JSON s...
+- **`PendingPermissionInfo`** — Permission-request shape for display purposes. Mirrors the ACP SDK `ToolCallUpdate` surface (which is what `RequestPermissionRequest.toolCall` actually carries — see `/sdk` `schema/types.gen.d.ts`)...
+- **`PendingWriteGateInfo`** — Minimal write-gate shape for display purposes.
+- **`PermissionOptionInfo`** — Permission option shape matching /sdk PermissionOption.
+- **`PermissionRequestLike`** — Minimal shape for permission requests from acp-host.
+- **`PermissionResolution`**
+- **`PlanEntryLike`** — Plan entry shape matching PlanEntryInfo from acp-host session state.
+- **`ProfileManagerCallbacks`**
+- **`ProfileManagerState`**
+- **`PromptHistoryPersistence`** — A framework-agnostic prompt history store that provides up-arrow input recall. Extracted from an earlier host prompt-history state machine and generalized here. No DOM or Lit dependencies — pure Ty...
+- **`PromptHistoryStoreOptions`**
+- **`ResolveBrowserLaunchConfigOptions`**
+- **`RuntimeInfo`**
+- **`RuntimeInfoLike`**
+- **`RuntimeModelInfo`**
+- **`RuntimeModelLike`** — Model info from the runtime CLI (available before session creation).
+- **`RuntimeSwitchState`**
+- **`SaveConnectPreferencesOptions`**
+- **`SessionModelsInfo`**
+- **`SessionModelsLike`**
+- **`SessionStateLike`** — Unified session state shape — covers snapshot and view uses.
+- **`StatusSnapshotAgent`** — Pass-through shape for one row inside a `StatusSnapshot.agents[]` payload served over the network by a status endpoint. Only `name`, `mxid`, and `online` are required; the producer may omit any of ...
+- **`TargetInspectionLike`**
+- **`TranscriptMessageEntryLike`**
+- **`TranscriptToolCallEntryLike`**
+- **`TranscriptToolCallEntryPayload`** — `ActiveToolCall`-shaped payload for transcript tool-call entries. Re-uses the SDK's typed shapes (`ToolKind`, `ToolCallContent`, `ToolCallLocation`) so receivers get spec-shaped enums and proper di...
+- **`WorkflowActivityEntryState`**
+- **`WorkflowSurfaceActivityState`**
+- **`WorkflowSurfaceComposerState`**
+- **`WorkflowSurfaceContext`**
+- **`WorkflowSurfaceInterruptActionState`**
+- **`WorkflowSurfaceInterruptState`**
+- **`WorkflowSurfacePlanState`**
+- **`WorkflowSurfaceRenderState`**
+- **`WorkflowSurfaceTranscriptState`**
+- **`WriteGateLike`** — Minimal shape for write gate pending state.
+- **`WriteGateResolution`**
+
+### Types
+
+- **`AgentVisualState`** — Four bucketed visual states the block renders distinct affordances for. Bucketing is intentional: hosts that want a finer scale derive their own from `activity_age_seconds` directly without re-runn...
+- **`HostStateListener`**
+- **`IconRegistry`** — Icon registry type: a record mapping icon names to SVG path data strings.
+- **`PermissionModalDetail`**
+- **`RuntimeSwitchOrigin`**
+- **`SessionViewState`** — SessionViewState groups the derived state fields that drive the main chat view rendering. The component stores this as a single `()` property with a custom `hasChanged` guard instead of 17+ individ...
+- **`TranscriptEntryLike`** — Discriminated union for transcript entries. Two variants today: - **Message**: a user or agent text message (the original `TranscriptEntry` shape from `agents-js/a2a-client`). Carries `role: "user"...
+- **`WorkflowActivityKind`**
+- **`WorkflowActivityStatus`**
+- **`WorkflowSurfaceActivityPhase`**
+- **`WorkflowSurfaceComposerMode`**
+- **`WorkflowSurfaceInterruptKind`**
+- **`WorkflowSurfaceSeverity`**
+- **`WSServerMessage`** — Server-to-client messages sent by the ws-bridge.
+
+### Constants
+
+- **`_typeFixtures`**
+- **`acpInputStyles`** — Shared CSS for input and label elements used across form components. Provides consistent styling for `<label>`, `<input>`, `<textarea>`, and `<select>` elements including focus, disabled, and error...
+- **`acpTheme`** — Shared Tokyo Night theme as CSS custom properties. Each property uses a double-var pattern: the component references `var(--acp-bg, #0f1117)` as the compiled default, but hosts can set `--acp-bg` o...
+- **`DEFAULT_PERMISSION_MODE_LABELS`** — Default label copy for each mode. Consumers can override any subset via the `labels` property; missing keys fall back to these values.
+
+### Exports
+
+- **`type AcpChoiceOption`**
+
+
+## Dependencies
+
+- `@agentclientprotocol/sdk`
+- `@agents-js/a2ui-types`
+- `@agents-js/acp-host`
+- `@agents-js/schema-utils`
+
+### Peer Dependencies
+
+- `lit`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
+
+---
+
+# @agents-js/validation
+
+> Schema validation for ACP envelopes, A2A requests/responses, runtime manifests, and JSON-RPC messages.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-validation-llms.txt
+
+---
+# @agents-js/validation
+
+> Wire-format schema validation for ACP envelopes, A2A requests/responses, A2UI lifecycle messages, AG-UI events, JSON-RPC 2.0 envelopes, agent cards, and runtime manifests.
+
+`@agents-js/validation` is the wire-format schema gateway for the agents-js
+project. It wraps the canonical schemas published by `@agentclientprotocol/sdk`,
+`@a2a-js/sdk`, `@agents-js/a2ui-types`, and `@agents-js/agui-types`, and
+exposes a uniform `ValidationResult` shape (with structured `ValidationError`
+issues) across every protocol and transport boundary.
+
+## Installation
+
+```sh
+npm install @agents-js/validation
+```
+
+```sh
+bun add @agents-js/validation
+```
+
+## Usage
+
+Validate an inbound JSON-RPC envelope before dispatching it:
+
+```ts
+import { validateJsonRpcEnvelope, ValidationError } from "@agents-js/validation";
+
+const payload: unknown = JSON.parse(rawBody);
+
+try {
+  const request = validateJsonRpcEnvelope(payload, "request", { mode: "strict" });
+  // request is now typed and guaranteed to match the JSON-RPC 2.0 request shape.
+  await dispatch(request);
+} catch (err) {
+  if (err instanceof ValidationError) {
+    console.error("rejected envelope", err.issues);
+  }
+  throw err;
+}
+```
+
+Type-guard a streaming AG-UI event without throwing:
+
+```ts
+import { isAguiEvent } from "@agents-js/validation/agui";
+
+for await (const chunk of stream) {
+  if (isAguiEvent(chunk)) {
+    forward(chunk);
+  }
+}
+```
+
+For browser or extension bundles, prefer the narrowest subpath export:
+
+```ts
+import { validateAgentCard } from "@agents-js/validation/a2a";
+import { validateA2uiMessage } from "@agents-js/validation/a2ui";
+import { validateACPEnvelope } from "@agents-js/validation/acp";
+import { validateRunAgentInput } from "@agents-js/validation/agui";
+```
+
+The root `@agents-js/validation` entrypoint remains supported for compatibility,
+but it exposes every validator and can pull more protocol code into bundled
+consumers.
+
+### `agents-validate` CLI
+
+The package ships an `agents-validate` binary for ad-hoc schema checks against
+files or URLs. Output is a JSON document with `ok: true|false`; non-zero exit
+on failure.
+
+```sh
+# Validate an ACP request envelope from a local file.
+npx agents-validate --source ./fixtures/session-new.json --target acp-request
+
+# Validate an A2A agent card served over HTTP, in lenient mode.
+npx agents-validate \
+  --source https://example.com/.well-known/agent.json \
+  --target agent-card \
+  --mode loose
+
+# Validate an ACP response — `--method` is required so the right schema is selected.
+npx agents-validate \
+  --source ./fixtures/session-new-response.json \
+  --target acp-response \
+  --method session/new
+```
+
+Run `npx agents-validate --help` for the full list of `--target` values
+(`jsonrpc-request`, `jsonrpc-response`, `a2a-request`, `a2a-response`,
+`acp-envelope`, `acp-request`, `acp-response`, `agent-card`,
+`runtime-manifest`).
+
+## Documentation
+
+Full API reference and protocol guides: <https://agents-js.bodal.dev/>.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+<!-- This README is hand-maintained. -->
 

@@ -1,31 +1,51 @@
 /**
- * docs-bundle.ts — Generates docs/public/llms.txt and docs/public/llms-full.txt
+ * docs-bundle.ts — Generates docs/public/llms.txt, docs/public/llms-full.txt,
+ * and one per-package index file under docs/public/per-package/.
  *
  * Output lives under `docs/public/` so VitePress copies the bundles to the
- * dist root (`/llms.txt`, `/llms-full.txt`); files at `docs/<name>.txt` are
- * not copied by VitePress and would 404 on the published site.
+ * dist root (`/llms.txt`, `/llms-full.txt`, `/per-package/<name>.txt`); files
+ * at `docs/<name>.txt` are not copied by VitePress and would 404 on the
+ * published site.
  *
- * Follows the llmstxt.org spec:
- *  - llms.txt:  H1 project title + blockquoted summary + H2-grouped link
- *               sections, each link annotated with a short description so
- *               an agent can prioritize what to load
- *  - llms-full.txt: Same header + full concatenated content of every page
+ * Three output families:
+ *  - llms.txt — top-level project-wide entry-point per the llmstxt.org spec
+ *    (H1 + blockquote summary + H2-grouped link sections, each annotated)
+ *  - llms-full.txt — single bundle: project-wide entry + every doc page +
+ *    every per-package index appended at the bottom under "Per-package
+ *    indexes". The whole bundle is what a consumer pulls when they want
+ *    everything in one shot.
+ *  - docs/public/per-package/agents-js-<short>-llms.txt — one focused
+ *    package index per publishable package (`@agents-js/<short>`). Each
+ *    file is H1 with the package name + a one-line summary + the package
+ *    README content. Acts as a context-window-budget slice so an agent
+ *    can pull just the package it cares about instead of the full
+ *    monolith.
  *
- * Link descriptions and section groupings are authored inline in
- * {@link PAGES}. Per the spec, manual authorship beats auto-extraction for
- * this surface — the llms.txt file is a curated reading list, not a scrape
- * of the first paragraph. Auto-extraction survives as a last-ditch
- * fallback (see {@link extractDescription}) but every real page SHOULD
- * carry a hand-written description so the output stays predictable.
+ * Coupling discipline: a single 'bun run docs:bundle' regenerates all
+ * outputs. 'bun run docs:bundle --check' validates every output against
+ * committed content and fails on any drift, so partial regenerations
+ * cannot ship. The per-package list is derived from packages/*\/package.json
+ * (descriptions read from the manifest), so the only manual step required
+ * when adding a new publishable package is keeping the package README
+ * generated via 'bun run docs:readmes'.
+ *
+ * Link descriptions and section groupings for the top-level docs are
+ * authored inline in {@link PAGES}. Per the llmstxt.org spec, manual
+ * authorship beats auto-extraction for that surface. Per-package summaries
+ * come from the package's `description` field in package.json so the
+ * single source of truth lives with the package metadata.
  *
  * See https://llmstxt.org/ for the spec.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-const DOCS_DIR = join(import.meta.dir, "..", "docs");
+const REPO_ROOT = join(import.meta.dir, "..");
+const DOCS_DIR = join(REPO_ROOT, "docs");
 const PUBLIC_DIR = join(DOCS_DIR, "public");
+const PER_PACKAGE_DIR = join(PUBLIC_DIR, "per-package");
+const PACKAGES_DIR = join(REPO_ROOT, "packages");
 
 // CLI: `bun scripts/docs-bundle.ts` writes; `--check` compares the would-be
 // content against the committed files and exits non-zero on drift. The check
@@ -237,6 +257,109 @@ function pageUrl(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Per-package index discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * One entry per publishable package. `shortName` is the bare suffix after the
+ * `@agents-js/` scope and drives the on-disk filename
+ * (`agents-js-<shortName>-llms.txt`) and the published URL slug.
+ */
+interface PackageIndex {
+  shortName: string;
+  packageName: string;
+  description: string;
+  readme: string;
+}
+
+function readPackageJson(
+  packageDir: string,
+): { name?: string; description?: string; private?: boolean } | null {
+  const manifestPath = join(packageDir, "package.json");
+  try {
+    return JSON.parse(readFileSync(manifestPath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function readPackageReadme(packageDir: string): string | null {
+  const readmePath = join(packageDir, "README.md");
+  try {
+    return readFileSync(readmePath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enumerate every publishable package under `packages/` that ships with a
+ * README. A package is publishable when its package.json does NOT carry
+ * `"private": true`. Packages without a README are skipped with a warning;
+ * the fix is to run `bun run docs:readmes` (or hand-author the README for
+ * skipped packages) so every published package has an authored entry-point.
+ */
+function discoverPackageIndexes(): PackageIndex[] {
+  const entries = readdirSync(PACKAGES_DIR);
+  const indexes: PackageIndex[] = [];
+  for (const entry of entries) {
+    const packageDir = join(PACKAGES_DIR, entry);
+    let stat: ReturnType<typeof statSync>;
+    try {
+      stat = statSync(packageDir);
+    } catch {
+      continue;
+    }
+    if (!stat.isDirectory()) continue;
+    const manifest = readPackageJson(packageDir);
+    if (!manifest) continue;
+    if (manifest.private === true) continue;
+    const packageName = manifest.name;
+    if (!packageName?.startsWith("@agents-js/")) continue;
+    const shortName = packageName.slice("@agents-js/".length);
+    const description = manifest.description?.trim() ?? "";
+    if (description.length === 0) {
+      throw new Error(
+        `[docs-bundle] ${packageName} is missing a "description" in package.json. ` +
+          `Add one — it is the per-package summary surfaced in llms.txt.`,
+      );
+    }
+    const readme = readPackageReadme(packageDir);
+    if (readme === null) {
+      throw new Error(
+        `[docs-bundle] ${packageName} has no README.md. Run \`bun run docs:readmes\` ` +
+          `to generate one, or hand-author it for packages skipped by the README generator.`,
+      );
+    }
+    indexes.push({ shortName, packageName, description, readme: readme.trim() });
+  }
+  indexes.sort((a, b) => a.shortName.localeCompare(b.shortName));
+  return indexes;
+}
+
+function perPackageFilename(shortName: string): string {
+  return `agents-js-${shortName}-llms.txt`;
+}
+
+function perPackageUrl(shortName: string): string {
+  return `${BASE_URL}/per-package/${perPackageFilename(shortName)}`;
+}
+
+function buildPerPackageBundle(index: PackageIndex): string {
+  const header = [
+    `# ${index.packageName}`,
+    "",
+    `> ${index.description}`,
+    "",
+    `Canonical: ${perPackageUrl(index.shortName)}`,
+    "",
+    "---",
+    "",
+  ];
+  return `${header.join("\n")}${index.readme.trim()}\n`;
+}
+
+// ---------------------------------------------------------------------------
 // Read all pages
 // ---------------------------------------------------------------------------
 
@@ -276,6 +399,21 @@ for (const category of categoryOrder) {
   lines.push("");
 }
 
+// Per-package indexes are discovered from packages/*/package.json so the list
+// stays in lockstep with the publishable surface. Each entry surfaces in
+// llms.txt under "Per-package indexes" and gets its own focused file under
+// docs/public/per-package/ for context-window-budget pulls.
+const packageIndexes = discoverPackageIndexes();
+
+if (packageIndexes.length > 0) {
+  lines.push("## Per-package indexes");
+  lines.push("");
+  for (const index of packageIndexes) {
+    lines.push(`- [${index.packageName}](${perPackageUrl(index.shortName)}): ${index.description}`);
+  }
+  lines.push("");
+}
+
 if (optional.length > 0) {
   lines.push("## Optional");
   lines.push("");
@@ -287,6 +425,30 @@ if (optional.length > 0) {
 
 const llmsTxt = `${lines.join("\n").trimEnd()}\n`;
 writeOrCheck(join(PUBLIC_DIR, "llms.txt"), llmsTxt, "llms.txt");
+
+// ---------------------------------------------------------------------------
+// Write per-package bundles
+// ---------------------------------------------------------------------------
+
+// Ensure the per-package directory exists before writing (no-op when checking
+// or when the directory already exists). Skipping mkdir during check mode
+// keeps the script side-effect-free for read-only validation.
+if (!isCheck) {
+  try {
+    mkdirSync(PER_PACKAGE_DIR, { recursive: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+  }
+}
+
+for (const index of packageIndexes) {
+  const bundle = buildPerPackageBundle(index);
+  writeOrCheck(
+    join(PER_PACKAGE_DIR, perPackageFilename(index.shortName)),
+    bundle,
+    `per-package/${perPackageFilename(index.shortName)}`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Build llms-full.txt
@@ -301,15 +463,44 @@ for (const page of resolvedPages) {
   fullParts.push("");
 }
 
+// Per-package bundles appended after top-level docs. Same `---` separator
+// keeps the format machine-parsable as a sequence of Markdown sections.
+// Consumers who want a focused slice should pull the per-package file
+// directly rather than parsing it out of the rollup.
+if (packageIndexes.length > 0) {
+  fullParts.push("---");
+  fullParts.push("");
+  fullParts.push("# Per-package indexes");
+  fullParts.push("");
+  fullParts.push(
+    "The sections below mirror the per-package files under " +
+      "/per-package/agents-js-<name>-llms.txt. Each is a focused index for one " +
+      "publishable package; pull the per-package file directly for a smaller " +
+      "context-window slice.",
+  );
+  fullParts.push("");
+  for (const index of packageIndexes) {
+    fullParts.push("---");
+    fullParts.push("");
+    fullParts.push(buildPerPackageBundle(index).trimEnd());
+    fullParts.push("");
+  }
+}
+
 const llmsFullTxt = `${fullParts.join("\n")}\n`;
 writeOrCheck(join(PUBLIC_DIR, "llms-full.txt"), llmsFullTxt, "llms-full.txt");
 
 if (isCheck) {
   console.log(
-    `✓ docs-bundle:check: llms.txt (${llmsTxt.length} bytes) and llms-full.txt (${llmsFullTxt.length} bytes) match committed content.`,
+    `✓ docs-bundle:check: llms.txt (${llmsTxt.length} bytes), llms-full.txt ` +
+      `(${llmsFullTxt.length} bytes), and ${packageIndexes.length} per-package ` +
+      `bundles under per-package/ match committed content.`,
   );
 } else {
   console.log(
-    `✓ docs-bundle: wrote llms.txt (${llmsTxt.length} bytes, ${required.length} required + ${optional.length} optional links across ${categoryOrder.length} categories) and llms-full.txt (${llmsFullTxt.length} bytes).`,
+    `✓ docs-bundle: wrote llms.txt (${llmsTxt.length} bytes, ${required.length} required + ` +
+      `${optional.length} optional links + ${packageIndexes.length} per-package links across ` +
+      `${categoryOrder.length} categories) and llms-full.txt (${llmsFullTxt.length} bytes) and ` +
+      `${packageIndexes.length} per-package bundles.`,
   );
 }

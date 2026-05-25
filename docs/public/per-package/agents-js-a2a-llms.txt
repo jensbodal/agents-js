@@ -1,0 +1,133 @@
+# @agents-js/a2a
+
+> A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
+
+Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2a-llms.txt
+
+---
+# @agents-js/a2a
+
+> A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
+
+## Installation
+
+```sh
+bun add @agents-js/a2a
+```
+
+## API
+
+<!-- Auto-generated from JSDoc -->
+
+### Classes
+
+- **`ACPtoA2AExecutor`** — Bridges A2A execution requests to an ACP agent. Acts as an ACP Client.
+- **`SessionIdStore`**
+- **`UniversalA2AServer`**
+
+### Functions
+
+- **`buildACPA2AContinuationMetadata`**
+- **`buildACPA2ATaskMetadata`**
+- **`buildAgentCard`**
+- **`buildAgentCardBaseUrl`**
+- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status.
+- **`buildTerminalTask`** — Build a terminal Task snapshot with an agent message in the history. Used for final (completed/failed/rejected/canceled) task publications.
+- **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
+- **`createConsoleLogger`**
+- **`extractACPA2AContinuationMetadata`**
+- **`extractValidAgentMessageId`**
+- **`formatBindAddress`**
+- **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
+- **`formatHttpAuthorityHost`**
+- **`getMessageText`** — Extract text content from an A2A Message's parts array
+- **`isACPAuthRequiredError`**
+- **`isAgentEventMetadata`** — Type guard: does this `metadata` carry a known agent-event kind?
+- **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
+- **`newCorrelationId`** — Generate a fresh correlation id.
+- **`normalizeAdvertisedHost`**
+- **`nowIso`**
+- **`resolveAgentMessageId`**
+- **`selectPermissionOutcome`**
+- **`serveACPOverA2A`**
+- **`withAuthRetry`** — Retry an async operation when it fails with an ACP auth_required error. - The operation to attempt - Called on auth errors; returns true if auth was handled and retry should proceed - Maximum numbe...
+
+### Interfaces
+
+- **`A2AHttpServerHandle`**
+- **`A2ALogger`**
+- **`ACPA2AContinuationMetadata`**
+- **`ACPA2ATaskMetadata`**
+- **`AuditEmitter`** — Public emitter handle.
+- **`CommandsMetadata`** — Metadata for an `available_commands_update` notification — the set of slash-commands currently available from the harness. Uses the SDK's typed `AvailableCommand` shape so consumers get the full pe...
+- **`DiscoveredPrompt`**
+- **`DiscoveredResource`**
+- **`ExecutorHooks`** — Lifecycle hooks for the {ACPtoA2AExecutor}. Mirrors the subset of {import("-js/acp-host").SessionHooks} that applies to the A2A-to-ACP bridge. Hosts that want to transform prompt content before it ...
+- **`InitializableExecutor`** — An AgentExecutor that also supports ACP initialization. Used by UniversalA2AServer to discover agent capabilities before serving the A2A agent card. Both ACPtoA2AExecutor and HostA2AExecutor implem...
+- **`ModeChangedMetadata`** — Metadata for a `current_mode_update` notification — mode transitions like plan→execute or model swaps. ACP's `CurrentModeUpdate` only carries the new `currentModeId`; the available-modes list is de...
+- **`PlanMetadata`** — Metadata for an ACP `plan` notification — the agent's structured todo-list. Always carries the FULL set of entries; consumers replace state wholesale on receipt. Entries reuse the SDK's typed `Plan...
+- **`ServeACPOverA2AHandle`**
+- **`ServeACPOverA2AOptions`**
+- **`SessionInfoUpdatedMetadata`** — Metadata for a `session_info_update` notification — the harness mutating session-level metadata (title, last-activity timestamp). Three-state per field: `undefined` = no change, `null` = explicit c...
+- **`ThoughtMetadata`** — Metadata for an `agent_thought_chunk` ACP notification. The `delta` is the incremental text added by this chunk; `cumulativeText` is the running concatenation per `messageId`.
+- **`ToolCallEndMetadata`** — Metadata for a terminal tool-call transition (`completed` / `failed`). Receivers move the call from active to completed. Carries the full final ACP `ToolCall` payload so receivers don't need to ret...
+- **`ToolCallProgressMetadata`** — Metadata for a non-terminal tool-call status transition (e.g. `pending` → `in_progress`) or a payload-only update (content / locations / raw I/O) without a status change. Receivers should update th...
+- **`ToolCallStartMetadata`** — Metadata for the initial registration of a tool call. Carries the full ACP `ToolCall` payload so receivers can render rich detail (diff/terminal content, file locations, raw input/output, tool kind...
+- **`UniversalA2AServerOptions`**
+- **`UsageMetadata`** — Metadata for a `usage_update` notification — token-budget telemetry. `cost` reuses the SDK's `Cost` type (`{ amount: number; currency: string }`) so structured multi-currency values are preserved e...
+
+### Types
+
+- **`AgentCard`**
+- **`AgentEventKind`** — Allowed values for `TaskStatusUpdateEvent.metadata.kind`.
+- **`AgentEventMetadata`** — Discriminated union of all agent-event metadata shapes that ride on `TaskStatusUpdateEvent.metadata`. Use this as the type for `metadata` when emitting a non-text agent event.
+- **`AgentExecutor`**
+- **`AuditEvent`** — Closed set of audit-event variants. Each carries only structural metadata and covers surfaces that emit records in source.
+- **`AuditEventInput`**
+- **`AuditLogger`** — Logger surface the emitter writes to. Compatible with `console`.
+- **`AvailableCommand`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`CorrelationId`** — Stable correlation token. UUIDv4 strings in practice; consumers should treat as opaque.
+- **`Cost`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ExecutionEventBus`**
+- **`GatewayAgentCapabilities`**
+- **`GatewayAgentCard`**
+- **`GatewayCardInput`**
+- **`HarnessCapabilityEntry`** — One entry in the gateway agent-card's `capabilities.harnesses` array. Federated A2A peers consume this to learn which curated harnesses the gateway can route to without trial-and-error. `primary` m...
+- **`HttpStatus`** — Union of the numeric values in {HTTP_STATUS}. Useful for typing custom handler return values or status-code routing tables that should only accept codes the monorepo emits.
+- **`Message`**
+- **`PlanEntry`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`RequestContext`**
+- **`Task`**
+- **`TaskStatus`**
+- **`TaskStatusUpdateEvent`**
+- **`ToolCallContent`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ToolCallEndStatus`** — Terminal status values for tool-call-end metadata. ACP defines `pending` / `in_progress` as non-terminal and `completed` / `failed` as terminal. We accept any string here so receivers see what the ...
+- **`ToolCallLocation`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+- **`ToolKind`** — Re-export the SDK schema types we ride on so consumers don't need to take a separate dependency on `/sdk` just to read these.
+
+### Constants
+
+- **`_AUDIT_EVENT_NO_SENSITIVE_PAYLOAD`**
+- **`CURRENT_A2A_PROTOCOL_VERSION`**
+- **`DEFAULT_MAX_REQUEST_BODY_SIZE`** — Default maximum request body size in bytes (4 MB).
+- **`DEFAULT_MAX_TEXT_BUFFER_SIZE`** — Default maximum text buffer size in bytes (256 KB).
+- **`HTTP_STATUS`** — Centralized HTTP status code constants for any module in the monorepo that constructs a `Response` object. **Inclusion policy**: this list is intentionally narrow — only codes the monorepo actually...
+
+### Exports
+
+- **`type A2ALogger`**
+- **`type HttpStatus`**
+
+
+## Dependencies
+
+- `@a2a-js/sdk`
+- `@agentclientprotocol/sdk`
+- `@agents-js/acp`
+- `@agents-js/validation`
+
+## License
+
+MIT
+
+<!-- AUTO-GENERATED by scripts/generate-package-readmes.ts — do not edit -->
