@@ -22,6 +22,7 @@ export {
   createRememberedRule,
   evaluatePermissionRules,
   extractResourceScope,
+  extractShellCommandPathArgs,
   filterConsumedOnceRules,
   filterExpiredRules,
   filterSessionRules,
@@ -41,8 +42,10 @@ export type {
 // -- Permission types ---------------------------------------------------------
 export {
   HIGH_RISK_OPERATIONS,
+  READ_ONLY_SHELL_COMMANDS,
   READ_OPERATIONS,
   SHELL_COMMANDS,
+  WORKSPACE_SHELL_OPERATIONS,
 } from "./permission-types.ts";
 export type { TerminalValidationResult } from "./terminal-policy.ts";
 // -- Terminal policy ----------------------------------------------------------

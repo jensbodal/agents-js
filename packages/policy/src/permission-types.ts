@@ -87,6 +87,12 @@ export const HIGH_RISK_OPERATIONS = new Set([
 /**
  * Operation classes that are always safe to auto-approve.
  * These represent read-only or navigational operations with no side effects.
+ *
+ * Note: `workspace.shell.*` classes are deliberately NOT in this set. They are
+ * read-only by intent but require workspace-boundary verification at the
+ * auto-approve gate (the classifier is context-free and cannot perform that
+ * check). See `READ_ONLY_SHELL_COMMANDS` below and the workspace-shell
+ * branch in `session-permissions.ts:evaluatePermission`.
  */
 export const READ_OPERATIONS = new Set([
   "file.read",
@@ -94,6 +100,35 @@ export const READ_OPERATIONS = new Set([
   "workspace.command.list",
   "workspace.data-query",
   "workspace.navigate",
+]);
+
+/**
+ * Read-only shell commands grouped by intent category. When a terminal/tool
+ * invocation's command word matches an entry here, `classifyOperation` returns
+ * the corresponding `workspace.shell.<category>` operation class.
+ *
+ * Auto-approval requires an additional workspace-boundary check at the host
+ * layer (see `session-permissions.ts`) because the classifier itself is
+ * context-free and does not know the workspace root.
+ *
+ * Symlink-escape defense (in-workspace symlink → out-of-workspace target)
+ * requires filesystem `realpath` resolution and is enforced at the host layer.
+ * The pure path-prefix check is a known limitation when the host layer is
+ * not configured to resolve symlinks.
+ */
+export const READ_ONLY_SHELL_COMMANDS: Readonly<
+  Record<"read" | "search" | "list", ReadonlySet<string>>
+> = {
+  read: new Set(["cat", "head", "tail", "wc", "file", "stat"]),
+  search: new Set(["find", "grep", "rg", "fd"]),
+  list: new Set(["ls", "tree"]),
+};
+
+/** Operation classes produced by the read-only shell-command branch of `classifyOperation`. */
+export const WORKSPACE_SHELL_OPERATIONS: ReadonlySet<string> = new Set([
+  "workspace.shell.read",
+  "workspace.shell.search",
+  "workspace.shell.list",
 ]);
 
 /**

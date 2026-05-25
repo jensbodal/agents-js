@@ -6,6 +6,7 @@ import {
   createRememberedRule,
   evaluatePermissionRules,
   extractResourceScope,
+  extractShellCommandPathArgs,
   filterConsumedOnceRules,
   filterExpiredRules,
   filterSessionRules,
@@ -106,6 +107,89 @@ describe("classifyOperation", () => {
   test("workspace.command patterns take priority over edit classification", () => {
     const result = classifyOperation(makeRequest("workspace.command.execute"));
     expect(result).toBe("workspace.command.execute");
+  });
+});
+
+describe("classifyOperation: read-only shell commands", () => {
+  test.each([
+    ["cat AGENTS.md", "workspace.shell.read"],
+    ["head -n 20 AGENTS.md", "workspace.shell.read"],
+    ["tail -f log.txt", "workspace.shell.read"],
+    ["wc -l README.md", "workspace.shell.read"],
+    ["file binary.bin", "workspace.shell.read"],
+    ["stat AGENTS.md", "workspace.shell.read"],
+    ["find . -name '*.ts'", "workspace.shell.search"],
+    ["grep -r foo src", "workspace.shell.search"],
+    ["rg foo src", "workspace.shell.search"],
+    ["fd '\\.ts$' src", "workspace.shell.search"],
+    ["ls -la", "workspace.shell.list"],
+    ["tree -L 2", "workspace.shell.list"],
+  ])("classifies %q as %q", (title, expected) => {
+    expect(classifyOperation(makeRequest(title))).toBe(expected);
+  });
+
+  test("strips trailing ACP cwd annotation before classifying", () => {
+    expect(
+      classifyOperation(
+        makeRequest("cat /opt/agents-js/AGENTS.md [current working directory /opt/agents-js]"),
+      ),
+    ).toBe("workspace.shell.read");
+  });
+
+  test("does not match shell commands embedded mid-token", () => {
+    // "cat" appearing inside another word must not trigger the shell branch
+    expect(classifyOperation(makeRequest("locate"))).toBe("tool.locate");
+    // Confirms first-token matching: "scatter" starts with "cat" but is not
+    // a bare `cat` invocation, so it must NOT classify as workspace.shell.read.
+    expect(classifyOperation(makeRequest("scatter foo"))).not.toBe("workspace.shell.read");
+  });
+
+  test("falls through to tool.<name> for unknown shell-style commands", () => {
+    // Existing classifier behavior: full lowercased title is the suffix on fallthrough.
+    expect(classifyOperation(makeRequest("curl"))).toBe("tool.curl");
+  });
+
+  test("workspace.shell.* operationClasses are NOT in the global read-only set", () => {
+    expect(isReadOnly("workspace.shell.read")).toBe(false);
+    expect(isReadOnly("workspace.shell.search")).toBe(false);
+    expect(isReadOnly("workspace.shell.list")).toBe(false);
+  });
+});
+
+describe("extractShellCommandPathArgs", () => {
+  test("prefers structured args from rawInput", () => {
+    expect(
+      extractShellCommandPathArgs(makeRequest("cat AGENTS.md", { args: ["AGENTS.md"] })),
+    ).toEqual(["AGENTS.md"]);
+  });
+
+  test("filters flag-style args from structured input", () => {
+    expect(
+      extractShellCommandPathArgs(
+        makeRequest("head -n 20 AGENTS.md", { args: ["-n", "20", "AGENTS.md"] }),
+      ),
+    ).toEqual(["20", "AGENTS.md"]);
+    // Note: numeric option values follow short flags. The path-args extractor
+    // is intentionally permissive (filters only flag-prefixed tokens); the
+    // workspace-boundary gate downstream rejects non-workspace-rooted entries,
+    // so over-inclusion here is safe and under-inclusion (missing a real path)
+    // would be the dangerous failure mode.
+  });
+
+  test("falls back to title parsing when rawInput is absent", () => {
+    expect(extractShellCommandPathArgs(makeRequest("cat AGENTS.md"))).toEqual(["AGENTS.md"]);
+  });
+
+  test("strips ACP cwd annotation in title fallback", () => {
+    expect(
+      extractShellCommandPathArgs(
+        makeRequest("cat /opt/agents-js/AGENTS.md [current working directory /opt/agents-js]"),
+      ),
+    ).toEqual(["/opt/agents-js/AGENTS.md"]);
+  });
+
+  test("returns empty when no args present", () => {
+    expect(extractShellCommandPathArgs(makeRequest("ls"))).toEqual([]);
   });
 });
 

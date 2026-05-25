@@ -18,7 +18,12 @@ import type {
   ScopeCandidate,
   ScopeLevel,
 } from "./permission-types.ts";
-import { HIGH_RISK_OPERATIONS, READ_OPERATIONS, SHELL_COMMANDS } from "./permission-types.ts";
+import {
+  HIGH_RISK_OPERATIONS,
+  READ_ONLY_SHELL_COMMANDS,
+  READ_OPERATIONS,
+  SHELL_COMMANDS,
+} from "./permission-types.ts";
 
 let fallbackRuleIdCounter = 0;
 
@@ -47,6 +52,19 @@ function createRuleIdSuffix(): string {
  */
 export function classifyOperation(request: RequestPermissionRequest): string {
   const toolName = request.toolCall?.title?.toLowerCase() ?? "";
+
+  // Read-only shell-command branch -- recognize bare `cat foo.md`-style invocations
+  // that arrive as terminal titles with the command as the first whitespace token.
+  // Returns a `workspace.shell.<category>` operation class that the host-layer
+  // auto-approve gate validates against the workspace root before approval.
+  const firstToken = firstCommandToken(toolName);
+  if (firstToken) {
+    for (const category of ["read", "search", "list"] as const) {
+      if (READ_ONLY_SHELL_COMMANDS[category].has(firstToken)) {
+        return `workspace.shell.${category}`;
+      }
+    }
+  }
 
   // Workspace operations -- check before generic terminal/command match
   // to avoid workspace commands being misclassified as terminal.create
@@ -79,6 +97,46 @@ export function classifyOperation(request: RequestPermissionRequest): string {
   if (toolName.includes("delete") || toolName.includes("remove")) return "file.delete";
 
   return `tool.${toolName || "unknown"}`;
+}
+
+/**
+ * Extract the first whitespace-delimited token from a tool-call title, stripping
+ * ACP cwd annotations (`[current working directory ...]`) and surrounding whitespace.
+ * Returns null when no token is present.
+ */
+function firstCommandToken(toolName: string): string | null {
+  const cleaned = toolName.replace(/\s*\[[^\]]*\]\s*$/, "").trim();
+  if (cleaned.length === 0) return null;
+  const token = cleaned.split(/\s+/, 1)[0];
+  return token && token.length > 0 ? token : null;
+}
+
+/**
+ * Extract path-like arguments from a shell-command permission request for
+ * workspace-boundary checking. Prefers structured `args` in `rawInput`;
+ * falls back to parsing `toolCall.title` for terminal-style invocations.
+ * Filters out command word, flag args (`-x`, `--long`), and ACP cwd
+ * annotations.
+ *
+ * Returns the list of candidate path arguments. Callers should treat an
+ * empty array as "no path arguments to verify" and fall through to prompt.
+ */
+export function extractShellCommandPathArgs(request: RequestPermissionRequest): string[] {
+  const raw = request.toolCall?.rawInput;
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const structured = record.args;
+    if (Array.isArray(structured)) {
+      return structured
+        .filter((value): value is string => typeof value === "string")
+        .filter((value) => value.length > 0 && !value.startsWith("-"));
+    }
+  }
+
+  const title = request.toolCall?.title ?? "";
+  const cleaned = title.replace(/\s*\[[^\]]*\]\s*$/, "");
+  const tokens = cleaned.split(/\s+/).slice(1);
+  return tokens.filter((token) => token.length > 0 && !token.startsWith("-"));
 }
 
 /**

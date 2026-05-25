@@ -6,7 +6,13 @@
  * `evaluatePermission(...)`.
  */
 import type { RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
-import { classifyOperation, isReadOnly } from "@agents-js/policy";
+import {
+  classifyOperation,
+  extractShellCommandPathArgs,
+  isReadOnly,
+  isWithinWorkspace,
+  WORKSPACE_SHELL_OPERATIONS,
+} from "@agents-js/policy";
 import type { Logger } from "./logger.ts";
 import type { PermissionEngine } from "./permission-engine.ts";
 import type { PermissionStore } from "./permission-store.ts";
@@ -132,6 +138,50 @@ export async function evaluatePermission(
           ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
         );
         return response;
+      }
+    }
+
+    // workspace.shell.* auto-approve gate: classifier produces the typed
+    // namespace for known read-only shell commands (cat, head, grep, ...),
+    // but auto-approval requires that ALL extracted path arguments resolve
+    // syntactically inside the workspace root. The classifier itself is
+    // context-free and cannot perform this check.
+    //
+    // Known limitation (deferred to a follow-up): an in-workspace symlink
+    // pointing to an out-of-workspace target bypasses this syntactic gate
+    // because `path.resolve` does not follow symlinks. Host-layer realpath
+    // resolution is required to defeat that escape; until it lands, deployers
+    // who allow MCP-exposed shell wrappers must ensure no traversal symlinks
+    // exist inside their workspace roots.
+    if (WORKSPACE_SHELL_OPERATIONS.has(operationClass) && ctx.workspaceIdentityPath) {
+      const pathArgs = extractShellCommandPathArgs(effectiveRequest);
+      const workspaceRoot = ctx.workspaceIdentityPath;
+      const allInWorkspace =
+        pathArgs.length > 0 && pathArgs.every((arg) => isWithinWorkspace(workspaceRoot, arg));
+      if (allInWorkspace) {
+        const allowOption = effectiveRequest.options?.find(
+          (o) => o.kind === "allow_always" || o.kind === "allow_once",
+        );
+        if (allowOption) {
+          logPermissionDecision(
+            ctx.permLog,
+            effectiveRequest,
+            ctx.permissionMode,
+            "auto_approve",
+            "workspace-rooted read-only shell command",
+            {
+              operationClass,
+              pathArgs,
+            },
+          );
+          const response: RequestPermissionResponse = {
+            outcome: { outcome: "selected", optionId: allowOption.optionId },
+          };
+          void callHook(ctx.log, "afterPermission", () =>
+            ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
+          );
+          return response;
+        }
       }
     }
   }

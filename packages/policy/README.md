@@ -23,6 +23,7 @@ bun add @agents-js/policy
 - **`evaluatePermissionRules`** — Evaluate a permission request against stored rules. Returns both the match result and a new array of rules with expired entries removed and consumed once-rules marked. The input array is not mutated.
 - **`evaluateWriteGate`** — Evaluates whether a write operation should be reviewed or blocked. Outside-workspace paths are blocked. Everything else goes to review (never auto-approved). Cross-platform: handles both POSIX and ...
 - **`extractResourceScope`** — Extract the resource scope from a permission request. Looks for common path-like arguments or command names.
+- **`extractShellCommandPathArgs`** — Extract path-like arguments from a shell-command permission request for workspace-boundary checking. Prefers structured `args` in `rawInput`; falls back to parsing `toolCall.title` for terminal-sty...
 - **`filterConsumedOnceRules`** — Remove consumed once-rules.
 - **`filterExpiredRules`** — Remove expired rules.
 - **`filterSessionRules`** — Filter to persistent rules only (removes session and once rules).
@@ -60,8 +61,10 @@ bun add @agents-js/policy
 
 - **`HIGH_RISK_OPERATIONS`** — Operation classes that can never be matched by remembered rules. Includes terminal operations, file deletion, and workspace command execution due to their potential for destructive or irreversible ...
 - **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {classifyOperation}. {describeOperationClass} is exhaustive against this union: adding a branch to `classifyOperation` without extending `KNOWN_O...
-- **`READ_OPERATIONS`** — Operation classes that are always safe to auto-approve. These represent read-only or navigational operations with no side effects.
+- **`READ_ONLY_SHELL_COMMANDS`** — Read-only shell commands grouped by intent category. When a terminal/tool invocation's command word matches an entry here, `classifyOperation` returns the corresponding `workspace.shell.<category>`...
+- **`READ_OPERATIONS`** — Operation classes that are always safe to auto-approve. These represent read-only or navigational operations with no side effects. Note: `workspace.shell.*` classes are deliberately NOT in this set...
 - **`SHELL_COMMANDS`** — Commands that are always considered shell wrappers. Used by both the permission high-risk check and the terminal validation policy.
+- **`WORKSPACE_SHELL_OPERATIONS`** — Operation classes produced by the read-only shell-command branch of `classifyOperation`.
 
 ### Exports
 
