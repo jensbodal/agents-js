@@ -21,15 +21,15 @@ features:
   - title: ACP as the runtime contract
     details: Every agent is an ACP subprocess speaking stdio NDJSON via AgentSideConnection. Same shape for trial, claude, opencode, gemini, pi, droid, codex, or anything you build.
   - title: A2A as the network contract
-    details: Gateways speak JSON-RPC 2.0 over HTTP/SSE. Each gateway auto-registers in ~/.agents-js/registry.json and syncs with peers on the same trusted network — no central server.
+    details: Gateways speak JSON-RPC 2.0 over HTTP/SSE. Each gateway auto-registers in ~/.agents-js/registry.json. Cross-gateway peer sync is opt-in (pass --registry-sync or set AGENTS_JS_REGISTRY_SYNC=true) and pulls only A2A records via /.well-known/agents-js-registry.json — no central server.
   - title: Mention vs dispatch, not magic
     details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through a direct-dispatch host such as the gateway or native Pi peer mode (no policy gate). Two distinct surfaces, both deterministic."
   - title: A2UI declarative surfaces
     details: Agents emit UI as data; renderers (web-ui, Obsidian) bind it to native components. No agent-side DOM. No surface-side prompt logic.
   - title: Bridge into any MCP host
-    details: The same gateway exposes registered ACP agents as MCP tools to Claude Code, Cursor, Zed, or any MCP-aware host. One agent process; many operator UXs.
+    details: Registered/configured A2A agents project into MCP tools two ways — local stdio via `agents-js mcp` (registry-backed) or `agents-js mcp bridge --url <gateway>` (single-gateway bridge), or the gateway-hosted HTTP MCP surface (JWT-gated when AGENTS_MCP_JWT_SIGNING_KEY is set). One agent process; many operator UXs.
   - title: Local-operator first
-    details: Single-tenant, trusted-network posture. Private network, VPN, or single-machine. Public-internet hardening is a separate, declared track.
+    details: Default posture is single-tenant trusted-network (unauthenticated /a2a and /.well-known/agent-card.json). A hardening track is shipped opt-in — ed25519 peer-record signing, trust-manifest verification, JWT mint/redeem session flow, scope-ACL enforcement — mounted when AGENTS_MCP_JWT_SIGNING_KEY is set. See docs/federation/v1-contract.md and docs/hosted-mcp-tool-surface.md.
 ---
 
 ## Two tracks, one runtime

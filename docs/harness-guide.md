@@ -5,7 +5,7 @@ diataxis: howto
 
 # Harness Guide
 
-> **Status:** Beta · **Known limitations:** no canonical runtime designation; no codex ACP runtime (codex emits JSONL, not ACP); pi-acp wire-compatibility pending
+> **Status:** Beta · **Known limitations:** no canonical runtime designation across runtime IDs (use `runtime` for the package layer and `harness` for CLI selection — see [Runtime vs harness glossary](./primitives.md#runtime-vs-harness)). Multi-harness fleet routing beyond the primary entry is parser-only today (see [Surfaces](./surfaces.md)). For the current runtime support matrix, see the [auto-generated runtime matrix](./_generated/runtime-matrix.md) (canonical source).
 
 This guide covers how to build a harness on agents-js — a host adapter that wraps an ACP-compatible coding agent and exposes it over protocols like A2A.
 

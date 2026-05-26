@@ -50,7 +50,7 @@ The same gateway answers any MCP host (Claude Code, Cursor, Zed) via `@agents-js
 ## What just happened (60-second recap)
 
 - `bun run dev` ran the launcher, which spawned the ACP runtime, the A2A gateway, and the reference web UI.
-- The gateway **auto-registered** itself into `~/.agents-js/registry.json` and started a periodic peer sync — see [Surfaces → Agent Registry](/surfaces#agent-registry) for the trust posture and how to add a peer machine.
+- The gateway **auto-registered** itself into `~/.agents-js/registry.json` (local auto-register is default). Cross-gateway peer sync is opt-in — pass `--registry-sync` or set `AGENTS_JS_REGISTRY_SYNC=true` to enable it; sync is A2A-only and ACP records never traverse the wire. See [Surfaces → Agent Registry](/surfaces#agent-registry) for the trust posture and how to add a peer machine.
 - The browser, CLI, and any MCP host all reach the same ACP session because A2A is the network surface the gateway speaks.
 - The registry made the gateway **discoverable to peers on the same trusted network**; it did **not** make it public-internet-safe — that's a separate hardening track.
 
@@ -67,6 +67,8 @@ The session lives in the gateway, not the surface. Restart the surface, the sess
 4. Ask `What was my last message?`. The agent should recall `My favorite color is teal.`
 
 If it does, persistence is wired end-to-end: the ACP runtime kept its session, the gateway re-attached, and the CLI reached the same logical conversation the browser was talking to. If it doesn't, the runtime did not persist — check the runtime's own session-store config (Anthropic Claude Agent stores under `~/.claude-agent`).
+
+**Continuity scope.** The agent recalls earlier messages because the underlying runtime process (the long-lived ACP child for that `contextId` lane) holds conversation history in memory. Continuity is **runtime-dependent and not universally guaranteed across gateway/runtime restart or lane eviction**. Runtimes that persist their own session-store (e.g., Claude Agent under `~/.claude-agent`) can recall after restart; runtimes that hold history only in memory cannot. The gateway exposes session load/resume hooks but does not by itself persist conversation history. For durable cross-session memory independent of runtime lifecycle, see [`@agents-js/memory`](./primitives.md#memory) — an opt-in substrate; no shipped runtime wires it by default.
 
 ## Try it locally in your browser
 

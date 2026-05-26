@@ -91,8 +91,12 @@ The browser path crosses the repo's main public protocol boundary:
 - the browser shell talks to the gateway over **A2A**
 - the gateway manages the local agent runtime over **ACP**
 - both layers sit on **JSON-RPC 2.0**
-- structured input still comes from ACP-carried schema payloads, while **AG-UI** and **A2UI**
-  remain alignment references rather than transport claims
+- structured input still comes from ACP-carried schema payloads, with **AG-UI** and **A2UI**
+  shipping as first-class wire surfaces: AG-UI as `POST /agent` SSE
+  (`packages/host/src/agui-endpoint.ts`) and A2UI via the host adapter + renderer
+  (`packages/a2ui-host`, `packages/a2ui-renderer`) consuming the
+  `https://agents-js.bodal.dev/catalog/acp/0.1` custom catalog. See
+  [Protocols & Schemas](/protocols) for the canonical implementation map.
 
 See [Protocols & Schemas](/protocols) for the full standards map and the host-owned
 extension boundaries.
@@ -133,6 +137,20 @@ mise install
 bun run setup --runtime claude
 vp run @agents-js/cli#serve -- --harness claude
 ```
+
+> **Bun ≥ 1.3.11 is required.** The published `agents-js` bin uses
+> `#!/usr/bin/env bun`; no Node.js fallback exists for the bin form. For
+> environments without Bun, build standalone binaries via
+> `bun run build:standalone` (embeds the Bun runtime). Node-compatible CLI
+> is out of scope for v1.0.
+
+> **Multi-harness today:** `--harness` is repeatable in the CLI parser, but
+> the public CLI routes only the **primary** entry in this release. The
+> internal-gateway has `HarnessLaneManager` machinery for fleet/lane routing;
+> public CLI fleet exposure beyond the primary is tracked as a separate scope. For
+> multi-runtime today, run separate gateway processes. `set_runtime` (WS
+> bridge) swaps which harness is primary; cross-harness fleet routing
+> through one CLI invocation is a separate scope.
 
 Then, in a second terminal:
 
@@ -247,7 +265,7 @@ This command is useful for embeddings or tooling that need an ACP-compatible sub
 
 The first stdout chunk from the runtime is validated as ndJSON with a `jsonrpc` field. If the
 runtime prints shell banners, plugin warnings, or other non-protocol bytes before the first
-JSON-RPC reply, `acp` fails fast with exit code `2` and a diagnostic on stderr — replacing the
+JSON-RPC reply, `acp` fails fast with exit code `70` (`EXIT_PROTOCOL_CONTAMINATION`, per sysexits.h convention) and a diagnostic on stderr — replacing the
 prior silent-hang failure mode. The helpers are exported as `inspectFirstChunk` and
 `formatContaminationError` from `@agents-js/cli`.
 
@@ -518,10 +536,14 @@ const middleware = createA2AMentionMiddleware({
   so multi-agent or multi-tenant topologies still require separate gateways,
   but concurrent users or tabs under one gateway no longer serialize through a
   global mutex.
-- **No registry sync.** `~/.agents-js/registry.json` lives on each user's local
-  disk. New agents need to be added on every machine that wants to reach them.
-  This is fine for a homelab or a trusted private network, but it is not a substitute for
-  service discovery.
+- **Peer registry sync is opt-in.** `~/.agents-js/registry.json` lives on
+  each user's local disk and is auto-registered on `serve`. Cross-gateway
+  pull-model sync via `/.well-known/agents-js-registry.json` is enabled
+  only when `--registry-sync` or `AGENTS_JS_REGISTRY_SYNC=true` is set;
+  sync is A2A-only and ACP records never traverse the wire. Without it,
+  new agents must be added on every machine that wants to reach them.
+  This is fine for a homelab or a trusted private network, but it is not
+  a substitute for service discovery.
 - **No A2A authentication.** The registry is plain JSON and agent cards are served
   unauthenticated at `/.well-known/agent-card.json`. Assume a trusted private network,
   VPN, or equivalent — not the public internet.
@@ -545,16 +567,20 @@ that lives on the user's filesystem.
 ### Auto-registration on `serve`
 
 Starting a gateway with `bun run dev` or `agents-js serve` automatically writes the
-gateway's name + URL into `~/.agents-js/registry.json` and starts a periodic sync
-with any peer URLs already in the file. You don't need to edit the registry by
-hand to **be discoverable** — that happens on startup. You only edit the file when
+gateway's name + URL into `~/.agents-js/registry.json` (local auto-register is the
+default). Cross-gateway peer sync is **opt-in**: pass `--registry-sync` or set
+`AGENTS_JS_REGISTRY_SYNC=true` to enable pull-model sync of peer A2A records
+via `/.well-known/agents-js-registry.json`. Sync is A2A-only; ACP records
+never traverse the wire. You don't need to edit the registry by hand to
+**be discoverable** — that happens on startup. You only edit the file when
 **adding a peer machine** so this gateway can dispatch to it.
 
-Source-of-truth wiring: `packages/cli/src/serve.ts` and
-`apps/internal-gateway/index.ts` both call `startRegistrySync()` on startup, which
-runs auto-registration once and then a periodic peer pull. Peer pulls hit each known
-peer's `GET /.well-known/agents-js-registry.json`, merge in their entries (tagged
-`source: "sync"`), and serve this gateway's own version of that endpoint for other
+Source-of-truth wiring: `packages/cli/src/serve.ts` always performs local
+auto-registration on startup. It calls `startRegistrySync()` only when
+`--registry-sync` or `AGENTS_JS_REGISTRY_SYNC=true` is enabled; that opt-in path
+mounts the peer-sync endpoint and starts periodic peer pulls. Peer pulls hit each
+known peer's `GET /.well-known/agents-js-registry.json`, merge in A2A-only entries
+(tagged `source: "sync"`), and serve this gateway's own A2A records for other
 gateways to pull from. Override the sync interval with
 `AGENTS_JS_SYNC_INTERVAL_MS=<ms>`.
 
@@ -859,7 +885,7 @@ If a local gateway is not responding:
 - If `@@dispatch` returns `agent_not_found`, check spelling and the `AGENTS_JS_REGISTRY`
   path used by the gateway or native Pi process.
 
-If you see "Runtime not found" or similar errors, run `agents-js setup --runtime <id>` to verify the harness is available.
+If you see "Runtime not found" or similar errors, run `bun run setup --runtime <id>` (repo-only dev doctor) to verify the harness binary is on PATH. There is no `agents-js setup` published subcommand; runtime installation is handled by each runtime's own package (e.g., `claude-cli`, `opencode`).
 
 ## Runtime Matrix
 

@@ -207,6 +207,29 @@ A2A tasks, registry sync, @mention dispatch, and @@dispatch. JSONL persistence v
 need OpenTelemetry, SQLite persistence, or session replay own that integration above the
 package primitives.
 
+> **Correlation ID scope (v0.5):** correlation IDs exist at every surface
+> (AG-UI run, A2A task, `@@dispatch` invocation, tool-call trace, JWT `cid`
+> claim, bus envelope) but **each surface mints its own**. There is **no
+> end-to-end correlation thread today** — an AG-UI run does NOT propagate
+> its ID into the underlying ACP turn or tool-call trace records. For
+> correlated traces across surfaces, consumers must join on `contextId` or
+> `sessionId` rather than `correlationId`. End-to-end threading is a
+> separate hardening track.
+
+> **OpenTelemetry adapter: not built-in.** agents-js exposes pluggable
+> `LogTransport` / `SpanLogTransport` interfaces (`packages/acp-host/src/logger.ts`)
+> and structured audit envelopes (`packages/a2a/src/audit.ts`), but ships
+> **no reference OpenTelemetry exporter**. Hosts that want OTel must
+> implement an adapter against those interfaces. Recommended minimal
+> production sink today: JSONL via `JsonlLogTransport`, or a custom
+> transport.
+
+> **Tool-call trace redaction is top-level only.** The `redaction` spec
+> applies to top-level object keys. Nested values (objects inside objects,
+> secrets inside arrays) are **not** scrubbed. Tool authors emitting nested
+> payloads with secrets MUST pre-scrub before returning. Recursive/pattern
+> redaction is a v0.2 scope.
+
 ## Non-goals
 
 - Not building a full observability platform. agents-js provides primitives; backends are the host's responsibility.
