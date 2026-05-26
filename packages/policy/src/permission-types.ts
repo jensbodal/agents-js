@@ -112,9 +112,11 @@ export const READ_OPERATIONS = new Set([
  * context-free and does not know the workspace root.
  *
  * Symlink-escape defense (in-workspace symlink → out-of-workspace target)
- * requires filesystem `realpath` resolution and is enforced at the host layer.
- * The pure path-prefix check is a known limitation when the host layer is
- * not configured to resolve symlinks.
+ * is enforced at the host layer via `fs.realpathSync` — see the
+ * `workspace.shell.*` branch in
+ * `@agents-js/acp-host/session-permissions.ts:evaluatePermission`. Both the
+ * syntactic path-prefix check (`isWithinWorkspace`) AND the symlink-aware
+ * `realpathSync` check must pass for auto-approve.
  */
 export const READ_ONLY_SHELL_COMMANDS: Readonly<
   Record<"read" | "search" | "list", ReadonlySet<string>>

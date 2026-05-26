@@ -5,6 +5,8 @@
  * as a standalone async function so the controller only needs to call
  * `evaluatePermission(...)`.
  */
+import { realpathSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
 import type { RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import {
   classifyOperation,
@@ -144,20 +146,67 @@ export async function evaluatePermission(
     // workspace.shell.* auto-approve gate: classifier produces the typed
     // namespace for known read-only shell commands (cat, head, grep, ...),
     // but auto-approval requires that ALL extracted path arguments resolve
-    // syntactically inside the workspace root. The classifier itself is
-    // context-free and cannot perform this check.
+    // inside the workspace root both syntactically AND after symlink
+    // resolution. The classifier itself is context-free and cannot perform
+    // either check.
     //
-    // Known limitation (deferred to a follow-up): an in-workspace symlink
-    // pointing to an out-of-workspace target bypasses this syntactic gate
-    // because `path.resolve` does not follow symlinks. Host-layer realpath
-    // resolution is required to defeat that escape; until it lands, deployers
-    // who allow MCP-exposed shell wrappers must ensure no traversal symlinks
-    // exist inside their workspace roots.
+    // Two-layer host check (Layer 2 syntactic + Layer 3 realpath):
+    //  - Layer 2: `isWithinWorkspace` uses `path.resolve` (syntactic only;
+    //    does NOT follow symlinks). Defeats absolute out-of-workspace paths
+    //    (`/etc/passwd`) and `..` traversal.
+    //  - Layer 3: `fs.realpathSync` resolves symlinks to the on-disk target,
+    //    then re-checks workspace membership. Defeats an in-workspace
+    //    symlink pointing to an out-of-workspace target (the CVE-class gap
+    //    that PR1 explicitly documented as a known limitation).
+    //
+    // Failure modes:
+    //  - Broken symlink / ENOENT / EACCES on `realpathSync` -> fall through
+    //    to prompt (fail-closed). NOT a crash.
+    //  - Path doesn't exist yet -> fall through to prompt (we cannot verify
+    //    the eventual target).
     if (WORKSPACE_SHELL_OPERATIONS.has(operationClass) && ctx.workspaceIdentityPath) {
       const pathArgs = extractShellCommandPathArgs(effectiveRequest);
       const workspaceRoot = ctx.workspaceIdentityPath;
+      // Resolve workspace root through symlinks too, so the Layer 3 check
+      // compares realpath-resolved arg against realpath-resolved workspace.
+      // This matters on hosts where the workspace itself is reached via a
+      // symlink prefix (common with macOS tmpdir /var → /private/var, Linux
+      // container bind mounts, NixOS store paths, etc.). Fall back to the
+      // raw workspace path if realpath fails on the workspace itself.
+      let resolvedWorkspace: string;
+      try {
+        resolvedWorkspace = realpathSync(workspaceRoot);
+      } catch {
+        resolvedWorkspace = workspaceRoot;
+      }
       const allInWorkspace =
-        pathArgs.length > 0 && pathArgs.every((arg) => isWithinWorkspace(workspaceRoot, arg));
+        pathArgs.length > 0 &&
+        pathArgs.every((arg) => {
+          // Layer 2: syntactic workspace-boundary check (fast, no I/O).
+          if (!isWithinWorkspace(workspaceRoot, arg)) return false;
+          // Layer 3: realpath check (semantic; resolves symlinks).
+          //
+          // Resolve the arg against workspaceRoot FIRST so the realpath
+          // baseline matches Layer 2's baseline. `path.resolve` keeps
+          // absolute args unchanged but anchors relative args to the
+          // workspace root rather than `process.cwd()` (which would be the
+          // host gateway process's cwd, completely unrelated to the agent's
+          // workspace). Without this, `cat AGENTS.md` regresses from
+          // auto-approve to prompt because realpathSync resolves
+          // `AGENTS.md` against process.cwd() rather than workspaceRoot.
+          //
+          // Fail-closed on any resolution error (broken symlink, ENOENT,
+          // EACCES) — prompt rather than auto-approve when we cannot verify
+          // the on-disk target.
+          const candidate = resolvePath(workspaceRoot, arg);
+          let resolved: string;
+          try {
+            resolved = realpathSync(candidate);
+          } catch {
+            return false;
+          }
+          return isWithinWorkspace(resolvedWorkspace, resolved);
+        });
       if (allInWorkspace) {
         const allowOption = effectiveRequest.options?.find(
           (o) => o.kind === "allow_always" || o.kind === "allow_once",
