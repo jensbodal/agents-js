@@ -1,5 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,
@@ -113,7 +118,7 @@
       "!docs/public/graph.json",
       "!docs/public/components",
       "!**/*.story.vue",
-      "!.claude/worktrees"
+      "!.claude"
     ]
   }
 }

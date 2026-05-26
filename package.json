@@ -68,7 +68,7 @@
     "zod": "3.25.76"
   },
   "scripts": {
-    "docs:api": "typedoc --options typedoc.config.json && bun scripts/docs-api-postprocess.ts && bunx biome format --write docs/api/typedoc-sidebar.json",
+    "docs:api": "typedoc --options typedoc.config.json && bun scripts/docs-api-postprocess.ts && bunx biome format --write --vcs-enabled=false docs/api/typedoc-sidebar.json",
     "docs:stories": "bun run --cwd packages/ui-components stories:build",
     "docs:stories:dev": "bun run --cwd packages/ui-components stories:dev",
     "docs:build": "bun run docs:generated && bun run docs:api && bun run docs:index && bun run docs:stories && npx vitepress build docs",
