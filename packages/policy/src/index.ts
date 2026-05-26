@@ -40,8 +40,12 @@ export type {
 // -- Permission types ---------------------------------------------------------
 export {
   assertNever,
+  type DispatchFailureKind,
+  type DispatchFailureReason,
   HIGH_RISK_OPERATIONS,
+  isKnownDispatchFailureKind,
   isKnownOperationClass,
+  KNOWN_DISPATCH_FAILURE_KINDS,
   KNOWN_OPERATION_CLASSES,
   type KnownOperationClass,
   type OperationClass,

@@ -87,6 +87,15 @@ export interface MatrixBusReplyPayload {
    * unreachability — that's a wiring-layer concern in the bridge's
    * post-publish acknowledgement). Future wire-up commits MAY emit
    * `"consumer-unreachable"` if a deadline-based ack pattern is added.
+   *
+   * **Wire shape (AJS-79 PR3a):** intentionally still the legacy
+   * kebab-case string union. The typed `DispatchFailureReason` shape
+   * lives in `@agents-js/policy` as single source of truth for the
+   * vocabulary (consumed at internal permission-gate sites in
+   * `@agents-js/acp-host`). The wire-shape flip from string-enum to
+   * typed object is AJS-79 PR3b scope — it requires a co-landing
+   * dot-matrix bridge PR (`router.py` parses both shapes) to avoid
+   * silently breaking DOT-393 fallback at the federation boundary.
    */
   failureReason?: "dispatch-error" | "consumer-unreachable" | "dispatch-timeout";
 }

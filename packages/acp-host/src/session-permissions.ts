@@ -11,6 +11,7 @@ import type { RequestPermissionRequest, RequestPermissionResponse } from "@agent
 import {
   assertNever,
   classifyOperation,
+  type DispatchFailureReason,
   extractShellCommandPathArgs,
   isKnownOperationClass,
   isReadOnly,
@@ -200,7 +201,10 @@ export async function evaluatePermission(
         "unattended-gateway: unknown operation class (fail-closed)",
         {
           operationClass,
-          failureReason: { kind: "unknown_operation_class", operationClass },
+          failureReason: {
+            kind: "unknown_operation_class",
+            operationClass,
+          } satisfies DispatchFailureReason,
         },
       );
       const response: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
@@ -223,7 +227,10 @@ export async function evaluatePermission(
           "unattended-gateway: no workspace identity (fail-closed for shell op)",
           {
             operationClass,
-            failureReason: { kind: "no_workspace_identity_path", operationClass },
+            failureReason: {
+              kind: "no_workspace_identity_path",
+              operationClass,
+            } satisfies DispatchFailureReason,
           },
         );
         const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
@@ -241,7 +248,10 @@ export async function evaluatePermission(
           "unattended-gateway: workspace boundary check failed (fail-closed for shell op)",
           {
             operationClass,
-            failureReason: { kind: "workspace_boundary_violation", operationClass },
+            failureReason: {
+              kind: "workspace_boundary_violation",
+              operationClass,
+            } satisfies DispatchFailureReason,
           },
         );
         const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
@@ -302,7 +312,10 @@ export async function evaluatePermission(
           "unattended-gateway: no allow option in request (fail-closed)",
           {
             operationClass: narrowed,
-            failureReason: { kind: "no_allow_option", operationClass: narrowed },
+            failureReason: {
+              kind: "no_allow_option",
+              operationClass: narrowed,
+            } satisfies DispatchFailureReason,
           },
         );
         const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };

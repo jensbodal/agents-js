@@ -218,6 +218,107 @@ export function assertNever(x: never): never {
 }
 
 /**
+ * Discriminated union covering every reason a dispatch can fail.
+ *
+ * Two source layers, one shape — single source of truth so the permission
+ * layer ({@link import("@agents-js/acp-host").evaluatePermission}) and the
+ * future wire layer (`@agents-js/host` matrix-bus-consumer,
+ * `apps/internal-gateway` dispatch) agree on vocabulary. Resolves the
+ * boundary-narrowing drift between the structured `{ kind, operationClass }`
+ * shape introduced by AJS-78 PR2 (inside the permission gate) and the
+ * stringly-typed 3-value enum that lives on the wire payload.
+ *
+ * **Scope (AJS-79 PR3a, Path 2):** this union is the DEFINITION end-state.
+ * Today it's consumed only at internal permission-gate sites
+ * (`session-permissions.ts`, via `satisfies DispatchFailureReason`); the
+ * wire still emits the legacy kebab-case string union. AJS-79 PR3b will
+ * flip the wire shape to this typed object alongside a co-landing
+ * dot-matrix bridge PR (router.py dual-parses both shapes during a
+ * deprecation window) — bundling the wire change with its cross-repo
+ * companion avoids silently breaking DOT-393 fallback at the federation
+ * boundary (the gap cognee-codex caught in the PR3a first-draft review).
+ *
+ * **Permission-policy kinds** are produced by the auto-approve gate when an
+ * operation cannot be auto-approved. They carry `operationClass` for
+ * diagnostic context. Today they're set only as `logPermissionDecision`
+ * metadata; AJS-79 PR3b threads them through the runtime so they reach the
+ * wire payload end-to-end.
+ *
+ * **Dispatch-transport kinds** are produced (in PR3b) by the matrix-bus
+ * consumer / gateway dispatch when the transport itself fails (network,
+ * timeout, no consumer subscribed). They carry an optional `message` for
+ * human-readable surface but no `operationClass` (the failure is at
+ * transport, before the permission gate fires). The names mirror the
+ * kebab-case wire values in snake_case form.
+ *
+ * Adding a new failure mode requires:
+ *   1. extending {@link DispatchFailureKind},
+ *   2. adding the entry to {@link KNOWN_DISPATCH_FAILURE_KINDS_RECORD}
+ *      (typecheck-enforced via `Record<,true>`),
+ *   3. handling the new kind in any exhaustive switch on
+ *      {@link DispatchFailureReason} (typecheck via {@link assertNever}).
+ */
+export type DispatchFailureKind =
+  // Permission-policy failures (from session-permissions.ts auto-approve gate)
+  | "unknown_operation_class"
+  | "no_workspace_identity_path"
+  | "workspace_boundary_violation"
+  | "no_allow_option"
+  // Dispatch-transport failures (from matrix-bus-consumer / internal-gateway)
+  | "dispatch_error"
+  | "dispatch_timeout"
+  | "consumer_unreachable";
+
+/**
+ * Discriminated union shape carried on `MatrixBusReplyPayload.failureReason`
+ * and any other dispatch-result carrier. Permission kinds carry
+ * `operationClass`; transport kinds carry an optional `message`.
+ *
+ * The `unknown_operation_class` variant is the only one whose
+ * `operationClass` is `string` rather than {@link OperationClass} — by
+ * definition that variant fires precisely when the classifier produces a
+ * value outside the known union.
+ */
+export type DispatchFailureReason =
+  | { kind: "unknown_operation_class"; operationClass: string }
+  | { kind: "no_workspace_identity_path"; operationClass: OperationClass }
+  | { kind: "workspace_boundary_violation"; operationClass: OperationClass }
+  | { kind: "no_allow_option"; operationClass: OperationClass }
+  | { kind: "dispatch_error"; message?: string }
+  | { kind: "dispatch_timeout"; message?: string }
+  | { kind: "consumer_unreachable"; message?: string };
+
+/**
+ * Type-checked record mapping every {@link DispatchFailureKind} member to
+ * `true`. Mirrors the {@link KNOWN_OPERATION_CLASSES_RECORD} pattern: forces
+ * a typecheck error when a kind is added to the union but not to the
+ * runtime set.
+ */
+const KNOWN_DISPATCH_FAILURE_KINDS_RECORD: Record<DispatchFailureKind, true> = {
+  unknown_operation_class: true,
+  no_workspace_identity_path: true,
+  workspace_boundary_violation: true,
+  no_allow_option: true,
+  dispatch_error: true,
+  dispatch_timeout: true,
+  consumer_unreachable: true,
+};
+
+/**
+ * Canonical set of dispatch-failure-kind strings, derived from
+ * {@link KNOWN_DISPATCH_FAILURE_KINDS_RECORD} so adding a kind to
+ * {@link DispatchFailureKind} forces this set to widen in lockstep.
+ */
+export const KNOWN_DISPATCH_FAILURE_KINDS: ReadonlySet<DispatchFailureKind> = new Set(
+  Object.keys(KNOWN_DISPATCH_FAILURE_KINDS_RECORD) as DispatchFailureKind[],
+);
+
+/** Narrow an arbitrary string to {@link DispatchFailureKind} via set membership. */
+export function isKnownDispatchFailureKind(value: string): value is DispatchFailureKind {
+  return KNOWN_DISPATCH_FAILURE_KINDS.has(value as DispatchFailureKind);
+}
+
+/**
  * Commands that are always considered shell wrappers.
  * Used by both the permission high-risk check and the terminal validation policy.
  */
