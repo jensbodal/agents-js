@@ -23,6 +23,11 @@ export {
   registerIconSet,
 } from "./acp-icon.ts";
 export { AcpImage } from "./acp-image.ts";
+export {
+  AcpInboxMessageItem,
+  type InboxMessageLike,
+} from "./acp-inbox-message-item.ts";
+export { AcpInboxMessageList, filterMessages } from "./acp-inbox-message-list.ts";
 export { acpInputStyles } from "./acp-input-styles.ts";
 export { AcpMessage } from "./acp-message.ts";
 export { AcpModal } from "./acp-modal.ts";

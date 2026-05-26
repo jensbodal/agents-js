@@ -30,6 +30,8 @@ bun add @agents-js/ui-components
 - **`AcpElicitationForm`**
 - **`AcpIcon`**
 - **`AcpImage`**
+- **`AcpInboxMessageItem`**
+- **`AcpInboxMessageList`**
 - **`AcpMessage`**
 - **`AcpModal`**
 - **`AcpModelSelector`**
@@ -64,6 +66,7 @@ bun add @agents-js/ui-components
 - **`deriveFallbackModelId`**
 - **`deriveRuntimeNotice`**
 - **`deriveSessionState`** — Derive flat component properties from an incoming SessionStateLike. This is a pure function with no side effects — the caller is responsible for applying the result to Lit reactive properties with ...
+- **`filterMessages`** — Apply a case-insensitive substring filter on `from_session`. Exported for unit testing.
 - **`formatActivityAge`** — Format an activity age (seconds) as a compact "Ns ago" / "Nm ago" / "Nh ago" / "Nd ago" string. Returns "unknown" when the age is absent, which is the upstream signal that the status provider had n...
 - **`isHostBridgeActiveForTarget`**
 - **`isKnownModelId`**
@@ -106,6 +109,7 @@ bun add @agents-js/ui-components
 - **`HostState`** — Flat state object pushed to subscribers on every relevant event.
 - **`HostTurnSummary`**
 - **`HostWSClientOptions`** — Optional behaviour hooks for {HostWSClient}. All fields are optional so existing `new HostWSClient(url)` call sites keep working unchanged. Omitting a hook leaves the corresponding surface inert.
+- **`InboxMessageLike`** — Structural mirror of `InboxMessage` from `-js/host`. Defined locally so `-js/ui-components` doesn't take a runtime dep on `-js/host` just to render a row. Consumers passing `InboxMessage[]` from ho...
 - **`ModelInfo`**
 - **`ModelInfoLike`**
 - **`PendingElicitationInfo`** — Minimal elicitation request shape for display purposes. Mirrors the non-function fields of `PendingElicitation` on the host side (see `packages/acp-host/src/types/session.ts`). The gateway's JSON s...

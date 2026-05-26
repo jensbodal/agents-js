@@ -50,9 +50,17 @@ function normalizeTransformId(id: string): string {
 
 export default defineConfig({
   build: {
-    // The reference UI intentionally ships as a single reference-app bundle.
+    // The reference UI ships as a multi-entry bundle: the main chat app
+    // (index.html / src/main.ts) and the AJS-85 agent inbox browser
+    // (inbox.html / src/inbox.ts) are independent surfaces.
     // Keep the warning budget aligned with the current bundled workspace deps.
     chunkSizeWarningLimit: 1_200,
+    rollupOptions: {
+      input: {
+        main: resolve(configDir, "index.html"),
+        inbox: resolve(configDir, "inbox.html"),
+      },
+    },
   },
   plugins: [
     {
