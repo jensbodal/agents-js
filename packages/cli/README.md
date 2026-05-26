@@ -134,8 +134,8 @@ Start an MCP server (stdio transport) that exposes registered A2A agents as MCP 
 | Flag | Takes | Default | Effect |
 | --- | --- | --- | --- |
 | `setup` | positional subcommand | — | Switch from "start server" to "write config". |
-| `--claude` | flag | off | (with `setup`) Register via `claude mcp add` instead of writing a file. |
-| `--global` | flag | off | (with `setup`) Write to `~/.claude/settings.json` instead of `.mcp.json`. |
+| `--claude` | flag | off | (with `setup`) Register via `claude mcp add -s user` (Claude Code user-scope) instead of writing a `.mcp.json` file. |
+| `--global` | flag | off | **[removed next release]** Was a silent no-op (wrote to `~/.claude/settings.json` which Claude Code does not read for MCP). Use `--claude` for user-scope Claude registration; unflagged `setup` for vendor-neutral project-scope `.mcp.json`. Future per-client flags (`--cursor`, `--zed`, …) added on demand. |
 | `--help`, `-h` | flag | — | Print usage. |
 
 **Config resolution (server mode):**
@@ -148,7 +148,7 @@ Start an MCP server (stdio transport) that exposes registered A2A agents as MCP 
 ```sh
 agents-js mcp                      # start MCP stdio server
 agents-js mcp setup                # write .mcp.json in cwd
-agents-js mcp setup --global       # write ~/.claude/settings.json
+agents-js mcp setup --global       # [removed] use --claude for user-scope Claude; unflagged for project-scope
 agents-js mcp setup --claude       # register with `claude mcp add`
 ```
 

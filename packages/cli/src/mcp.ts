@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createSharedAgentRegistry } from "@agents-js/a2a-client/node";
 import { type AgentEndpoint, type BridgeConfig, createBridgeServer } from "@agents-js/mcp-bridge";
@@ -55,7 +54,8 @@ export const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
     assign: (a) => {
       a.global = true;
     },
-    description: "Write MCP config to ~/.claude/settings.json.",
+    description:
+      "[deprecated, removed next release] Was a silent no-op writing to ~/.claude/settings.json — use `--claude` for Claude Code user-scope or unflagged for project-scope .mcp.json.",
   },
   "--claude": {
     kind: "flag",
@@ -121,7 +121,7 @@ function printMcpUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  agents-js mcp [options]            Start MCP server on stdio",
       "  agents-js mcp setup                Write MCP config to .mcp.json in cwd",
       "  agents-js mcp setup --claude       Register with Claude Code via `claude mcp add`",
-      "  agents-js mcp setup --global       Write MCP config to ~/.claude/settings.json",
+      "  agents-js mcp setup --global       [removed] use `--claude` for Claude user-scope; unflagged for project-scope",
       "  agents-js mcp bridge --url <url>   Bridge a single external A2A gateway over stdio",
       "",
       "Options:",
@@ -145,8 +145,8 @@ function printMcpSetupUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "",
       "Usage:",
       "  agents-js mcp setup            Write MCP config to .mcp.json in cwd",
-      "  agents-js mcp setup --global   Write MCP config to ~/.claude/settings.json",
-      "  agents-js mcp setup --claude   Register with Claude Code via `claude mcp add`",
+      "  agents-js mcp setup --global   [removed] use `--claude` for Claude user-scope; unflagged for project-scope",
+      "  agents-js mcp setup --claude   Register with Claude Code via `claude mcp add -s user`",
       "",
       "Options:",
       "  --help   Show this message",
@@ -256,6 +256,23 @@ function resolveClaudeMcpCommand(): { command: string; args: string[] } {
   return { command: execPath, args: [cliSource, "mcp"] };
 }
 
+/**
+ * Build the argv passed to `claude mcp add` for `agents-js mcp setup --claude`.
+ *
+ * Uses `-s user` so agents-js-mcp is available across ALL Claude Code
+ * sessions on this machine — matches the `--claude` intent of "quickest
+ * one-liner to register agents-js everywhere." `-s local` (the prior
+ * default) was project-scope only and unhelpful as the primary register
+ * path. Project-scope registration is still the right call for shared
+ * team configs (`.mcp.json` via `agents-js mcp setup` without flags).
+ *
+ * Exposed for unit-testing; the actual `execFileSync` side effect lives
+ * in {@link runSetup}.
+ */
+export function buildClaudeMcpAddArgs(launchCommand: string, launchArgs: string[]): string[] {
+  return ["mcp", "add", "-s", "user", "agents-js-mcp", "--", launchCommand, ...launchArgs];
+}
+
 function runSetup(
   args: McpCommandArgs,
   output: Pick<NodeJS.WriteStream, "write">,
@@ -264,13 +281,9 @@ function runSetup(
   if (args.claude) {
     const { command, args: launchArgs } = resolveClaudeMcpCommand();
     try {
-      execFileSync(
-        "claude",
-        ["mcp", "add", "-s", "local", "agents-js-mcp", "--", command, ...launchArgs],
-        {
-          stdio: "inherit",
-        },
-      );
+      execFileSync("claude", buildClaudeMcpAddArgs(command, launchArgs), {
+        stdio: "inherit",
+      });
       output.write("[agents-js] Registered agents-js-mcp with Claude Code\n");
       return EXIT_OK;
     } catch {
@@ -279,11 +292,32 @@ function runSetup(
     }
   }
 
+  if (args.global) {
+    // `--global` is a leaky-abstraction flag: agents-js is a vendor-neutral
+    // CLI but `--global` historically wrote a Claude Code-specific user-scope
+    // config file. The flag was silently broken since the initial commit
+    // (wrote to `~/.claude/settings.json` which Claude Code does not read for
+    // MCP registration), so functional user-count is ~zero. Removed entirely;
+    // accepting one release of explicit deprecation error to catch any cached
+    // CI/blog/AI-suggestion references with an actionable message rather than
+    // a generic "unknown flag" parser error.
+    output.write(
+      [
+        "[agents-js] --global is removed.",
+        "  Was a silent no-op (wrote to ~/.claude/settings.json which Claude Code does not read for MCP).",
+        "  Use one of these explicit, vendor-named paths instead:",
+        "    agents-js mcp setup            # write project-scope .mcp.json in cwd (vendor-neutral MCP convention)",
+        "    agents-js mcp setup --claude   # register user-scope with Claude Code via `claude mcp add -s user`",
+        "  Other MCP clients (Cursor, Zed, codex-app) get vendor-named flags as added on demand.",
+        "",
+      ].join("\n"),
+    );
+    return EXIT_ERROR;
+  }
+
   const mcpConfig = generateMcpServerConfig();
-  const targetPath = args.global
-    ? join(homedir(), ".claude", "settings.json")
-    : join(cwd, ".mcp.json");
-  writeMcpConfig(targetPath, mcpConfig.mcpServers, { mkdirParent: args.global === true });
+  const targetPath = join(cwd, ".mcp.json");
+  writeMcpConfig(targetPath, mcpConfig.mcpServers, { mkdirParent: false });
   output.write(`[agents-js] Wrote MCP config to ${targetPath}\n`);
   return EXIT_OK;
 }

@@ -241,10 +241,14 @@ describe("SERVE_ARG_SPEC (serve subcommand)", () => {
 });
 
 describe("MCP_SETUP_ARG_SPEC (mcp setup subcommand)", () => {
-  test("--global describes settings.json target", () => {
+  test("--global is marked deprecated/removed next release (A2 — one-release window)", () => {
+    // Per Jens design critique: --global named a Claude-specific behavior in a
+    // vendor-neutral CLI. Silently broken since initial commit (wrote to a no-op
+    // file). A2 resolution: parse the flag for one release, emit explicit
+    // removal error + replacement pointers; full removal next release.
     const global = MCP_SETUP_ARG_SPEC["--global"];
     if (global?.kind !== "flag") throw new Error("expected --global to be a flag entry");
-    expect(global.description).toMatch(/settings\.json/);
+    expect(global.description).toMatch(/deprecated|removed/i);
   });
 
   test("--claude describes the claude mcp add registration path", () => {

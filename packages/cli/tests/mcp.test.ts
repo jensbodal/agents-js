@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseMcpCommandArgs, runMcpCommand } from "../src/mcp.ts";
+import { buildClaudeMcpAddArgs, parseMcpCommandArgs, runMcpCommand } from "../src/mcp.ts";
 
 function makeOutputBuffer() {
   let content = "";
@@ -133,6 +133,29 @@ describe("runMcpCommand", () => {
     expect(output.value).toContain("mcp setup");
   });
 
+  test("setup --help marks --global as removed and does NOT claim a target file (AJS-74 regression)", async () => {
+    // Regression guard for the leaky-abstraction `--global` flag (Jens
+    // design critique + cluster consensus → A2 removal). Help text must not
+    // claim `--global` writes anywhere — it errors out at runtime with a
+    // replacement-pointing message.
+    const output = makeOutputBuffer();
+    await runMcpCommand(["setup", "--help"], { output });
+    expect(output.value).not.toContain("--global   Write MCP config");
+    expect(output.value).not.toContain("settings.json");
+    expect(output.value).not.toContain("--global       Write MCP config");
+    // Should still describe --global as removed-with-pointer (deprecation window)
+    expect(output.value).toMatch(/--global[^\n]*removed/);
+    expect(output.value).toContain("--claude");
+  });
+
+  test("top-level mcp --help also marks --global as removed (no stale `Write MCP config` claim)", async () => {
+    const output = makeOutputBuffer();
+    await runMcpCommand(["--help"], { output });
+    expect(output.value).not.toContain("--global       Write MCP config");
+    expect(output.value).not.toContain("settings.json");
+    expect(output.value).toMatch(/--global[^\n]*removed/);
+  });
+
   test("returns 1 when no agents are configured", async () => {
     const output = makeOutputBuffer();
     const exitCode = await runMcpCommand([], {
@@ -211,18 +234,66 @@ describe("runMcpCommand", () => {
     }),
   );
 
-  test(
-    "setup --global writes to ~/.claude/settings.json",
-    withTempDir(async (_dir) => {
-      // We can't easily mock homedir, so we test the local path variant instead
-      // and trust the global variant shares the same merge logic.
-      // This test verifies the --global flag is parsed correctly.
-      const args = parseMcpCommandArgs(["setup", "--global"]);
-      expect(args.global).toBe(true);
-      expect(args.subcommand).toBe("setup");
-    }),
-  );
+  test("setup --global parses (flag is still accepted for one-release deprecation window)", () => {
+    const args = parseMcpCommandArgs(["setup", "--global"]);
+    expect(args.global).toBe(true);
+    expect(args.subcommand).toBe("setup");
+  });
 
+  test("setup --global runtime emits removal error + EXIT_ERROR with replacement pointers", async () => {
+    // Was a silent no-op writing to ~/.claude/settings.json (Claude Code does
+    // not read MCP from that file). Bug fix to ~/.claude.json (PR #67 prior
+    // amend) was correct code but wrong abstraction — `--global` in a
+    // vendor-neutral CLI silently named a Claude-specific target.
+    // (A2) one-release deprecation error path: parse the flag, emit
+    // actionable error, exit non-zero; full removal next release.
+    const output = makeOutputBuffer();
+    const exitCode = await runMcpCommand(["setup", "--global"], { output });
+    expect(exitCode).toBe(1);
+    expect(output.value).toContain("--global is removed");
+    expect(output.value).toContain("mcp setup --claude");
+    expect(output.value).toContain(".mcp.json");
+  });
+});
+
+describe("buildClaudeMcpAddArgs", () => {
+  test("uses -s user scope so agents-js-mcp is available across all Claude Code sessions", () => {
+    const args = buildClaudeMcpAddArgs("agents-js", ["mcp"]);
+    expect(args[0]).toBe("mcp");
+    expect(args[1]).toBe("add");
+    expect(args[2]).toBe("-s");
+    expect(args[3]).toBe("user");
+  });
+
+  test("includes the server name `agents-js-mcp` after the scope flag", () => {
+    const args = buildClaudeMcpAddArgs("agents-js", ["mcp"]);
+    expect(args[4]).toBe("agents-js-mcp");
+  });
+
+  test("appends launch command + launch args after the `--` separator", () => {
+    const args = buildClaudeMcpAddArgs("/usr/local/bin/agents-js", ["mcp"]);
+    const dashDashIndex = args.indexOf("--");
+    expect(dashDashIndex).toBeGreaterThan(-1);
+    expect(args.slice(dashDashIndex + 1)).toEqual(["/usr/local/bin/agents-js", "mcp"]);
+  });
+
+  test("preserves launch args order (Bun-from-source case: ['cli.ts', 'mcp'])", () => {
+    const args = buildClaudeMcpAddArgs("/opt/homebrew/bin/bun", ["/path/to/cli.ts", "mcp"]);
+    const dashDashIndex = args.indexOf("--");
+    expect(args.slice(dashDashIndex + 1)).toEqual([
+      "/opt/homebrew/bin/bun",
+      "/path/to/cli.ts",
+      "mcp",
+    ]);
+  });
+
+  test("never uses `-s local` (regression guard for AJS-74 bug #4)", () => {
+    const args = buildClaudeMcpAddArgs("agents-js", ["mcp"]);
+    expect(args).not.toContain("local");
+  });
+});
+
+describe("runMcpCommand bridge subcommand", () => {
   test("bridge --help prints bridge usage and exits 0", async () => {
     const output = makeOutputBuffer();
     const exitCode = await runMcpCommand(["bridge", "--help"], { output });
