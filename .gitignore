@@ -29,6 +29,8 @@ Procfile.docs
 # Claude agent runtime state, drafts, plans — none of it belongs in the repo.
 # Forward-looking specs live in Plane; implementation belongs in code + tests.
 .claude/
+# Peer-agent scratch (release dashboards, one-pagers) — same "no scratch in repo" class.
+working-backwards/
 .agents-js/config.json
 .agents-js/profiles/
 .agents-js/permission-rules.json

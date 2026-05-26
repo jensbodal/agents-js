@@ -107,7 +107,7 @@ export interface ReplicaInspectionResult {
  * change kind (modified / added / deleted) and (for files where
  * baseline content was retained) the current replica content
  * inline. Use this for reviewer-facing display, not for
- * `git apply` / `patch -p1`. Pinned by @cognee-codex review id 18.
+ * `git apply` / `patch -p1`. Pinned by `@cognee-codex` review id 18.
  *
  * **`format: "rsync-manifest"`** — newline-separated list of paths
  * only. Use this when the consumer just needs the set of mutated
