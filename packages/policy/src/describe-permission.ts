@@ -1,33 +1,17 @@
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 import { classifyOperation, extractResourceScope } from "./permission-engine.ts";
+import {
+  assertNever,
+  isKnownOperationClass,
+  KNOWN_OPERATION_CLASSES,
+  type KnownOperationClass,
+  type OperationClass,
+} from "./permission-types.ts";
 
-/**
- * Canonical set of operation-class strings emitted by {@link classifyOperation}.
- *
- * {@link describeOperationClass} is exhaustive against this union: adding a
- * branch to `classifyOperation` without extending `KNOWN_OPERATION_CLASSES`
- * produces a non-exhaustive-switch type error rather than silently degrading to
- * the fallback description. The single source of truth lives here so
- * host-side renderers do not re-implement the map and drift from the
- * classifier.
- */
-export const KNOWN_OPERATION_CLASSES = [
-  "file.read",
-  "file.write",
-  "file.delete",
-  "terminal.create",
-  "workspace.search",
-  "workspace.command.execute",
-  "workspace.command.list",
-  "workspace.data-query",
-  "workspace.navigate",
-] as const;
-
-export type KnownOperationClass = (typeof KNOWN_OPERATION_CLASSES)[number];
-
-function isKnownOperationClass(value: string): value is KnownOperationClass {
-  return (KNOWN_OPERATION_CLASSES as readonly string[]).includes(value);
-}
+// Re-export the canonical union from the single source of truth so existing
+// consumers importing from `./describe-permission.ts` keep working without
+// chasing the symbol to a new module.
+export { KNOWN_OPERATION_CLASSES, type KnownOperationClass };
 
 function quote(value: string): string {
   return `\u201C${value}\u201D`;
@@ -45,7 +29,8 @@ export function describeOperationClass(
   request: RequestPermissionRequest,
 ): string {
   if (isKnownOperationClass(operationClass)) {
-    switch (operationClass) {
+    const narrowed: OperationClass = operationClass;
+    switch (narrowed) {
       case "file.read":
         return "read this file";
       case "file.write":
@@ -64,6 +49,14 @@ export function describeOperationClass(
         return "run this data query";
       case "workspace.navigate":
         return "navigate in the workspace";
+      case "workspace.shell.read":
+        return "read this file via shell";
+      case "workspace.shell.search":
+        return "search this folder via shell";
+      case "workspace.shell.list":
+        return "list this folder via shell";
+      default:
+        return assertNever(narrowed);
     }
   }
   const title = request.toolCall?.title;

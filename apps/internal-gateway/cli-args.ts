@@ -6,7 +6,16 @@ export const VALID_PERMISSION_MODES: PermissionMode[] = [
   "acceptEdits",
   "plan",
   "bypassPermissions",
+  "unattendedGateway",
 ];
+
+/**
+ * CLI kebab-case aliases for canonical {@link PermissionMode} strings.
+ * `normalizePermissionMode` accepts both kebab and camelCase; the allow-list
+ * here lets operators type the more natural kebab form (`unattended-gateway`)
+ * without it being rejected as an unknown mode.
+ */
+const KEBAB_PERMISSION_MODE_ALIASES = ["unattended-gateway"] as const;
 
 /**
  * Legacy CLI strings (`ask`/`yolo`/`hub`) accepted for one release cycle.
@@ -124,10 +133,11 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
         throw new Error('[Gateway] Missing value for "--permission-mode".');
       }
       const isCanonical = VALID_PERMISSION_MODES.includes(next as PermissionMode);
+      const isKebab = (KEBAB_PERMISSION_MODE_ALIASES as readonly string[]).includes(next);
       const isLegacy = (LEGACY_PERMISSION_MODES as readonly string[]).includes(next);
-      if (!isCanonical && !isLegacy) {
+      if (!isCanonical && !isKebab && !isLegacy) {
         throw new Error(
-          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")} (legacy aliases ${LEGACY_PERMISSION_MODES.join("/")} accepted with deprecation warning).`,
+          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")} (kebab aliases ${KEBAB_PERMISSION_MODE_ALIASES.join("/")} also accepted; legacy aliases ${LEGACY_PERMISSION_MODES.join("/")} accepted with deprecation warning).`,
         );
       }
       permissionMode = normalizePermissionMode(next);

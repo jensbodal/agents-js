@@ -78,7 +78,7 @@ bun add @agents-js/acp-host
 - **`emitEvent`** — Emit an event to all registered listeners. Individual listener errors are caught and logged so one bad listener does not break others.
 - **`emptyToolCallStats`**
 - **`ensureStagingDir`** — Create the staging directory for a session under the configured scratch root. Idempotent -- safe to call multiple times. - Absolute path to the scratch root (for example `<workspace>/.tmp`). - Sess...
-- **`evaluatePermission`** — Full permission evaluation pipeline: 1. beforePermission hook (fail-closed) 2. YOLO mode auto-approve 3. Read-only auto-approve 4. Remembered rules 5. Fall through to user prompt
+- **`evaluatePermission`** — Full permission evaluation pipeline: 1. beforePermission hook (fail-closed) 2. bypassPermissions mode auto-approve 3. unattendedGateway mode: auto-approve KNOWN operation classes, fail-closed (canc...
 - **`filterFiles`** — Filters open files by a query string (fuzzy match against name and basename).
 - **`formatToolCallStatus`**
 - **`getHostManagedPermissionReason`**

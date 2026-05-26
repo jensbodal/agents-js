@@ -25,6 +25,15 @@ import type {
  * - `plan` — agent enters plan mode (reads auto-approve, agent emits plan blocks).
  * - `bypassPermissions` — skip permission gating entirely (auto-approve all).
  *   Aliased from legacy `"yolo"` via {@link normalizePermissionMode}.
+ * - `unattendedGateway` — auto-approve every operation whose tool-call
+ *   classifies to a KNOWN {@link import("@agents-js/policy").OperationClass}
+ *   member, and fail-closed (cancel) on any unknown / `tool.<name>` fallback.
+ *   Intended for gateway-driven sessions where no human is on the prompt path
+ *   but a tighter blast radius than `bypassPermissions` is required. The
+ *   precise per-class auto-approve matrix is intentionally minimal in v1
+ *   (auto-approve all KNOWN, fail-closed on UNKNOWN); tightening that matrix
+ *   is a follow-up PR. Accepts both kebab CLI form `"unattended-gateway"` and
+ *   canonical camelCase `"unattendedGateway"`.
  *
  * Folder-scoped auto-approve (the legacy `"hub"` mode's documented intent) is
  * driven separately by {@link ACPSessionState.hubPath} and the
@@ -33,7 +42,12 @@ import type {
  * normalizes to `"default"` (ask-via-hub semantics; the folder auto-approve
  * survives via `hubPath`).
  */
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+export type PermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "plan"
+  | "bypassPermissions"
+  | "unattendedGateway";
 
 /**
  * Legacy permission-mode strings retained for one release cycle for
@@ -66,7 +80,10 @@ export function normalizePermissionMode(
     case "acceptEdits":
     case "plan":
     case "bypassPermissions":
+    case "unattendedGateway":
       return mode;
+    case "unattended-gateway":
+      return "unattendedGateway";
     case "ask":
       if (!_legacyWarned) {
         _legacyWarned = true;

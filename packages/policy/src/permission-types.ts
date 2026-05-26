@@ -134,6 +134,90 @@ export const WORKSPACE_SHELL_OPERATIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Canonical, typed union of every operation class that
+ * {@link import("./permission-engine.ts").classifyOperation} can emit, excluding
+ * the open-ended `tool.<name>` fallback.
+ *
+ * Single source of truth for downstream switches that need to be exhaustive
+ * against the classifier's vocabulary (e.g. `describeOperationClass`, the
+ * unattended-gateway auto-approve matrix). Adding a branch to
+ * `classifyOperation` requires:
+ *   1. extending {@link OperationClass},
+ *   2. adding the entry to {@link KNOWN_OPERATION_CLASSES_RECORD} (typecheck
+ *      catches this — the record must cover every union member),
+ *   3. handling the new class in any exhaustive switch (typecheck via
+ *      {@link assertNever} catches this too).
+ */
+export type OperationClass =
+  | "file.read"
+  | "file.write"
+  | "file.delete"
+  | "terminal.create"
+  | "workspace.search"
+  | "workspace.command.execute"
+  | "workspace.command.list"
+  | "workspace.data-query"
+  | "workspace.navigate"
+  | "workspace.shell.read"
+  | "workspace.shell.search"
+  | "workspace.shell.list";
+
+/**
+ * Type-checked record mapping every {@link OperationClass} member to `true`.
+ *
+ * Exists so {@link KNOWN_OPERATION_CLASSES} cannot drift from the union:
+ * `Record<OperationClass, true>` forces TypeScript to error on any missing
+ * member when this object literal is constructed. The set is then derived
+ * from this record's keys.
+ */
+const KNOWN_OPERATION_CLASSES_RECORD: Record<OperationClass, true> = {
+  "file.read": true,
+  "file.write": true,
+  "file.delete": true,
+  "terminal.create": true,
+  "workspace.search": true,
+  "workspace.command.execute": true,
+  "workspace.command.list": true,
+  "workspace.data-query": true,
+  "workspace.navigate": true,
+  "workspace.shell.read": true,
+  "workspace.shell.search": true,
+  "workspace.shell.list": true,
+};
+
+/**
+ * Canonical set of operation-class strings emitted by
+ * {@link import("./permission-engine.ts").classifyOperation}, derived from
+ * {@link KNOWN_OPERATION_CLASSES_RECORD} so adding a class to
+ * {@link OperationClass} forces the record (and therefore this set) to widen
+ * in lockstep.
+ */
+export const KNOWN_OPERATION_CLASSES: ReadonlySet<OperationClass> = new Set(
+  Object.keys(KNOWN_OPERATION_CLASSES_RECORD) as OperationClass[],
+);
+
+/**
+ * @deprecated Use {@link OperationClass}. Retained as a type alias for one
+ * release cycle to keep external imports compiling unchanged.
+ */
+export type KnownOperationClass = OperationClass;
+
+/** Narrow an arbitrary string to {@link OperationClass} via set membership. */
+export function isKnownOperationClass(value: string): value is OperationClass {
+  return KNOWN_OPERATION_CLASSES.has(value as OperationClass);
+}
+
+/**
+ * Exhaustive-switch helper. Use as the `default:` arm of a switch over a
+ * discriminated union to force a typecheck error when a new variant is added
+ * without a corresponding case. Throws at runtime if reached, which only
+ * happens when a typecheck escape (e.g. `as unknown as`) bypassed the union.
+ */
+export function assertNever(x: never): never {
+  throw new Error(`Unhandled discriminant: ${JSON.stringify(x)}`);
+}
+
+/**
  * Commands that are always considered shell wrappers.
  * Used by both the permission high-risk check and the terminal validation policy.
  */

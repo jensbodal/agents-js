@@ -9,10 +9,13 @@ import { realpathSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import type { RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import {
+  assertNever,
   classifyOperation,
   extractShellCommandPathArgs,
+  isKnownOperationClass,
   isReadOnly,
   isWithinWorkspace,
+  type OperationClass,
   WORKSPACE_SHELL_OPERATIONS,
 } from "@agents-js/policy";
 import type { Logger } from "./logger.ts";
@@ -59,12 +62,73 @@ export interface PermissionEvaluationContext {
 }
 
 /**
+ * Two-layer workspace-boundary check for `workspace.shell.*` auto-approve.
+ *
+ * Returns true iff every extracted path argument resolves inside the
+ * workspace root both syntactically (Layer 2 `isWithinWorkspace`) AND after
+ * symlink resolution (Layer 3 `fs.realpathSync` — AJS-77 PR1.5 CVE-class
+ * defense).
+ *
+ * Resolves the workspace root through symlinks too, so the Layer 3 check
+ * compares realpath-resolved arg against realpath-resolved workspace. This
+ * matters on hosts where the workspace itself is reached via a symlink
+ * prefix (macOS tmpdir `/var → /private/var`, Linux container bind mounts,
+ * NixOS store paths). Falls back to the raw workspace path if realpath
+ * fails on the workspace itself.
+ *
+ * Per-arg resolution anchors relative args to `workspaceRoot` (not
+ * `process.cwd()`) by passing args through `path.resolve(workspaceRoot, arg)`
+ * before `realpathSync`. Without this anchor, `cat AGENTS.md` regresses to
+ * prompt because `realpathSync` would resolve against the host gateway
+ * process's cwd, completely unrelated to the agent's workspace.
+ *
+ * Fail-closed: empty pathArgs, syntactic violation, broken symlink, ENOENT,
+ * EACCES — all return false. NOT a crash.
+ *
+ * Shared by:
+ *  - default / acceptEdits / plan modes (legacy auto-approve path)
+ *  - unattendedGateway mode (PR2 auto-approve path)
+ * to ensure the same CVE-class symlink-escape defense fires regardless of
+ * permission mode. Callers are responsible for the operation-class
+ * membership check (only call for `WORKSPACE_SHELL_OPERATIONS`).
+ */
+function passesWorkspaceShellBoundaryCheck(
+  request: RequestPermissionRequest,
+  workspaceRoot: string,
+): boolean {
+  const pathArgs = extractShellCommandPathArgs(request);
+  if (pathArgs.length === 0) return false;
+
+  let resolvedWorkspace: string;
+  try {
+    resolvedWorkspace = realpathSync(workspaceRoot);
+  } catch {
+    resolvedWorkspace = workspaceRoot;
+  }
+
+  return pathArgs.every((arg) => {
+    if (!isWithinWorkspace(workspaceRoot, arg)) return false;
+    const candidate = resolvePath(workspaceRoot, arg);
+    let resolved: string;
+    try {
+      resolved = realpathSync(candidate);
+    } catch {
+      return false;
+    }
+    return isWithinWorkspace(resolvedWorkspace, resolved);
+  });
+}
+
+/**
  * Full permission evaluation pipeline:
  * 1. beforePermission hook (fail-closed)
- * 2. YOLO mode auto-approve
- * 3. Read-only auto-approve
- * 4. Remembered rules
- * 5. Fall through to user prompt
+ * 2. bypassPermissions mode auto-approve
+ * 3. unattendedGateway mode: auto-approve KNOWN operation classes,
+ *    fail-closed (cancel) on UNKNOWN
+ * 4. Read-only auto-approve (default/acceptEdits/plan)
+ * 5. workspace.shell.* boundary-checked auto-approve
+ * 6. Remembered rules
+ * 7. Fall through to user prompt
  */
 export async function evaluatePermission(
   request: RequestPermissionRequest,
@@ -115,6 +179,143 @@ export async function evaluatePermission(
     }
   }
 
+  // unattendedGateway mode: auto-approve every KNOWN operation class,
+  // fail-closed (cancel) on UNKNOWN / `tool.<name>` fallback. For
+  // `workspace.shell.*` classes, the workspace-boundary realpath/symlink
+  // defense (AJS-77 PR1.5) MUST still fire — the CVE-class symlink-escape
+  // check is an auto-approve safety property, not a mode-specific concern,
+  // and bypassing it in unattended mode would silently regress the security
+  // posture established by PR1.5 for one mode. v1 non-shell matrix is
+  // intentionally minimal — every other KNOWN class auto-approves; per-class
+  // tightening (HIGH_RISK exclusion, etc.) is follow-up scope.
+  if (ctx.permissionMode === "unattendedGateway") {
+    const operationClass = classifyOperation(effectiveRequest);
+
+    if (!isKnownOperationClass(operationClass)) {
+      logPermissionDecision(
+        ctx.permLog,
+        effectiveRequest,
+        ctx.permissionMode,
+        "cancelled",
+        "unattended-gateway: unknown operation class (fail-closed)",
+        {
+          operationClass,
+          failureReason: { kind: "unknown_operation_class", operationClass },
+        },
+      );
+      const response: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+      void callHook(ctx.log, "afterPermission", () =>
+        ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
+      );
+      return response;
+    }
+
+    // workspace.shell.* requires the AJS-77 boundary check even in unattended
+    // mode. Fail-closed with structured failureReason when missing workspace
+    // identity or when realpath escapes the workspace root.
+    if (WORKSPACE_SHELL_OPERATIONS.has(operationClass)) {
+      if (!ctx.workspaceIdentityPath) {
+        logPermissionDecision(
+          ctx.permLog,
+          effectiveRequest,
+          ctx.permissionMode,
+          "cancelled",
+          "unattended-gateway: no workspace identity (fail-closed for shell op)",
+          {
+            operationClass,
+            failureReason: { kind: "no_workspace_identity_path", operationClass },
+          },
+        );
+        const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+        void callHook(ctx.log, "afterPermission", () =>
+          ctx.hooks?.afterPermission?.(effectiveRequest, cancelled, ctx.sessionId),
+        );
+        return cancelled;
+      }
+      if (!passesWorkspaceShellBoundaryCheck(effectiveRequest, ctx.workspaceIdentityPath)) {
+        logPermissionDecision(
+          ctx.permLog,
+          effectiveRequest,
+          ctx.permissionMode,
+          "cancelled",
+          "unattended-gateway: workspace boundary check failed (fail-closed for shell op)",
+          {
+            operationClass,
+            failureReason: { kind: "workspace_boundary_violation", operationClass },
+          },
+        );
+        const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+        void callHook(ctx.log, "afterPermission", () =>
+          ctx.hooks?.afterPermission?.(effectiveRequest, cancelled, ctx.sessionId),
+        );
+        return cancelled;
+      }
+      // Boundary check passed; fall through to switch which will auto-approve.
+    }
+
+    // Exhaustive switch over the narrowed OperationClass — every known class
+    // auto-approves in this PR's minimal matrix. Adding a class to the union
+    // forces this switch to widen (assertNever default arm). Non-shell KNOWN
+    // classes (file.*, terminal.*, workspace.{search,command,data-query,navigate})
+    // auto-approve directly; shell.* classes auto-approve only after the
+    // pre-switch boundary check above passes.
+    const narrowed: OperationClass = operationClass;
+    switch (narrowed) {
+      case "file.read":
+      case "file.write":
+      case "file.delete":
+      case "terminal.create":
+      case "workspace.search":
+      case "workspace.command.execute":
+      case "workspace.command.list":
+      case "workspace.data-query":
+      case "workspace.navigate":
+      case "workspace.shell.read":
+      case "workspace.shell.search":
+      case "workspace.shell.list": {
+        const allowOption = effectiveRequest.options?.find(
+          (o) => o.kind === "allow_always" || o.kind === "allow_once",
+        );
+        if (allowOption) {
+          logPermissionDecision(
+            ctx.permLog,
+            effectiveRequest,
+            ctx.permissionMode,
+            "auto_approve",
+            "unattended-gateway: known operation class",
+            { operationClass: narrowed },
+          );
+          const response: RequestPermissionResponse = {
+            outcome: { outcome: "selected", optionId: allowOption.optionId },
+          };
+          void callHook(ctx.log, "afterPermission", () =>
+            ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
+          );
+          return response;
+        }
+        // No allow option available — fail-closed.
+        logPermissionDecision(
+          ctx.permLog,
+          effectiveRequest,
+          ctx.permissionMode,
+          "cancelled",
+          "unattended-gateway: no allow option in request (fail-closed)",
+          {
+            operationClass: narrowed,
+            failureReason: { kind: "no_allow_option", operationClass: narrowed },
+          },
+        );
+        const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+        void callHook(ctx.log, "afterPermission", () =>
+          ctx.hooks?.afterPermission?.(effectiveRequest, cancelled, ctx.sessionId),
+        );
+        return cancelled;
+      }
+      default:
+        return assertNever(narrowed);
+    }
+  }
+
   // plan / default / acceptEdits: auto-approve read-only operations
   if (ctx.permissionMode !== "bypassPermissions") {
     const operationClass = classifyOperation(effectiveRequest);
@@ -147,90 +348,36 @@ export async function evaluatePermission(
     // namespace for known read-only shell commands (cat, head, grep, ...),
     // but auto-approval requires that ALL extracted path arguments resolve
     // inside the workspace root both syntactically AND after symlink
-    // resolution. The classifier itself is context-free and cannot perform
-    // either check.
-    //
-    // Two-layer host check (Layer 2 syntactic + Layer 3 realpath):
-    //  - Layer 2: `isWithinWorkspace` uses `path.resolve` (syntactic only;
-    //    does NOT follow symlinks). Defeats absolute out-of-workspace paths
-    //    (`/etc/passwd`) and `..` traversal.
-    //  - Layer 3: `fs.realpathSync` resolves symlinks to the on-disk target,
-    //    then re-checks workspace membership. Defeats an in-workspace
-    //    symlink pointing to an out-of-workspace target (the CVE-class gap
-    //    that PR1 explicitly documented as a known limitation).
-    //
-    // Failure modes:
-    //  - Broken symlink / ENOENT / EACCES on `realpathSync` -> fall through
-    //    to prompt (fail-closed). NOT a crash.
-    //  - Path doesn't exist yet -> fall through to prompt (we cannot verify
-    //    the eventual target).
-    if (WORKSPACE_SHELL_OPERATIONS.has(operationClass) && ctx.workspaceIdentityPath) {
-      const pathArgs = extractShellCommandPathArgs(effectiveRequest);
-      const workspaceRoot = ctx.workspaceIdentityPath;
-      // Resolve workspace root through symlinks too, so the Layer 3 check
-      // compares realpath-resolved arg against realpath-resolved workspace.
-      // This matters on hosts where the workspace itself is reached via a
-      // symlink prefix (common with macOS tmpdir /var → /private/var, Linux
-      // container bind mounts, NixOS store paths, etc.). Fall back to the
-      // raw workspace path if realpath fails on the workspace itself.
-      let resolvedWorkspace: string;
-      try {
-        resolvedWorkspace = realpathSync(workspaceRoot);
-      } catch {
-        resolvedWorkspace = workspaceRoot;
-      }
-      const allInWorkspace =
-        pathArgs.length > 0 &&
-        pathArgs.every((arg) => {
-          // Layer 2: syntactic workspace-boundary check (fast, no I/O).
-          if (!isWithinWorkspace(workspaceRoot, arg)) return false;
-          // Layer 3: realpath check (semantic; resolves symlinks).
-          //
-          // Resolve the arg against workspaceRoot FIRST so the realpath
-          // baseline matches Layer 2's baseline. `path.resolve` keeps
-          // absolute args unchanged but anchors relative args to the
-          // workspace root rather than `process.cwd()` (which would be the
-          // host gateway process's cwd, completely unrelated to the agent's
-          // workspace). Without this, `cat AGENTS.md` regresses from
-          // auto-approve to prompt because realpathSync resolves
-          // `AGENTS.md` against process.cwd() rather than workspaceRoot.
-          //
-          // Fail-closed on any resolution error (broken symlink, ENOENT,
-          // EACCES) — prompt rather than auto-approve when we cannot verify
-          // the on-disk target.
-          const candidate = resolvePath(workspaceRoot, arg);
-          let resolved: string;
-          try {
-            resolved = realpathSync(candidate);
-          } catch {
-            return false;
-          }
-          return isWithinWorkspace(resolvedWorkspace, resolved);
-        });
-      if (allInWorkspace) {
-        const allowOption = effectiveRequest.options?.find(
-          (o) => o.kind === "allow_always" || o.kind === "allow_once",
+    // resolution. Delegated to `passesWorkspaceShellBoundaryCheck` so the
+    // same two-layer defense fires in unattendedGateway mode (above).
+    // Fail-closed on Layer 2/3 failure: fall through to prompt.
+    if (
+      WORKSPACE_SHELL_OPERATIONS.has(operationClass) &&
+      ctx.workspaceIdentityPath &&
+      passesWorkspaceShellBoundaryCheck(effectiveRequest, ctx.workspaceIdentityPath)
+    ) {
+      const allowOption = effectiveRequest.options?.find(
+        (o) => o.kind === "allow_always" || o.kind === "allow_once",
+      );
+      if (allowOption) {
+        logPermissionDecision(
+          ctx.permLog,
+          effectiveRequest,
+          ctx.permissionMode,
+          "auto_approve",
+          "workspace-rooted read-only shell command",
+          {
+            operationClass,
+            pathArgs: extractShellCommandPathArgs(effectiveRequest),
+          },
         );
-        if (allowOption) {
-          logPermissionDecision(
-            ctx.permLog,
-            effectiveRequest,
-            ctx.permissionMode,
-            "auto_approve",
-            "workspace-rooted read-only shell command",
-            {
-              operationClass,
-              pathArgs,
-            },
-          );
-          const response: RequestPermissionResponse = {
-            outcome: { outcome: "selected", optionId: allowOption.optionId },
-          };
-          void callHook(ctx.log, "afterPermission", () =>
-            ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
-          );
-          return response;
-        }
+        const response: RequestPermissionResponse = {
+          outcome: { outcome: "selected", optionId: allowOption.optionId },
+        };
+        void callHook(ctx.log, "afterPermission", () =>
+          ctx.hooks?.afterPermission?.(effectiveRequest, response, ctx.sessionId),
+        );
+        return response;
       }
     }
   }

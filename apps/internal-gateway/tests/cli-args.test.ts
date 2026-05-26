@@ -53,6 +53,24 @@ describe("parseCliArgs — workspace trust gate", () => {
     expect(parseCliArgs(["--permission-mode", "ask"], {}).permissionMode).toBe("default");
     expect(parseCliArgs(["--permission-mode", "hub"], {}).permissionMode).toBe("default");
   });
+
+  test("`--permission-mode unattended-gateway` (kebab CLI form) is accepted", () => {
+    expect(parseCliArgs(["--permission-mode", "unattended-gateway"], {}).permissionMode).toBe(
+      "unattendedGateway",
+    );
+  });
+
+  test("`--permission-mode unattendedGateway` (canonical camelCase) is accepted", () => {
+    expect(parseCliArgs(["--permission-mode", "unattendedGateway"], {}).permissionMode).toBe(
+      "unattendedGateway",
+    );
+  });
+
+  test("unknown permission mode is still rejected", () => {
+    expect(() => parseCliArgs(["--permission-mode", "not-a-mode"], {})).toThrow(
+      /Invalid permission mode/,
+    );
+  });
 });
 
 describe("parseCliArgs — registry sync gate", () => {

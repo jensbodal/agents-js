@@ -2,8 +2,6 @@
 export {
   describeOperationClass,
   describeReplayScope,
-  KNOWN_OPERATION_CLASSES,
-  type KnownOperationClass,
   type ReplayScopeDescription,
   type ReplayScopeLabels,
 } from "./describe-permission.ts";
@@ -41,7 +39,12 @@ export type {
 } from "./permission-types.ts";
 // -- Permission types ---------------------------------------------------------
 export {
+  assertNever,
   HIGH_RISK_OPERATIONS,
+  isKnownOperationClass,
+  KNOWN_OPERATION_CLASSES,
+  type KnownOperationClass,
+  type OperationClass,
   READ_ONLY_SHELL_COMMANDS,
   READ_OPERATIONS,
   SHELL_COMMANDS,

@@ -21,6 +21,7 @@ bun add @agents-js/policy
 
 ### Functions
 
+- **`assertNever`** — Exhaustive-switch helper. Use as the `default:` arm of a switch over a discriminated union to force a typecheck error when a new variant is added without a corresponding case. Throws at runtime if ...
 - **`classifyOperation`** — Classify the operation type from a permission request. Uses heuristics on the tool name to determine the operation class. Includes workspace-specific operations (workspace.search, workspace.command...
 - **`closestParentFolder`** — Return the closest parent folder for a workspace-relative file path. Examples: - `closestParentFolder("projects/daily/note.md")` → `"projects/daily"` - `closestParentFolder("note.md")` → `""` (root...
 - **`createPermissionRule`** — Create a permission rule from a request and user choice.
@@ -37,6 +38,7 @@ bun add @agents-js/policy
 - **`generateScopeCandidates`** — Generate an ordered list of scope candidates for a permission scope selection UI. Given an extracted resource scope (from {extractResourceScope}), produces candidates from most specific (exact file...
 - **`generateUnifiedDiff`** — Generates a simple unified diff between two strings. No external dependencies -- implements a basic line-based LCS diff.
 - **`isHighRisk`** — Check if an operation is high-risk and should never match remembered rules.
+- **`isKnownOperationClass`** — Narrow an arbitrary string to {OperationClass} via set membership.
 - **`isReadOnly`** — Returns true if the given operation class represents a read-only operation that is safe to auto-approve without user confirmation.
 - **`isWithinDirectory`** — Check whether a candidate path is equal to or nested within a target directory. Both paths are workspace-relative (not absolute). Examples: - `isWithinDirectory("hub/acp", "hub/acp/file.md")` → tru...
 - **`isWithinWorkspace`** — Check whether a candidate path is equal to or within a workspace root. Handles both POSIX and Windows paths automatically. Resolves relative segments (`.`, `..`) and normalizes case on Windows befo...
@@ -58,7 +60,8 @@ bun add @agents-js/policy
 
 ### Types
 
-- **`KnownOperationClass`**
+- **`KnownOperationClass`** — Use {OperationClass}. Retained as a type alias for one release cycle to keep external imports compiling unchanged.
+- **`OperationClass`** — Canonical, typed union of every operation class that {import("./permission-engine.ts").classifyOperation} can emit, excluding the open-ended `tool.<name>` fallback. Single source of truth for downs...
 - **`RememberedLifetime`** — Lifetime of a remembered permission rule.
 - **`ScopeLevel`** — Granularity level for a permission scope candidate.
 - **`TerminalValidationResult`**
@@ -67,7 +70,7 @@ bun add @agents-js/policy
 ### Constants
 
 - **`HIGH_RISK_OPERATIONS`** — Operation classes that can never be matched by remembered rules. Includes terminal operations, file deletion, and workspace command execution due to their potential for destructive or irreversible ...
-- **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {classifyOperation}. {describeOperationClass} is exhaustive against this union: adding a branch to `classifyOperation` without extending `KNOWN_O...
+- **`KNOWN_OPERATION_CLASSES`** — Canonical set of operation-class strings emitted by {import("./permission-engine.ts").classifyOperation}, derived from {KNOWN_OPERATION_CLASSES_RECORD} so adding a class to {OperationClass} forces ...
 - **`READ_ONLY_SHELL_COMMANDS`** — Read-only shell commands grouped by intent category. When a terminal/tool invocation's command word matches an entry here, `classifyOperation` returns the corresponding `workspace.shell.<category>`...
 - **`READ_OPERATIONS`** — Operation classes that are always safe to auto-approve. These represent read-only or navigational operations with no side effects. Note: `workspace.shell.*` classes are deliberately NOT in this set...
 - **`SHELL_COMMANDS`** — Commands that are always considered shell wrappers. Used by both the permission high-risk check and the terminal validation policy.
@@ -75,6 +78,7 @@ bun add @agents-js/policy
 
 ### Exports
 
+- **`type KnownOperationClass`**
 - **`type PolicyErrorInfo`**
 
 
