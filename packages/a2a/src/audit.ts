@@ -116,6 +116,23 @@ export type AuditEvent =
       sessionId?: string;
       reason: "policy";
     })
+  // Fired once when a streaming @mention delegation exceeds
+  // `streamingLongWarnMs` without completing. Signals to operators that
+  // the remote agent is taking a long time and that resumption is not
+  // yet available (AJS-93). Records carry only structural metadata —
+  // never the user prompt. Emitted exactly once per dispatch.
+  | (BaseAuditEvent & {
+      kind: "mention-dispatch-streaming-long-running";
+      agentName: string;
+      sessionId?: string;
+      thresholdMs: number;
+      /**
+       * Whether a run-resumption surface is available. Currently always
+       * `false` — pinned to AJS-93. Field is structural so consumers can
+       * branch without parsing the message.
+       */
+      resumptionAvailable: false;
+    })
   // -- ACP @@dispatch ---------------------------------------------------
   | (BaseAuditEvent & {
       kind: "dispatch-started";
@@ -132,6 +149,19 @@ export type AuditEvent =
       taskId: string;
       state: "completed" | "failed";
       durationMs?: number;
+    })
+  // Fired once when a streaming `@@dispatch` (host-executor A2A
+  // harness) exceeds `streamingLongWarnMs` without completing. Same
+  // shape as `mention-dispatch-streaming-long-running` but scoped to
+  // the host-executor harness so operators can distinguish them.
+  | (BaseAuditEvent & {
+      kind: "dispatch-streaming-long-running";
+      agentName: string;
+      harness: string;
+      kindVariant: "a2a";
+      taskId: string;
+      thresholdMs: number;
+      resumptionAvailable: false;
     });
 
 type ForbiddenKey = "prompt" | "env" | "args" | "command" | "payload";

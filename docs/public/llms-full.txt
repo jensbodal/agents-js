@@ -800,10 +800,15 @@ happens when User A types `@bob-reviewer please look at this diff`:
    isn't there, the middleware calls `onUnknownAgent` and leaves the mention as
    plain text so the local agent can still try to answer.
 
-5. **It issues a blocking A2A `message/send`** to `http://bob.local:9300` with
-   `stream: false, blocking: true` (hardcoded in
-   `packages/a2a-client/src/middleware.ts`). Host A's turn pauses until Host
-   B responds. If the prompt mentions multiple agents (e.g. `@alice-coder` and
+5. **It issues an A2A request** to `http://bob.local:9300`. When Host B's card
+   advertises `capabilities.streaming`, the middleware uses `message/stream` so
+   Host A's audit/event surface sees Bob's intermediate lifecycle events. When
+   Host B does not advertise streaming, the middleware falls back to
+   `message/send` automatically. Host A's lane still waits for Bob's terminal
+   response before composing the local reply — streaming only unblocks the
+   intermediate-event surface, not the lane completion. Hosts can force
+   non-streaming by passing `stream: false` to `createA2AMentionMiddleware`.
+   If the prompt mentions multiple agents (e.g. `@alice-coder` and
    `@bob-reviewer`), all dispatches run in parallel via `Promise.allSettled`.
 
 6. **Host B's gateway receives the A2A request** and routes it through its own
@@ -853,7 +858,9 @@ involving the local model.
    available agents.
 
 4. **It dispatches the payload** (everything after `@@agent-name`) to the target
-   agent's URL via A2A `message/send` with `stream: false`.
+   agent's URL. The host-executor uses `message/stream` when the target advertises
+   streaming and `message/send` when it does not. Hosts can force non-streaming by
+   constructing `HostA2AExecutor` with `dispatchStream: false`.
 
 5. **The response is returned or displayed directly.** The gateway returns the target
    answer as the A2A task result, with metadata tagging it as a dispatch
@@ -872,8 +879,10 @@ local agent sees the delegation result and can reason about it.
 ### What Each User Sees
 
 - **User A** sees their own agent's final reply, which incorporates Bob's answer.
-  User A does not see Bob's intermediate thinking — only the final text is fetched,
-  because the middleware uses `stream: false`.
+  When Bob's agent advertises streaming, Host A's audit/event surface receives
+  Bob's intermediate lifecycle events — but only the terminal text is folded
+  into User A's local model context, because the delegation framing carries the
+  final response, not the live stream.
 - **User B** sees their agent answering what looks like a normal incoming A2A turn
   in their own host's UI. They don't need to know that a human on the other side
   is driving the request indirectly.
@@ -919,15 +928,27 @@ const middleware = createA2AMentionMiddleware({
 
 ### Known Limits
 
-- **Blocking dispatch.** User A's turn pauses while Bob's agent thinks. A slow
-  remote agent means a slow local conversation. The ACP host has a 1-hour prompt
-  timeout as a backstop. Hosts can surface intermediate "delegating to @agent"
+- **Caller's lane waits for the terminal response.** User A's turn pauses while
+  Bob's agent thinks, even with streaming enabled. Streaming only surfaces Bob's
+  intermediate lifecycle events to Host A's audit/event hooks — the local
+  `sendTurn` still resolves on Bob's terminal task/message. The ACP host has a
+  1-hour prompt timeout as a backstop. Hosts can surface "delegating to @agent"
   activity via the `onDispatchStart` / `onDispatchSuccess` / `onDispatchError`
-  lifecycle hooks (see above), but Bob's step-by-step reasoning is not streamed
-  to User A.
-- **Non-streaming.** The `stream: false` flag in the middleware is load-bearing.
-  User A does not see Bob's step-by-step reasoning, only the final text.
-  Streaming delegated reasoning is not part of the beta @mention contract.
+  lifecycle hooks (see above).
+- **Streaming-by-default for delegation.** Both the @mention middleware and the
+  host-executor A2A dispatch path use `message/stream` when the target
+  advertises `capabilities.streaming`, and fall back to `message/send`
+  automatically when it does not. Hosts can force non-streaming by passing
+  `stream: false` to `createA2AMentionMiddleware` (mention middleware) or
+  `dispatchStream: false` to `HostA2AExecutor` (host-executor dispatch).
+- **Long-running streaming delegations surface a warning.** When a streaming
+  delegation runs past the configured threshold (default 30s, override via the
+  `streamingLongWarnMs` / `dispatchStreamingLongWarnMs` options or the
+  `AJS_STREAMING_LONG_WARN_MS` env var), the audit emitter records a
+  `mention-dispatch-streaming-long-running` or
+  `dispatch-streaming-long-running` entry. The warning fires because the
+  run-resumption surface (AJS-93) has not shipped — long delegations have no
+  recovery path today.
 - **Per-contextId session lanes, single upstream agent.** `apps/internal-gateway`
   routes concurrent prompts by `contextId` into independent `SessionLane`s.
   Each lane has its own in-flight bookkeeping and can optionally own a dedicated ACP
@@ -2384,15 +2405,23 @@ layer, while the repo owns the gateway, client, and session semantics around it.
 
 A2A is also the wire protocol that powers cross-host `@mention` delegation in `agents-js`. When a
 user types `@other-agent` in a prompt, the host's `beforePrompt` middleware (from
-`@agents-js/a2a-client`) issues a blocking, non-streaming `message/send` to the remote agent and
-injects the reply into the user's turn. The middleware is hardcoded to `stream: false` — the user
-sees the delegated agent's final answer, not its intermediate thinking.
+`@agents-js/a2a-client`) issues an A2A request to the remote agent and injects the reply into the
+user's turn. The middleware honors the target's advertised capability: `message/stream` when the
+target's `AgentCard` advertises streaming, `message/send` otherwise. The user's lane still
+resolves on the terminal task/message — streaming only surfaces intermediate lifecycle events to
+the host's audit/event hooks. Hosts can force non-streaming by passing `stream: false` to
+`createA2AMentionMiddleware`.
 
-This is a deliberate choice at the mention-dispatch layer and is distinct from A2A's protocol-level
-streaming story above: `message/stream` remains available for direct clients of the gateway, but
-`createA2AMentionMiddleware` in `packages/a2a-client/src/middleware.ts` never takes that path. The
-dispatched answer is wrapped in an `<a2a-delegation-response>` block so the receiving LLM treats it
-as the authoritative reply from the mentioned agent.
+The dispatched terminal answer is wrapped in an `<a2a-delegation-response>` block so the
+receiving LLM treats it as the authoritative reply from the mentioned agent. The framed-response
+shape is unchanged by streaming-vs-non-streaming — only the path that surfaces intermediate
+events differs.
+
+When a streaming delegation exceeds the configured threshold (default 30s, override via the
+`streamingLongWarnMs` option or the `AJS_STREAMING_LONG_WARN_MS` env var) without completing, the
+middleware emits a `mention-dispatch-streaming-long-running` audit record. Run-resumption is not
+yet available (tracked under AJS-93), so the warning is the operator-visible signal that
+recovery requires caller-side retry today.
 
 See [Multi-agent patterns](/surfaces#multi-agent-patterns) for the end-to-end setup and
 [Agent registry](/surfaces#agent-registry) for the file format that hosts use to resolve mention targets.
@@ -3375,18 +3404,27 @@ What the middleware does:
 1. Detects `@name` tokens in the user's prompt via the parser in
    `packages/a2a-client/src/mention-parser.ts`.
 2. Resolves each unique name through the provided `registry`.
-3. Issues a blocking, non-streaming A2A `message/send` to each target (`stream: false,
-   blocking: true` — see `packages/a2a-client/src/middleware.ts`).
-4. Wraps each response in an `<a2a-delegation-response>` framing block and prepends it to the
-   user's original prompt content.
+3. Issues an A2A request to each target — `message/stream` when the target advertises
+   `capabilities.streaming`, `message/send` otherwise. Hosts can force non-streaming by
+   passing `stream: false` to `createA2AMentionMiddleware`. See
+   `packages/a2a-client/src/middleware.ts`.
+4. Wraps each terminal response in an `<a2a-delegation-response>` framing block and prepends it
+   to the user's original prompt content. Intermediate streamed events are surfaced through the
+   provider's normal event hooks; the framed response shape itself is unchanged.
 
 Sharp edges to know:
 
-- **Dispatch is blocking.** If a remote agent hangs, the user's local turn hangs with it until
-  the ACP host's prompt timeout backstops it. Consider adding your own `onDispatchError` fallback
-  UX.
-- **Non-streaming.** Your host's UI will not see the remote agent's intermediate thinking. Only
-  the final text is injected.
+- **The caller's lane waits for the terminal response.** Even with streaming, the user's local
+  turn does not return until the remote agent emits a terminal task/message — streaming only
+  unblocks the intermediate-event surface, not the lane's `sendTurn` completion. If a remote
+  agent hangs, the ACP host's prompt timeout backstops it. Consider adding your own
+  `onDispatchError` fallback UX.
+- **Long-running delegations surface a warning.** When a streaming delegation exceeds the
+  configured threshold (default 30s, override via the `streamingLongWarnMs` option or the
+  `AJS_STREAMING_LONG_WARN_MS` env var) without completing, the middleware emits a
+  `mention-dispatch-streaming-long-running` audit record. Run-resumption is tracked as AJS-93;
+  until it lands the warning is your operator-visible signal that recovery requires caller-side
+  retry.
 - **Registry is re-read on every resolve.** No caching. The shared registry does not need a
   restart when you edit `~/.agents-js/registry.json`.
 - **`@@dispatch` directives are skipped.** The middleware explicitly returns early when the prompt
@@ -3768,7 +3806,7 @@ Artifact-append parity remains intentionally outside that claim.
 | **A2A** (`message/send`, `message/stream`, `tasks/resubscribe`) | `POST /a2a` | **Per `contextId`** — disjoint `SessionLane` per context | One in-flight prompt per lane (per-lane mutex) | Yes (SSE on `message/stream` / `tasks/resubscribe`) | Each lane gets its own controller when a `controllerFactory` is configured; otherwise lanes share a primary controller. |
 | **AG-UI** (native transport) | `POST /agent` | **None today** — single shared `controller` | Single in-flight run for the gateway process | Yes (SSE: `RUN_STARTED` → events → `RUN_FINISHED` / `RUN_ERROR`) | No per-`threadId` lane separation. Concurrent AG-UI runs serialize on the shared host session. |
 | **Browser WS bridge** | `ws://…/ws` | Bridge-scoped session | Bridge-scoped | Yes (forwarded events) | Lifecycle is owned by the WS bridge; surface events ride a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event. |
-| **mention path** (delegated dispatch via mention middleware) | A2A submission containing a recognized mention token | N/A — middleware delegates outbound | Blocking until target completes | **No** — `stream: false, blocking: true` (`packages/a2a-client/src/middleware.ts:334-338`) | Synchronous handoff. Caller does not see incremental updates from the target. |
+| **mention path** (delegated dispatch via mention middleware) | A2A submission containing a recognized mention token | N/A — middleware delegates outbound | Caller's lane waits for target's terminal response | **Yes — by default** when the target advertises `capabilities.streaming` (AJS-92); falls back to `message/send` for non-streaming targets; hosts can force non-streaming with `createA2AMentionMiddleware({ stream: false })` | Streaming surfaces the target's intermediate lifecycle events to the caller's audit/event hooks. The framed `<a2a-delegation-response>` shape is unchanged — only the terminal text is folded into the local model context. |
 | **dispatch directive** (deterministic A2A routing) | A2A submission with a parsed dispatch directive | Routed to target executor; current lane is bypassed | Target-side concurrency | Yes — target's native streaming applies | `host-executor.ts:259-263` parses the directive before lane resolution; routing is deterministic, not blocking-by-default. |
 
 ## Path-by-path detail
@@ -3811,13 +3849,31 @@ flow through the bridge as namespaced `agents-js.a2ui.surface_event` `CUSTOM` ev
 (an explicit gap until the upstream A2UI spec standardizes the user → agent
 back-channel; tracked in `docs/streaming-and-events.md` deliberate-limits).
 
-### mention path — blocking, non-streaming
+### mention path — streaming-by-default, terminal-bound
 
 The mention middleware (`packages/a2a-client/src/middleware.ts`) intercepts mention
-tokens and delegates to the target via `provider.sendTurn(...)` with
-`stream: false, blocking: true`. The caller's turn does not return until the target
-completes. This is intentional — mention dispatch is currently treated as a synchronous
-handoff and has no streaming variant in the current release track.
+tokens and delegates to the target via `provider.sendTurn(...)`. Since AJS-92, the
+middleware honors the target's advertised capability: it issues `message/stream` when
+the target's `AgentCard` reports `capabilities.streaming`, and falls back to
+`message/send` automatically when it does not. Hosts can force non-streaming by
+passing `stream: false` to `createA2AMentionMiddleware`.
+
+The caller's lane still waits for the target's terminal task/message before composing
+the local reply — streaming only changes how the target's intermediate lifecycle
+events reach the caller's audit/event hooks. The `<a2a-delegation-response>` framing
+carries only the terminal answer; intermediate stream events are not folded into the
+local LLM context.
+
+When a streaming delegation runs past the configured threshold (default 30s, override
+via the `streamingLongWarnMs` option or the `AJS_STREAMING_LONG_WARN_MS` env var)
+without completing, the middleware emits a
+`mention-dispatch-streaming-long-running` audit record. This is the operator-visible
+signal that the delegation is taking a long time and that run-resumption (AJS-93) has
+not shipped yet, so recovery requires caller-side retry today.
+
+The host-executor A2A dispatch path (`packages/host/src/host-executor.ts`) mirrors
+this behavior for `@@dispatch` directives and emits the parallel
+`dispatch-streaming-long-running` audit record.
 
 ### dispatch directive — deterministic A2A routing
 
@@ -3833,7 +3889,7 @@ governed by the target executor — the gateway forwards what the target emits.
 | Same-context serialization | `lane.inFlightPrompt` | `host-executor.ts` `getOrCreateLane()` + `runPrompt()` |
 | Cross-context parallelism | Number of distinct `contextId`s | Lane map size; lane idle sweep evicts stale entries |
 | AG-UI parallelism | Single active run | `AguiRunCoordinator` rejects overlapping `/agent` runs with HTTP 409 before SSE opens |
-| Mention dispatch | Caller-blocking | `middleware.ts` `sendTurn(..., { stream: false, blocking: true })` |
+| Mention dispatch | Caller's lane waits for terminal; streaming surfaces intermediate events when target advertises it | `middleware.ts` `sendTurn(..., { stream?: options.stream })` — defaults to capability-driven streaming |
 | Cancellation | Task-level cancel + ACP session cancel; AG-UI disconnect calls controller cancel and emits a terminal run error | A2A executor + ACP host adapter + AG-UI run session |
 
 ## What this page does NOT cover
@@ -4740,6 +4796,7 @@ bun add @agents-js/a2a-client
 - **`DEFAULT_HEARTBEAT_INITIAL_BACKOFF_MS`** — Initial backoff after a failed `autoRegister` call.
 - **`DEFAULT_HEARTBEAT_INTERVAL_MS`** — Default heartbeat cadence — 60 seconds, matches the AJS-87 spec.
 - **`DEFAULT_HEARTBEAT_MAX_BACKOFF_MS`** — Backoff cap — never wait longer than this between retries.
+- **`DEFAULT_STREAMING_LONG_WARN_MS`** — Default threshold (ms) before a long-running streaming delegation emits a `mention-dispatch-streaming-long-running` audit warning. Configurable via the `streamingLongWarnMs` option or the `AJS_STRE...
 
 ### Exports
 
@@ -6159,6 +6216,7 @@ bun add @agents-js/host
 - **`BASELINE_AGENT_SECRET_ENV_KEYS`** — Baseline secret keys forwarded to every ACP runtime regardless of harness. **Empty by design.** Earlier revisions forwarded `ANTHROPIC_API_KEY` and `MATRIX_ACCESS_TOKEN` to every runtime as a conve...
 - **`createAuditEmitter`**
 - **`CURATED_RUNTIME_IDS`**
+- **`DEFAULT_DISPATCH_STREAMING_LONG_WARN_MS`** — Default threshold (ms) before a long-running streaming `@` fires a `dispatch-streaming-long-running` audit warning. Mirrors the middleware default. Configurable via `dispatchStreamingLongWarnMs` or...
 - **`DEFAULT_GITEA_EVENT_TYPES`** — Default event-type allowlist per AJS-59 v1 design fold (matrix event `$ifDfwkeFHpbiSHTPGr2ZFD79050wy_WsIRhQytVaiEs`): `pull_request`, `push`, `release`, `check_run`. Other event types (issue_commen...
 - **`DEFAULT_TARGET_TIMEOUT_MS`** — Default per-target timeout for multi-target fan-out (30s).
 - **`E2E_RUNTIME_PROFILE_CONFIG_HOME_ENV`**

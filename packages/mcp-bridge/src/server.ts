@@ -158,6 +158,17 @@ export async function createBridgeServer(
       description,
       inputSchema,
       async ({ message }: { message: string }) => {
+        // Principled keep (AJS-92): MCP `tools/call` is request/response
+        // by spec — the protocol has no streaming response shape for
+        // tool results. The bridge MUST collect the terminal text into a
+        // single `content: [{ type: "text" }]` payload before returning.
+        // Unlike the @mention middleware and host-executor A2A dispatch
+        // (which were flipped to streaming-by-default in AJS-92), this
+        // site intentionally keeps `stream: false, blocking: true`: any
+        // intermediate stream would be discarded, and the blocking flag
+        // ensures non-streaming servers return the terminal result
+        // in-band rather than asking us to poll. Do not flip without a
+        // matching change to the MCP tool-response spec.
         const result = await provider.sendTurn(agent.target, message, {
           contextId: agent.contextId,
           stream: false,

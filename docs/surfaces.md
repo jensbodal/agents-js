@@ -400,10 +400,15 @@ happens when User A types `@bob-reviewer please look at this diff`:
    isn't there, the middleware calls `onUnknownAgent` and leaves the mention as
    plain text so the local agent can still try to answer.
 
-5. **It issues a blocking A2A `message/send`** to `http://bob.local:9300` with
-   `stream: false, blocking: true` (hardcoded in
-   `packages/a2a-client/src/middleware.ts`). Host A's turn pauses until Host
-   B responds. If the prompt mentions multiple agents (e.g. `@alice-coder` and
+5. **It issues an A2A request** to `http://bob.local:9300`. When Host B's card
+   advertises `capabilities.streaming`, the middleware uses `message/stream` so
+   Host A's audit/event surface sees Bob's intermediate lifecycle events. When
+   Host B does not advertise streaming, the middleware falls back to
+   `message/send` automatically. Host A's lane still waits for Bob's terminal
+   response before composing the local reply — streaming only unblocks the
+   intermediate-event surface, not the lane completion. Hosts can force
+   non-streaming by passing `stream: false` to `createA2AMentionMiddleware`.
+   If the prompt mentions multiple agents (e.g. `@alice-coder` and
    `@bob-reviewer`), all dispatches run in parallel via `Promise.allSettled`.
 
 6. **Host B's gateway receives the A2A request** and routes it through its own
@@ -453,7 +458,9 @@ involving the local model.
    available agents.
 
 4. **It dispatches the payload** (everything after `@@agent-name`) to the target
-   agent's URL via A2A `message/send` with `stream: false`.
+   agent's URL. The host-executor uses `message/stream` when the target advertises
+   streaming and `message/send` when it does not. Hosts can force non-streaming by
+   constructing `HostA2AExecutor` with `dispatchStream: false`.
 
 5. **The response is returned or displayed directly.** The gateway returns the target
    answer as the A2A task result, with metadata tagging it as a dispatch
@@ -472,8 +479,10 @@ local agent sees the delegation result and can reason about it.
 ### What Each User Sees
 
 - **User A** sees their own agent's final reply, which incorporates Bob's answer.
-  User A does not see Bob's intermediate thinking — only the final text is fetched,
-  because the middleware uses `stream: false`.
+  When Bob's agent advertises streaming, Host A's audit/event surface receives
+  Bob's intermediate lifecycle events — but only the terminal text is folded
+  into User A's local model context, because the delegation framing carries the
+  final response, not the live stream.
 - **User B** sees their agent answering what looks like a normal incoming A2A turn
   in their own host's UI. They don't need to know that a human on the other side
   is driving the request indirectly.
@@ -519,15 +528,27 @@ const middleware = createA2AMentionMiddleware({
 
 ### Known Limits
 
-- **Blocking dispatch.** User A's turn pauses while Bob's agent thinks. A slow
-  remote agent means a slow local conversation. The ACP host has a 1-hour prompt
-  timeout as a backstop. Hosts can surface intermediate "delegating to @agent"
+- **Caller's lane waits for the terminal response.** User A's turn pauses while
+  Bob's agent thinks, even with streaming enabled. Streaming only surfaces Bob's
+  intermediate lifecycle events to Host A's audit/event hooks — the local
+  `sendTurn` still resolves on Bob's terminal task/message. The ACP host has a
+  1-hour prompt timeout as a backstop. Hosts can surface "delegating to @agent"
   activity via the `onDispatchStart` / `onDispatchSuccess` / `onDispatchError`
-  lifecycle hooks (see above), but Bob's step-by-step reasoning is not streamed
-  to User A.
-- **Non-streaming.** The `stream: false` flag in the middleware is load-bearing.
-  User A does not see Bob's step-by-step reasoning, only the final text.
-  Streaming delegated reasoning is not part of the beta @mention contract.
+  lifecycle hooks (see above).
+- **Streaming-by-default for delegation.** Both the @mention middleware and the
+  host-executor A2A dispatch path use `message/stream` when the target
+  advertises `capabilities.streaming`, and fall back to `message/send`
+  automatically when it does not. Hosts can force non-streaming by passing
+  `stream: false` to `createA2AMentionMiddleware` (mention middleware) or
+  `dispatchStream: false` to `HostA2AExecutor` (host-executor dispatch).
+- **Long-running streaming delegations surface a warning.** When a streaming
+  delegation runs past the configured threshold (default 30s, override via the
+  `streamingLongWarnMs` / `dispatchStreamingLongWarnMs` options or the
+  `AJS_STREAMING_LONG_WARN_MS` env var), the audit emitter records a
+  `mention-dispatch-streaming-long-running` or
+  `dispatch-streaming-long-running` entry. The warning fires because the
+  run-resumption surface (AJS-93) has not shipped — long delegations have no
+  recovery path today.
 - **Per-contextId session lanes, single upstream agent.** `apps/internal-gateway`
   routes concurrent prompts by `contextId` into independent `SessionLane`s.
   Each lane has its own in-flight bookkeeping and can optionally own a dedicated ACP

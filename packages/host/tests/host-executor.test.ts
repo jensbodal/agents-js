@@ -1042,3 +1042,214 @@ describe("@@dispatch", () => {
   // former "not yet routable" unit test was removed as its assertion (stub
   // error text) no longer describes the behavior under test.
 });
+
+/**
+ * AJS-92: host-executor A2A dispatch streams by default when the target
+ * advertises `capabilities.streaming`. Mirrors the @mention middleware
+ * change in `packages/a2a-client/src/middleware.ts`.
+ */
+describe("@@dispatch streaming-by-default (AJS-92)", () => {
+  function createInstrumentedDispatchTransport(opts: {
+    supportsStreaming: boolean;
+    streamItems?: Task[];
+    streamYieldDelayMs?: number;
+    messageResponseText?: string;
+  }) {
+    const calls: string[] = [];
+    const transport: A2ATransport = {
+      async resolveTarget(input) {
+        const target: ResolvedAgentTarget = {
+          baseUrl: input.url,
+          cardUrl: `${input.url}/.well-known/agent.json`,
+          card: {
+            name: "mock-agent",
+            description: "mock",
+            url: input.url,
+            version: "1.0.0",
+            protocolVersion: "0.3.0",
+            skills: [],
+            defaultInputModes: ["text"],
+            defaultOutputModes: ["text"],
+            capabilities: opts.supportsStreaming ? { streaming: true } : {},
+          },
+          protocolVersion: "0.3.0",
+          capabilities: {
+            inputModes: ["text"],
+            outputModes: ["text"],
+            supportsTextInput: true,
+            supportsTextOutput: true,
+            supportsStreaming: opts.supportsStreaming,
+            supportsPushNotifications: false,
+            raw: opts.supportsStreaming ? { streaming: true } : {},
+          },
+        };
+        return target;
+      },
+      async inspectTarget() {
+        return { status: "ready" };
+      },
+      async sendMessage(): Promise<Message> {
+        calls.push("sendMessage");
+        return {
+          kind: "message",
+          messageId: crypto.randomUUID(),
+          role: "agent",
+          parts: [{ kind: "text", text: opts.messageResponseText ?? "non-streaming" }],
+        } as Message;
+      },
+      async *sendMessageStream() {
+        calls.push("sendMessageStream");
+        for (const item of opts.streamItems ?? []) {
+          if (opts.streamYieldDelayMs && opts.streamYieldDelayMs > 0) {
+            await new Promise((r) => setTimeout(r, opts.streamYieldDelayMs));
+          }
+          yield item;
+        }
+      },
+      async getTask() {
+        throw new Error("Not implemented");
+      },
+      async cancelTask() {
+        throw new Error("Not implemented");
+      },
+      resubscribeTask() {
+        throw new Error("Not implemented");
+      },
+      async setTaskPushNotificationConfig() {
+        throw new Error("Not implemented");
+      },
+      async getTaskPushNotificationConfig() {
+        throw new Error("Not implemented");
+      },
+      async listTaskPushNotificationConfigs() {
+        throw new Error("Not implemented");
+      },
+      async deleteTaskPushNotificationConfig() {},
+      async getExtendedAgentCard() {
+        throw new Error("Not implemented");
+      },
+      async probe() {
+        return [];
+      },
+      subscribeDebug() {
+        return () => {};
+      },
+    } as A2ATransport;
+    return { transport, calls };
+  }
+
+  function streamingTaskItems(text: string): Task[] {
+    return [
+      {
+        kind: "task",
+        id: "task-1",
+        contextId: "ctx-1",
+        status: { state: "working" },
+        history: [],
+      },
+      {
+        kind: "task",
+        id: "task-1",
+        contextId: "ctx-1",
+        status: { state: "completed" },
+        history: [
+          {
+            kind: "message",
+            messageId: "msg-1",
+            role: "agent",
+            parts: [{ kind: "text", text }],
+          },
+        ],
+      },
+    ] as Task[];
+  }
+
+  test("uses streaming dispatch when the target advertises streaming", async () => {
+    const { transport, calls } = createInstrumentedDispatchTransport({
+      supportsStreaming: true,
+      streamItems: streamingTaskItems("streamed terminal reply"),
+    });
+    const executor = new HostA2AExecutor(createStubController() as never, {
+      dispatchRegistry: { agent: { kind: "a2a", name: "agent", url: "http://localhost:3000" } },
+      dispatchTransport: transport,
+    });
+    const bus = createEventBus();
+
+    await executor.execute(createRequestContext("@@agent hello"), bus.eventBus);
+
+    expect(bus.finished).toBe(true);
+    expect(calls).toEqual(["sendMessageStream"]);
+    expect(getCompletedTaskText(bus.published)).toBe("streamed terminal reply");
+  });
+
+  test("falls back to non-streaming dispatch when the target lacks streaming", async () => {
+    const { transport, calls } = createInstrumentedDispatchTransport({
+      supportsStreaming: false,
+      messageResponseText: "non-streaming reply",
+    });
+    const executor = new HostA2AExecutor(createStubController() as never, {
+      dispatchRegistry: { agent: { kind: "a2a", name: "agent", url: "http://localhost:3000" } },
+      dispatchTransport: transport,
+    });
+    const bus = createEventBus();
+
+    await executor.execute(createRequestContext("@@agent hello"), bus.eventBus);
+
+    expect(bus.finished).toBe(true);
+    expect(calls).toEqual(["sendMessage"]);
+    expect(getCompletedTaskText(bus.published)).toBe("non-streaming reply");
+  });
+
+  test("explicit dispatchStream: false forces non-streaming even when target advertises streaming", async () => {
+    const { transport, calls } = createInstrumentedDispatchTransport({
+      supportsStreaming: true,
+      // Intentionally empty stream items: if streaming silently leaked in,
+      // the empty stream would fail the dispatch.
+      streamItems: [],
+      messageResponseText: "forced non-streaming",
+    });
+    const executor = new HostA2AExecutor(createStubController() as never, {
+      dispatchRegistry: { agent: { kind: "a2a", name: "agent", url: "http://localhost:3000" } },
+      dispatchTransport: transport,
+      dispatchStream: false,
+    });
+    const bus = createEventBus();
+
+    await executor.execute(createRequestContext("@@agent hello"), bus.eventBus);
+
+    expect(bus.finished).toBe(true);
+    expect(calls).toEqual(["sendMessage"]);
+    expect(getCompletedTaskText(bus.published)).toBe("forced non-streaming");
+  });
+
+  test("emits dispatch-streaming-long-running audit warning when a streaming dispatch exceeds threshold", async () => {
+    const { createAuditEmitter } = await import("@agents-js/a2a/audit");
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const { transport } = createInstrumentedDispatchTransport({
+      supportsStreaming: true,
+      streamItems: streamingTaskItems("eventual reply"),
+      streamYieldDelayMs: 60,
+    });
+    const executor = new HostA2AExecutor(createStubController() as never, {
+      dispatchRegistry: { slow: { kind: "a2a", name: "slow", url: "http://localhost:3000" } },
+      dispatchTransport: transport,
+      dispatchStreamingLongWarnMs: 30,
+      audit,
+    });
+    const bus = createEventBus();
+
+    await executor.execute(createRequestContext("@@slow please"), bus.eventBus);
+
+    expect(bus.finished).toBe(true);
+    const warned = audit.recent().filter((e) => e.kind === "dispatch-streaming-long-running");
+    expect(warned.length).toBe(1);
+    const event = warned[0] as Extract<
+      ReturnType<typeof audit.recent>[number],
+      { kind: "dispatch-streaming-long-running" }
+    >;
+    expect(event.thresholdMs).toBe(30);
+    expect(event.resumptionAvailable).toBe(false);
+    expect(event.harness).toBe("a2a");
+    expect(event.kindVariant).toBe("a2a");
+  });
+});

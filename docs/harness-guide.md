@@ -270,18 +270,27 @@ What the middleware does:
 1. Detects `@name` tokens in the user's prompt via the parser in
    `packages/a2a-client/src/mention-parser.ts`.
 2. Resolves each unique name through the provided `registry`.
-3. Issues a blocking, non-streaming A2A `message/send` to each target (`stream: false,
-   blocking: true` — see `packages/a2a-client/src/middleware.ts`).
-4. Wraps each response in an `<a2a-delegation-response>` framing block and prepends it to the
-   user's original prompt content.
+3. Issues an A2A request to each target — `message/stream` when the target advertises
+   `capabilities.streaming`, `message/send` otherwise. Hosts can force non-streaming by
+   passing `stream: false` to `createA2AMentionMiddleware`. See
+   `packages/a2a-client/src/middleware.ts`.
+4. Wraps each terminal response in an `<a2a-delegation-response>` framing block and prepends it
+   to the user's original prompt content. Intermediate streamed events are surfaced through the
+   provider's normal event hooks; the framed response shape itself is unchanged.
 
 Sharp edges to know:
 
-- **Dispatch is blocking.** If a remote agent hangs, the user's local turn hangs with it until
-  the ACP host's prompt timeout backstops it. Consider adding your own `onDispatchError` fallback
-  UX.
-- **Non-streaming.** Your host's UI will not see the remote agent's intermediate thinking. Only
-  the final text is injected.
+- **The caller's lane waits for the terminal response.** Even with streaming, the user's local
+  turn does not return until the remote agent emits a terminal task/message — streaming only
+  unblocks the intermediate-event surface, not the lane's `sendTurn` completion. If a remote
+  agent hangs, the ACP host's prompt timeout backstops it. Consider adding your own
+  `onDispatchError` fallback UX.
+- **Long-running delegations surface a warning.** When a streaming delegation exceeds the
+  configured threshold (default 30s, override via the `streamingLongWarnMs` option or the
+  `AJS_STREAMING_LONG_WARN_MS` env var) without completing, the middleware emits a
+  `mention-dispatch-streaming-long-running` audit record. Run-resumption is tracked as AJS-93;
+  until it lands the warning is your operator-visible signal that recovery requires caller-side
+  retry.
 - **Registry is re-read on every resolve.** No caching. The shared registry does not need a
   restart when you edit `~/.agents-js/registry.json`.
 - **`@@dispatch` directives are skipped.** The middleware explicitly returns early when the prompt

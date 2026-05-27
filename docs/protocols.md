@@ -538,15 +538,23 @@ layer, while the repo owns the gateway, client, and session semantics around it.
 
 A2A is also the wire protocol that powers cross-host `@mention` delegation in `agents-js`. When a
 user types `@other-agent` in a prompt, the host's `beforePrompt` middleware (from
-`@agents-js/a2a-client`) issues a blocking, non-streaming `message/send` to the remote agent and
-injects the reply into the user's turn. The middleware is hardcoded to `stream: false` — the user
-sees the delegated agent's final answer, not its intermediate thinking.
+`@agents-js/a2a-client`) issues an A2A request to the remote agent and injects the reply into the
+user's turn. The middleware honors the target's advertised capability: `message/stream` when the
+target's `AgentCard` advertises streaming, `message/send` otherwise. The user's lane still
+resolves on the terminal task/message — streaming only surfaces intermediate lifecycle events to
+the host's audit/event hooks. Hosts can force non-streaming by passing `stream: false` to
+`createA2AMentionMiddleware`.
 
-This is a deliberate choice at the mention-dispatch layer and is distinct from A2A's protocol-level
-streaming story above: `message/stream` remains available for direct clients of the gateway, but
-`createA2AMentionMiddleware` in `packages/a2a-client/src/middleware.ts` never takes that path. The
-dispatched answer is wrapped in an `<a2a-delegation-response>` block so the receiving LLM treats it
-as the authoritative reply from the mentioned agent.
+The dispatched terminal answer is wrapped in an `<a2a-delegation-response>` block so the
+receiving LLM treats it as the authoritative reply from the mentioned agent. The framed-response
+shape is unchanged by streaming-vs-non-streaming — only the path that surfaces intermediate
+events differs.
+
+When a streaming delegation exceeds the configured threshold (default 30s, override via the
+`streamingLongWarnMs` option or the `AJS_STREAMING_LONG_WARN_MS` env var) without completing, the
+middleware emits a `mention-dispatch-streaming-long-running` audit record. Run-resumption is not
+yet available (tracked under AJS-93), so the warning is the operator-visible signal that
+recovery requires caller-side retry today.
 
 See [Multi-agent patterns](/surfaces#multi-agent-patterns) for the end-to-end setup and
 [Agent registry](/surfaces#agent-registry) for the file format that hosts use to resolve mention targets.

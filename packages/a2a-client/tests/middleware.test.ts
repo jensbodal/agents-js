@@ -1,9 +1,20 @@
 import { describe, expect, test } from "bun:test";
+import type { Task } from "@a2a-js/sdk";
 import type { ContentBlock } from "@agentclientprotocol/sdk";
 import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "../src/middleware.ts";
-import type { AgentTargetInput } from "../src/types.ts";
-import { createMockTarget, createMockTransport } from "./mock-a2a-transport.ts";
+import type {
+  A2ATransport,
+  AgentTargetInput,
+  ResolvedAgentTarget,
+  TargetInspection,
+} from "../src/types.ts";
+import {
+  createMockTarget,
+  createMockTransport,
+  createStreamingMockTransport,
+  type StreamItem,
+} from "./mock-a2a-transport.ts";
 
 interface AnnotatedTextBlock {
   type: "text";
@@ -544,3 +555,345 @@ describe("createA2AMentionMiddleware", () => {
     expect(result).toBeUndefined();
   });
 });
+
+/**
+ * Build an instrumented streaming/non-streaming hybrid transport that
+ * records which endpoint was called (`sendMessage` vs `sendMessageStream`)
+ * and timestamps every stream yield. Used by AJS-92 streaming-default tests
+ * to assert path selection AND intermediate-event ordering.
+ */
+interface InstrumentedTransport {
+  transport: A2ATransport;
+  calls: string[];
+  yieldsSeq: number[];
+  resolveSeq: { value: number };
+}
+
+function createInstrumentedTransport(opts: {
+  supportsStreaming: boolean;
+  streamItems?: StreamItem[];
+  streamYieldDelayMs?: number;
+  messageResponseText?: string;
+}): InstrumentedTransport {
+  const calls: string[] = [];
+  const yieldsSeq: number[] = [];
+  const resolveSeq = { value: -1 };
+  let seq = 0;
+  const nextSeq = () => ++seq;
+  const streamItems = opts.streamItems ?? [];
+
+  const transport: A2ATransport = {
+    async resolveTarget(input: AgentTargetInput): Promise<ResolvedAgentTarget> {
+      const target = createMockTarget(input.url);
+      target.capabilities.supportsStreaming = opts.supportsStreaming;
+      if (opts.supportsStreaming) {
+        target.capabilities.raw = { streaming: true };
+        target.card.capabilities = { streaming: true };
+      }
+      return target;
+    },
+    async inspectTarget(_input: AgentTargetInput): Promise<TargetInspection> {
+      return { status: "ready" };
+    },
+    async sendMessage() {
+      calls.push("sendMessage");
+      return {
+        kind: "message",
+        messageId: crypto.randomUUID(),
+        role: "agent",
+        parts: [{ kind: "text", text: opts.messageResponseText ?? "non-streaming reply" }],
+      };
+    },
+    async *sendMessageStream(): AsyncGenerator<StreamItem> {
+      calls.push("sendMessageStream");
+      for (const item of streamItems) {
+        if (opts.streamYieldDelayMs && opts.streamYieldDelayMs > 0) {
+          await new Promise((r) => setTimeout(r, opts.streamYieldDelayMs));
+        }
+        yieldsSeq.push(nextSeq());
+        yield item;
+      }
+    },
+    async getTask() {
+      throw new Error("Not implemented");
+    },
+    async cancelTask() {
+      throw new Error("Not implemented");
+    },
+    resubscribeTask() {
+      throw new Error("Not implemented");
+    },
+    async setTaskPushNotificationConfig() {
+      throw new Error("Not implemented");
+    },
+    async getTaskPushNotificationConfig() {
+      throw new Error("Not implemented");
+    },
+    async listTaskPushNotificationConfigs() {
+      throw new Error("Not implemented");
+    },
+    async deleteTaskPushNotificationConfig() {},
+    async getExtendedAgentCard() {
+      throw new Error("Not implemented");
+    },
+    async probe() {
+      return [];
+    },
+    subscribeDebug() {
+      return () => {};
+    },
+  };
+
+  // Mark resolveSeq when sendTurn resolves: callers stamp via
+  // `() => (resolveSeq.value = nextSeq())` after their awaited dispatch.
+  // We expose nextSeq through a hidden property for the test scaffold.
+  (transport as unknown as { __nextSeq: () => number }).__nextSeq = nextSeq;
+
+  return { transport, calls, yieldsSeq, resolveSeq };
+}
+
+function buildStreamingTaskItems(text: string): StreamItem[] {
+  // Two intermediate status events + one terminal task. The provider's
+  // streaming loop accumulates these and resolves on the terminal task.
+  return [
+    {
+      kind: "task",
+      id: "task-1",
+      contextId: "ctx-1",
+      status: { state: "working" },
+      history: [],
+    } satisfies Task,
+    {
+      kind: "status-update",
+      taskId: "task-1",
+      contextId: "ctx-1",
+      status: { state: "working" },
+      final: false,
+    } as StreamItem,
+    {
+      kind: "task",
+      id: "task-1",
+      contextId: "ctx-1",
+      status: { state: "completed" },
+      history: [
+        {
+          kind: "message",
+          messageId: "msg-1",
+          role: "agent",
+          parts: [{ kind: "text", text }],
+        },
+      ],
+    } satisfies Task,
+  ];
+}
+
+describe("createA2AMentionMiddleware — streaming-by-default (AJS-92)", () => {
+  test("uses streaming path when target advertises capabilities.streaming", async () => {
+    const { transport, calls } = createInstrumentedTransport({
+      supportsStreaming: true,
+      streamItems: buildStreamingTaskItems("streamed reply"),
+    });
+
+    const middleware = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport,
+    });
+
+    const result = await middleware([textBlock("@hello please respond")], "session-1");
+
+    expect(result).toBeDefined();
+    expect(calls).toEqual(["sendMessageStream"]);
+    const responseBlock = result?.[0] as AnnotatedTextBlock;
+    expect(responseBlock.text).toContain("streamed reply");
+  });
+
+  test("falls back to non-streaming when target lacks streaming capability", async () => {
+    const { transport, calls } = createInstrumentedTransport({
+      supportsStreaming: false,
+      messageResponseText: "non-streaming reply",
+    });
+
+    const middleware = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport,
+    });
+
+    const result = await middleware([textBlock("@hello please respond")], "session-1");
+
+    expect(result).toBeDefined();
+    expect(calls).toEqual(["sendMessage"]);
+    const responseBlock = result?.[0] as AnnotatedTextBlock;
+    expect(responseBlock.text).toContain("non-streaming reply");
+  });
+
+  test("explicit caller opt-out (stream: false) forces non-streaming even against streaming targets", async () => {
+    const { transport, calls } = createInstrumentedTransport({
+      supportsStreaming: true,
+      messageResponseText: "forced non-streaming",
+      // streamItems left empty: if streaming silently kicks in, the stream
+      // is empty and the dispatch fails — additional protection.
+      streamItems: [],
+    });
+
+    const middleware = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport,
+      stream: false,
+    });
+
+    const result = await middleware([textBlock("@hello please respond")], "session-1");
+
+    expect(result).toBeDefined();
+    expect(calls).toEqual(["sendMessage"]);
+    const responseBlock = result?.[0] as AnnotatedTextBlock;
+    expect(responseBlock.text).toContain("forced non-streaming");
+  });
+
+  test("intermediate stream events arrive at the transport BEFORE the middleware's dispatch resolves (canary against silent fallback)", async () => {
+    // Order-property assertion: every stream yield must be sequenced
+    // strictly before the dispatch resolution. Even if streaming silently
+    // fell back to blocking (e.g. someone re-introduced `stream: false`),
+    // sendMessageStream would never be called and yieldsSeq.length would
+    // be 0 — failing the >1 assertion.
+    const { transport, calls, yieldsSeq } = createInstrumentedTransport({
+      supportsStreaming: true,
+      streamItems: buildStreamingTaskItems("intermediate then terminal"),
+      // Tiny per-yield delay so the test scheduler interleaves predictably.
+      streamYieldDelayMs: 5,
+    });
+    const nextSeq = (transport as unknown as { __nextSeq: () => number }).__nextSeq;
+
+    const middleware = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport,
+    });
+
+    const result = await middleware([textBlock("@hello stream please")], "session-1");
+    const resolveSeq = nextSeq();
+
+    expect(result).toBeDefined();
+    expect(calls).toEqual(["sendMessageStream"]);
+    // Two intermediate events + one terminal must have yielded before the
+    // dispatch resolved.
+    expect(yieldsSeq.length).toBeGreaterThan(1);
+    for (const seq of yieldsSeq) {
+      expect(seq).toBeLessThan(resolveSeq);
+    }
+  });
+
+  test("regression: streamed delegation produces the same <a2a-delegation-response> framing as non-streaming (terminal-shape stable)", async () => {
+    const streaming = createInstrumentedTransport({
+      supportsStreaming: true,
+      streamItems: buildStreamingTaskItems("identical body"),
+    });
+    const blocking = createInstrumentedTransport({
+      supportsStreaming: false,
+      messageResponseText: "identical body",
+    });
+
+    const streamingMw = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport: streaming.transport,
+    });
+    const blockingMw = createA2AMentionMiddleware({
+      agents: { hello: { url: "http://localhost:3100" } },
+      transport: blocking.transport,
+    });
+
+    const a = await streamingMw([textBlock("@hello hi")], "session-1");
+    const b = await blockingMw([textBlock("@hello hi")], "session-1");
+
+    const aBlock = a?.[0] as AnnotatedTextBlock;
+    const bBlock = b?.[0] as AnnotatedTextBlock;
+    expect(aBlock.text).toContain("<a2a-delegation-response>");
+    expect(bBlock.text).toContain("<a2a-delegation-response>");
+    // Identical body, identical framing — only the path differs.
+    expect(aBlock.text).toBe(bBlock.text);
+    expect(aBlock.annotations._meta.source).toBe("a2a-delegation");
+    expect(bBlock.annotations._meta.source).toBe("a2a-delegation");
+  });
+
+  test("emits mention-dispatch-streaming-long-running audit warning when streaming dispatch exceeds threshold", async () => {
+    const { transport } = createInstrumentedTransport({
+      supportsStreaming: true,
+      // Two delayed yields so the stream remains in-flight past the
+      // configured warn threshold.
+      streamYieldDelayMs: 60,
+      streamItems: buildStreamingTaskItems("eventual reply"),
+    });
+
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const middleware = createA2AMentionMiddleware({
+      agents: { slowpoke: { url: "http://localhost:3100" } },
+      transport,
+      audit,
+      // 30ms threshold; the 60ms-per-yield stream is guaranteed to cross it.
+      streamingLongWarnMs: 30,
+    });
+
+    const result = await middleware([textBlock("@slowpoke please respond")], "session-1");
+
+    expect(result).toBeDefined();
+    const warned = audit
+      .recent()
+      .filter((e) => e.kind === "mention-dispatch-streaming-long-running");
+    expect(warned.length).toBe(1);
+    const event = warned[0] as Extract<
+      ReturnType<typeof audit.recent>[number],
+      { kind: "mention-dispatch-streaming-long-running" }
+    >;
+    expect(event.thresholdMs).toBe(30);
+    expect(event.resumptionAvailable).toBe(false);
+    expect(event.agentName).toBe("slowpoke");
+  });
+
+  test("does NOT emit streaming-long-running warning when the dispatch completes under threshold", async () => {
+    const { transport } = createInstrumentedTransport({
+      supportsStreaming: true,
+      streamItems: buildStreamingTaskItems("fast reply"),
+    });
+
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const middleware = createA2AMentionMiddleware({
+      agents: { fast: { url: "http://localhost:3100" } },
+      transport,
+      audit,
+      streamingLongWarnMs: 5_000,
+    });
+
+    await middleware([textBlock("@fast please respond")], "session-1");
+
+    const warned = audit
+      .recent()
+      .filter((e) => e.kind === "mention-dispatch-streaming-long-running");
+    expect(warned.length).toBe(0);
+  });
+
+  test("does NOT emit streaming-long-running warning when the target lacks streaming (warning is streaming-only)", async () => {
+    const { transport } = createInstrumentedTransport({
+      supportsStreaming: false,
+      messageResponseText: "non-streaming",
+    });
+
+    const audit = createAuditEmitter({ logger: { log: () => {} } });
+    const middleware = createA2AMentionMiddleware({
+      agents: { plain: { url: "http://localhost:3100" } },
+      transport,
+      audit,
+      streamingLongWarnMs: 1, // even with a 1ms threshold, non-streaming path doesn't arm
+    });
+
+    // Wait a tick so the timer would have a chance to fire if it were armed.
+    await middleware([textBlock("@plain please respond")], "session-1");
+    await new Promise((r) => setTimeout(r, 25));
+
+    const warned = audit
+      .recent()
+      .filter((e) => e.kind === "mention-dispatch-streaming-long-running");
+    expect(warned.length).toBe(0);
+  });
+});
+
+// `createStreamingMockTransport` is used elsewhere in the suite; importing
+// here keeps the linter from flagging the unused mock-a2a-transport export.
+void createStreamingMockTransport;

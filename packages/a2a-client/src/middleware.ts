@@ -41,12 +41,65 @@ export interface A2AMentionDispatchSuccess extends A2AMentionDispatchOptions {
   result: A2ASendResult;
 }
 
+/**
+ * Default threshold (ms) before a long-running streaming delegation
+ * emits a `mention-dispatch-streaming-long-running` audit warning.
+ * Configurable via the `streamingLongWarnMs` option or the
+ * `AJS_STREAMING_LONG_WARN_MS` env var. Default is 30s.
+ *
+ * The warning signals that the run-resumption surface contract
+ * (AJS-93) is open — a long-running streaming delegation has no
+ * recovery path if the caller disconnects, so operators need a
+ * visible signal.
+ */
+export const DEFAULT_STREAMING_LONG_WARN_MS = 30_000;
+
+function resolveStreamingLongWarnMs(optionValue: number | undefined): number {
+  if (typeof optionValue === "number" && Number.isFinite(optionValue) && optionValue > 0) {
+    return optionValue;
+  }
+  // biome-ignore lint/style/noProcessEnv: AJS-92 warning threshold is a deploy-time override read on middleware construction.
+  const envRaw = process.env.AJS_STREAMING_LONG_WARN_MS;
+  if (envRaw) {
+    const parsed = Number(envRaw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_STREAMING_LONG_WARN_MS;
+}
+
 export interface CreateA2AMentionMiddlewareOptions {
   agents?: AgentMentionMap;
   registry?: AgentMentionRegistry;
   resolveAgent?: AgentMentionResolver;
   transport?: A2ATransport;
   getPromptText?: (content: ContentBlock[]) => string;
+  /**
+   * Caller intent for streaming the @mention delegation.
+   *
+   * Default (undefined): the provider chooses based on
+   * `target.capabilities.supportsStreaming`. Streaming-capable targets
+   * receive `message/stream`; non-streaming targets fall back to
+   * `message/send` automatically.
+   *
+   * Pass `false` to explicitly opt out of streaming even when the
+   * target advertises it (test shaping, hosts that want to serialize
+   * the user's turn against the remote reply).
+   *
+   * Pass `true` to make caller intent explicit; behaves the same as
+   * `undefined` against streaming-capable targets and falls back to
+   * non-streaming when the target lacks the capability.
+   */
+  stream?: boolean;
+  /**
+   * Threshold (ms) before an in-flight streaming delegation emits a
+   * `mention-dispatch-streaming-long-running` audit warning. Defaults to
+   * {@link DEFAULT_STREAMING_LONG_WARN_MS}. When unset, the env var
+   * `AJS_STREAMING_LONG_WARN_MS` is consulted; otherwise the default
+   * applies. The option takes precedence over the env var.
+   */
+  streamingLongWarnMs?: number;
   /**
    * Return `false` to block delegation for a specific mention.
    * Returning `true` or `undefined` allows dispatch to continue.
@@ -258,6 +311,7 @@ export function createA2AMentionMiddleware(
   const provider = new A2AClientProvider(options.transport);
   const getPromptText = options.getPromptText ?? defaultGetPromptText;
   const buildResponseBlock = options.buildResponseBlock ?? defaultBuildResponseBlock;
+  const streamingLongWarnMs = resolveStreamingLongWarnMs(options.streamingLongWarnMs);
 
   async function resolveAgentTarget(
     name: string,
@@ -357,11 +411,45 @@ export function createA2AMentionMiddleware(
             sessionId,
           });
 
-          const result = await provider.sendTurn(target, promptText, {
-            contextId: sessionId ?? undefined,
-            stream: false,
-            blocking: true,
-          });
+          // Streaming-by-default (AJS-92): honor caller intent and target
+          // capability instead of forcing `stream: false`. The provider
+          // already applies `options.stream !== false && target.capabilities
+          // .supportsStreaming`, so passing `undefined`/`true` here lets
+          // streaming-capable targets emit intermediate lifecycle events
+          // while non-streaming targets fall back to `message/send`
+          // automatically. An explicit `false` from the host still forces
+          // non-streaming.
+          //
+          // Arm a one-shot warning timer when we expect streaming so
+          // operators get a structured signal if the delegation runs
+          // long without a resumption surface (AJS-93).
+          const willStream = options.stream !== false && target.capabilities.supportsStreaming;
+          const warnTimer = willStream
+            ? setTimeout(() => {
+                options.audit?.record({
+                  kind: "mention-dispatch-streaming-long-running",
+                  correlationId,
+                  agentName,
+                  ...(sessionId ? { sessionId } : {}),
+                  thresholdMs: streamingLongWarnMs,
+                  resumptionAvailable: false,
+                });
+              }, streamingLongWarnMs)
+            : null;
+          // Don't keep the process alive purely for the warning timer.
+          if (warnTimer && typeof (warnTimer as { unref?: () => void }).unref === "function") {
+            (warnTimer as { unref?: () => void }).unref?.();
+          }
+
+          let result: A2ASendResult;
+          try {
+            result = await provider.sendTurn(target, promptText, {
+              contextId: sessionId ?? undefined,
+              ...(options.stream === undefined ? {} : { stream: options.stream }),
+            });
+          } finally {
+            if (warnTimer) clearTimeout(warnTimer);
+          }
 
           await options.onDispatchSuccess?.({
             agentName,

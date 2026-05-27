@@ -83,6 +83,59 @@ export interface HostA2AExecutorOptions {
    * the user prompt, env values, or tool payloads.
    */
   audit?: AuditEmitter;
+  /**
+   * Caller intent for streaming the `@@dispatch` (a2a kind) call.
+   *
+   * Default (undefined): the provider chooses based on
+   * `target.capabilities.supportsStreaming`. Streaming-capable targets
+   * receive `message/stream`; non-streaming targets fall back to
+   * `message/send` automatically. AJS-92 flipped this from a hardcoded
+   * `false` so dispatched lanes surface intermediate lifecycle events
+   * to operators instead of presenting only the terminal response.
+   *
+   * Pass `false` to explicitly opt out (test shaping or hosts that
+   * intentionally serialize the calling lane against the dispatched
+   * reply). Pass `true` to make caller intent explicit.
+   */
+  dispatchStream?: boolean;
+  /**
+   * Threshold (ms) before an in-flight streaming `@@dispatch` emits a
+   * `dispatch-streaming-long-running` audit warning. Defaults to
+   * {@link DEFAULT_DISPATCH_STREAMING_LONG_WARN_MS}. When unset, the env var
+   * `AJS_STREAMING_LONG_WARN_MS` is consulted; otherwise the default
+   * applies. The option takes precedence over the env var.
+   */
+  dispatchStreamingLongWarnMs?: number;
+}
+
+/**
+ * Default threshold (ms) before a long-running streaming `@@dispatch`
+ * fires a `dispatch-streaming-long-running` audit warning. Mirrors the
+ * @mention middleware default. Configurable via
+ * `dispatchStreamingLongWarnMs` or `AJS_STREAMING_LONG_WARN_MS`.
+ *
+ * The warning signals that the run-resumption surface contract
+ * (AJS-93) is open — long-running streaming delegations have no
+ * recovery path if the calling lane disconnects before the terminal
+ * event arrives.
+ */
+export const DEFAULT_DISPATCH_STREAMING_LONG_WARN_MS = 30_000;
+
+function resolveDispatchStreamingLongWarnMs(optionValue: number | undefined): number {
+  if (typeof optionValue === "number" && Number.isFinite(optionValue) && optionValue > 0) {
+    return optionValue;
+  }
+  // AJS-92: warning threshold is a deploy-time override read on executor
+  // construction. `host-executor.ts` is in the biome `noProcessEnv` override
+  // allow-list (see biome.json) so no suppression is needed here.
+  const envRaw = process.env.AJS_STREAMING_LONG_WARN_MS;
+  if (envRaw) {
+    const parsed = Number(envRaw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_DISPATCH_STREAMING_LONG_WARN_MS;
 }
 
 /** Default 30-minute idle timeout before a per-lane controller is torn down. */
@@ -236,6 +289,8 @@ export class HostA2AExecutor implements InitializableExecutor {
     | null;
   private readonly laneIdleTimeoutMs: number;
   private readonly audit: AuditEmitter | null;
+  private readonly dispatchStreamOverride: boolean | undefined;
+  private readonly dispatchStreamingLongWarnMs: number;
   private laneSweepTimer: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
 
@@ -249,6 +304,10 @@ export class HostA2AExecutor implements InitializableExecutor {
     this.controllerFactory = options?.controllerFactory ?? null;
     this.laneIdleTimeoutMs = options?.laneIdleTimeoutMs ?? DEFAULT_LANE_IDLE_TIMEOUT_MS;
     this.audit = options?.audit ?? null;
+    this.dispatchStreamOverride = options?.dispatchStream;
+    this.dispatchStreamingLongWarnMs = resolveDispatchStreamingLongWarnMs(
+      options?.dispatchStreamingLongWarnMs,
+    );
 
     // The idle-sweep only matters when lanes own their controllers. In
     // shared-controller mode there is nothing to tear down, so skip the timer.
@@ -782,10 +841,42 @@ export class HostA2AExecutor implements InitializableExecutor {
     try {
       const provider = this.getDispatchProvider();
       const target = await provider.connect({ url: entry.url });
-      const result = await provider.sendTurn(target, payload || "(no message)", {
-        contextId: context.contextId,
-        stream: false,
-      });
+      // Streaming-by-default (AJS-92): honor caller intent and target
+      // capability instead of forcing `stream: false`. Mirrors the
+      // a2a-client @mention middleware change so both delegation paths
+      // surface intermediate lifecycle events to operators when the
+      // remote agent supports streaming, and fall back to
+      // `message/send` automatically when it does not.
+      const willStream =
+        this.dispatchStreamOverride !== false && target.capabilities.supportsStreaming;
+      const warnTimer = willStream
+        ? setTimeout(() => {
+            this.audit?.record({
+              kind: "dispatch-streaming-long-running",
+              correlationId,
+              agentName,
+              harness: "a2a",
+              kindVariant: "a2a",
+              taskId: context.taskId,
+              thresholdMs: this.dispatchStreamingLongWarnMs,
+              resumptionAvailable: false,
+            });
+          }, this.dispatchStreamingLongWarnMs)
+        : null;
+      if (warnTimer && typeof (warnTimer as { unref?: () => void }).unref === "function") {
+        (warnTimer as { unref?: () => void }).unref?.();
+      }
+      let result: Awaited<ReturnType<typeof provider.sendTurn>>;
+      try {
+        result = await provider.sendTurn(target, payload || "(no message)", {
+          contextId: context.contextId,
+          ...(this.dispatchStreamOverride === undefined
+            ? {}
+            : { stream: this.dispatchStreamOverride }),
+        });
+      } finally {
+        if (warnTimer) clearTimeout(warnTimer);
+      }
 
       const responseText = extractA2AResponseText(result);
 
