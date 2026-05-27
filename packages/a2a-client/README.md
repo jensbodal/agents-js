@@ -62,6 +62,7 @@ bun add @agents-js/a2a-client
 - **`resolveSharedAgentRegistryPath`**
 - **`runFederationTransportConformanceTests`** — Federation transport conformance suite. v1 surface only — test bodies are `test.todo` and become real assertions in v2 when an actual transport implementation lands (likely the HTTP A2A RemoteHarne...
 - **`serializeRecords`** — Build the on-disk JSON payload from a record map, preserving v2 shape. Exported so the sync module can write the merged state using the same serializer autoRegister uses — one source of truth for t...
+- **`startAutoRegisterHeartbeat`** — Start a self-scheduling heartbeat loop that re-publishes the local `(name, url)` record at `intervalMs`. Returns immediately — the first registration runs fire-and-forget on the next microtask. The...
 - **`startRegistrySync`** — Wire auto-registration and peer-sync into a gateway startup path. Returns immediately — auto-registration is fire-and-forget. ```ts const sync = startRegistrySync({ name: "my-gateway", url: baseUrl...
 - **`stripMention`** — Removes a previously-parsed mention from the source text. Returns the text with the mention's `fullMatch` removed at the correct position. Trailing whitespace immediately after the mention is colla...
 - **`summarizeCapabilities`**
@@ -142,6 +143,7 @@ bun add @agents-js/a2a-client
 - **`AGUITransportOptions`** — Options for constructing an {AGUITransport}.
 - **`AutoRegisterA2AOptions`** — Transport-a2a auto-reg options.
 - **`AutoRegisterACPOptions`** — Transport-acp auto-reg options.
+- **`AutoRegisterHeartbeatHandle`** — Handle returned by {startAutoRegisterHeartbeat}.
 - **`AutoRegisterOptionsBase`** — Options shared by all {autoRegister} calls.
 - **`CancelTaskOptions`** — Options for {A2AClientController.cancelTask}. When `taskId` is omitted, the controller defaults to the active session's `taskId` if present, falling back to `resumableTaskId`. This matches what UI ...
 - **`CapabilitySummary`**
@@ -164,6 +166,7 @@ bun add @agents-js/a2a-client
 - **`SendTurnOptions`**
 - **`SharedAgentRegistry`**
 - **`SharedAgentRegistryOptions`**
+- **`StartAutoRegisterHeartbeatOptions`** — Options for {startAutoRegisterHeartbeat}.
 - **`StartRegistrySyncOptions`** — Options for {startRegistrySync}.
 - **`SyncEndpointHandlerOptions`** — Options for {createSyncEndpointHandler}.
 - **`SyncFromPeerOptions`** — Options for {syncFromPeer}.
@@ -190,6 +193,7 @@ bun add @agents-js/a2a-client
 - **`AutoRegisterOptions`**
 - **`CancelTaskResult`** — Result of {A2AClientController.cancelTask}. `outcome` distinguishes: - `"canceled"` — the transport's `cancelTask` call resolved successfully. `task` carries the resulting Task (typically with stat...
 - **`FetchLike`**
+- **`HeartbeatLogger`** — Console-shaped logger subset used by the heartbeat loop.
 - **`RawAgentCard`** — Raw card shape returned by a non-standard agent probe endpoint. Kept as a loose record to avoid over-constraining what Agent Zero returns.
 - **`SessionStatus`**
 - **`SessionStatusAction`** — Re-export for convenience — consumers can override action labels.
@@ -198,6 +202,7 @@ bun add @agents-js/a2a-client
 - **`SyncAction`** — Why a single record changed (or did not change) during a sync merge.
 - **`TargetInspectionStatus`**
 - **`TargetReachability`** — Per-target health/probe status as seen by a UI client. Discovery implementations can map their own probe results to this triplet: `online` (target responded), `offline` (probe failed), `unknown` (p...
+- **`UrlProvider`** — URL resolver evaluated at every heartbeat tick. Implementations may return a static string (closure-captured at boot) or recompute the advertised host on each call. Both sync and async returns are ...
 
 ### Constants
 
@@ -208,6 +213,9 @@ bun add @agents-js/a2a-client
 - **`ACP_A2A_ELICITATION_METADATA_KEY`**
 - **`ACP_A2A_ELICITATION_RESPONSE_METADATA_KEY`**
 - **`AGENTS_JS_REGISTRY_WELL_KNOWN_PATH`** — Well-known path the peer sync endpoint is mounted at.
+- **`DEFAULT_HEARTBEAT_INITIAL_BACKOFF_MS`** — Initial backoff after a failed `autoRegister` call.
+- **`DEFAULT_HEARTBEAT_INTERVAL_MS`** — Default heartbeat cadence — 60 seconds, matches the AJS-87 spec.
+- **`DEFAULT_HEARTBEAT_MAX_BACKOFF_MS`** — Backoff cap — never wait longer than this between retries.
 
 ### Exports
 

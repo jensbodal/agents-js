@@ -1,8 +1,8 @@
 import { buildAgentCard, UniversalA2AServer } from "@agents-js/a2a";
 import { A2AClientProvider, extractA2AResponseText } from "@agents-js/a2a-client";
 import {
-  autoRegister,
   createSyncEndpointHandler,
+  startAutoRegisterHeartbeat,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
 import {
@@ -300,6 +300,9 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
 
   let registrySync: { stop: () => void };
+  const heartbeatIntervalForCall = opts.cliArgs.heartbeatEnabled
+    ? opts.cliArgs.heartbeatIntervalMs
+    : 0;
   if (opts.cliArgs.registrySync) {
     const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
       ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
@@ -308,24 +311,25 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
       name: localName,
       url: localUrl,
       intervalMs: syncIntervalMs,
+      heartbeatEnabled: opts.cliArgs.heartbeatEnabled,
+      ...(opts.cliArgs.heartbeatIntervalMs !== undefined
+        ? { heartbeatIntervalMs: opts.cliArgs.heartbeatIntervalMs }
+        : {}),
       audit: opts.audit,
     });
     console.log("[Gateway] Registry sync enabled (A2A-only peer payload)");
   } else {
-    // Local auto-register only — fire-and-forget, mirrors
-    // startRegistrySync's autoRegister call so the local registry has
-    // an entry without needing to mount the cross-gateway endpoint.
-    void autoRegister({
+    // Sync disabled — still publish locally, and (AJS-87) heartbeat the
+    // (name, url) record so peers polling our well-known endpoint on the
+    // next sync interval observe a fresh `registered_at` after a DHCP
+    // roam. `startAutoRegisterHeartbeat` runs the initial registration
+    // on its first tick (delay 0); when heartbeat is disabled the
+    // helper still fires once then never reschedules.
+    registrySync = startAutoRegisterHeartbeat({
       name: localName,
-      kind: "a2a",
       url: localUrl,
-    }).catch((err: unknown) => {
-      console.warn(
-        "[Gateway] Local auto-registration failed (non-fatal):",
-        err instanceof Error ? err.message : String(err),
-      );
+      ...(heartbeatIntervalForCall !== undefined ? { intervalMs: heartbeatIntervalForCall } : {}),
     });
-    registrySync = { stop: () => {} };
     console.log(
       "[Gateway] Registry sync disabled (default; pass --registry-sync or set AGENTS_JS_REGISTRY_SYNC=true to enable)",
     );

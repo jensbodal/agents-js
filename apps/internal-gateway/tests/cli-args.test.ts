@@ -113,6 +113,65 @@ describe("parseCliArgs — registry sync gate", () => {
   });
 });
 
+describe("parseCliArgs — host-address heartbeat (AJS-87)", () => {
+  test("default — heartbeat enabled, intervalMs unset (helper applies 60s)", () => {
+    const args = parseCliArgs([], {});
+    expect(args.heartbeatEnabled).toBe(true);
+    expect(args.heartbeatIntervalMs).toBeUndefined();
+  });
+
+  test("--no-heartbeat disables the loop", () => {
+    expect(parseCliArgs(["--no-heartbeat"], {}).heartbeatEnabled).toBe(false);
+  });
+
+  test("--heartbeat-enabled is the explicit-on counterpart", () => {
+    expect(parseCliArgs(["--heartbeat-enabled"], {}).heartbeatEnabled).toBe(true);
+  });
+
+  test("--heartbeat-interval-ms sets the cadence", () => {
+    expect(parseCliArgs(["--heartbeat-interval-ms", "15000"], {}).heartbeatIntervalMs).toBe(15_000);
+  });
+
+  test("AGENTS_JS_HEARTBEAT_INTERVAL_MS env overrides default when CLI flag absent", () => {
+    expect(
+      parseCliArgs([], { AGENTS_JS_HEARTBEAT_INTERVAL_MS: "120000" }).heartbeatIntervalMs,
+    ).toBe(120_000);
+  });
+
+  test("AGENTS_JS_HEARTBEAT_ENABLED=false disables; CLI flag wins when both set", () => {
+    expect(parseCliArgs([], { AGENTS_JS_HEARTBEAT_ENABLED: "false" }).heartbeatEnabled).toBe(false);
+    expect(
+      parseCliArgs(["--heartbeat-enabled"], { AGENTS_JS_HEARTBEAT_ENABLED: "false" })
+        .heartbeatEnabled,
+    ).toBe(true);
+  });
+
+  test("AGENTS_JS_HEARTBEAT_ENABLED rejects non-boolean strings", () => {
+    expect(() => parseCliArgs([], { AGENTS_JS_HEARTBEAT_ENABLED: "1" })).toThrow(
+      /AGENTS_JS_HEARTBEAT_ENABLED/,
+    );
+  });
+
+  test("AGENTS_JS_HEARTBEAT_INTERVAL_MS rejects non-numeric values", () => {
+    expect(() => parseCliArgs([], { AGENTS_JS_HEARTBEAT_INTERVAL_MS: "later" })).toThrow(
+      /AGENTS_JS_HEARTBEAT_INTERVAL_MS/,
+    );
+  });
+
+  test("--heartbeat-interval-ms rejects negative values", () => {
+    expect(() => parseCliArgs(["--heartbeat-interval-ms", "-1"], {})).toThrow(
+      /--heartbeat-interval-ms/,
+    );
+  });
+
+  test("--no-heartbeat and --heartbeat-enabled — last flag wins", () => {
+    expect(parseCliArgs(["--no-heartbeat", "--heartbeat-enabled"], {}).heartbeatEnabled).toBe(true);
+    expect(parseCliArgs(["--heartbeat-enabled", "--no-heartbeat"], {}).heartbeatEnabled).toBe(
+      false,
+    );
+  });
+});
+
 describe("parseCliArgs — public gateway URL", () => {
   test("--public-url sets the externally advertised gateway URL without touching hostname", () => {
     const args = parseCliArgs(

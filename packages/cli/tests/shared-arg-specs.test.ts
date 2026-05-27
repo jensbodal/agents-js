@@ -7,9 +7,11 @@ import { SERVE_ARG_SPEC } from "../src/serve.ts";
 import {
   type HarnessArg,
   type HarnessesArg,
+  type HeartbeatArgs,
   type HostPortArgs,
   harnessArg,
   harnessesArg,
+  heartbeatArgs,
   hostPortArgs,
   type RegistrySyncArg,
   type RuntimeLogArgs,
@@ -140,6 +142,55 @@ describe("registrySyncArg", () => {
   test("default state leaves the knob undefined (sync stays off)", () => {
     const acc: RegistrySyncArg = {};
     expect(acc.registrySync).toBeUndefined();
+  });
+});
+
+describe("heartbeatArgs", () => {
+  test("declares the three heartbeat flags", () => {
+    const spec = heartbeatArgs<HeartbeatArgs>();
+    expect(Object.keys(spec).sort()).toEqual([
+      "--heartbeat-enabled",
+      "--heartbeat-interval-ms",
+      "--no-heartbeat",
+    ]);
+  });
+
+  test("--heartbeat-enabled and --no-heartbeat set the boolean knob", () => {
+    const spec = heartbeatArgs<HeartbeatArgs>();
+    const enableEntry = spec["--heartbeat-enabled"];
+    const disableEntry = spec["--no-heartbeat"];
+    if (enableEntry?.kind !== "flag" || disableEntry?.kind !== "flag") {
+      throw new Error("expected flag entries");
+    }
+    const enabled: HeartbeatArgs = {};
+    enableEntry.assign(enabled);
+    expect(enabled.heartbeatEnabled).toBe(true);
+    const disabled: HeartbeatArgs = {};
+    disableEntry.assign(disabled);
+    expect(disabled.heartbeatEnabled).toBe(false);
+  });
+
+  test("--heartbeat-interval-ms parses a non-negative number", () => {
+    const spec = heartbeatArgs<HeartbeatArgs>();
+    const entry = spec["--heartbeat-interval-ms"];
+    if (entry?.kind !== "value") throw new Error("expected value entry");
+    const acc: HeartbeatArgs = {};
+    entry.assign(acc, "30000");
+    expect(acc.heartbeatIntervalMs).toBe(30_000);
+  });
+
+  test("--heartbeat-interval-ms rejects non-numeric values", () => {
+    const spec = heartbeatArgs<HeartbeatArgs>();
+    const entry = spec["--heartbeat-interval-ms"];
+    if (entry?.kind !== "value") throw new Error("expected value entry");
+    expect(() => entry.assign({}, "abc")).toThrow(/Invalid --heartbeat-interval-ms/);
+  });
+
+  test("--heartbeat-interval-ms rejects negative values", () => {
+    const spec = heartbeatArgs<HeartbeatArgs>();
+    const entry = spec["--heartbeat-interval-ms"];
+    if (entry?.kind !== "value") throw new Error("expected value entry");
+    expect(() => entry.assign({}, "-1")).toThrow(/Invalid --heartbeat-interval-ms/);
   });
 });
 

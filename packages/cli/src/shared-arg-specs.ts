@@ -191,6 +191,64 @@ export function registrySyncArg<T extends RegistrySyncArg>(): ArgSpec<T> {
   };
 }
 
+export interface HeartbeatArgs {
+  heartbeatIntervalMs?: number;
+  heartbeatEnabled?: boolean;
+}
+
+/**
+ * `--heartbeat-interval-ms`, `--heartbeat-enabled`, `--no-heartbeat`
+ * — control the host-address heartbeat (AJS-87). The heartbeat is
+ * the publisher-side half of a DDNS-like contract for the federated
+ * registry: each tick re-publishes this gateway's `(name, url)` record
+ * with a fresh `registered_at` so peers pulling the local sync
+ * endpoint see a current entry even after a DHCP roam.
+ *
+ * Default is **on** with a 60-second interval. Heartbeat fires
+ * independently of `--registry-sync` — local auto-registration
+ * always runs, and so does its periodic refresh. The corresponding
+ * environment variables (`AGENTS_JS_HEARTBEAT_INTERVAL_MS` and
+ * `AGENTS_JS_HEARTBEAT_ENABLED`) are resolved at the call site, not
+ * here, to keep this fragment a pure spec.
+ *
+ * `--heartbeat-enabled` and `--no-heartbeat` are mutually exclusive
+ * shorthands; the last flag wins under the standard argv-parser
+ * left-to-right pass.
+ */
+export function heartbeatArgs<T extends HeartbeatArgs>(): ArgSpec<T> {
+  return {
+    "--heartbeat-interval-ms": {
+      kind: "value",
+      assign: (a, v) => {
+        const parsed = Number(v);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error(
+            `[agents-js] Invalid --heartbeat-interval-ms "${v}". Expected a non-negative number.`,
+          );
+        }
+        a.heartbeatIntervalMs = parsed;
+      },
+      description:
+        "Host-address heartbeat interval in milliseconds (default: 60000; 0 disables the loop).",
+      valueExample: "<ms>",
+    },
+    "--heartbeat-enabled": {
+      kind: "flag",
+      assign: (a) => {
+        a.heartbeatEnabled = true;
+      },
+      description: "Enable the host-address heartbeat (default: enabled).",
+    },
+    "--no-heartbeat": {
+      kind: "flag",
+      assign: (a) => {
+        a.heartbeatEnabled = false;
+      },
+      description: "Disable the host-address heartbeat (initial registration still runs).",
+    },
+  };
+}
+
 export interface AcpCommandAndProfileArgs {
   acpArgsJson?: string;
   acpCommand?: string;

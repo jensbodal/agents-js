@@ -9,6 +9,12 @@ Per-package changes are currently captured in commit messages; this top-level
 CHANGELOG tracks repo-wide shape changes (package additions, breaking protocol
 moves, major feature lanes).
 
+## [Unreleased]
+
+### Added
+
+* **gateway-runtime,cli:** periodic host-address heartbeat for the federated registry (AJS-87) — gateways now re-publish their `(name, url)` record on a default 60s interval so peers tolerate DHCP roams and DDNS drift; `--heartbeat-interval-ms`, `--heartbeat-enabled` / `--no-heartbeat` flags and `AGENTS_JS_HEARTBEAT_INTERVAL_MS` / `AGENTS_JS_HEARTBEAT_ENABLED` env vars control the loop.
+
 ## [0.5.1](https://github.com/jensbodal/agents-js/compare/v0.5.0...v0.5.1) (2026-05-18)
 
 

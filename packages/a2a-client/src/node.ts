@@ -12,15 +12,26 @@ import { readFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import type { AuditEmitter } from "@agents-js/a2a/audit";
 import {
-  autoRegister,
-  readAgentRegistryRecords,
-  resolveSharedAgentRegistryPath,
-} from "./node-autoregister.ts";
+  DEFAULT_HEARTBEAT_INTERVAL_MS,
+  startAutoRegisterHeartbeat,
+  type UrlProvider,
+} from "./auto-register-heartbeat.ts";
+import { readAgentRegistryRecords, resolveSharedAgentRegistryPath } from "./node-autoregister.ts";
 import { type AgentEntry, AgentRegistryConfigError } from "./registry.ts";
 import type { SyncLogger } from "./sync.ts";
 import { createSyncEndpointHandler, syncFromPeer } from "./sync.ts";
 import type { AgentTargetInput } from "./types.ts";
 
+export {
+  type AutoRegisterHeartbeatHandle,
+  DEFAULT_HEARTBEAT_INITIAL_BACKOFF_MS,
+  DEFAULT_HEARTBEAT_INTERVAL_MS,
+  DEFAULT_HEARTBEAT_MAX_BACKOFF_MS,
+  type HeartbeatLogger,
+  type StartAutoRegisterHeartbeatOptions,
+  startAutoRegisterHeartbeat,
+  type UrlProvider,
+} from "./auto-register-heartbeat.ts";
 export {
   type AutoRegisterA2AOptions,
   type AutoRegisterACPOptions,
@@ -77,17 +88,34 @@ export interface StartRegistrySyncOptions {
   name: string;
   /**
    * Base URL of this gateway (e.g. `http://192.0.2.5:8080`). Used as
-   * the A2A entry point URL.
+   * the A2A entry point URL. Accepts a {@link UrlProvider} callback
+   * when the URL may change between heartbeat ticks (DDNS / roaming).
    */
-  url: string;
+  url: string | UrlProvider;
   /** Registry file path. Defaults to {@link resolveSharedAgentRegistryPath}. */
   configPath?: string;
   /**
-   * Peer-sync interval in milliseconds. Defaults to 300 000 (5 min).
-   * Pass `0` to disable the periodic sync (syncHandler still works for
-   * inbound pull requests from peers).
+   * Peer-sync interval in milliseconds. Controls the outbound pull
+   * cadence against known peers. Defaults to 300 000 (5 min). Pass `0`
+   * to disable the periodic sync (syncHandler still works for inbound
+   * pull requests from peers). Independent of {@link heartbeatIntervalMs}.
    */
   intervalMs?: number;
+  /**
+   * Host-address heartbeat interval in milliseconds (AJS-87). Controls
+   * how often this gateway re-publishes its own `(name, url)` record to
+   * the local registry so peers see a fresh `registered_at` on their
+   * next pull. Defaults to {@link DEFAULT_HEARTBEAT_INTERVAL_MS} (60 s).
+   * Pass `0` (and see {@link heartbeatEnabled}) to disable the loop —
+   * the initial registration still runs once on startup. Independent
+   * of the peer-pull {@link intervalMs}.
+   */
+  heartbeatIntervalMs?: number;
+  /**
+   * When `false`, suppress the periodic heartbeat entirely — only the
+   * initial fire-and-forget registration runs. Defaults to `true`.
+   */
+  heartbeatEnabled?: boolean;
   /** Logger — defaults to `console`. */
   logger?: StartupLogger;
   /** Override the local gateway identifier. Defaults to `os.hostname()`. */
@@ -129,26 +157,22 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
   const localGatewayId = options.gatewayId ?? hostname();
   const intervalMs = options.intervalMs ?? DEFAULT_SYNC_INTERVAL_MS;
 
-  // Fire-and-forget auto-registration.
-  void autoRegister({
+  // Periodic host-address heartbeat (AJS-87). Covers the one-shot
+  // registration too — the first tick fires immediately on the
+  // microtask queue. When `heartbeatEnabled === false`, pass
+  // `intervalMs: 0` so the heartbeat helper still runs the initial
+  // registration but never reschedules.
+  const heartbeatEnabled = options.heartbeatEnabled ?? true;
+  const heartbeat = startAutoRegisterHeartbeat({
     name: options.name,
-    kind: "a2a",
     url: options.url,
     configPath,
     gatewayId: localGatewayId,
-  })
-    .then((record) => {
-      logger.log("[agents-js/registry] Auto-registered", {
-        name: record.name,
-        url: record.url,
-      });
-    })
-    .catch((err: unknown) => {
-      logger.warn(
-        "[agents-js/registry] Auto-registration failed (non-fatal):",
-        err instanceof Error ? err.message : String(err),
-      );
-    });
+    intervalMs: heartbeatEnabled
+      ? (options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS)
+      : 0,
+    logger,
+  });
 
   // Sync endpoint handler for inbound pull requests from peers.
   const syncHandler = createSyncEndpointHandler({
@@ -226,6 +250,7 @@ export function startRegistrySync(options: StartRegistrySyncOptions): RegistrySy
   return {
     syncHandler,
     stop() {
+      heartbeat.stop();
       if (intervalHandle !== undefined) {
         clearInterval(intervalHandle);
         intervalHandle = undefined;

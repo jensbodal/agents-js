@@ -574,11 +574,15 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
       if (!/if\s*\(opts\.cliArgs\.registrySync\)/.test(contents)) {
         return "main.ts must gate startRegistrySync() inside an `if (opts.cliArgs.registrySync)` block";
       }
-      // When sync is disabled, autoRegister must still run so the
-      // local machine still discovers the gateway. The opt-out path
-      // must not collapse to "no registration at all".
-      if (!/void\s+autoRegister\(/.test(contents)) {
-        return "main.ts must call autoRegister() in the registry-sync-disabled branch";
+      // When sync is disabled, the local registry MUST still be
+      // populated (and AJS-87: kept fresh on a heartbeat) so peers
+      // pulling our well-known endpoint see a current `(name, url)`
+      // record. The opt-out path must not collapse to "no
+      // registration at all". `startAutoRegisterHeartbeat` is the
+      // canonical surface — it calls `autoRegister` on its first
+      // tick and re-runs it at the configured interval.
+      if (!/startAutoRegisterHeartbeat\(/.test(contents)) {
+        return "main.ts must call startAutoRegisterHeartbeat() in the registry-sync-disabled branch";
       }
       return null;
     },

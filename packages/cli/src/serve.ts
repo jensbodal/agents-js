@@ -10,9 +10,9 @@ import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
 import {
   AgentRegistry,
-  autoRegister,
   createSyncEndpointHandler,
   resolveSharedAgentRegistryPath,
+  startAutoRegisterHeartbeat,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
 import { DEFAULT_INHERITED_ENV_KEYS } from "@agents-js/acp-host";
@@ -50,6 +50,7 @@ import {
 import {
   acpCommandAndProfileArgs,
   harnessesArg,
+  heartbeatArgs,
   hostPortArgs,
   registrySyncArg,
   runtimeLogArgs,
@@ -72,6 +73,8 @@ export interface ServeCommandArgs {
    * to the original single-harness invocation form.
    */
   harnesses?: string[];
+  heartbeatEnabled?: boolean;
+  heartbeatIntervalMs?: number;
   help?: boolean;
   host?: string;
   opencodeDisableExternalPlugins?: boolean;
@@ -100,6 +103,57 @@ export function shouldEnableRegistrySync(
 ): boolean {
   if (args.registrySync === true) return true;
   return env.AGENTS_JS_REGISTRY_SYNC === "true";
+}
+
+/**
+ * Resolve host-address heartbeat options (AJS-87) from CLI args + env.
+ * Mirrors the {@link shouldEnableRegistrySync} resolution pattern: the
+ * CLI flag wins, then the environment variable, then the documented
+ * defaults. The env-var enable gate accepts only the literal string
+ * `"true"` / `"false"` so an operator does not flip a publication
+ * cadence by accident through truthy coercion (`"1"`, `"yes"`, etc.).
+ *
+ * Interval precedence: `--heartbeat-interval-ms` →
+ * `AGENTS_JS_HEARTBEAT_INTERVAL_MS` → `undefined` (which the heartbeat
+ * helper resolves to its 60 000 ms default). A negative or
+ * non-numeric env var is rejected loudly so a typo cannot silently
+ * fall back to the default.
+ */
+export function resolveHeartbeatOptions(
+  args: Pick<ServeCommandArgs, "heartbeatEnabled" | "heartbeatIntervalMs">,
+  env: NodeJS.ProcessEnv,
+): { heartbeatEnabled: boolean; heartbeatIntervalMs?: number } {
+  let heartbeatEnabled = args.heartbeatEnabled;
+  if (heartbeatEnabled === undefined) {
+    const raw = env.AGENTS_JS_HEARTBEAT_ENABLED;
+    if (raw === "true") heartbeatEnabled = true;
+    else if (raw === "false") heartbeatEnabled = false;
+    else if (raw !== undefined && raw !== "") {
+      throw new Error(
+        `[agents-js] Invalid AGENTS_JS_HEARTBEAT_ENABLED "${raw}". Expected literal "true" or "false".`,
+      );
+    } else {
+      heartbeatEnabled = true;
+    }
+  }
+
+  let heartbeatIntervalMs = args.heartbeatIntervalMs;
+  if (heartbeatIntervalMs === undefined) {
+    const raw = env.AGENTS_JS_HEARTBEAT_INTERVAL_MS;
+    if (raw !== undefined && raw !== "") {
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(
+          `[agents-js] Invalid AGENTS_JS_HEARTBEAT_INTERVAL_MS "${raw}". Expected a non-negative number.`,
+        );
+      }
+      heartbeatIntervalMs = parsed;
+    }
+  }
+
+  return heartbeatIntervalMs === undefined
+    ? { heartbeatEnabled }
+    : { heartbeatEnabled, heartbeatIntervalMs };
 }
 
 export interface ServeCommandResult {
@@ -136,6 +190,7 @@ export const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
   ...hostPortArgs<ServeCommandArgs>(),
   ...runtimeLogArgs<ServeCommandArgs>(),
   ...registrySyncArg<ServeCommandArgs>(),
+  ...heartbeatArgs<ServeCommandArgs>(),
 };
 
 export function parseServeCommandArgs(argv: string[]): ServeCommandArgs {
@@ -484,6 +539,7 @@ export async function runServeCommand(
   let registrySync: { stop: () => void } | null = null;
   const localUrl = buildAgentCardBaseUrl(server.port, resolvedInputs.host);
   const localName = runtime.agentCard.name ?? "agents-js";
+  const heartbeatOptions = resolveHeartbeatOptions(args, env);
   if (registrySyncEnabled) {
     const syncIntervalMs = env.AGENTS_JS_SYNC_INTERVAL_MS
       ? Number(env.AGENTS_JS_SYNC_INTERVAL_MS)
@@ -494,19 +550,21 @@ export async function runServeCommand(
       configPath: registryPath,
       intervalMs: syncIntervalMs,
       audit,
+      ...heartbeatOptions,
     });
     output.write("[agents-js] Registry sync enabled (A2A-only peer payload)\n");
   } else {
-    // Auto-register locally only — fire-and-forget, mirrors startRegistrySync's behavior.
-    void autoRegister({
+    // Sync disabled — still publish locally, and (AJS-87) heartbeat the
+    // (name, url) record so peers polling our well-known endpoint on the
+    // next sync interval observe a fresh `registered_at` after a DHCP
+    // roam. `startAutoRegisterHeartbeat` runs the initial registration
+    // on its first tick (delay 0); when heartbeatEnabled === false the
+    // helper still fires once then never reschedules.
+    registrySync = startAutoRegisterHeartbeat({
       name: localName,
-      kind: "a2a",
       url: localUrl,
       configPath: registryPath,
-    }).catch((err: unknown) => {
-      output.write(
-        `[agents-js] Local auto-registration failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`,
-      );
+      intervalMs: heartbeatOptions.heartbeatEnabled ? heartbeatOptions.heartbeatIntervalMs : 0,
     });
     output.write(
       "[agents-js] Registry sync disabled (default; pass --registry-sync or set AGENTS_JS_REGISTRY_SYNC=true to enable)\n",

@@ -28,6 +28,8 @@ const LEGACY_PERMISSION_MODES = ["ask", "yolo", "hub"] as const;
 export interface GatewayCliArgs {
   check: boolean;
   defaultModel?: string;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalMs?: number;
   hostname?: string;
   permissionMode: PermissionMode;
   port?: number;
@@ -71,6 +73,55 @@ function resolveRegistrySync(flagPresent: boolean, env: NodeJS.ProcessEnv): bool
   return env.AGENTS_JS_REGISTRY_SYNC === "true";
 }
 
+/**
+ * Resolve the host-address heartbeat enable gate (AJS-87). Mirrors
+ * {@link resolveRegistrySync}: explicit literal `"true"` / `"false"`
+ * only — non-boolean truthy strings are rejected so a publication
+ * cadence cannot flip by accident. Default is `true` (heartbeat on).
+ *
+ * `--heartbeat-enabled` and `--no-heartbeat` set `explicitValue`
+ * directly; when both flags appear the argv parser passes the
+ * left-to-right final value, matching the conventional `--no-foo` /
+ * `--foo` precedence.
+ */
+function resolveHeartbeatEnabled(
+  explicitValue: boolean | undefined,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (explicitValue !== undefined) return explicitValue;
+  const raw = env.AGENTS_JS_HEARTBEAT_ENABLED;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  if (raw !== undefined && raw !== "") {
+    throw new Error(
+      `[Gateway] Invalid AGENTS_JS_HEARTBEAT_ENABLED "${raw}". Expected literal "true" or "false".`,
+    );
+  }
+  return true;
+}
+
+/**
+ * Resolve the host-address heartbeat interval (AJS-87). CLI value wins,
+ * then env var, then `undefined` (the heartbeat helper substitutes its
+ * 60 000 ms default). Rejects non-numeric or negative env values so a
+ * typo cannot silently fall back to the default cadence.
+ */
+function resolveHeartbeatIntervalMs(
+  explicitValue: number | undefined,
+  env: NodeJS.ProcessEnv,
+): number | undefined {
+  if (explicitValue !== undefined) return explicitValue;
+  const raw = env.AGENTS_JS_HEARTBEAT_INTERVAL_MS;
+  if (raw === undefined || raw === "") return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(
+      `[Gateway] Invalid AGENTS_JS_HEARTBEAT_INTERVAL_MS "${raw}". Expected a non-negative number.`,
+    );
+  }
+  return parsed;
+}
+
 export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCliArgs {
   let check = false;
   const runtimeOverrides: string[] = [];
@@ -82,6 +133,8 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   let publicUrl: string | undefined;
   let trustWorkspaceFlag = false;
   let registrySyncFlag = false;
+  let heartbeatEnabledFlag: boolean | undefined;
+  let heartbeatIntervalMsFlag: number | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -195,13 +248,41 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       continue;
     }
 
+    if (arg === "--heartbeat-enabled") {
+      heartbeatEnabledFlag = true;
+      continue;
+    }
+
+    if (arg === "--no-heartbeat") {
+      heartbeatEnabledFlag = false;
+      continue;
+    }
+
+    if (arg === "--heartbeat-interval-ms") {
+      const next = argv[index + 1];
+      if (!next) {
+        throw new Error('[Gateway] Missing value for "--heartbeat-interval-ms".');
+      }
+      const parsed = Number(next);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(
+          `[Gateway] Invalid --heartbeat-interval-ms "${next}". Expected a non-negative number.`,
+        );
+      }
+      heartbeatIntervalMsFlag = parsed;
+      index += 1;
+      continue;
+    }
+
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync, --heartbeat-enabled, --no-heartbeat, --heartbeat-interval-ms <ms>.`,
     );
   }
 
   const trustWorkspace = resolveTrustWorkspace(trustWorkspaceFlag, env);
   const registrySync = resolveRegistrySync(registrySyncFlag, env);
+  const heartbeatEnabled = resolveHeartbeatEnabled(heartbeatEnabledFlag, env);
+  const heartbeatIntervalMs = resolveHeartbeatIntervalMs(heartbeatIntervalMsFlag, env);
   const envPublicUrl =
     env.AGENTS_JS_PUBLIC_URL !== undefined && env.AGENTS_JS_PUBLIC_URL.trim() !== ""
       ? normalizeGatewayPublicUrl(env.AGENTS_JS_PUBLIC_URL, "AGENTS_JS_PUBLIC_URL")
@@ -218,5 +299,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     publicUrl: publicUrl ?? envPublicUrl,
     trustWorkspace,
     registrySync,
+    heartbeatEnabled,
+    heartbeatIntervalMs,
   };
 }
