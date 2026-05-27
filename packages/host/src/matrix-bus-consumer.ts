@@ -27,6 +27,7 @@
  * swap follow-up commits per the locked tests-first discipline.
  */
 
+import type { DispatchFailureReason } from "@agents-js/policy";
 import {
   buildGatewayBusEvent,
   type GatewayBus,
@@ -67,37 +68,36 @@ export interface MatrixBusReplyPayload {
   /** `"success"` from dispatch result, `"failure"` from a dispatch error. */
   kind: "success" | "failure";
   /**
-   * Failure-reason discriminator. Present iff `kind === "failure"`. Lets
-   * the bridge (or any reply consumer) distinguish the DOT-393 Phase B
-   * retry-vs-surface decision:
+   * Typed failure-reason discriminator. Present iff `kind === "failure"`.
+   * Lets the bridge (or any reply consumer) distinguish the DOT-393
+   * Phase B retry-vs-surface decision:
    *
-   *   - `"dispatch-error"` — dispatch handler returned/threw a typed
-   *     error from the agent runtime. Treat as legitimate agent failure;
-   *     surface to user, do NOT retry via fallback.
-   *   - `"consumer-unreachable"` — no dispatch handler responded (e.g.
-   *     subscription not attached yet, in-process bus dropped the
-   *     event, downstream consumer crashed). Bridge MAY retry via the
-   *     direct HTTP A2A fallback path.
-   *   - `"dispatch-timeout"` — handler accepted the request but did not
-   *     return within the deadline. Bridge MAY retry but with longer
-   *     deadline; surfacing to user is also acceptable.
+   *   - `{ kind: "dispatch_error", message? }` — dispatch handler
+   *     returned/threw a typed error from the agent runtime. Surface
+   *     to user; do NOT retry via fallback.
+   *   - `{ kind: "consumer_unreachable", message? }` — no dispatch
+   *     handler responded (subscription not attached yet, in-process
+   *     bus dropped the event, downstream consumer crashed). Bridge
+   *     MAY retry via the direct HTTP A2A fallback path.
+   *   - `{ kind: "dispatch_timeout", message? }` — handler accepted
+   *     the request but did not return within the deadline. Bridge MAY
+   *     retry but with longer deadline; surfacing is also acceptable.
+   *   - Permission-layer kinds (`workspace_boundary_violation`,
+   *     `no_allow_option`, `unknown_operation_class`,
+   *     `no_workspace_identity_path`) — emitted by `@agents-js/acp-host`
+   *     permission gate. Surface to user; do NOT retry (deterministic
+   *     denial would hit the same gate).
    *
-   * The skeleton consumer in this commit only ever emits
-   * `"dispatch-error"` (it can detect handler throws but not consumer
-   * unreachability — that's a wiring-layer concern in the bridge's
-   * post-publish acknowledgement). Future wire-up commits MAY emit
-   * `"consumer-unreachable"` if a deadline-based ack pattern is added.
-   *
-   * **Wire shape (AJS-79 PR3a):** intentionally still the legacy
-   * kebab-case string union. The typed `DispatchFailureReason` shape
-   * lives in `@agents-js/policy` as single source of truth for the
-   * vocabulary (consumed at internal permission-gate sites in
-   * `@agents-js/acp-host`). The wire-shape flip from string-enum to
-   * typed object is AJS-79 PR3b scope — it requires a co-landing
-   * dot-matrix bridge PR (`router.py` parses both shapes) to avoid
-   * silently breaking DOT-393 fallback at the federation boundary.
+   * **Wire shape (AJS-79 PR3b, flip-in-place, 2026-05-27):** typed
+   * `DispatchFailureReason` object on the SAME `failureReason` field
+   * the legacy kebab-string union used to occupy. PR #29 in dot-matrix
+   * bridge (`router.py` `_normalize_failure_reason`) accepts BOTH
+   * shapes on this field name during the in-place transition — no V2
+   * field, no migration window, breaking change. There are no external
+   * consumers of this wire shape; only dot-matrix bridge reads it, and
+   * the bridge has already been updated + deployed.
    */
-  failureReason?: "dispatch-error" | "consumer-unreachable" | "dispatch-timeout";
+  failureReason?: DispatchFailureReason;
 }
 
 /**
@@ -131,11 +131,11 @@ export interface DispatchResult {
   /** Reply body to relay back to Matrix. */
   body: string;
   /**
-   * Failure discriminator. Optional and only meaningful when
-   * `status === "failure"`. See `MatrixBusReplyPayload.failureReason`
-   * for the DOT-393 retry-vs-surface semantics each value implies.
+   * Typed failure discriminator. Optional and only meaningful when
+   * `status === "failure"`. See {@link MatrixBusReplyPayload.failureReason}
+   * for the DOT-393 retry-vs-surface semantics each kind implies.
    */
-  failureReason?: "dispatch-error" | "consumer-unreachable" | "dispatch-timeout";
+  failureReason?: DispatchFailureReason;
 }
 
 export type DispatchHandler = (request: DispatchRequest) => Promise<DispatchResult>;
@@ -238,7 +238,7 @@ export function startMatrixBusConsumer(
           result: {
             status: "failure",
             body: stringifyError(error),
-            failureReason: "dispatch-error",
+            failureReason: { kind: "dispatch_error", message: stringifyError(error) },
           },
         });
       });

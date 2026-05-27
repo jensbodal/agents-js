@@ -838,7 +838,9 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
       const dispatchResult: DispatchResult = {
         status: "failure",
         body: `matrix-bus-consumer dispatch failed: ${message}`,
-        failureReason: isTimeout ? "dispatch-timeout" : "dispatch-error",
+        failureReason: isTimeout
+          ? { kind: "dispatch_timeout", message }
+          : { kind: "dispatch_error", message },
       };
       return dispatchResult;
     }

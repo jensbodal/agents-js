@@ -43,13 +43,15 @@ describe("internal-gateway matrix-bus-consumer wire-up", () => {
     });
 
     // Mirror the exact install shape used in main.ts: placeholder
-    // dispatch that emits a consumer-unreachable failure so the bridge
+    // dispatch that emits a consumer_unreachable failure so the bridge
     // can fall back to direct HTTP A2A per DOT-393 Phase B.
+    // AJS-79 PR3b flip-in-place: typed DispatchFailureReason object on
+    // the same failureReason field.
     const placeholderDispatch: DispatchHandler = async () => {
       const result: DispatchResult = {
         status: "failure",
         body: "matrix-bus-consumer dispatch handler not yet wired (placeholder); bridge should fall back to direct HTTP A2A per DOT-393 Phase B",
-        failureReason: "consumer-unreachable",
+        failureReason: { kind: "consumer_unreachable" },
       };
       return result;
     };
@@ -74,7 +76,7 @@ describe("internal-gateway matrix-bus-consumer wire-up", () => {
     const reply = replies[0];
     if (reply === undefined) throw new Error("no reply emitted");
     expect(reply.payload.kind).toBe("failure");
-    expect(reply.payload.failureReason).toBe("consumer-unreachable");
+    expect(reply.payload.failureReason).toEqual({ kind: "consumer_unreachable" });
     expect(reply.payload.roomId).toBe("!room:example.org");
     expect(reply.payload.inReplyToEventId).toBe("$evt-wire-1");
     consumer.stop();
@@ -90,7 +92,7 @@ describe("internal-gateway matrix-bus-consumer wire-up", () => {
         return {
           status: "failure",
           body: "placeholder",
-          failureReason: "consumer-unreachable",
+          failureReason: { kind: "consumer_unreachable" },
         };
       },
     });

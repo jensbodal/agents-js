@@ -166,15 +166,20 @@ describe("startMatrixBusConsumer", () => {
     expect(replies.length).toBe(1);
     expect(replies[0]?.payload.kind).toBe("failure");
     expect(replies[0]?.payload.body).toContain("dispatch boom");
-    // Failure path emits the dispatch-error discriminator so bridge can
-    // distinguish from consumer-unreachable / dispatch-timeout (which
-    // imply retry per DOT-393 Phase B).
-    expect(replies[0]?.payload.failureReason).toBe("dispatch-error");
+    // AJS-79 PR3b flip-in-place: failureReason is now a typed
+    // DispatchFailureReason object on the same field name. Catch-block
+    // emits dispatch_error so bridge can distinguish from
+    // consumer_unreachable / dispatch_timeout (which imply retry per
+    // DOT-393 Phase B).
+    expect(replies[0]?.payload.failureReason).toEqual({
+      kind: "dispatch_error",
+      message: expect.stringContaining("dispatch boom"),
+    });
     expect(errorCaught).toBeInstanceOf(Error);
     handle.stop();
   });
 
-  test("propagates failureReason from DispatchResult to reply payload (consumer-unreachable case)", async () => {
+  test("propagates failureReason from DispatchResult to reply payload (consumer_unreachable case)", async () => {
     const bus = createGatewayBus();
     const replies: GatewayBusEvent<MatrixBusReplyPayload>[] = [];
     bus.subscribe((event) => {
@@ -187,7 +192,7 @@ describe("startMatrixBusConsumer", () => {
       dispatch: async () => ({
         status: "failure",
         body: "no downstream consumer",
-        failureReason: "consumer-unreachable",
+        failureReason: { kind: "consumer_unreachable" },
       }),
     });
 
@@ -201,7 +206,7 @@ describe("startMatrixBusConsumer", () => {
 
     expect(replies.length).toBe(1);
     expect(replies[0]?.payload.kind).toBe("failure");
-    expect(replies[0]?.payload.failureReason).toBe("consumer-unreachable");
+    expect(replies[0]?.payload.failureReason).toEqual({ kind: "consumer_unreachable" });
     handle.stop();
   });
 
