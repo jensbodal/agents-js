@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildClaudeMcpAddArgs, parseMcpCommandArgs, runMcpCommand } from "../src/mcp.ts";
+import {
+  buildClaudeMcpAddArgs,
+  parseMcpCommandArgs,
+  resolveCliEntryFromModuleUrl,
+  runMcpCommand,
+} from "../src/mcp.ts";
 
 function makeOutputBuffer() {
   let content = "";
@@ -290,6 +295,40 @@ describe("buildClaudeMcpAddArgs", () => {
   test("never uses `-s local` (regression guard for AJS-74 bug #4)", () => {
     const args = buildClaudeMcpAddArgs("agents-js", ["mcp"]);
     expect(args).not.toContain("local");
+  });
+});
+
+describe("resolveCliEntryFromModuleUrl", () => {
+  // Regression guard for the consumer-side bug where `agents-js mcp setup
+  // --claude` registered `<dist>/cli.ts` (non-existent) instead of
+  // `<dist>/bin.mjs` when invoked from the built dist. The naive prior
+  // impl unconditionally appended "cli.ts" to the module dir.
+
+  test("source mode (.ts module) → sibling cli.ts", () => {
+    const entry = resolveCliEntryFromModuleUrl("file:///workspace/packages/cli/src/mcp.ts");
+    expect(entry).toBe("/workspace/packages/cli/src/cli.ts");
+  });
+
+  test("built dist mode (.mjs module) → sibling bin.mjs (NOT cli.ts)", () => {
+    const entry = resolveCliEntryFromModuleUrl(
+      "file:///workspace/packages/cli/dist/cli-CFaPARTq.mjs",
+    );
+    expect(entry).toBe("/workspace/packages/cli/dist/bin.mjs");
+    expect(entry).not.toContain("cli.ts");
+  });
+
+  test("dist mode points at bin.mjs even when module is named mcp.mjs", () => {
+    const entry = resolveCliEntryFromModuleUrl(
+      "file:///opt/homebrew/lib/node_modules/@agents-js/cli/dist/mcp.mjs",
+    );
+    expect(entry).toBe("/opt/homebrew/lib/node_modules/@agents-js/cli/dist/bin.mjs");
+  });
+
+  test("dist mode does NOT pick cli.mjs (it's the runtime, not the bin entry)", () => {
+    // cli.mjs exists in dist but is the bundled runtime module, not the
+    // CLI dispatcher. The package.json "bin" field points at bin.mjs.
+    const entry = resolveCliEntryFromModuleUrl("file:///x/packages/cli/dist/cli.mjs");
+    expect(entry).toBe("/x/packages/cli/dist/bin.mjs");
   });
 });
 

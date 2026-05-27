@@ -238,6 +238,30 @@ async function defaultStartServer(config: BridgeConfig): Promise<void> {
   await server.connect(transport);
 }
 
+/**
+ * Resolve the runnable CLI entry given the module URL of the calling
+ * source. Pure helper — exported for unit testing because the bug class
+ * here is "naively appended `cli.ts` to a `.mjs` module path." Tests
+ * cover both modes (source and built dist) so a future bundling/layout
+ * change can't silently regress.
+ *
+ *   - **Source mode** (`.ts` module): sibling file is `cli.ts`, the
+ *     source entrypoint that `runAgentsJsCli` lives in.
+ *   - **Built dist mode** (`.mjs` module): sibling file is `bin.mjs`,
+ *     the package.json `bin` entry. `cli.mjs` ALSO exists in dist but
+ *     is the bundled runtime module, NOT a CLI entry — invoking it
+ *     directly would not run the CLI dispatcher.
+ *
+ * Returns an absolute filesystem path suitable for passing as the
+ * script argument to `bun` / `node`.
+ */
+export function resolveCliEntryFromModuleUrl(moduleUrl: string): string {
+  const url = new URL(moduleUrl);
+  const moduleDir = dirname(url.pathname);
+  const isBundledDist = url.pathname.endsWith(".mjs");
+  return isBundledDist ? resolve(moduleDir, "bin.mjs") : resolve(moduleDir, "cli.ts");
+}
+
 function resolveClaudeMcpCommand(): { command: string; args: string[] } {
   // When running from the Bun-compiled standalone binary, `process.execPath`
   // points at the `agents-js` binary itself — invoke it directly with the
@@ -247,12 +271,15 @@ function resolveClaudeMcpCommand(): { command: string; args: string[] } {
   //
   // When running from source (`bun src/cli.ts`), `process.execPath` is the
   // Bun binary and we need to pass it our own `cli.ts` path as the script.
+  // When running from the built dist (`bun packages/cli/dist/bin.mjs` or
+  // an npm-installed copy), the sibling entry is `bin.mjs`, NOT `cli.ts`
+  // (which only exists in source). See {@link resolveCliEntryFromModuleUrl}.
   const execPath = process.execPath;
   const isCompiledBinary = typeof execPath === "string" && /(^|\/)agents-js$/.test(execPath);
   if (isCompiledBinary) {
     return { command: execPath, args: ["mcp"] };
   }
-  const cliSource = resolve(dirname(new URL(import.meta.url).pathname), "cli.ts");
+  const cliSource = resolveCliEntryFromModuleUrl(import.meta.url);
   return { command: execPath, args: [cliSource, "mcp"] };
 }
 
