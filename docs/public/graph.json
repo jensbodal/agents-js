@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-21T07:44:58.701Z",
-  "package_count": 34,
-  "publishable_count": 22,
+  "generated_at": "2026-05-27T17:43:25.615Z",
+  "package_count": 35,
+  "publishable_count": 23,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -200,6 +200,7 @@
         "@agents-js/acp-host",
         "@agents-js/droid-acp",
         "@agents-js/gateway-runtime",
+        "@agents-js/gitea-bridge",
         "@agents-js/host",
         "@agents-js/matrix-bridge",
         "@agents-js/pi-acp",
@@ -207,7 +208,8 @@
       ],
       "external_deps": [
         "@agentclientprotocol/claude-agent-acp",
-        "@zed-industries/codex-acp"
+        "@zed-industries/codex-acp",
+        "jose"
       ],
       "external_peer": [],
       "exports_count": 0
@@ -233,6 +235,7 @@
       "private": true,
       "version": "0.5.1",
       "internal_deps": [
+        "@agents-js/a2a",
         "@agents-js/host"
       ],
       "external_deps": [],
@@ -258,7 +261,8 @@
       ],
       "external_deps": [
         "@a2a-js/sdk",
-        "@agentclientprotocol/sdk"
+        "@agentclientprotocol/sdk",
+        "jose"
       ],
       "external_peer": [],
       "exports_count": 0
@@ -499,6 +503,16 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/wake-types",
+      "dir": "packages/wake-types",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/web-ui",
       "dir": "apps/web-ui",
       "private": true,
@@ -545,7 +559,8 @@
       "@agents-js/cli",
       "@agents-js/gateway-runtime",
       "@agents-js/gateway",
-      "@agents-js/pi-extension"
+      "@agents-js/pi-extension",
+      "@agents-js/gitea-bridge"
     ],
     "@agents-js/a2ui-renderer": [
       "@agents-js/web-ui"
@@ -633,6 +648,7 @@
       "@agents-js/acp-host",
       "@agents-js/acp"
     ],
+    "@agents-js/wake-types": [],
     "@agents-js/gateway": [],
     "@agents-js/web-ui": [],
     "@agents-js/pi-acp": [
@@ -651,7 +667,9 @@
       "@agents-js/gateway"
     ],
     "@agents-js/pi-extension": [],
-    "@agents-js/gitea-bridge": [],
+    "@agents-js/gitea-bridge": [
+      "@agents-js/gateway"
+    ],
     "@agents-js/trial-agent": []
   }
 }

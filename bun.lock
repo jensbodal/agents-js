@@ -477,6 +477,13 @@
         "zod": "^3",
       },
     },
+    "packages/wake-types": {
+      "name": "@agents-js/wake-types",
+      "version": "0.5.1",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "tests/trial-agent": {
       "name": "@agents-js/trial-agent",
       "version": "0.5.1",
@@ -619,6 +626,8 @@
     "@agents-js/ui-components": ["@agents-js/ui-components@workspace:packages/ui-components"],
 
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
+
+    "@agents-js/wake-types": ["@agents-js/wake-types@workspace:packages/wake-types"],
 
     "@agents-js/web-ui": ["@agents-js/web-ui@workspace:apps/web-ui"],
 
