@@ -135,6 +135,16 @@
           "type": "json",
           "path": "packages/validation/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/wake-mcp-triggers/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/wake-types/package.json",
+          "jsonpath": "$.version"
         }
       ]
     }

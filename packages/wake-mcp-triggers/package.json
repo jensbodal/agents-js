@@ -1,0 +1,58 @@
+{
+  "name": "@agents-js/wake-mcp-triggers",
+  "version": "0.5.1",
+  "type": "module",
+  "sideEffects": false,
+  "description": "In-session-push wake-adapter runtime for AJS-89 HYBRID. Gateway-side dispatcher emits MCP notifications carrying WakeAdapter payloads; harness-side receiver dedupes by idempotency key and drops expired signals. First impl of the in-session-push shape (AJS-96).",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jensbodal/agents-js.git",
+    "directory": "packages/wake-mcp-triggers"
+  },
+  "homepage": "https://agents-js.bodal.dev/",
+  "bugs": {
+    "url": "https://github.com/jensbodal/agents-js/issues"
+  },
+  "keywords": [
+    "wake-adapter",
+    "mcp",
+    "agents",
+    "notifications"
+  ],
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "prepack": "bun run build",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agents-js/wake-types": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

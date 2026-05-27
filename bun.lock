@@ -477,6 +477,16 @@
         "zod": "^3",
       },
     },
+    "packages/wake-mcp-triggers": {
+      "name": "@agents-js/wake-mcp-triggers",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/wake-types": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/wake-types": {
       "name": "@agents-js/wake-types",
       "version": "0.5.1",
@@ -626,6 +636,8 @@
     "@agents-js/ui-components": ["@agents-js/ui-components@workspace:packages/ui-components"],
 
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
+
+    "@agents-js/wake-mcp-triggers": ["@agents-js/wake-mcp-triggers@workspace:packages/wake-mcp-triggers"],
 
     "@agents-js/wake-types": ["@agents-js/wake-types@workspace:packages/wake-types"],
 

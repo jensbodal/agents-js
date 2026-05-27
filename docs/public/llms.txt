@@ -46,6 +46,7 @@
 - [@agents-js/tools](https://agents-js.bodal.dev/per-package/agents-js-tools-llms.txt): Unified tool surface for agents-js: fetchContext coordinator (Shape 1) + findTools discovery surface (Shape 2). Single package for memory recall and tool discovery with a shared provenance schema.
 - [@agents-js/ui-components](https://agents-js.bodal.dev/per-package/agents-js-ui-components-llms.txt): Lit web components for ACP-aware chat interfaces. Drop-in surface with streaming, permissions, elicitation, auth, and theming.
 - [@agents-js/validation](https://agents-js.bodal.dev/per-package/agents-js-validation-llms.txt): Schema validation for ACP envelopes, A2A requests/responses, runtime manifests, and JSON-RPC messages.
+- [@agents-js/wake-mcp-triggers](https://agents-js.bodal.dev/per-package/agents-js-wake-mcp-triggers-llms.txt): In-session-push wake-adapter runtime for AJS-89 HYBRID. Gateway-side dispatcher emits MCP notifications carrying WakeAdapter payloads; harness-side receiver dedupes by idempotency key and drops expired signals. First impl of the in-session-push shape (AJS-96).
 - [@agents-js/wake-types](https://agents-js.bodal.dev/per-package/agents-js-wake-types-llms.txt): WakeAdapter BASE type + shape-discriminated union (in-session-push, translator-inject, spawn-with-signal) for the AJS-89 HYBRID wake-transport architecture. Pure types — no runtime.
 
 ## Optional
