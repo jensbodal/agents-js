@@ -13,6 +13,7 @@ import {
   classifyOperation,
   type DispatchFailureReason,
   extractShellCommandPathArgs,
+  isHighRisk,
   isKnownOperationClass,
   isReadOnly,
   isWithinWorkspace,
@@ -180,15 +181,23 @@ export async function evaluatePermission(
     }
   }
 
-  // unattendedGateway mode: auto-approve every KNOWN operation class,
-  // fail-closed (cancel) on UNKNOWN / `tool.<name>` fallback. For
-  // `workspace.shell.*` classes, the workspace-boundary realpath/symlink
-  // defense (AJS-77 PR1.5) MUST still fire — the CVE-class symlink-escape
-  // check is an auto-approve safety property, not a mode-specific concern,
-  // and bypassing it in unattended mode would silently regress the security
-  // posture established by PR1.5 for one mode. v1 non-shell matrix is
-  // intentionally minimal — every other KNOWN class auto-approves; per-class
-  // tightening (HIGH_RISK exclusion, etc.) is follow-up scope.
+  // unattendedGateway mode: auto-approve every KNOWN operation class EXCEPT
+  // those flagged HIGH_RISK by the policy gate. Fail-closed (cancel) on
+  // UNKNOWN / `tool.<name>` fallback. For `workspace.shell.*` classes, the
+  // workspace-boundary realpath/symlink defense (AJS-77 PR1.5) MUST still
+  // fire — the CVE-class symlink-escape check is an auto-approve safety
+  // property, not a mode-specific concern, and bypassing it in unattended
+  // mode would silently regress the security posture established by PR1.5
+  // for one mode.
+  //
+  // HIGH_RISK exclusion order: check AFTER known-class + workspace-shell-
+  // realpath checks so the failure reason precisely reflects which guard
+  // refused the auto-approve. The {@link isHighRisk} helper covers both
+  // literal HIGH_RISK_OPERATIONS membership and context-sensitive
+  // escalation (terminal.create with shell-wrapper command). Carries the
+  // typed `kind: "high_risk_operation"` failureReason so consumers can
+  // distinguish "system refused to auto-approve" from "unknown class" or
+  // "transport failure."
   if (ctx.permissionMode === "unattendedGateway") {
     const operationClass = classifyOperation(effectiveRequest);
 
@@ -261,6 +270,37 @@ export async function evaluatePermission(
         return cancelled;
       }
       // Boundary check passed; fall through to switch which will auto-approve.
+    }
+
+    // HIGH_RISK exclusion: even within KNOWN classes, certain operations
+    // (terminal.shell, terminal.create, file.delete, workspace.command.execute,
+    // and context-sensitive terminal.create-with-shell-wrapper) MUST require
+    // explicit human approval — auto-approving them in unattended-gateway
+    // mode is the security regression #142 closes. The {@link isHighRisk}
+    // helper covers both literal Set membership AND context-sensitive
+    // escalation. Fails closed with a typed `kind: "high_risk_operation"`
+    // reason so wire consumers can distinguish "policy refused" from
+    // "unknown class" or "transport failure."
+    if (isHighRisk(operationClass, effectiveRequest)) {
+      logPermissionDecision(
+        ctx.permLog,
+        effectiveRequest,
+        ctx.permissionMode,
+        "cancelled",
+        "unattended-gateway: high-risk operation (fail-closed)",
+        {
+          operationClass,
+          failureReason: {
+            kind: "high_risk_operation",
+            operationClass,
+          } satisfies DispatchFailureReason,
+        },
+      );
+      const cancelled: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+      void callHook(ctx.log, "afterPermission", () =>
+        ctx.hooks?.afterPermission?.(effectiveRequest, cancelled, ctx.sessionId),
+      );
+      return cancelled;
     }
 
     // Exhaustive switch over the narrowed OperationClass — every known class

@@ -134,12 +134,105 @@ describe("evaluatePermission — unattendedGateway: KNOWN operation classes auto
     expect(prompted.value).toBe(false);
   });
 
-  test("auto-approves a terminal.create request (KNOWN class in v1 minimal matrix)", async () => {
-    const { ctx, prompted } = makeContext();
+  // NOTE: `terminal.create` is now HIGH_RISK-excluded (see the HIGH_RISK
+  // describe block below). The pre-#142 test that asserted auto-approval
+  // for terminal.create was a security regression and has been promoted to
+  // a fail-closed assertion in the HIGH_RISK suite.
+});
+
+describe("evaluatePermission — unattendedGateway: HIGH_RISK exclusion (#142)", () => {
+  // Closes the security regression where the v1 minimal matrix
+  // auto-approved every KNOWN class — including terminal/file-delete/
+  // workspace-command-execute ops that the policy gate explicitly marks
+  // HIGH_RISK. The unattended-gateway mode now fails closed on HIGH_RISK
+  // even within KNOWN classes.
+
+  test("cancels file.delete (literal HIGH_RISK_OPERATIONS member)", async () => {
+    const { ctx, prompted, permLogs } = makeContext();
+    const res = await evaluatePermission(makeRequest("deleteFile", { path: "src/index.ts" }), ctx);
+    expect(res).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(prompted.value).toBe(false);
+
+    const cancelLog = permLogs.find((entry) => entry.meta?.decision === "cancelled");
+    expect(cancelLog?.meta?.failureReason).toEqual({
+      kind: "high_risk_operation",
+      operationClass: "file.delete",
+    });
+    expect(cancelLog?.meta?.reason).toBe("unattended-gateway: high-risk operation (fail-closed)");
+  });
+
+  test("cancels terminal.create (literal HIGH_RISK_OPERATIONS member)", async () => {
+    const { ctx, prompted, permLogs } = makeContext();
     const res = await evaluatePermission(
       makeRequest("execute terminal command", { command: "echo hi" }),
       ctx,
     );
+    expect(res).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(prompted.value).toBe(false);
+
+    const cancelLog = permLogs.find((entry) => entry.meta?.decision === "cancelled");
+    expect(cancelLog?.meta?.failureReason).toEqual({
+      kind: "high_risk_operation",
+      operationClass: "terminal.create",
+    });
+  });
+
+  test("cancels workspace.command.execute (literal HIGH_RISK_OPERATIONS member)", async () => {
+    const { ctx, prompted, permLogs } = makeContext();
+    // Title must contain `workspace.command.execute` / `workspace_command_execute`
+    // for the classifier to emit the operation class (matches packages/policy
+    // permission-engine.ts:75-78).
+    const res = await evaluatePermission(
+      makeRequest("workspace.command.execute", { command: "make build" }),
+      ctx,
+    );
+    expect(res).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(prompted.value).toBe(false);
+
+    const cancelLog = permLogs.find((entry) => entry.meta?.decision === "cancelled");
+    expect(cancelLog?.meta?.failureReason).toEqual({
+      kind: "high_risk_operation",
+      operationClass: "workspace.command.execute",
+    });
+  });
+
+  test("cancels terminal.create with shell-wrapper command (context-sensitive escalation)", async () => {
+    // `terminal.create` is also in HIGH_RISK by literal membership, but
+    // isHighRisk additionally escalates terminal.create requests whose
+    // rawInput.command is a shell wrapper (sh/bash/zsh/...). This test
+    // verifies the context-sensitive branch still works post-#142.
+    const { ctx, prompted, permLogs } = makeContext();
+    const res = await evaluatePermission(
+      makeRequest("execute terminal command", { command: "bash" }),
+      ctx,
+    );
+    expect(res).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(prompted.value).toBe(false);
+
+    const cancelLog = permLogs.find((entry) => entry.meta?.decision === "cancelled");
+    expect(cancelLog?.meta?.failureReason).toEqual({
+      kind: "high_risk_operation",
+      operationClass: "terminal.create",
+    });
+  });
+
+  test("does NOT mistakenly cancel file.read (not in HIGH_RISK)", async () => {
+    const { ctx, prompted } = makeContext();
+    const res = await evaluatePermission(makeRequest("readFile", { path: "src/index.ts" }), ctx);
+    expect(res).toEqual({ outcome: { outcome: "selected", optionId: "allow" } });
+    expect(prompted.value).toBe(false);
+  });
+
+  test("does NOT mistakenly cancel file.write (not in HIGH_RISK; rewriting is recoverable)", async () => {
+    const { ctx, prompted } = makeContext();
+    const res = await evaluatePermission(makeRequest("writeFile", { path: "src/index.ts" }), ctx);
+    expect(res).toEqual({ outcome: { outcome: "selected", optionId: "allow" } });
+    expect(prompted.value).toBe(false);
+  });
+
+  test("does NOT mistakenly cancel workspace.shell.read (read-only shell — not in HIGH_RISK)", async () => {
+    const { ctx, prompted } = makeContext();
+    const res = await evaluatePermission(makeRequest("cat README.md"), ctx);
     expect(res).toEqual({ outcome: { outcome: "selected", optionId: "allow" } });
     expect(prompted.value).toBe(false);
   });

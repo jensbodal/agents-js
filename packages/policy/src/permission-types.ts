@@ -264,6 +264,7 @@ export type DispatchFailureKind =
   | "no_workspace_identity_path"
   | "workspace_boundary_violation"
   | "no_allow_option"
+  | "high_risk_operation"
   // Dispatch-transport failures (from matrix-bus-consumer / internal-gateway)
   | "dispatch_error"
   | "dispatch_timeout"
@@ -284,6 +285,7 @@ export type DispatchFailureReason =
   | { kind: "no_workspace_identity_path"; operationClass: OperationClass }
   | { kind: "workspace_boundary_violation"; operationClass: OperationClass }
   | { kind: "no_allow_option"; operationClass: OperationClass }
+  | { kind: "high_risk_operation"; operationClass: OperationClass }
   | { kind: "dispatch_error"; message?: string }
   | { kind: "dispatch_timeout"; message?: string }
   | { kind: "consumer_unreachable"; message?: string };
@@ -299,6 +301,7 @@ const KNOWN_DISPATCH_FAILURE_KINDS_RECORD: Record<DispatchFailureKind, true> = {
   no_workspace_identity_path: true,
   workspace_boundary_violation: true,
   no_allow_option: true,
+  high_risk_operation: true,
   dispatch_error: true,
   dispatch_timeout: true,
   consumer_unreachable: true,
