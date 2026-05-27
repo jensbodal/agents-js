@@ -144,9 +144,12 @@ export {
   watchTrustManifest,
 } from "./load-trust-manifest.ts";
 export {
+  convertLegacyFailureReason,
   type DispatchHandler,
   type DispatchRequest,
   type DispatchResult,
+  extractFailureReason,
+  type LegacyFailureReasonKebab,
   MATRIX_INBOUND_TOPIC,
   MATRIX_REPLY_TOPIC,
   type MatrixBusConsumerHandle,

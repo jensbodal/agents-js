@@ -835,10 +835,18 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
         // since fetch implementations sometimes surface a generic Error
         // with that token but no canonical name/code.
         message.includes("aborted");
+      // AJS-79 PR3b-2 (additive widening): emit legacy kebab AND typed V2
+      // simultaneously. matrix-bus-consumer's publishReply will derive the
+      // missing field if only one is set, but populating both here keeps
+      // the emission shape explicit and avoids the implicit derivation.
+      const body = `matrix-bus-consumer dispatch failed: ${message}`;
       const dispatchResult: DispatchResult = {
         status: "failure",
-        body: `matrix-bus-consumer dispatch failed: ${message}`,
+        body,
         failureReason: isTimeout ? "dispatch-timeout" : "dispatch-error",
+        failureReasonV2: isTimeout
+          ? { kind: "dispatch_timeout", message }
+          : { kind: "dispatch_error", message },
       };
       return dispatchResult;
     }
