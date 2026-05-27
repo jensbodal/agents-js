@@ -27,7 +27,6 @@
  * swap follow-up commits per the locked tests-first discipline.
  */
 
-import type { DispatchFailureReason } from "@agents-js/policy";
 import {
   buildGatewayBusEvent,
   type GatewayBus,
@@ -35,23 +34,6 @@ import {
   type GatewayBusUnsubscribe,
   type IdentityPrincipal,
 } from "./gateway-bus.ts";
-
-/**
- * Legacy kebab-case failure-reason vocabulary used on the
- * `MatrixBusReplyPayload.failureReason` wire field. Three values mirror
- * the three dispatch-transport kinds in {@link DispatchFailureReason}.
- *
- * **AJS-79 PR3b-2 (additive widening, 2026-05-27):** retained alongside
- * the new typed {@link MatrixBusReplyPayload.failureReasonV2} field so
- * consumers (in-repo `apps/internal-gateway`, out-of-repo dot-matrix
- * `router.py`) can migrate at their own pace during the deprecation
- * window. Removal happens in AJS-79 PR3b-narrow after the dot-matrix
- * bridge adopts the typed shape.
- */
-export type LegacyFailureReasonKebab =
-  | "dispatch-error"
-  | "consumer-unreachable"
-  | "dispatch-timeout";
 
 /**
  * Matrix event payload shape that this consumer recognizes. Mirrors
@@ -85,9 +67,9 @@ export interface MatrixBusReplyPayload {
   /** `"success"` from dispatch result, `"failure"` from a dispatch error. */
   kind: "success" | "failure";
   /**
-   * Legacy kebab-case failure-reason discriminator. Present iff
-   * `kind === "failure"`. Distinguishes the DOT-393 Phase B
-   * retry-vs-surface decision at the federation boundary:
+   * Failure-reason discriminator. Present iff `kind === "failure"`. Lets
+   * the bridge (or any reply consumer) distinguish the DOT-393 Phase B
+   * retry-vs-surface decision:
    *
    *   - `"dispatch-error"` — dispatch handler returned/threw a typed
    *     error from the agent runtime. Treat as legitimate agent failure;
@@ -100,35 +82,22 @@ export interface MatrixBusReplyPayload {
    *     return within the deadline. Bridge MAY retry but with longer
    *     deadline; surfacing to user is also acceptable.
    *
-   * **AJS-79 PR3b-2 (additive widening, 2026-05-27):** preserved as the
-   * deprecation-window compatibility surface. The typed
-   * {@link failureReasonV2} field is emitted alongside this one — new
-   * consumers SHOULD read `failureReasonV2` first and fall back to
-   * `failureReason` only for receivers that have not yet migrated.
-   * Use {@link extractFailureReason} to get a typed value from either
-   * field in one call.
+   * The skeleton consumer in this commit only ever emits
+   * `"dispatch-error"` (it can detect handler throws but not consumer
+   * unreachability — that's a wiring-layer concern in the bridge's
+   * post-publish acknowledgement). Future wire-up commits MAY emit
+   * `"consumer-unreachable"` if a deadline-based ack pattern is added.
    *
-   * Removed in a future AJS-79 PR3b-narrow once the dot-matrix bridge
-   * `router.py` adopts the typed shape and the deprecation window
-   * closes.
+   * **Wire shape (AJS-79 PR3a):** intentionally still the legacy
+   * kebab-case string union. The typed `DispatchFailureReason` shape
+   * lives in `@agents-js/policy` as single source of truth for the
+   * vocabulary (consumed at internal permission-gate sites in
+   * `@agents-js/acp-host`). The wire-shape flip from string-enum to
+   * typed object is AJS-79 PR3b scope — it requires a co-landing
+   * dot-matrix bridge PR (`router.py` parses both shapes) to avoid
+   * silently breaking DOT-393 fallback at the federation boundary.
    */
-  failureReason?: LegacyFailureReasonKebab;
-  /**
-   * Typed failure-reason payload (AJS-79 PR3b-2 additive widening).
-   * Present iff `kind === "failure"`, emitted alongside
-   * {@link failureReason} during the deprecation window.
-   *
-   * Consumers SHOULD prefer this field over the legacy
-   * {@link failureReason} kebab string — it carries the same retry-
-   * vs-surface semantics PLUS an optional `message` for human-readable
-   * surface and, when produced by the permission gate, an
-   * `operationClass` for diagnostic context.
-   *
-   * Use {@link extractFailureReason} to get a typed value from either
-   * field — that helper preserves backward compatibility for receivers
-   * that emit only the legacy field.
-   */
-  failureReasonV2?: DispatchFailureReason;
+  failureReason?: "dispatch-error" | "consumer-unreachable" | "dispatch-timeout";
 }
 
 /**
@@ -162,26 +131,11 @@ export interface DispatchResult {
   /** Reply body to relay back to Matrix. */
   body: string;
   /**
-   * Legacy kebab-case failure discriminator. Optional and only meaningful
-   * when `status === "failure"`. See
-   * {@link MatrixBusReplyPayload.failureReason} for the DOT-393 retry-vs-
-   * surface semantics each value implies.
-   *
-   * AJS-79 PR3b-2 (additive widening): handlers SHOULD also populate
-   * {@link failureReasonV2} so the consumer can emit both fields onto
-   * the wire payload. If only one of the two is set, the consumer
-   * derives the other via {@link convertLegacyFailureReason} /
-   * {@link extractFailureReason} so both wire fields are always present
-   * during the deprecation window.
+   * Failure discriminator. Optional and only meaningful when
+   * `status === "failure"`. See `MatrixBusReplyPayload.failureReason`
+   * for the DOT-393 retry-vs-surface semantics each value implies.
    */
-  failureReason?: LegacyFailureReasonKebab;
-  /**
-   * Typed failure-reason payload (AJS-79 PR3b-2 additive widening).
-   * Carries the snake_case {@link DispatchFailureReason} kind plus
-   * an optional human-readable `message` (transport failures) or
-   * `operationClass` (permission failures).
-   */
-  failureReasonV2?: DispatchFailureReason;
+  failureReason?: "dispatch-error" | "consumer-unreachable" | "dispatch-timeout";
 }
 
 export type DispatchHandler = (request: DispatchRequest) => Promise<DispatchResult>;
@@ -276,7 +230,6 @@ export function startMatrixBusConsumer(
       })
       .catch((error: unknown) => {
         onDispatchError(error, request);
-        const message = stringifyError(error);
         publishReply({
           bus: opts.bus,
           replyPrincipal,
@@ -284,9 +237,8 @@ export function startMatrixBusConsumer(
           matrixEvent,
           result: {
             status: "failure",
-            body: message,
+            body: stringifyError(error),
             failureReason: "dispatch-error",
-            failureReasonV2: { kind: "dispatch_error", message },
           },
         });
       });
@@ -338,22 +290,12 @@ function publishReply(args: {
   matrixEvent: MatrixBusEventPayload;
   result: DispatchResult;
 }): void {
-  // AJS-79 PR3b-2 (additive): emit both legacy kebab + typed V2 on the
-  // wire. If the dispatch handler populated only one of the two,
-  // derive the other so consumers always see both during the
-  // deprecation window. After AJS-79 PR3b-narrow lands, only V2 will
-  // remain.
-  const legacyKebab = args.result.failureReason;
-  const typedV2 =
-    args.result.failureReasonV2 ??
-    (legacyKebab !== undefined ? convertLegacyFailureReason(legacyKebab) : undefined);
   const replyPayload: MatrixBusReplyPayload = {
     roomId: args.matrixEvent.roomId,
     body: args.result.body,
     kind: args.result.status,
     ...(args.matrixEvent.eventId !== undefined && { inReplyToEventId: args.matrixEvent.eventId }),
-    ...(legacyKebab !== undefined && { failureReason: legacyKebab }),
-    ...(typedV2 !== undefined && { failureReasonV2: typedV2 }),
+    ...(args.result.failureReason !== undefined && { failureReason: args.result.failureReason }),
   };
   args.bus.publish(
     buildGatewayBusEvent<MatrixBusReplyPayload>({
@@ -392,66 +334,4 @@ function stringifyError(error: unknown): string {
   } catch {
     return String(error);
   }
-}
-
-/**
- * Map a legacy kebab-case {@link LegacyFailureReasonKebab} to the
- * typed {@link DispatchFailureReason} shape. Used by {@link publishReply}
- * to derive the V2 field when the dispatch handler populated only the
- * legacy field, and by {@link extractFailureReason} for receivers
- * reading the legacy field on inbound payloads.
- *
- * Mapping (snake_case typed kind on left, kebab on right):
- *   - `dispatch_error` ← `"dispatch-error"`
- *   - `consumer_unreachable` ← `"consumer-unreachable"`
- *   - `dispatch_timeout` ← `"dispatch-timeout"`
- *
- * Adding a new {@link LegacyFailureReasonKebab} member is a structural
- * widening — every site that switches on the kebab union (including
- * this function) must widen in lockstep. The function uses an
- * exhaustive switch with `assertNever`-style fallthrough so a missing
- * mapping is a typecheck error.
- *
- * AJS-79 PR3b-2 (additive widening, 2026-05-27).
- */
-export function convertLegacyFailureReason(
-  legacy: LegacyFailureReasonKebab,
-): DispatchFailureReason {
-  switch (legacy) {
-    case "dispatch-error":
-      return { kind: "dispatch_error" };
-    case "consumer-unreachable":
-      return { kind: "consumer_unreachable" };
-    case "dispatch-timeout":
-      return { kind: "dispatch_timeout" };
-    default: {
-      const _exhaustive: never = legacy;
-      throw new Error(`unreachable legacy failure-reason kebab: ${String(_exhaustive)}`);
-    }
-  }
-}
-
-/**
- * Read the failure-reason from a {@link MatrixBusReplyPayload} (or any
- * structurally-compatible carrier) and return a typed
- * {@link DispatchFailureReason} or `undefined`.
- *
- * Resolution order:
- *   1. If `failureReasonV2` is present, return it.
- *   2. Else if `failureReason` (legacy kebab) is present, convert
- *      it via {@link convertLegacyFailureReason} and return.
- *   3. Otherwise return `undefined`.
- *
- * Use this helper in any read site that needs the typed shape — it
- * preserves backward compatibility for receivers that emit only the
- * legacy field during the deprecation window.
- *
- * AJS-79 PR3b-2 (additive widening, 2026-05-27).
- */
-export function extractFailureReason(
-  payload: Pick<MatrixBusReplyPayload, "failureReason" | "failureReasonV2">,
-): DispatchFailureReason | undefined {
-  if (payload.failureReasonV2 !== undefined) return payload.failureReasonV2;
-  if (payload.failureReason !== undefined) return convertLegacyFailureReason(payload.failureReason);
-  return undefined;
 }
