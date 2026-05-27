@@ -70,8 +70,16 @@ export interface StartAutoRegisterHeartbeatOptions {
   /**
    * Heartbeat cadence in milliseconds. Defaults to
    * {@link DEFAULT_HEARTBEAT_INTERVAL_MS} (60 000).
-   * Pass `0` or a negative number to disable scheduling — the initial
-   * fire-and-forget registration still runs.
+   *
+   * Pass `0` or a negative number to disable all scheduling — the initial
+   * fire-and-forget registration runs once, and crucially **no retry is
+   * scheduled** even if that initial registration fails. The intent of
+   * `intervalMs <= 0` is "fire once, don't keep running"; honoring it on
+   * the success path but reverting to backoff on the failure path would
+   * silently violate that contract (the heartbeat would still keep ticking
+   * via the exponential-backoff loop). Callers that need
+   * resilient-but-not-periodic semantics should pass a small `intervalMs`
+   * and `stop()` the handle once the first success arrives.
    */
   intervalMs?: number;
   /**
@@ -166,6 +174,18 @@ export function startAutoRegisterHeartbeat(
       currentBackoffMs = initialBackoffMs;
       if (intervalMs > 0) schedule(intervalMs);
     } catch (err: unknown) {
+      // Honor `intervalMs <= 0` on the failure path too — the docstring
+      // promises "fire once, don't keep running," and silently reverting
+      // to backoff retries here would violate that. Operators who want
+      // resilient-but-not-periodic should pass a small intervalMs and
+      // stop() after first success.
+      if (intervalMs <= 0) {
+        logger.warn(
+          "[agents-js/registry] Heartbeat failed (intervalMs<=0 — not retrying):",
+          err instanceof Error ? err.message : String(err),
+        );
+        return;
+      }
       logger.warn(
         "[agents-js/registry] Heartbeat failed (will retry):",
         err instanceof Error ? err.message : String(err),

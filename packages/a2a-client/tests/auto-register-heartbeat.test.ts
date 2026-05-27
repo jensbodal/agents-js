@@ -226,6 +226,55 @@ describe("startAutoRegisterHeartbeat", () => {
     handle.stop();
   });
 
+  test("intervalMs: 0 + failing registerFn: NO retry scheduled (honors docstring contract)", async () => {
+    // Regression guard for the #156 nitpick: the success path correctly
+    // gated `schedule(intervalMs)` on `intervalMs > 0`, but the failure
+    // path unconditionally called `schedule(retryDelay)`. Operators who
+    // explicitly set intervalMs<=0 expect "fire once, don't keep running"
+    // — silently retrying on first-attempt failure would violate that.
+    const { scheduler, queue, drainMicrotasks } = makeScheduler();
+    const registerFn = mock(async (_opts: AutoRegisterOptions) => {
+      throw new Error("transient network blip");
+    });
+
+    const handle = startAutoRegisterHeartbeat({
+      name: "gw",
+      url: "http://gw.test:9000",
+      configPath,
+      intervalMs: 0,
+      scheduler,
+      registerFn,
+    });
+
+    await drainMicrotasks();
+    expect(registerFn).toHaveBeenCalledTimes(1); // initial attempt fired
+    expect(queue).toHaveLength(0); // NO retry scheduled despite the failure
+
+    handle.stop();
+  });
+
+  test("intervalMs: -1 (negative): same one-shot semantics as 0 + failing registerFn does not retry", async () => {
+    const { scheduler, queue, drainMicrotasks } = makeScheduler();
+    const registerFn = mock(async (_opts: AutoRegisterOptions) => {
+      throw new Error("boom");
+    });
+
+    const handle = startAutoRegisterHeartbeat({
+      name: "gw",
+      url: "http://gw.test:9000",
+      configPath,
+      intervalMs: -1,
+      scheduler,
+      registerFn,
+    });
+
+    await drainMicrotasks();
+    expect(registerFn).toHaveBeenCalledTimes(1);
+    expect(queue).toHaveLength(0);
+
+    handle.stop();
+  });
+
   test("urlProvider is invoked on every tick", async () => {
     const { scheduler, flush, drainMicrotasks } = makeScheduler();
     const urls = ["http://gw.test:1", "http://gw.test:2", "http://gw.test:3"];
