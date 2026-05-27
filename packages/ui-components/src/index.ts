@@ -25,7 +25,11 @@ export {
 export { AcpImage } from "./acp-image.ts";
 export {
   AcpInboxMessageItem,
+  type InboxKindLike,
   type InboxMessageLike,
+  KNOWN_INBOX_KINDS_LIKE,
+  type MatrixOriginEnvelopeLike,
+  normalizeInboxKindLike,
 } from "./acp-inbox-message-item.ts";
 export { AcpInboxMessageList, filterMessages } from "./acp-inbox-message-list.ts";
 export { acpInputStyles } from "./acp-input-styles.ts";

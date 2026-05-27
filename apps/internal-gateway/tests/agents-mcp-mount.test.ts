@@ -17,6 +17,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   AgentInboxTool,
   InboxDeliverArgs,
@@ -30,6 +33,8 @@ import {
   type AgentsMcpEnvConfig,
   buildAgentMsgDeliverArgv,
   buildSendMatrixCliArgs,
+  createSubprocessAgentInboxTool,
+  parseMatrixOriginEnvelope,
   readAgentsMcpEnv,
   setupAgentsMcpMount,
 } from "../agents-mcp-mount.ts";
@@ -734,6 +739,266 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
     expect(argv).toContain("--from");
     expect(argv).toContain("codex-hostname-null");
     expect(argv).toContain("--no-notify");
+  });
+
+  // ============================================================
+  //
+  // AJS-88 / DOT-502 v0.2 — InboxDeliverArgs contract widening
+  // ============================================================
+
+  /**
+   * WHAT: When `idempotencyKey`, `matrixOrigin`, and `kind` are all
+   *       supplied, `buildAgentMsgDeliverArgv` forwards each as the
+   *       agreed CLI flag (`--idempotency-key`, `--matrix-origin-json`,
+   *       `--kind`). The matrix-origin envelope is JSON-stringified into
+   *       a single arg slot so the structured shape rides one CLI arg.
+   * WHY:  Pins the wire-shape for the bridge→gateway→CLI thread that
+   *       DOT-502 v0.2 §8 / spec hand-off depends on. A regression that
+   *       drops or renames any of these flags silently breaks bridge
+   *       fanout. The matrix_origin JSON shape pin guards the snake-case
+   *       field-naming agreement with the bridge author lane.
+   */
+  test("buildAgentMsgDeliverArgv: forwards idempotencyKey + matrixOrigin + kind as CLI flags", () => {
+    const argv = buildAgentMsgDeliverArgv({
+      identity: {
+        agentName: "matrix-bridge-fanout",
+        scopes: ["inbox.deliver"] as const,
+        correlationId: "x",
+        issuer: "test-gateway",
+        expiresAt: 0,
+      },
+      toSession: "hostname-null-codex-app",
+      body: "@hostname-null-codex-app please ack",
+      idempotencyKey: "$evt-abc:hostname-null-codex-app",
+      matrixOrigin: {
+        event_id: "$evt-abc:matrix.example",
+        room_id: "!room:matrix.example",
+        sender: "@user:matrix.example",
+        origin_server_ts: 1748263200000,
+        reply_to_event_id: "$evt-prev:matrix.example",
+      },
+      kind: "matrix_room_mention",
+    });
+    // idempotency-key flag + value
+    expect(argv).toContain("--idempotency-key");
+    expect(argv).toContain("$evt-abc:hostname-null-codex-app");
+    // kind flag + value
+    expect(argv).toContain("--kind");
+    expect(argv).toContain("matrix_room_mention");
+    // matrix-origin-json flag carries a parseable JSON string with all
+    // five envelope fields.
+    expect(argv).toContain("--matrix-origin-json");
+    const idx = argv.indexOf("--matrix-origin-json");
+    expect(idx).toBeGreaterThanOrEqual(0);
+    const jsonArg = argv[idx + 1];
+    expect(typeof jsonArg).toBe("string");
+    const parsed = JSON.parse(jsonArg as string) as Record<string, unknown>;
+    expect(parsed.event_id).toBe("$evt-abc:matrix.example");
+    expect(parsed.room_id).toBe("!room:matrix.example");
+    expect(parsed.sender).toBe("@user:matrix.example");
+    expect(parsed.origin_server_ts).toBe(1748263200000);
+    expect(parsed.reply_to_event_id).toBe("$evt-prev:matrix.example");
+  });
+
+  /**
+   * WHAT: When the new contract fields are omitted, none of the v0.2
+   *       flags appear in argv — no `--idempotency-key undefined`,
+   *       no `--matrix-origin-json null`, no `--kind ""` accidents.
+   * WHY:  Native `agents.send_message` callers (the default path) MUST
+   *       continue producing the exact pre-contract argv. A regression
+   *       that emits `--kind undefined` would break the CLI invocation
+   *       for every non-bridge sender.
+   */
+  test("buildAgentMsgDeliverArgv: omits v0.2 flags entirely when contract fields are absent", () => {
+    const argv = buildAgentMsgDeliverArgv({
+      identity: {
+        agentName: "codex-hostname-null",
+        scopes: ["inbox.deliver"] as const,
+        correlationId: "x",
+        issuer: "test-gateway",
+        expiresAt: 0,
+      },
+      toSession: "ajs-claude",
+      body: "native send",
+    });
+    expect(argv).not.toContain("--idempotency-key");
+    expect(argv).not.toContain("--matrix-origin-json");
+    expect(argv).not.toContain("--kind");
+    // Sanity check: no stray "undefined" / "null" string slots either.
+    expect(argv).not.toContain("undefined");
+    expect(argv).not.toContain("null");
+  });
+
+  /**
+   * WHAT: When the deployed `agent-msg` CLI predates v0.2 and rejects
+   *       a v0.2 flag with exit code 2 (POSIX/Commander unknown-flag
+   *       convention), `createSubprocessAgentInboxTool().deliver()`
+   *       retries WITHOUT the v0.2 flags and returns success.
+   * WHY:  Spec §5 sequencing: agents-js + agent-msg CLI deploy on
+   *       different ticks during the rollout window. Hard-failing every
+   *       inbox.deliver because the CLI lacks `--idempotency-key` would
+   *       break durable delivery for ALL callers (native + bridge).
+   *       Graceful-skip preserves delivery; the matrix-origin metadata
+   *       is lost on the row but the row itself lands.
+   *
+   * Test fixture: a bash script that exits 2 with a stderr message on
+   *               first call, then exits 0 with valid JSON on second
+   *               call. Detection is structural (`exitCode === 2`); we
+   *               do NOT pattern-match the stderr text (banked rule).
+   */
+  test("createSubprocessAgentInboxTool: graceful-skip when CLI exit code 2 → retry without v0.2 flags succeeds", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "ajs-88-cli-fixture-"));
+    const stateFile = join(tmp, "call-count");
+    const binPath = join(tmp, "agent-msg-stub");
+    const script = [
+      "#!/bin/sh",
+      `state="${stateFile}"`,
+      'if [ -f "$state" ]; then count=$(cat "$state"); else count=0; fi',
+      "count=$((count + 1))",
+      'echo "$count" > "$state"',
+      // Echo argv to a parallel log so the test can assert what the
+      // retry call actually invoked the CLI with.
+      `argv_log="${join(tmp, "argv-log")}"`,
+      'echo "$@" >> "$argv_log"',
+      'if [ "$count" -eq 1 ]; then',
+      '  echo "error: unknown flag --idempotency-key" >&2',
+      "  exit 2",
+      "fi",
+      'echo "{\\"messageId\\":\\"msg-retry-ok\\",\\"createdAt\\":\\"2026-05-26T00:00:00Z\\"}"',
+      "exit 0",
+    ].join("\n");
+    writeFileSync(binPath, `${script}\n`);
+    chmodSync(binPath, 0o755);
+    try {
+      const tool = createSubprocessAgentInboxTool(binPath);
+      const result = await tool.deliver({
+        identity: {
+          agentName: "matrix-bridge-fanout",
+          scopes: ["inbox.deliver"] as const,
+          correlationId: "x",
+          issuer: "test-gateway",
+          expiresAt: 0,
+        },
+        toSession: "hostname-null-codex-app",
+        body: "@hostname-null-codex-app please ack",
+        idempotencyKey: "$evt-abc:hostname-null-codex-app",
+        matrixOrigin: {
+          event_id: "$evt-abc:matrix.example",
+          room_id: "!room:matrix.example",
+          sender: "@user:matrix.example",
+          origin_server_ts: 1748263200000,
+        },
+        kind: "matrix_room_mention",
+      });
+      expect(result.message_id).toBe("msg-retry-ok");
+      expect(result.created_at).toBe("2026-05-26T00:00:00Z");
+      // already_delivered absent from CLI output → field absent on result.
+      expect(result.already_delivered).toBeUndefined();
+      // Assert the retry argv stripped the v0.2 flags but kept the rest.
+      const argvLog = readFileSync(join(tmp, "argv-log"), "utf8");
+      const lines = argvLog.trim().split("\n");
+      expect(lines.length).toBe(2); // first call (failed) + retry
+      const retryLine = lines[1] ?? "";
+      expect(retryLine).not.toContain("--idempotency-key");
+      expect(retryLine).not.toContain("--matrix-origin-json");
+      expect(retryLine).not.toContain("--kind");
+      // Preserved args still present.
+      expect(retryLine).toContain("--from");
+      expect(retryLine).toContain("matrix-bridge-fanout");
+      expect(retryLine).toContain("--no-notify");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: When the CLI returns `alreadyDelivered: true` in the JSON
+   *       response, `deliver()` surfaces it as `already_delivered: true`
+   *       on the typed result. When the CLI omits the field (pre-v0.2),
+   *       the result's `already_delivered` stays undefined.
+   * WHY:  Spec §4 idempotency wire-shape: bridge fanout treats
+   *       `already_delivered: true` as success-without-retry. The
+   *       type-level surface ships in Stage 1 ahead of the CLI side
+   *       (Stage 2) so consumers can pattern against the field from
+   *       day one.
+   */
+  test("createSubprocessAgentInboxTool: alreadyDelivered:true CLI output → result.already_delivered === true", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "ajs-88-cli-already-"));
+    const binPath = join(tmp, "agent-msg-stub");
+    const script = [
+      "#!/bin/sh",
+      'echo "{\\"messageId\\":\\"msg-existing-1\\",\\"createdAt\\":\\"2026-05-22T02:00:00Z\\",\\"alreadyDelivered\\":true}"',
+      "exit 0",
+    ].join("\n");
+    writeFileSync(binPath, `${script}\n`);
+    chmodSync(binPath, 0o755);
+    try {
+      const tool = createSubprocessAgentInboxTool(binPath);
+      const result = await tool.deliver({
+        identity: {
+          agentName: "matrix-bridge-fanout",
+          scopes: ["inbox.deliver"] as const,
+          correlationId: "x",
+          issuer: "test-gateway",
+          expiresAt: 0,
+        },
+        toSession: "hostname-null-codex-app",
+        body: "duplicate fanout",
+        idempotencyKey: "$evt-abc:hostname-null-codex-app",
+      });
+      expect(result.message_id).toBe("msg-existing-1");
+      expect(result.already_delivered).toBe(true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: `parseMatrixOriginEnvelope` accepts a fully-formed envelope,
+   *       accepts the optional `reply_to_event_id` when present, and
+   *       rejects malformed input (missing required field, wrong type)
+   *       by returning undefined.
+   * WHY:  Pre-contract rows have no `matrixOrigin` field; CLI predating
+   *       v0.2 emits nothing. Defensive parse keeps the read-side
+   *       InboxMessage shape valid (no partial envelopes leaking with
+   *       missing required fields).
+   */
+  test("parseMatrixOriginEnvelope: valid + reply-threaded + malformed shapes", () => {
+    expect(parseMatrixOriginEnvelope(undefined)).toBeUndefined();
+    expect(parseMatrixOriginEnvelope(null)).toBeUndefined();
+    expect(parseMatrixOriginEnvelope({})).toBeUndefined();
+    expect(parseMatrixOriginEnvelope({ event_id: "x" })).toBeUndefined();
+    expect(
+      parseMatrixOriginEnvelope({
+        event_id: "$x",
+        room_id: "!r",
+        sender: "@u",
+        // wrong type: string instead of number
+        origin_server_ts: "1748263200000",
+      }),
+    ).toBeUndefined();
+
+    const minimal = parseMatrixOriginEnvelope({
+      event_id: "$x",
+      room_id: "!r",
+      sender: "@u",
+      origin_server_ts: 1748263200000,
+    });
+    expect(minimal).toEqual({
+      event_id: "$x",
+      room_id: "!r",
+      sender: "@u",
+      origin_server_ts: 1748263200000,
+    });
+
+    const threaded = parseMatrixOriginEnvelope({
+      event_id: "$x",
+      room_id: "!r",
+      sender: "@u",
+      origin_server_ts: 1748263200000,
+      reply_to_event_id: "$prev",
+    });
+    expect(threaded?.reply_to_event_id).toBe("$prev");
   });
 
   test("env parser reads AGENTS_MCP_AGENT_MSG_BIN into config.agentMsgBin", () => {

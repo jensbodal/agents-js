@@ -35,12 +35,15 @@ import {
   type GetMessagesResult,
   type InboxDeliverArgs,
   type InboxDeliverResult,
+  type InboxKind,
   type InboxMessage,
   type InboxReadArgs,
   type IpRateLimiter,
+  type MatrixOriginEnvelope,
   type MatrixSendArgs,
   type MatrixSendResult,
   type MatrixTool,
+  normalizeInboxKind,
   type PeerKeyDirectory,
   type ReloadableTrustManifest,
   redeemMintChallenge,
@@ -264,9 +267,31 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * its own correlationId when the flag is omitted.
  */
 /**
+ * AJS-88 / DOT-502 v0.2 — agent-msg CLI flag names for the new contract
+ * fields. Centralised so the graceful-skip retry path can strip the
+ * post-contract flags by name when the deployed CLI predates v0.2.
+ *
+ * The agent-msg CLI side (cognee-codex lane) is being wired in parallel
+ * via a companion ticket; flag names here are the agreed-on shapes for
+ * the v0.2 surface. If the deployed CLI rejects them (pre-v0.2 binary),
+ * the structured exit-code 2 path triggers a retry without these flags
+ * so the inbox.deliver call still succeeds — the matrix-origin metadata
+ * is lost on the row, but durable delivery is preserved.
+ */
+const AGENT_MSG_V02_FLAGS = ["--idempotency-key", "--matrix-origin-json", "--kind"] as const;
+
+/**
  * Build the argv array passed to `agent-msg send`. Extracted as a
- * pure function so the UUID-gate logic for `--correlation` is
- * unit-testable without spawning a subprocess.
+ * pure function so the UUID-gate logic for `--correlation` and the
+ * AJS-88 contract-flag forwarding are unit-testable without spawning a
+ * subprocess.
+ *
+ * AJS-88 / DOT-502 v0.2: when `args` carries the new contract fields
+ * (`idempotencyKey` / `matrixOrigin` / `kind`), each is forwarded as a
+ * dedicated flag. The `matrixOrigin` envelope is JSON-stringified so a
+ * single CLI arg carries the whole structured payload (avoids spreading
+ * five sub-flags across argv). Absent fields produce zero argv entries
+ * (no `--idempotency-key undefined` accidents).
  *
  * Exported for testing.
  */
@@ -282,21 +307,129 @@ export function buildAgentMsgDeliverArgv(args: InboxDeliverArgs): string[] {
   if (args.correlationId && UUID_PATTERN.test(args.correlationId)) {
     cliArgs.push("--correlation", args.correlationId);
   }
+  if (typeof args.idempotencyKey === "string" && args.idempotencyKey.length > 0) {
+    cliArgs.push("--idempotency-key", args.idempotencyKey);
+  }
+  if (args.matrixOrigin !== undefined) {
+    cliArgs.push("--matrix-origin-json", JSON.stringify(args.matrixOrigin));
+  }
+  if (args.kind !== undefined) {
+    cliArgs.push("--kind", args.kind);
+  }
   return cliArgs;
+}
+
+/**
+ * AJS-88 / DOT-502 v0.2 — strip the post-contract flags + their values
+ * from an argv array. Used by the graceful-skip retry path after a
+ * structured exit-code 2 (CLI flag-rejection) signal from the agent-msg
+ * subprocess. Returns a new array; does not mutate input.
+ *
+ * Detection is structural: walk argv, skip any `--<known-v0.2-flag>`
+ * entry plus its single value slot. NO stderr regex (banked rule
+ * `feedback_no_regex_pattern_matching_for_detection`); CLI rejection is
+ * detected via {@link SubprocessFailureError.exitCode === 2} upstream,
+ * not by inspecting stderr text.
+ */
+function stripV02Flags(argv: readonly string[]): string[] {
+  const v02Set = new Set<string>(AGENT_MSG_V02_FLAGS);
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (typeof arg === "string" && v02Set.has(arg)) {
+      i += 1; // skip the value slot too
+      continue;
+    }
+    if (typeof arg === "string") out.push(arg);
+  }
+  return out;
+}
+
+/**
+ * Structured error thrown by {@link runSubprocess} when the spawned
+ * binary exits non-zero. Carries the exit code + captured stderr as
+ * typed fields so callers can branch on `err.exitCode === 2` (CLI
+ * unknown-flag convention) without stderr text-matching.
+ *
+ * Banked rule: detection happens at the translator layer that already
+ * sits between raw output and typed wire shapes; this is that layer for
+ * the subprocess substrate. Stderr stays available as a diagnostic
+ * field but is NEVER pattern-matched for control flow.
+ */
+export class SubprocessFailureError extends Error {
+  readonly exitCode: number;
+  readonly stderr: string;
+  readonly stdout: string;
+  constructor(opts: {
+    bin: string;
+    args: readonly string[];
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }) {
+    super(
+      `[agents-mcp-mount] ${opts.bin} ${opts.args.join(" ")} exited ${opts.exitCode}: ${opts.stderr || opts.stdout}`,
+    );
+    this.name = "SubprocessFailureError";
+    this.exitCode = opts.exitCode;
+    this.stderr = opts.stderr;
+    this.stdout = opts.stdout;
+  }
 }
 
 export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool {
   return {
     async deliver(args: InboxDeliverArgs): Promise<InboxDeliverResult> {
       const cliArgs = buildAgentMsgDeliverArgv(args);
-      const stdout = await runSubprocess(binPath, cliArgs);
-      const parsed = JSON.parse(stdout) as { messageId?: unknown; createdAt?: unknown };
+      let stdout: string;
+      try {
+        stdout = await runSubprocess(binPath, cliArgs);
+      } catch (err) {
+        // AJS-88 / DOT-502 v0.2 graceful-skip: a pre-v0.2 agent-msg
+        // binary exits with code 2 on an unknown flag (POSIX/Commander
+        // convention). When we detect that AND we forwarded any v0.2
+        // flag, retry without them so the inbox.deliver still succeeds.
+        // The matrix-origin metadata is lost on the row but durable
+        // delivery is preserved — which matters more during a staged
+        // rollout where the gateway and CLI may deploy on different
+        // ticks (spec §5 sequencing).
+        //
+        // Detection is structural (exitCode === 2), NOT stderr regex
+        // (banked rule). The strip-and-retry runs at most once per call.
+        const carriedV02Flags = cliArgs.some((a) =>
+          (AGENT_MSG_V02_FLAGS as readonly string[]).includes(a),
+        );
+        if (err instanceof SubprocessFailureError && err.exitCode === 2 && carriedV02Flags) {
+          const fallbackArgs = stripV02Flags(cliArgs);
+          stdout = await runSubprocess(binPath, fallbackArgs);
+        } else {
+          throw err;
+        }
+      }
+      const parsed = JSON.parse(stdout) as {
+        messageId?: unknown;
+        createdAt?: unknown;
+        alreadyDelivered?: unknown;
+      };
       if (typeof parsed.messageId !== "string" || typeof parsed.createdAt !== "string") {
         throw new Error(
           `[agents-mcp-mount] agent-msg send returned unexpected JSON: ${stdout.slice(0, 200)}`,
         );
       }
-      return { message_id: parsed.messageId, created_at: parsed.createdAt };
+      const result: InboxDeliverResult = {
+        message_id: parsed.messageId,
+        created_at: parsed.createdAt,
+      };
+      // AJS-88 / DOT-502 v0.2 — surface the `already_delivered` flag
+      // when the CLI returns it. CLI predates the flag → field absent
+      // on `parsed`; result stays without `already_delivered` and the
+      // bridge fanout treats the call as a fresh delivery (acceptable
+      // per Stage 1 sequencing — the partial UNIQUE index lands with
+      // the CLI companion).
+      if (parsed.alreadyDelivered === true) {
+        result.already_delivered = true;
+      }
+      return result;
     },
     async read(args: InboxReadArgs): Promise<InboxMessage[]> {
       const cliArgs = [
@@ -316,6 +449,13 @@ export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool 
             toSession?: unknown;
             createdAt?: unknown;
             priority?: unknown;
+            // AJS-88 / DOT-502 v0.2 — additive fields on the read shape.
+            // Pre-contract rows have neither; CLI predating v0.2 emits
+            // neither. Both flow through normalizeInboxKind /
+            // parseMatrixOriginEnvelope at the read boundary so the
+            // returned InboxMessage shape always validates.
+            kind?: unknown;
+            matrixOrigin?: unknown;
           };
           params?: { text?: unknown };
         };
@@ -338,6 +478,16 @@ export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool 
             meta.priority === "low" || meta.priority === "normal" || meta.priority === "high"
               ? meta.priority
               : undefined;
+          // AJS-88 / DOT-502 v0.2 — read-side parsing of new fields.
+          // `kind` runs through normalizeInboxKind so unknown / absent
+          // collapses to "agents_message" (spec §7 default). Only
+          // surface the field on the result row when the CLI actually
+          // returned it AND it parsed to a known kind — preserves
+          // pre-contract row shape (no synthetic `kind` injection).
+          const kindRaw = meta.kind;
+          const kind: InboxKind | undefined =
+            typeof kindRaw === "string" ? normalizeInboxKind(kindRaw) : undefined;
+          const matrixOrigin = parseMatrixOriginEnvelope(meta.matrixOrigin);
           return {
             message_id: meta.messageId,
             from_session: meta.fromSession,
@@ -345,6 +495,8 @@ export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool 
             created_at: meta.createdAt,
             body,
             ...(priority ? { priority } : {}),
+            ...(kind !== undefined ? { kind } : {}),
+            ...(matrixOrigin !== undefined ? { matrix_origin: matrixOrigin } : {}),
           };
         })
         .filter((m): m is InboxMessage => m !== null);
@@ -353,9 +505,42 @@ export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool 
 }
 
 /**
+ * AJS-88 / DOT-502 v0.2 — parse a raw `matrix_origin` JSON object from
+ * `agent-msg read --json` output into the typed envelope. Returns
+ * undefined when input is absent / malformed (defensive: pre-contract
+ * rows have no envelope; partial / corrupt envelopes should not surface
+ * with missing required fields).
+ *
+ * Exported for testing.
+ */
+export function parseMatrixOriginEnvelope(raw: unknown): MatrixOriginEnvelope | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (
+    typeof obj.event_id !== "string" ||
+    typeof obj.room_id !== "string" ||
+    typeof obj.sender !== "string" ||
+    typeof obj.origin_server_ts !== "number"
+  ) {
+    return undefined;
+  }
+  const envelope: MatrixOriginEnvelope = {
+    event_id: obj.event_id,
+    room_id: obj.room_id,
+    sender: obj.sender,
+    origin_server_ts: obj.origin_server_ts,
+  };
+  if (typeof obj.reply_to_event_id === "string") {
+    envelope.reply_to_event_id = obj.reply_to_event_id;
+  }
+  return envelope;
+}
+
+/**
  * Spawn a subprocess + capture stdout. Used by the inbox provider
- * for both `send` and `read --json`. Throws with stderr context on
- * non-zero exit.
+ * for both `send` and `read --json`. Throws {@link SubprocessFailureError}
+ * (carrying exit code + stderr as structured fields) on non-zero exit
+ * so callers can branch on the exit code without stderr text-matching.
  */
 async function runSubprocess(bin: string, args: readonly string[]): Promise<string> {
   const proc = spawn(bin, [...args], { stdio: ["ignore", "pipe", "pipe"] });
@@ -374,9 +559,7 @@ async function runSubprocess(bin: string, args: readonly string[]): Promise<stri
     .toString("utf8")
     .trim();
   if (code !== 0) {
-    throw new Error(
-      `[agents-mcp-mount] ${bin} ${args.join(" ")} exited ${code}: ${stderr || stdout}`,
-    );
+    throw new SubprocessFailureError({ bin, args, exitCode: code, stdout, stderr });
   }
   return stdout;
 }

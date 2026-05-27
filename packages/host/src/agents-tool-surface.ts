@@ -121,6 +121,74 @@ export interface TargetDirectoryEntry {
   };
 }
 
+/**
+ * AJS-88 / DOT-502 v0.2 — Matrix-origin envelope for bridge-fanout inbox
+ * rows. Carries the originating Matrix event metadata onto the durable
+ * inbox row so consumers can correlate the inbox audit artifact back to
+ * the Matrix room copy without re-deriving it from body text.
+ *
+ * Snake-case field names match the Matrix wire vocabulary (this is the
+ * shape the bridge serialises directly to JSON and the gateway forwards
+ * to the inbox CLI). Shared by {@link InboxDeliverArgs} and
+ * {@link InboxMessage} so wire-shape grep is one-hop.
+ *
+ * Spec: `agents/bridge-mention-inbox-fanout-contract-spec-2026-05-26.md` §8.
+ */
+export interface MatrixOriginEnvelope {
+  /** Originating Matrix event id (e.g. `"$abc...:matrix.example"`). */
+  event_id: string;
+  /** Originating Matrix room id (e.g. `"!room:matrix.example"`). */
+  room_id: string;
+  /** Originating Matrix sender MXID (e.g. `"@user:matrix.example"`). */
+  sender: string;
+  /** Origin server timestamp; milliseconds since epoch (Matrix wire shape). */
+  origin_server_ts: number;
+  /** Present iff the originating Matrix event is itself a reply. */
+  reply_to_event_id?: string;
+}
+
+/**
+ * AJS-88 / DOT-502 v0.2 — discriminator on durable inbox rows. Distinguishes
+ * bridge-fanout-origin rows from native-`agents.send_message`-origin rows.
+ *
+ * **Open extension:** consumers that case-switch on `kind` MUST handle
+ * unknown values with a sensible default (treat as `"agents_message"`).
+ * Future additions like `"sms_inbound"` are allowed without a contract
+ * break — use {@link normalizeInboxKind} at every read boundary so the
+ * default-when-unknown semantic is uniform.
+ *
+ * **Backward-compat:** existing rows written before this contract have
+ * NULL `kind`; consumers SHALL treat absent `kind` as `"agents_message"`.
+ *
+ * Spec: §7.
+ */
+export type InboxKind = "matrix_room_mention" | "agents_message";
+
+/**
+ * Known-kind set, captured separately from the union so the read-boundary
+ * predicate ({@link normalizeInboxKind}) can be written without inlining
+ * an equality chain. Widening the union requires adding to this set in
+ * lockstep — typed enforcement against the banked boundary-narrowing
+ * drift pattern.
+ */
+export const KNOWN_INBOX_KINDS: ReadonlySet<InboxKind> = new Set<InboxKind>([
+  "matrix_room_mention",
+  "agents_message",
+]);
+
+/**
+ * Normalise a raw `kind` value (possibly absent, possibly an unrecognised
+ * future variant) to a known {@link InboxKind}. Per spec §7 back-compat:
+ * absent / unknown → `"agents_message"`. Use at every consumer read
+ * boundary so the open-extension semantic stays uniform.
+ */
+export function normalizeInboxKind(raw: unknown): InboxKind {
+  if (typeof raw === "string" && (KNOWN_INBOX_KINDS as ReadonlySet<string>).has(raw)) {
+    return raw as InboxKind;
+  }
+  return "agents_message";
+}
+
 /** Args passed to {@link AgentInboxTool.deliver}. */
 export interface InboxDeliverArgs {
   identity: AuthenticatedIdentity;
@@ -130,12 +198,46 @@ export interface InboxDeliverArgs {
   body: string;
   /** Optional correlation id; the inbox CLI generates one if omitted. */
   correlationId?: string;
+  /**
+   * AJS-88 / DOT-502 v0.2 — caller-supplied idempotency key. When set,
+   * the inbox substrate enforces uniqueness on `(toSession, idempotencyKey)`
+   * via a partial UNIQUE index; a duplicate insert returns the existing
+   * row's id + `already_delivered: true` on {@link InboxDeliverResult}.
+   *
+   * Bridge fanout sets this to `${matrix_event_id}:${target_session}`.
+   * Native `agents.send_message` callers leave it undefined (NULL row).
+   */
+  idempotencyKey?: string;
+  /**
+   * AJS-88 / DOT-502 v0.2 — Matrix-origin envelope for bridge-fanout
+   * writes. Stored as structured fields on the inbox row, NOT embedded
+   * in body. Absent for native `agents.send_message` callers.
+   */
+  matrixOrigin?: MatrixOriginEnvelope;
+  /**
+   * AJS-88 / DOT-502 v0.2 — origin discriminator. Defaults to
+   * `"agents_message"` when absent (spec §7 back-compat). Only NEW rows
+   * from bridge fanout SHOULD set `"matrix_room_mention"`.
+   */
+  kind?: InboxKind;
 }
 
 /** Result of a successful inbox delivery. */
 export interface InboxDeliverResult {
   message_id: string;
   created_at: string;
+  /**
+   * AJS-88 / DOT-502 v0.2 — true iff the insert was a no-op because
+   * `(toSession, idempotencyKey)` already existed. Substrate returns the
+   * EXISTING row's `message_id` + `created_at` so callers can treat the
+   * collision as success without retry. Absent (or false) on a fresh
+   * insert. Bridge consumers treat `already_delivered: true` as success.
+   *
+   * Type-level surface even when the underlying CLI does not yet return
+   * the flag — additive consumers (bridge fanout, audit logging) can
+   * pattern against it from day one.
+   */
+  already_delivered?: boolean;
 }
 
 /** A single inbox message, returned by {@link AgentInboxTool.read}. */
@@ -146,6 +248,23 @@ export interface InboxMessage {
   created_at: string;
   body: string;
   priority?: "low" | "normal" | "high";
+  /**
+   * AJS-88 / DOT-502 v0.2 — present on rows written by bridge fanout
+   * (see spec §2). Absent on rows from native `agents.send_message`.
+   */
+  matrix_origin?: MatrixOriginEnvelope;
+  /**
+   * AJS-88 / DOT-502 v0.2 — origin discriminator. Per spec §7:
+   * existing rows written before this contract have no `kind` column /
+   * NULL value; consumers SHALL treat absent `kind` as `"agents_message"`.
+   * Only NEW bridge-fanout rows carry `"matrix_room_mention"`. Use
+   * {@link normalizeInboxKind} at consumer read boundaries.
+   *
+   * Note: `idempotency_key` is deliberately NOT surfaced here. Per spec
+   * §8 hand-off list, only `matrix_origin` + `kind` are read back through
+   * `agents_get_messages`; the key is a write-side enforcement detail.
+   */
+  kind?: InboxKind;
 }
 
 /** Args passed to {@link AgentInboxTool.read}. */
