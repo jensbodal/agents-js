@@ -1126,4 +1126,71 @@ describe("@agents-js/gateway-runtime", () => {
       expect(result.split(":")).not.toContain("");
     });
   });
+
+  describe("agent card name disambiguation (AJS-86)", () => {
+    // Synthetic resolver: every curated harness used in these tests resolves
+    // from PATH to a fixed sentinel command. Lets the test focus on the
+    // agent-card name derivation without dragging in workspace-bin lookup.
+    const fakeResolver = {
+      which(command: string): string | undefined {
+        return `/usr/local/bin/${command}`;
+      },
+      async fileExists(): Promise<boolean> {
+        return false;
+      },
+    };
+
+    test("curated runtime card name defaults to '<runtimeId>-acp-gateway'", async () => {
+      const codex = await resolveGatewayRuntime("codex", { resolver: fakeResolver });
+      expect(codex.agentCard.name).toBe("codex-acp-gateway");
+
+      const pi = await resolveGatewayRuntime("pi", { resolver: fakeResolver });
+      expect(pi.agentCard.name).toBe("pi-acp-gateway");
+    });
+
+    test("explicit profile is folded into the card name", async () => {
+      const piAggressive = await resolveGatewayRuntime("pi", {
+        resolver: fakeResolver,
+        profile: "aggressive",
+      });
+      expect(piAggressive.agentCard.name).toBe("pi-aggressive-acp-gateway");
+    });
+
+    test("selection-level profile takes precedence over options-level profile", async () => {
+      // Curated `GatewayRuntimeSelection.profile` is the operator's pinned
+      // value and should outrank any caller-defaulted profile in options.
+      const resolved = await resolveGatewayRuntimeSelection(
+        { kind: "curated", runtime: "pi", profile: "passive" },
+        { resolver: fakeResolver, profile: "ignored" },
+      );
+      expect(resolved.agentCard.name).toBe("pi-passive-acp-gateway");
+    });
+
+    test("custom runtime keeps the universal-acp-gateway fallback name", async () => {
+      // Two custom runtimes with different commands but identical fallback
+      // name is the surface area where operators should use --card-name
+      // (or AGENTS_JS_CARD_NAME) to disambiguate explicitly. Encoding the
+      // command into the synthesized name would mint operator-confusing
+      // identifiers and isn't a load-bearing case for the AJS-86 bug.
+      const resolved = await resolveGatewayRuntimeSelection(
+        {
+          kind: "custom",
+          command: "true",
+          displayName: "Custom Bin",
+        },
+        { resolver: fakeResolver },
+      );
+      expect(resolved.agentCard.name).toBe("universal-acp-gateway");
+    });
+
+    test("two curated runtimes on the same host get distinct card names", async () => {
+      // Direct repro of the AJS-86 collision substrate: co-hosting two
+      // runtimes used to register the same `universal-acp-gateway` card,
+      // overwriting one in `~/.agents-js/registry.json`. Distinct names
+      // are the source-of-truth invariant that prevents the overwrite.
+      const codex = await resolveGatewayRuntime("codex", { resolver: fakeResolver });
+      const pi = await resolveGatewayRuntime("pi", { resolver: fakeResolver });
+      expect(codex.agentCard.name).not.toBe(pi.agentCard.name);
+    });
+  });
 });

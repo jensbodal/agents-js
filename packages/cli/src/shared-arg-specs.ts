@@ -166,6 +166,36 @@ export function harnessesArg<T extends HarnessesArg>(): ArgSpec<T> {
   };
 }
 
+export interface CardNameArg {
+  cardName?: string;
+}
+
+/**
+ * `--card-name` — explicit override for the agent card `name` field
+ * advertised on the gateway and written into the shared registry.
+ * Overrides both the profile-derived default (`${runtimeId}-acp-gateway`)
+ * and the legacy `universal-acp-gateway` fallback. Use this when two
+ * gateway processes for the same runtime+profile combination must
+ * co-host on a single machine without overwriting each other's
+ * registry entries.
+ *
+ * Env-var equivalent: `AGENTS_JS_CARD_NAME` (resolved at the call site,
+ * not here, so this fragment stays a pure spec).
+ */
+export function cardNameArg<T extends CardNameArg>(): ArgSpec<T> {
+  return {
+    "--card-name": {
+      kind: "value",
+      assign: (a, v) => {
+        a.cardName = v;
+      },
+      description:
+        "Explicit agent-card name override (default: `<runtime>[-<profile>]-acp-gateway`). Use when co-hosting multiple gateway processes for the same runtime+profile.",
+      valueExample: "<name>",
+    },
+  };
+}
+
 export interface RegistrySyncArg {
   registrySync?: boolean;
 }

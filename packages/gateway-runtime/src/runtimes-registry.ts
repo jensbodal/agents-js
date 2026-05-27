@@ -131,6 +131,15 @@ export interface RuntimeResolutionOptions {
   modulePath?: string;
   resolver?: RuntimeCommandResolver;
   workspaceBinRoot?: string;
+  /**
+   * Optional profile name folded into the generated agent-card name so
+   * two profiles of the same runtime ({pi-aggressive}, {pi-passive})
+   * register under distinct names on a shared host. Pure metadata —
+   * does not influence command/argv resolution. Curated selections that
+   * carry a `profile` field on {@link GatewayRuntimeSelection} take
+   * precedence over this option.
+   */
+  profile?: string;
 }
 
 /**

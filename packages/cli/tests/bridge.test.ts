@@ -209,7 +209,7 @@ describe("runBridgeCommand", () => {
     expect(typeof result).not.toBe("number");
     expect(calls).toHaveLength(1);
     expect(calls[0]?.acp?.command).toBe("/usr/local/bin/opencode");
-    expect(calls[0]?.agentCard.name).toBe("universal-acp-gateway");
+    expect(calls[0]?.agentCard.name).toBe("opencode-acp-gateway");
     expect(calls[0]?.host).toBe("127.0.0.1");
     expect(calls[0]?.port).toBe(0);
   });

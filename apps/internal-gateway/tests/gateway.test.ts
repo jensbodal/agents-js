@@ -311,7 +311,7 @@ describe("Gateway runtime selection", () => {
       runtime.acp.command?.endsWith("/apps/internal-gateway/node_modules/.bin/claude-agent-acp"),
     ).toBe(true);
     expect(runtime.agentCard).toMatchObject({
-      name: "universal-acp-gateway",
+      name: "claude-acp-gateway",
       description: "Standardized A2A interface for Claude ACP",
     });
   });

@@ -18,9 +18,31 @@ import {
   type RuntimeResolutionOptions,
 } from "./runtimes-registry.ts";
 
-function makeRuntimeAgentCard(definition: GatewayRuntimeDefinition): GatewayCardInput {
+/**
+ * Build the per-runtime agent card with a name that disambiguates
+ * co-hosted gateways. Default shape: `${runtimeId}[-${profile}]-acp-gateway`
+ * (e.g. `pi-acp-gateway`, `codex-aggressive-acp-gateway`). When two
+ * gateway processes register on the same host — different runtime ids,
+ * or the same id under different profiles — the names diverge so the
+ * shared registry stops overwriting one with the other.
+ *
+ * `custom` definitions (which have `id === "custom"` and an
+ * operator-provided displayName) fall back to the legacy
+ * `universal-acp-gateway` name to avoid collapsing every custom-runtime
+ * registration onto the same `custom-acp-gateway` key. Operators with
+ * multiple custom runtimes should set `--card-name` explicitly.
+ */
+function makeRuntimeAgentCard(
+  definition: GatewayRuntimeDefinition,
+  options: { profile?: string } = {},
+): GatewayCardInput {
+  const profileSuffix = options.profile ? `-${options.profile}` : "";
+  const name =
+    definition.id && definition.id !== "custom"
+      ? `${definition.id}${profileSuffix}-acp-gateway`
+      : "universal-acp-gateway";
   return {
-    name: "universal-acp-gateway",
+    name,
     description: `Standardized A2A interface for ${definition.displayName}`,
     capabilities: {
       "text-to-text": {},
@@ -137,7 +159,7 @@ export async function resolveGatewayRuntime(
       ...(env ? { env } : {}),
       ...(runtimeId === "opencode" ? { autoRecoverOpencodeDefaultAgent: true } : {}),
     },
-    agentCard: makeRuntimeAgentCard(definition),
+    agentCard: makeRuntimeAgentCard(definition, { profile: options.profile }),
   };
 }
 
@@ -146,7 +168,10 @@ export async function resolveGatewayRuntimeSelection(
   options: RuntimeResolutionOptions = {},
 ): Promise<ResolvedGatewayRuntime> {
   if (selection.kind === "curated") {
-    return resolveGatewayRuntime(selection.runtime, options);
+    // Selection-level `profile` wins over any caller-supplied default;
+    // it's the value the operator pinned explicitly on the harness.
+    const profile = selection.profile ?? options.profile;
+    return resolveGatewayRuntime(selection.runtime, { ...options, profile });
   }
 
   const resolver = options.resolver ?? defaultRuntimeCommandResolver;

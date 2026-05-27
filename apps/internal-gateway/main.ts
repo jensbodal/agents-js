@@ -292,7 +292,13 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   });
   const httpPort = server.port ?? opts.resolvedPort;
 
-  const localName = primaryRuntime.agentCard.name ?? "universal-acp-gateway";
+  // `--card-name` (or AGENTS_JS_CARD_NAME) wins over the per-runtime
+  // default baked into `agentCard.name`. Required to disambiguate
+  // multiple gateway processes co-hosted on the same machine when the
+  // operator can't change runtime/profile (e.g. two `pi` gateways with
+  // distinct workspaces but identical harness selection).
+  const localName =
+    opts.cliArgs.cardName ?? primaryRuntime.agentCard.name ?? "universal-acp-gateway";
   const localUrl = resolveGatewayPublicUrl({
     hostname: opts.cliArgs.hostname,
     port: httpPort,

@@ -26,6 +26,14 @@ const KEBAB_PERMISSION_MODE_ALIASES = ["unattended-gateway"] as const;
 const LEGACY_PERMISSION_MODES = ["ask", "yolo", "hub"] as const;
 
 export interface GatewayCliArgs {
+  /**
+   * Explicit agent-card name override. Wins over the per-runtime
+   * default (`<runtime>[-<profile>]-acp-gateway`) baked into
+   * `runtime.agentCard.name`. Resolved from `--card-name <name>` or
+   * `AGENTS_JS_CARD_NAME`; empty/whitespace-only values are treated as
+   * unset.
+   */
+  cardName?: string;
   check: boolean;
   defaultModel?: string;
   heartbeatEnabled: boolean;
@@ -127,6 +135,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   const runtimeOverrides: string[] = [];
   let workspace: string = process.cwd();
   let permissionMode: PermissionMode = "default";
+  let cardName: string | undefined;
   let defaultModel: string | undefined;
   let hostname: string | undefined;
   let port: number | undefined;
@@ -274,8 +283,22 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       continue;
     }
 
+    if (arg === "--card-name") {
+      const next = argv[index + 1];
+      if (!next) {
+        throw new Error('[Gateway] Missing value for "--card-name".');
+      }
+      const trimmed = next.trim();
+      if (trimmed.length === 0) {
+        throw new Error("[Gateway] --card-name requires a non-empty value.");
+      }
+      cardName = trimmed;
+      index += 1;
+      continue;
+    }
+
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync, --heartbeat-enabled, --no-heartbeat, --heartbeat-interval-ms <ms>.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync, --heartbeat-enabled, --no-heartbeat, --heartbeat-interval-ms <ms>, --card-name <name>.`,
     );
   }
 
@@ -287,8 +310,13 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     env.AGENTS_JS_PUBLIC_URL !== undefined && env.AGENTS_JS_PUBLIC_URL.trim() !== ""
       ? normalizeGatewayPublicUrl(env.AGENTS_JS_PUBLIC_URL, "AGENTS_JS_PUBLIC_URL")
       : undefined;
+  const envCardName =
+    env.AGENTS_JS_CARD_NAME !== undefined && env.AGENTS_JS_CARD_NAME.trim() !== ""
+      ? env.AGENTS_JS_CARD_NAME.trim()
+      : undefined;
 
   return {
+    cardName: cardName ?? envCardName,
     check,
     runtimeOverrides,
     workspace,

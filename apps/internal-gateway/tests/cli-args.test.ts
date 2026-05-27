@@ -263,3 +263,48 @@ describe("parseCliArgs — multi-runtime selection", () => {
     expect(() => parseCliArgs(["--runtimes"], {})).toThrow(/Missing value for "--runtimes"/);
   });
 });
+
+/**
+ * `--card-name` (AJS-86): explicit per-instance override for the
+ * advertised agent-card `name`. Required when two gateway processes
+ * co-host the same runtime+profile on one machine and the per-runtime
+ * default (`<runtime>[-<profile>]-acp-gateway`) is still ambiguous.
+ */
+describe("parseCliArgs — --card-name", () => {
+  test("default — cardName is undefined when flag absent and env unset", () => {
+    expect(parseCliArgs([], {}).cardName).toBeUndefined();
+  });
+
+  test("--card-name flag sets the override", () => {
+    expect(parseCliArgs(["--card-name", "hostname-null-ajs-pi-0"], {}).cardName).toBe(
+      "hostname-null-ajs-pi-0",
+    );
+  });
+
+  test("AGENTS_JS_CARD_NAME env sets the override", () => {
+    expect(parseCliArgs([], { AGENTS_JS_CARD_NAME: "env-acp-gateway" }).cardName).toBe(
+      "env-acp-gateway",
+    );
+  });
+
+  test("flag wins over env when both are set", () => {
+    expect(
+      parseCliArgs(["--card-name", "flag-wins"], { AGENTS_JS_CARD_NAME: "env-loses" }).cardName,
+    ).toBe("flag-wins");
+  });
+
+  test("env values that are blank / whitespace-only are treated as unset", () => {
+    expect(parseCliArgs([], { AGENTS_JS_CARD_NAME: "" }).cardName).toBeUndefined();
+    expect(parseCliArgs([], { AGENTS_JS_CARD_NAME: "   " }).cardName).toBeUndefined();
+  });
+
+  test("--card-name without a value throws", () => {
+    expect(() => parseCliArgs(["--card-name"], {})).toThrow(/Missing value for "--card-name"/);
+  });
+
+  test("--card-name with a whitespace-only value throws", () => {
+    expect(() => parseCliArgs(["--card-name", "   "], {})).toThrow(
+      /--card-name requires a non-empty value/,
+    );
+  });
+});

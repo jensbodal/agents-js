@@ -49,6 +49,7 @@ import {
 } from "./serve-prompts.ts";
 import {
   acpCommandAndProfileArgs,
+  cardNameArg,
   harnessesArg,
   heartbeatArgs,
   hostPortArgs,
@@ -63,6 +64,7 @@ export type { PersistMode } from "./serve-prompts.ts";
 export interface ServeCommandArgs {
   acpArgsJson?: string;
   acpCommand?: string;
+  cardName?: string;
   defaultModel?: string;
   /**
    * Ordered list of curated harness ids. Populated by `--harness`
@@ -187,6 +189,7 @@ export const SERVE_ARG_SPEC: ArgSpec<ServeCommandArgs> = {
   "-h": { kind: "flag", assign: setHelp, description: "Show this message." },
   ...harnessesArg<ServeCommandArgs>(),
   ...acpCommandAndProfileArgs<ServeCommandArgs>(),
+  ...cardNameArg<ServeCommandArgs>(),
   ...hostPortArgs<ServeCommandArgs>(),
   ...runtimeLogArgs<ServeCommandArgs>(),
   ...registrySyncArg<ServeCommandArgs>(),
@@ -205,6 +208,22 @@ export function serveArgsToRuntimeEnvOverrides(args: ServeCommandArgs): RuntimeE
   };
 }
 
+/**
+ * Resolve the agent-card name override. Precedence: explicit
+ * `--card-name` CLI flag > `AGENTS_JS_CARD_NAME` env > undefined
+ * (fall back to the profile-derived default baked into the runtime's
+ * agent card). Empty/whitespace-only values are treated as absent.
+ */
+export function resolveCardNameOverride(
+  args: Pick<ServeCommandArgs, "cardName">,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  const candidate = args.cardName ?? env.AGENTS_JS_CARD_NAME;
+  if (typeof candidate !== "string") return undefined;
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
   output.write(
     `${[
@@ -221,6 +240,7 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  --acp-command <command>             Custom ACP command (requires --harness custom or no --harness; mutually exclusive with curated harnesses)",
       "  --acp-args-json <json>              JSON array of custom ACP args (only valid with --acp-command)",
       "  --profile <name>                    Optional named profile for curated runtimes (not supported with --harness custom)",
+      "  --card-name <name>                  Override the agent-card name (default: <runtime>[-<profile>]-acp-gateway). Env: AGENTS_JS_CARD_NAME.",
       "  --host <host>                       Bind host for the A2A server (default: 127.0.0.1)",
       "  --port <port>                       Bind port (0 = auto-allocate)",
       "  --runtime-log-level <level>         Runtime log level (debug|info|warn|error|silent)",
@@ -486,7 +506,15 @@ export async function runServeCommand(
     },
     onMissingProfile: "throw",
   });
-  const runtime: ResolvedGatewayRuntime = getPrimaryGatewayRuntime(runtimes);
+  const primaryRuntime: ResolvedGatewayRuntime = getPrimaryGatewayRuntime(runtimes);
+  const env = dependencies.env ?? process.env;
+  const cardNameOverride = resolveCardNameOverride(args, env);
+  const runtime: ResolvedGatewayRuntime = cardNameOverride
+    ? {
+        ...primaryRuntime,
+        agentCard: { ...primaryRuntime.agentCard, name: cardNameOverride },
+      }
+    : primaryRuntime;
   const registryPath = resolveSharedAgentRegistryPath({ env: dependencies.env });
   // In-process gateway bus — every recorded audit event is also
   // published on this bus via the wrapper below. The public-facing
@@ -507,7 +535,6 @@ export async function runServeCommand(
   });
   const hooks = await detectA2AMentionHooks(output, registryPath, audit);
   const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
-  const env = dependencies.env ?? process.env;
   const registrySyncEnabled = shouldEnableRegistrySync(args, env);
 
   // Default-off: no inbound sync endpoint, no outbound peer pull.
