@@ -498,6 +498,16 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/wake-signal-store": {
+      "name": "@agents-js/wake-signal-store",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/wake-types": "0.5.1",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/wake-types": {
       "name": "@agents-js/wake-types",
       "version": "0.5.1",
@@ -651,6 +661,8 @@
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
 
     "@agents-js/wake-mcp-triggers": ["@agents-js/wake-mcp-triggers@workspace:packages/wake-mcp-triggers"],
+
+    "@agents-js/wake-signal-store": ["@agents-js/wake-signal-store@workspace:packages/wake-signal-store"],
 
     "@agents-js/wake-types": ["@agents-js/wake-types@workspace:packages/wake-types"],
 
