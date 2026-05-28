@@ -93,6 +93,7 @@
     "release:preflight": "bun scripts/release-preflight.ts",
     "release:dry-run": "bun scripts/release-please-dry-run.ts",
     "setup": "bun scripts/setup.ts",
+    "postinstall": "bun scripts/ensure-git-hooks.ts",
     "dev": "vp run -w repo:dev",
     "e2e:gateway": "vp run --no-cache -w repo:e2e:gateway",
     "e2e:runtime": "vp run --no-cache -w repo:e2e:runtime",
