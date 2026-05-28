@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-27T20:44:44.293Z",
-  "package_count": 36,
-  "publishable_count": 24,
+  "generated_at": "2026-05-28T14:40:03.513Z",
+  "package_count": 37,
+  "publishable_count": 25,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -147,6 +147,20 @@
       "version": "0.5.1",
       "internal_deps": [],
       "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
+      "name": "@agents-js/claude-channel-adapter",
+      "dir": "packages/claude-channel-adapter",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [
+        "@agents-js/wake-types"
+      ],
+      "external_deps": [
+        "@modelcontextprotocol/sdk"
+      ],
       "external_peer": [],
       "exports_count": 0
     },
@@ -547,6 +561,7 @@
     }
   ],
   "reverse_edges": {
+    "@agents-js/claude-channel-adapter": [],
     "@agents-js/wake-mcp-triggers": [],
     "@agents-js/tools": [
       "@agents-js/trial-agent"
@@ -662,6 +677,7 @@
       "@agents-js/acp"
     ],
     "@agents-js/wake-types": [
+      "@agents-js/claude-channel-adapter",
       "@agents-js/wake-mcp-triggers"
     ],
     "@agents-js/gateway": [],

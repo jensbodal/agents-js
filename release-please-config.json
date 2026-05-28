@@ -73,6 +73,11 @@
         },
         {
           "type": "json",
+          "path": "packages/claude-channel-adapter/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/cli/package.json",
           "jsonpath": "$.version"
         },

@@ -333,6 +333,17 @@
       "name": "@agents-js/canvas-model",
       "version": "0.5.1",
     },
+    "packages/claude-channel-adapter": {
+      "name": "@agents-js/claude-channel-adapter",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/wake-types": "0.5.1",
+        "@modelcontextprotocol/sdk": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/cli": {
       "name": "@agents-js/cli",
       "version": "0.5.1",
@@ -584,6 +595,8 @@
     "@agents-js/browser-runtime": ["@agents-js/browser-runtime@workspace:extras/browser-runtime"],
 
     "@agents-js/canvas-model": ["@agents-js/canvas-model@workspace:packages/canvas-model"],
+
+    "@agents-js/claude-channel-adapter": ["@agents-js/claude-channel-adapter@workspace:packages/claude-channel-adapter"],
 
     "@agents-js/cli": ["@agents-js/cli@workspace:packages/cli"],
 
