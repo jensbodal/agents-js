@@ -326,3 +326,78 @@ describe("drainPending — target isolation", () => {
     expect(xResult.attempts.length).toBe(1);
   });
 });
+
+// ----------------------------------------------------------------------------
+// Resolver + markDelivered exception containment (per cognee-codex PR #96 review)
+// ----------------------------------------------------------------------------
+
+describe("drainPending — resolver exception containment", () => {
+  test("resolver throw on signal A → resolver-error; signal B still drains", async () => {
+    const store = makeStore();
+    const { server } = buildServerWithAllowlist(["matrix-bot"]);
+    const throwResolvers = {
+      sender: (record: WakeSignalRecord): string => {
+        if (record.signalId === ("sig-a" as WakeSignalId)) {
+          throw new Error("resolver synthetic failure");
+        }
+        const payload = record.adapter.payload as { sender?: string };
+        return payload.sender ?? "unknown";
+      },
+      content: (record: WakeSignalRecord): string => JSON.stringify(record.adapter.payload),
+    };
+    const bridge = createWakeChannelBridge({ store, server, resolvers: throwResolvers });
+
+    await store.put(makeSignal("sig-a", { createdAtMs: 1_000 }));
+    await store.put(makeSignal("sig-b", { createdAtMs: 2_000 }));
+
+    const result = await bridge.drainPending(TARGET_X);
+    expect(result.attempts.length).toBe(2);
+    expect(result.attempts[0].outcome).toBe("resolver-error");
+    expect(result.attempts[1].outcome).toBe("emitted-and-marked");
+
+    // resolver-error signal NOT marked delivered
+    const a = await store.get("sig-a" as WakeSignalId);
+    expect(a?.deliveredAtMs).toBeUndefined();
+  });
+});
+
+describe("drainPending — markDelivered exception containment", () => {
+  test("markDelivered throw after emit → emitted-but-mark-failed; next signal still drains", async () => {
+    const { server } = buildServerWithAllowlist(["matrix-bot"]);
+
+    // Build a store wrapper that throws on markDelivered for sig-a but
+    // delegates everything else to the real in-memory backend.
+    const realBackend = new InMemoryWakeSignalStoreBackend();
+    const realStore = createWakeSignalStore({ backend: realBackend });
+    const throwingStore: WakeSignalStore = {
+      put: (r) => realStore.put(r),
+      get: (id) => realStore.get(id),
+      pullPending: (t) => realStore.pullPending(t),
+      gcExpired: () => realStore.gcExpired(),
+      async markDelivered(signalId, idempotencyKey) {
+        if (signalId === ("sig-a" as WakeSignalId)) {
+          throw new Error("markDelivered synthetic failure");
+        }
+        return realStore.markDelivered(signalId, idempotencyKey);
+      },
+    };
+
+    const bridge = createWakeChannelBridge({
+      store: throwingStore,
+      server,
+      resolvers: RESOLVERS_BASIC,
+    });
+
+    await throwingStore.put(makeSignal("sig-a", { createdAtMs: 1_000 }));
+    await throwingStore.put(makeSignal("sig-b", { createdAtMs: 2_000 }));
+
+    const result = await bridge.drainPending(TARGET_X);
+    expect(result.attempts.length).toBe(2);
+    expect(result.attempts[0].outcome).toBe("emitted-but-mark-failed");
+    expect(result.attempts[1].outcome).toBe("emitted-and-marked");
+
+    // sig-a NOT marked delivered in the underlying store (the mark threw)
+    const a = await realBackend.get("sig-a" as WakeSignalId);
+    expect(a?.deliveredAtMs).toBeUndefined();
+  });
+});

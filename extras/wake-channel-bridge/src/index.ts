@@ -133,6 +133,17 @@ export type BridgeAttemptResult =
       readonly outcome: "transport-error";
       readonly signalId: WakeSignalId;
       readonly error: string;
+    }
+  | {
+      readonly outcome: "resolver-error";
+      readonly signalId: WakeSignalId;
+      readonly error: string;
+    }
+  | {
+      readonly outcome: "emitted-but-mark-failed";
+      readonly signalId: WakeSignalId;
+      readonly idempotencyKey: WakeIdempotencyKey;
+      readonly error: string;
     };
 
 /**
@@ -197,9 +208,23 @@ export function createWakeChannelBridge(deps: WakeChannelBridgeDeps): WakeChanne
   const { store, server, resolvers } = deps;
 
   async function emitAndMark(record: WakeSignalRecord): Promise<BridgeAttemptResult> {
-    const sender = resolvers.sender(record);
-    const content = resolvers.content(record);
-    const meta = resolvers.meta?.(record);
+    // Resolver exceptions contained per-signal: a thrown resolver does
+    // NOT abort the entire drain. Per cognee-codex PR #96 review
+    // (matrix event $VzFAeRIJpKm3xKFKuBaoPPNt199k-UPU6KfufYP19Jw).
+    let sender: string;
+    let content: string;
+    let meta: Readonly<Record<string, unknown>> | undefined;
+    try {
+      sender = resolvers.sender(record);
+      content = resolvers.content(record);
+      meta = resolvers.meta?.(record);
+    } catch (err) {
+      return {
+        outcome: "resolver-error",
+        signalId: record.signalId,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
 
     let emitResult: Awaited<ReturnType<ClaudeChannelServer["emitChannelMessage"]>>;
     try {
@@ -214,7 +239,20 @@ export function createWakeChannelBridge(deps: WakeChannelBridgeDeps): WakeChanne
 
     switch (emitResult.status) {
       case "emitted": {
-        const newlyDelivered = await store.markDelivered(record.signalId, record.idempotencyKey);
+        // markDelivered exceptions contained: a thrown markDelivered after
+        // a successful emit produces emitted-but-mark-failed so caller can
+        // see the exact state for retry/debug. Per cognee-codex PR #96 review.
+        let newlyDelivered: boolean;
+        try {
+          newlyDelivered = await store.markDelivered(record.signalId, record.idempotencyKey);
+        } catch (err) {
+          return {
+            outcome: "emitted-but-mark-failed",
+            signalId: record.signalId,
+            idempotencyKey: record.idempotencyKey,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
         return newlyDelivered
           ? {
               outcome: "emitted-and-marked",
