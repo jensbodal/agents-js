@@ -1,6 +1,6 @@
 # @agents-js/wake-mcp-triggers
 
-> In-session-push wake-adapter runtime for AJS-89 HYBRID. Gateway-side dispatcher emits MCP notifications carrying WakeAdapter payloads; harness-side receiver dedupes by idempotency key and drops expired signals. First impl of the in-session-push shape (AJS-96).
+> Dispatcher-side serialization for the in-session-push wake-adapter shape (AJS-96). Wire format: notifications/wake. Not on the Claude Code receiver path per ADR-0007 revision; reference impl for the wake-adapter family. Per-harness terminal adapters (e.g. @agents-js/claude-channel-adapter for Claude Code) consume gateway wake events differently.
 
 ## Installation
 

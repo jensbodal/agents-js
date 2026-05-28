@@ -1,23 +1,28 @@
 /**
- * `@agents-js/wake-mcp-triggers` — in-session-push wake-adapter runtime.
+ * `@agents-js/wake-mcp-triggers` — dispatcher-side serialization for the
+ * in-session-push wake-adapter shape (AJS-96). Wire format: `notifications/wake`.
  *
- * **0.6.0 release posture — DISPATCHER ONLY**
+ * **Role on the wake-adapter family map (per [ADR-0007](../../../docs/adrs/0007-wake-trigger-gateway-substrate.md)
+ * revision)**
  *
- * This package ships in 0.6.0 as the dispatcher half of the in-session-push
- * wake-adapter. The corresponding gateway-side WakeSignalStore + trigger
- * publisher are **not yet built** — consumer integration is deferred to
- * post-0.6.0 per [ADR-0007](../../../docs/adrs/0007-wake-trigger-gateway-substrate.md).
+ * This package is the SOURCE-side reference impl for the wake-adapter family:
+ * gateway code serializes an {@link InSessionPushWakeAdapter} into an MCP
+ * server-initiated notification frame (`method: notifications/wake`) and
+ * dispatches it via a caller-supplied notification sink. The receiver/parse
+ * helpers (`createInSessionPushReceiver`, `parseInSessionPushNotification`)
+ * are provided as the wire-format reference for harness-side parsers that
+ * DO consume `notifications/wake`.
  *
- * Treat the dispatcher API as **wire-format reference** for the in-session-push
- * shape until the consumer-side gateway substrate lands. Downstream consumers
- * integrating against the dispatcher today should expect a follow-up release
- * (post-0.6.0) to wire the trigger source and signal store; the dispatcher
- * surface itself is intended to be stable across that work but is not
- * load-bearing for any 0.6.0 user-facing feature.
+ * **Not on the Claude Code receiver path.** Claude Code's MCP client only
+ * surfaces method-specific listeners registered via capability handshake; it
+ * does not consume generic `notifications/wake` frames. The Claude Code
+ * terminal adapter is a separate package (`@agents-js/claude-channel-adapter`)
+ * that declares the `claude/channel` capability and emits
+ * `notifications/claude/channel` — see ADR-0007 §Revision-2026-05-28.
  *
- * The receiver/parse helpers (`createInSessionPushReceiver`,
- * `parseInSessionPushNotification`) are provided as the harness-side
- * contract for future integrators but have no in-tree consumer in 0.6.0.
+ * Per-harness terminal adapters consume the gateway wake-event stream using
+ * the transport that harness supports; `notifications/wake` is the wake-adapter
+ * family's reference wire-shape, not a universal harness contract.
  *
  * **AJS-96** — first impl of the AJS-89 HYBRID `in-session-push` shape.
  * Gateway side: serialize an {@link InSessionPushWakeAdapter} into an MCP
