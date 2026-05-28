@@ -2,7 +2,7 @@
 
 **Status**: Proposed (2026-05-27) — **Re-classified in-0.6.0 per Jens 2026-05-28 sign-off**. Original "deferred post-0.6.0" status superseded.
 **Deciders**: cognee-claude (architecture-lead), ajs-claude (publishable-surface implementer), hostname-null-claude-0 (harness wire-up + channel adapter integration)
-**Affects**: `@agents-js/wake-mcp-triggers` (dispatcher half, shipped), `extras/mcp-bus-bridge`, prospective `@agents-js/wake-signal-store` (new), prospective `@agents-js/host` trigger publisher (new), prospective `@agents-js/channel-adapter` (new — see Revision 2026-05-28), gateway dispatch path
+**Affects**: `@agents-js/wake-mcp-triggers` (dispatcher half, shipped), `extras/mcp-bus-bridge` (SSE→stdio pattern reused, package itself not modified), prospective `@agents-js/wake-signal-store` (new), prospective `@agents-js/host` trigger publisher (new), prospective `@agents-js/claude-channel-adapter` (new — see Revision 2026-05-28; package name per cognee-claude Q2 decision at matrix event `$msAkbKfHHjfMud6NawAL7kFlC8j-uVVpyCMxqSpahaI`), gateway dispatch path
 
 ---
 
@@ -18,8 +18,8 @@ hostname-null-claude-0's harness research surfaced a **decisive finding** that i
 
 **Re-scoped architecture** (the original ADR's gateway-side decisions still hold; terminal adapter shape changes):
 - **KEEP as the SOURCE** (still needed; this ADR's core gateway-side decisions hold): WakeSignalStore + trigger publisher + gateway wake bus events. Something must decide "idle agent X has inbound → wake."
-- **REUSE**: gateway SSE `/events` bus + the `extras/mcp-bus-bridge` SSE→stdio pattern (`mcp-bus-bridge` already does `dispatchNotification` / `server.notification`).
-- **CHANGE**: terminal adapter for Claude Code becomes a **`claude/channel`-capable MCP server** (new `@agents-js/channel-adapter` or sibling package) attached via `--channels`, translating gateway wake/inbox events into channel messages. **NOT** a `notifications/wake` emitter.
+- **REUSE the pattern**: gateway SSE `/events` bus + the `extras/mcp-bus-bridge` SSE→stdio pattern/surface (`mcp-bus-bridge` already does `dispatchNotification` / `server.notification`). The claude-channel-adapter inherits the SSE-subscription substrate but is a SEPARATE package — current bridge is notification-only/no-tools, while the channel adapter is bidirectional (exposes `agents_js_reply` / `agents_js_send` tools per the `claude/channel` protocol).
+- **CHANGE**: terminal adapter for Claude Code becomes a **`claude/channel`-capable MCP server** (new `@agents-js/claude-channel-adapter` — per cognee-claude Q2 decision: broader-than-wake-only naming, specific-to-the-claude/channel-protocol) attached via `--channels`, translating gateway wake/inbox events into channel messages. **NOT** a `notifications/wake` emitter.
 
 **Implication for ADR-0008** (SubscribedResponseWakeAdapter shape-vs-variant): for Claude Code specifically, the SubscribedResponse path may be moot once the channel adapter is built — Channels solves the receiver gap. For Codex and other sync-only harnesses that lack a Channels equivalent, ADR-0008's open questions remain (sibling-shape work, transport-binding decisions still required).
 
@@ -59,19 +59,23 @@ The "published-but-dormant" gap is not a 200-line wiring patch. It's design-then
 
 Realistic scope if executed: ~900-1100 LOC across 3 packages (`packages/wake-signal-store/` (new), `extras/mcp-bus-bridge` changes, trigger publisher in `packages/host/` or sibling).
 
-## Why this is deferred to post-0.6.0
+## Historical context — original deferral rationale (SUPERSEDED 2026-05-28)
+
+> NOTE: The section below preserves the original 2026-05-27 deferral rationale for historical context. **It has been SUPERSEDED by the 2026-05-28 in-0.6.0 re-classification at the top of this document.** Jens 2026-05-28 sign-off invoked the "necessary for release correctness" exception explicitly. Reading the original rationale below as authoritative would contradict the current decision.
 
 Per the 0.6.0 convergence-mode freeze line (Jens 2026-05-27 direction-set event `$29JyIKoyBfOw5zj15vsQSmfs49I6FRX1_EOW5SK7UQ4`), no major new protocol surfaces unless they:
 1. Unblock existing flows
 2. Close architectural inconsistencies
 3. Are necessary for release correctness
 
-Wake-trigger gateway substrate qualifies under NONE of these:
-- The flow it would enable doesn't exist yet (there's no waiting consumer)
-- It would CREATE new architecture, not close existing inconsistency
-- 0.6.0 cuts cleanly without it; the AJS-96 package being dormant is annotation-fixable in the meantime
+~~Wake-trigger gateway substrate qualifies under NONE of these:~~
+- ~~The flow it would enable doesn't exist yet (there's no waiting consumer)~~
+- ~~It would CREATE new architecture, not close existing inconsistency~~
+- ~~0.6.0 cuts cleanly without it; the AJS-96 package being dormant is annotation-fixable in the meantime~~
 
-The AJS-96 in-session-push dispatcher package shipped is a useful foundation for future work even without consumer integration. It is a published reference impl of the additive-shape pattern (validating that new wake-adapter shapes can land as sibling packages under `@agents-js/wake-mcp-triggers` without widening the closed `WakeAdapterShape` union).
+(2026-05-28 update: the dormant-consumer state IS itself the architectural inconsistency that "necessary for release correctness" closes. The original framing under-weighted the cost of shipping the AJS-89 HYBRID half-built at the runtime layer, not just at the package layer.)
+
+The AJS-96 in-session-push dispatcher package shipped is a useful foundation for future work even without consumer integration. It is a published reference impl of the additive-shape pattern (validating that new wake-adapter shapes can land as sibling packages under `@agents-js/wake-mcp-triggers` without widening the closed `WakeAdapterShape` union). Under the 2026-05-28 revision, this same dispatcher remains as the SOURCE-side reference; the Claude Code receiver path uses `@agents-js/claude-channel-adapter` instead (see Revision section above).
 
 ## Open questions (5 ADR-required decisions before any impl)
 
@@ -115,11 +119,27 @@ These are the structural decisions that must be answered before code lands. Each
 - **ajs-claude 2026-05-27 research lane**: surfaced the substrate gap (matrix event `$Tgu6sF1y0PZeqsgS-gBUi2EMYM9iPEQkZcqT2LOqsM0`)
 - **0.6.0 convergence-mode direction**: Jens 2026-05-27 event `$29JyIKoyBfOw5zj15vsQSmfs49I6FRX1_EOW5SK7UQ4`
 
-## Status sequencing
+## Status sequencing — UPDATED 2026-05-28
 
-- **0.6.0**: AJS-96 package stays in main as dispatcher reference impl. Add docstring annotation clarifying consumer integration is deferred to ADR-0007.
-- **Post-0.6.0**: ADR-0007 resolution + impl dispatch on the 5 OQs above.
-- **Decision authority**: cognee-claude (architecture-lead) + ajs-claude (implementer-of-record) peer-convergence; Jens consulted if cross-repo boundaries shift.
+> NOTE: Original sequencing (preserved below for history) deferred all impl to post-0.6.0. Updated per 2026-05-28 re-classification: impl IS in-0.6.0 scope with no cut-date.
+
+**Current sequencing** (2026-05-28):
+
+- **0.6.0** (in-scope, ongoing):
+  - This ADR (revised) — captures decisions
+  - Package boundary scoping (per ajs-claude package-scope sketch + cognee-claude Q1-Q5 answers at matrix event `$msAkbKfHHjfMud6NawAL7kFlC8j-uVVpyCMxqSpahaI`):
+    - **NEW** `packages/wake-signal-store/` — durable signal store (SOURCE half)
+    - **EXTEND** `packages/wake-mcp-triggers/` — already-shipped dispatcher + publisher hook
+    - **NEW** `packages/claude-channel-adapter/` — `claude/channel`-capable MCP server (PER Q2 NAMING: broader-than-wake-only, specific-to-claude/channel-protocol)
+    - **REUSE** the SSE→stdio pattern/surface from `extras/mcp-bus-bridge` — NOT the package as-is. Current bridge is notification-only/no-tools; the claude-channel-adapter is bidirectional (exposes `agents_js_reply` / `agents_js_send`), so the pattern transfers but the package boundary is new
+  - Channel adapter integration testing (hostname-null-claude-0 lane)
+  - PR #89 doc follow-up sequenced after channel-adapter scope lands (no revert per discipline)
+- **Decision authority**: cognee-claude (architecture-lead, store/bridge/channel-adapter contracts) + ajs-claude (publishable-surface implementer) + hostname-null-claude-0 (harness wire-up). Peer-convergence; smoke-verifier per buddy-system is cognee-codex or cognee-zai. No Jens loop unless cross-repo boundaries shift.
+
+**Historical sequencing (SUPERSEDED)**:
+
+- ~~0.6.0: AJS-96 package stays in main as dispatcher reference impl only.~~
+- ~~Post-0.6.0: ADR-0007 resolution + impl dispatch on the 5 OQs above.~~
 
 ## Self-correction note
 
