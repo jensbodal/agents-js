@@ -236,6 +236,18 @@
         "@agents-js/gateway-runtime": "0.3.2",
       },
     },
+    "extras/wake-channel-bridge": {
+      "name": "@agents-js/wake-channel-bridge",
+      "version": "0.5.1",
+      "dependencies": {
+        "@agents-js/claude-channel-adapter": "0.5.1",
+        "@agents-js/wake-signal-store": "0.5.1",
+        "@agents-js/wake-types": "0.5.1",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/a2a": {
       "name": "@agents-js/a2a",
       "version": "0.5.1",
@@ -659,6 +671,8 @@
     "@agents-js/ui-components": ["@agents-js/ui-components@workspace:packages/ui-components"],
 
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
+
+    "@agents-js/wake-channel-bridge": ["@agents-js/wake-channel-bridge@workspace:extras/wake-channel-bridge"],
 
     "@agents-js/wake-mcp-triggers": ["@agents-js/wake-mcp-triggers@workspace:packages/wake-mcp-triggers"],
 
