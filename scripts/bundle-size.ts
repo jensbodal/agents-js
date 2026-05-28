@@ -1,5 +1,34 @@
 #!/usr/bin/env bun
-import { readdirSync, statSync } from "node:fs";
+/**
+ * Size-budget gate for the publishable bundles + apps/web-ui assets.
+ *
+ * Defaults:
+ * - Display mode (no flags): measure + print every target.
+ * - `--check` mode: enforce budgets; fail with exit 1 on over-budget.
+ *
+ * **Missing-artifact tolerance** (worktree contributor workflow):
+ *
+ * A fresh `git worktree add` has no `dist/` populated until the user
+ * runs `bun run build` (or `bun run setup --ci`). Before this fix, the
+ * script crashed with `ENOENT` from `readdirSync`/`readFile` before
+ * any budget logic ran, regardless of mode — turning `mise run ci` on
+ * a fresh worktree into an opaque trace instead of an actionable
+ * "build first" hint.
+ *
+ * Now: missing artifacts produce a `skipped` result with the missing
+ * path + an actionable hint. Display mode prints the skip line and
+ * exits 0. `--check` mode prints a clear summary listing the skipped
+ * targets + the suggested `bun run build` and exits 0 — release CI
+ * (which builds before check) still measures every target; the only
+ * thing this change does is convert a crash into a soft-skip for the
+ * fresh-worktree contributor path.
+ *
+ * To enforce that artifacts MUST exist (for release CI pipelines or
+ * pre-release gates), pass `--require-built`. With that flag, missing
+ * artifacts fail with exit 1 and a list of paths that need to be
+ * generated.
+ */
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
@@ -16,7 +45,8 @@ interface SizeTarget {
   resolvePath: () => string;
 }
 
-interface SizeResult {
+interface MeasuredResult {
+  readonly kind: "measured";
   budget: SizeBudget;
   gzipBytes: number;
   label: string;
@@ -24,24 +54,52 @@ interface SizeResult {
   relativePath: string;
 }
 
-const check = process.argv.includes("--check");
-const unknownArgs = process.argv.slice(2).filter((arg) => arg !== "--check");
+interface SkippedResult {
+  readonly kind: "skipped";
+  readonly label: string;
+  readonly missingPath: string;
+  readonly reason: string;
+}
+
+type SizeResult = MeasuredResult | SkippedResult;
+
+const args = process.argv.slice(2);
+const check = args.includes("--check");
+const requireBuilt = args.includes("--require-built");
+const unknownArgs = args.filter((arg) => arg !== "--check" && arg !== "--require-built");
 if (unknownArgs.length > 0) {
   console.error(`[bundle-size] Unknown argument(s): ${unknownArgs.join(", ")}`);
-  console.error("Usage: bun scripts/bundle-size.ts [--check]");
+  console.error("Usage: bun scripts/bundle-size.ts [--check] [--require-built]");
   process.exit(1);
 }
 
+class MissingArtifactError extends Error {
+  readonly missingPath: string;
+  constructor(missingPath: string) {
+    super(`missing artifact: ${missingPath}`);
+    this.name = "MissingArtifactError";
+    this.missingPath = missingPath;
+  }
+}
+
 function findLargestFile(dir: string, predicate: (name: string) => boolean): string {
+  if (!existsSync(dir)) {
+    throw new MissingArtifactError(path.relative(repoRoot, dir));
+  }
   const entries = readdirSync(dir, { withFileTypes: true });
   let largest: { path: string; size: number } | null = null;
 
   for (const entry of entries) {
     const entryPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      const candidate = findLargestFile(entryPath, predicate);
-      const size = statSync(candidate).size;
-      if (!largest || size > largest.size) largest = { path: candidate, size };
+      try {
+        const candidate = findLargestFile(entryPath, predicate);
+        const size = statSync(candidate).size;
+        if (!largest || size > largest.size) largest = { path: candidate, size };
+      } catch (err) {
+        if (err instanceof MissingArtifactError) continue;
+        throw err;
+      }
       continue;
     }
 
@@ -51,7 +109,7 @@ function findLargestFile(dir: string, predicate: (name: string) => boolean): str
   }
 
   if (!largest) {
-    throw new Error(`No matching files found under ${path.relative(repoRoot, dir)}`);
+    throw new MissingArtifactError(path.relative(repoRoot, dir));
   }
   return largest.path;
 }
@@ -67,7 +125,11 @@ const targets: SizeTarget[] = [
   },
   {
     label: "pi-extension bundle",
-    resolvePath: () => path.join(repoRoot, "extras/pi-extension/dist/extension.js"),
+    resolvePath: () => {
+      const p = path.join(repoRoot, "extras/pi-extension/dist/extension.js");
+      if (!existsSync(p)) throw new MissingArtifactError(path.relative(repoRoot, p));
+      return p;
+    },
     budget: { rawBytes: 720_000, gzipBytes: 180_000 },
   },
   {
@@ -80,7 +142,11 @@ const targets: SizeTarget[] = [
   },
   {
     label: "cli npm bin wrapper",
-    resolvePath: () => path.join(repoRoot, "packages/cli/dist/bin.mjs"),
+    resolvePath: () => {
+      const p = path.join(repoRoot, "packages/cli/dist/bin.mjs");
+      if (!existsSync(p)) throw new MissingArtifactError(path.relative(repoRoot, p));
+      return p;
+    },
     budget: { rawBytes: 1_500, gzipBytes: 800 },
   },
 ];
@@ -92,9 +158,23 @@ function formatBytes(bytes: number): string {
 }
 
 async function measure(target: SizeTarget): Promise<SizeResult> {
-  const absolutePath = target.resolvePath();
+  let absolutePath: string;
+  try {
+    absolutePath = target.resolvePath();
+  } catch (err) {
+    if (err instanceof MissingArtifactError) {
+      return {
+        kind: "skipped",
+        label: target.label,
+        missingPath: err.missingPath,
+        reason: "artifact not built (run `bun run build` to populate)",
+      };
+    }
+    throw err;
+  }
   const data = await readFile(absolutePath);
   return {
+    kind: "measured",
     label: target.label,
     relativePath: path.relative(repoRoot, absolutePath),
     rawBytes: data.length,
@@ -103,7 +183,7 @@ async function measure(target: SizeTarget): Promise<SizeResult> {
   };
 }
 
-function overBudget(result: SizeResult): string[] {
+function overBudget(result: MeasuredResult): string[] {
   const failures: string[] = [];
   if (result.rawBytes > result.budget.rawBytes) {
     failures.push(`raw ${formatBytes(result.rawBytes)} > ${formatBytes(result.budget.rawBytes)}`);
@@ -117,16 +197,31 @@ function overBudget(result: SizeResult): string[] {
 }
 
 const results = await Promise.all(targets.map(measure));
-const failures = results.flatMap((result) => {
+const measured = results.filter((r): r is MeasuredResult => r.kind === "measured");
+const skipped = results.filter((r): r is SkippedResult => r.kind === "skipped");
+const failures = measured.flatMap((result) => {
   const issues = overBudget(result);
   return issues.map((issue) => `${result.label}: ${issue} (${result.relativePath})`);
 });
 
 const labelWidth = Math.max(...results.map((result) => result.label.length));
 for (const result of results) {
-  console.log(
-    `${result.label.padEnd(labelWidth)}  raw ${formatBytes(result.rawBytes).padStart(9)}  gzip ${formatBytes(result.gzipBytes).padStart(9)}  ${result.relativePath}`,
-  );
+  if (result.kind === "measured") {
+    console.log(
+      `${result.label.padEnd(labelWidth)}  raw ${formatBytes(result.rawBytes).padStart(9)}  gzip ${formatBytes(result.gzipBytes).padStart(9)}  ${result.relativePath}`,
+    );
+  } else {
+    console.log(
+      `${result.label.padEnd(labelWidth)}  skipped — ${result.reason} (${result.missingPath})`,
+    );
+  }
+}
+
+if (skipped.length > 0 && requireBuilt) {
+  console.error("\n[bundle-size] --require-built: missing artifacts:");
+  for (const s of skipped) console.error(`- ${s.label}: ${s.missingPath}`);
+  console.error("Run `bun run build` to generate them, then re-run.");
+  process.exit(1);
 }
 
 if (check && failures.length > 0) {
@@ -136,5 +231,11 @@ if (check && failures.length > 0) {
 }
 
 if (check) {
-  console.log("\n✓ bundle-size:check: all tracked artifacts are within budget.");
+  if (skipped.length > 0) {
+    console.log(
+      `\n⚠ bundle-size:check: ${measured.length} artifact(s) within budget; ${skipped.length} skipped (not built). Run \`bun run build\` to enable full size check, or pass --require-built to enforce.`,
+    );
+  } else {
+    console.log("\n✓ bundle-size:check: all tracked artifacts are within budget.");
+  }
 }
