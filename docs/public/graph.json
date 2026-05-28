@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-28T14:40:03.513Z",
-  "package_count": 37,
-  "publishable_count": 25,
+  "generated_at": "2026-05-28T17:16:21.855Z",
+  "package_count": 39,
+  "publishable_count": 27,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -517,8 +517,34 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/wake-channel-bridge",
+      "dir": "extras/wake-channel-bridge",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [
+        "@agents-js/claude-channel-adapter",
+        "@agents-js/wake-signal-store",
+        "@agents-js/wake-types"
+      ],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/wake-mcp-triggers",
       "dir": "packages/wake-mcp-triggers",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [
+        "@agents-js/wake-types"
+      ],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
+      "name": "@agents-js/wake-signal-store",
+      "dir": "packages/wake-signal-store",
       "private": false,
       "version": "0.5.1",
       "internal_deps": [
@@ -561,7 +587,12 @@
     }
   ],
   "reverse_edges": {
-    "@agents-js/claude-channel-adapter": [],
+    "@agents-js/claude-channel-adapter": [
+      "@agents-js/wake-channel-bridge"
+    ],
+    "@agents-js/wake-signal-store": [
+      "@agents-js/wake-channel-bridge"
+    ],
     "@agents-js/wake-mcp-triggers": [],
     "@agents-js/tools": [
       "@agents-js/trial-agent"
@@ -678,7 +709,9 @@
     ],
     "@agents-js/wake-types": [
       "@agents-js/claude-channel-adapter",
-      "@agents-js/wake-mcp-triggers"
+      "@agents-js/wake-signal-store",
+      "@agents-js/wake-mcp-triggers",
+      "@agents-js/wake-channel-bridge"
     ],
     "@agents-js/gateway": [],
     "@agents-js/web-ui": [],
@@ -688,6 +721,7 @@
     "@agents-js/reporting": [],
     "@agents-js/mcp-bus-bridge": [],
     "@agents-js/browser-runtime": [],
+    "@agents-js/wake-channel-bridge": [],
     "@agents-js/matrix-bridge": [
       "@agents-js/gateway"
     ],

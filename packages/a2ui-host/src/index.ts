@@ -21,3 +21,12 @@ export {
   type A2uiHostOptions,
   type SurfaceRenderer,
 } from "./host.ts";
+export type {
+  RendererAdapter,
+  RendererAdapterApplyPayload,
+  RendererAdapterCaptureResult,
+  RendererAdapterDimensions,
+  RendererAdapterMountOptions,
+  RendererAdapterPhase,
+  RendererAdapterStats,
+} from "./renderer-adapter.ts";
