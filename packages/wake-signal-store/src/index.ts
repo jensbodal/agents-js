@@ -161,9 +161,7 @@ export class InMemoryWakeSignalStoreBackend implements WakeSignalStoreBackend {
 
   async put(record: WakeSignalRecord): Promise<void> {
     if (this.records.has(record.signalId)) {
-      throw new Error(
-        `wake-signal-store: signalId ${String(record.signalId)} already present`,
-      );
+      throw new Error(`wake-signal-store: signalId ${String(record.signalId)} already present`);
     }
     this.records.set(record.signalId, record);
   }
@@ -254,10 +252,7 @@ export interface WakeSignalStore {
    * Throws if the signalId is absent or the idempotency key doesn't match
    * the stored record's key.
    */
-  markDelivered(
-    signalId: WakeSignalId,
-    idempotencyKey: WakeIdempotencyKey,
-  ): Promise<boolean>;
+  markDelivered(signalId: WakeSignalId, idempotencyKey: WakeIdempotencyKey): Promise<boolean>;
 
   /**
    * Physically remove expired signals. Returns the count removed.
@@ -276,9 +271,7 @@ export interface WakeSignalStore {
  *    same idempotency key returns false on the second call.
  *  - Explicit GC: `gcExpired()` physically removes expired records.
  */
-export function createWakeSignalStore(
-  deps: WakeSignalStoreDeps,
-): WakeSignalStore {
+export function createWakeSignalStore(deps: WakeSignalStoreDeps): WakeSignalStore {
   const { backend } = deps;
   const now = deps.now ?? (() => Date.now());
 
@@ -297,9 +290,7 @@ export function createWakeSignalStore(
     async pullPending(target) {
       const all = await backend.listByTarget(target);
       const nowMs = now();
-      return all.filter(
-        (r) => r.expiresAtMs > nowMs && r.deliveredAtMs === undefined,
-      );
+      return all.filter((r) => r.expiresAtMs > nowMs && r.deliveredAtMs === undefined);
     },
 
     async markDelivered(signalId, idempotencyKey) {
@@ -310,9 +301,7 @@ export function createWakeSignalStore(
         );
       }
       if (record.idempotencyKey !== idempotencyKey) {
-        throw new Error(
-          `wake-signal-store: idempotency key mismatch on ${String(signalId)}`,
-        );
+        throw new Error(`wake-signal-store: idempotency key mismatch on ${String(signalId)}`);
       }
       if (record.deliveredAtMs !== undefined) {
         return false; // already delivered — dedup hit

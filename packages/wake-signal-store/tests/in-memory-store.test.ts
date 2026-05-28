@@ -286,17 +286,17 @@ describe("WakeSignalStore (wrapper)", () => {
         target: TARGET_SESSION_X,
       }),
     );
-    await expect(
-      store.markDelivered(SIGNAL_ID_A, IDEM_KEY_B),
-    ).rejects.toThrow(/idempotency key mismatch/);
+    await expect(store.markDelivered(SIGNAL_ID_A, IDEM_KEY_B)).rejects.toThrow(
+      /idempotency key mismatch/,
+    );
   });
 
   test("markDelivered rejects absent signalId", async () => {
     const backend = new InMemoryWakeSignalStoreBackend();
     const store = createWakeSignalStore({ backend, now: () => 5_000 });
-    await expect(
-      store.markDelivered(SIGNAL_ID_A, IDEM_KEY_A),
-    ).rejects.toThrow(/cannot mark delivered/);
+    await expect(store.markDelivered(SIGNAL_ID_A, IDEM_KEY_A)).rejects.toThrow(
+      /cannot mark delivered/,
+    );
   });
 
   test("gcExpired removes expired records and returns count", async () => {
