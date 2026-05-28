@@ -41,7 +41,15 @@ jobs:
       - run: bun run check
 
   # Default deterministic upstream proof gate.
+  #
+  # Gated to github.com because npm publish (release.yml) is also gated to
+  # github.com via `server_url == 'https://github.com'`. The deterministic +
+  # release-gates jobs exist to protect the npm publish path; running them
+  # on gitea consumes act_runner capacity for a gate whose downstream
+  # artifact (npm publish) never fires from gitea. Pre-merge correctness on
+  # gitea is covered by the `check` job above.
   deterministic:
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -56,7 +64,10 @@ jobs:
       - run: bun run e2e:deterministic
 
   # Release readiness checks that do not depend on a live curated runtime.
+  # Gated to github.com for the same reason as `deterministic` above — this
+  # job protects the npm publish path, which only fires on github.com.
   release-gates:
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     needs: deterministic
     steps:
