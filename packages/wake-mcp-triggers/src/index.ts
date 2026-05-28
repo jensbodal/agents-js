@@ -1,6 +1,24 @@
 /**
  * `@agents-js/wake-mcp-triggers` — in-session-push wake-adapter runtime.
  *
+ * **0.6.0 release posture — DISPATCHER ONLY**
+ *
+ * This package ships in 0.6.0 as the dispatcher half of the in-session-push
+ * wake-adapter. The corresponding gateway-side WakeSignalStore + trigger
+ * publisher are **not yet built** — consumer integration is deferred to
+ * post-0.6.0 per [ADR-0007](../../../docs/adrs/0007-wake-trigger-gateway-substrate.md).
+ *
+ * Treat the dispatcher API as **wire-format reference** for the in-session-push
+ * shape until the consumer-side gateway substrate lands. Downstream consumers
+ * integrating against the dispatcher today should expect a follow-up release
+ * (post-0.6.0) to wire the trigger source and signal store; the dispatcher
+ * surface itself is intended to be stable across that work but is not
+ * load-bearing for any 0.6.0 user-facing feature.
+ *
+ * The receiver/parse helpers (`createInSessionPushReceiver`,
+ * `parseInSessionPushNotification`) are provided as the harness-side
+ * contract for future integrators but have no in-tree consumer in 0.6.0.
+ *
  * **AJS-96** — first impl of the AJS-89 HYBRID `in-session-push` shape.
  * Gateway side: serialize an {@link InSessionPushWakeAdapter} into an MCP
  * server-initiated notification frame and dispatch it via a caller-supplied
