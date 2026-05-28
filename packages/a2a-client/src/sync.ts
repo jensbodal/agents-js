@@ -493,7 +493,13 @@ export async function syncFromPeer(options: SyncFromPeerOptions): Promise<SyncSu
   const correlationId = options.correlationId ?? newCorrelationId();
 
   const peerRecords = await fetchPeerRecords({ ...options, correlationId });
-  const localRecords = await readAgentRegistryRecords({ configPath });
+  // Round-trip read uses include-expired so peer-sync merge doesn't
+  // silently drop local rows as a side effect of writing. Receiver-side
+  // TTL filtering belongs on consumer read paths.
+  const localRecords = await readAgentRegistryRecords({
+    configPath,
+    expiryPolicy: { mode: "include-expired" },
+  });
 
   const { merged, actions } = mergeRecords(localRecords, peerRecords, {
     localGatewayId,

@@ -21,9 +21,9 @@
  * if it throws, the tick is treated as a transient failure and retried
  * with backoff.
  *
- * Receiver-side TTL expiry — the consumer of `registered_at` /
- * `expires_at` watermarks — is out of scope for this module. See the
- * follow-up tracker for the registry-expiry contract.
+ * Receiver-side TTL expiry — the consumer of `expires_at` watermarks —
+ * lives on the read path; see the `expiryPolicy` option on
+ * {@link readAgentRegistryRecords} (AJS-97).
  */
 
 import {

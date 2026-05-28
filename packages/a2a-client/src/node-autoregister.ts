@@ -10,7 +10,7 @@
  * is an internal implementation detail.
  */
 
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import type {
@@ -109,14 +109,136 @@ function migrateRecord(
   return record;
 }
 
+/** Console-shaped logger subset used by the read/expiry helpers. */
+export type RegistryReadLogger = Pick<Console, "warn">;
+
 /**
- * Read the v2 record shape, applying v1→v2 migration in-memory. Returns an
- * empty map when the file is absent or unparsable (fails open).
+ * Receiver-side TTL policy applied to {@link readAgentRegistryRecords}.
+ *
+ * - `"include-expired"` — return every record verbatim. Used by writers
+ *   that do `read → mutate → write` round-trips (autoRegister, sync) so
+ *   that GC is never a silent side effect of writing.
+ * - `"filter-expired"` — silently drop expired rows from the returned
+ *   list. The on-disk file is untouched. Default for consumer reads:
+ *   callers that didn't know about TTL get the safe "ignore stale
+ *   records" behavior automatically.
+ * - `"filter-and-drop"` — filter AND physically remove expired rows from
+ *   the registry file (soft GC pass). The drop is atomic vs concurrent
+ *   writers: the file is re-read immediately before the rewrite and any
+ *   rows that appeared between the two reads are preserved.
+ */
+export type RegistryExpiryMode = "include-expired" | "filter-expired" | "filter-and-drop";
+
+/** TTL policy options for {@link readAgentRegistryRecords}. */
+export interface RegistryExpiryPolicy {
+  mode: RegistryExpiryMode;
+  /** Deterministic clock injection for tests. Defaults to `() => new Date()`. */
+  now?: () => Date;
+  /** Logger for malformed-`expires_at` warnings. Defaults to `console`. */
+  logger?: RegistryReadLogger;
+  /**
+   * Test-only hook fired between the first read and the GC re-read in
+   * `"filter-and-drop"` mode. Lets a race-condition test inject a
+   * competing write that must survive the drop pass. Not part of the
+   * public contract.
+   * @internal
+   */
+  __beforeDropRereadHook?: () => Promise<void>;
+}
+
+/**
+ * Predicate: is this record expired at the given instant?
+ *
+ * A record is expired iff `expires_at` is present AND parseable AND
+ * `parseISO(expires_at) <= now`. Records with no `expires_at` are NEVER
+ * expired (forward-compatibility with v1 writers that didn't set it).
+ * Malformed `expires_at` strings are treated as "never expires" and a
+ * warning is emitted via the optional logger.
+ *
+ * Note: `now` here is a resolved `Date`, not a factory. The factory
+ * shape lives on {@link RegistryExpiryPolicy.now}.
+ */
+export function isRegistryRecordExpired(
+  record: Pick<AgentRegistryRecord, "name" | "expires_at">,
+  now: Date,
+  logger?: RegistryReadLogger,
+): boolean {
+  if (record.expires_at === undefined) return false;
+  const expiry = new Date(record.expires_at);
+  if (Number.isNaN(expiry.getTime())) {
+    (logger ?? console).warn(
+      `[agents-js/registry] Malformed expires_at on record ${record.name}: ${record.expires_at} — treating as never-expires`,
+    );
+    return false;
+  }
+  return expiry.getTime() <= now.getTime();
+}
+
+/**
+ * Read the v2 record shape, applying v1→v2 migration in-memory. Returns
+ * an empty list when the file is absent or unparsable (fails open).
+ *
+ * Receiver-side TTL is applied via `expiryPolicy` (AJS-97). Default mode
+ * is `"filter-expired"`: expired rows are silently dropped from the
+ * returned list. Pass `mode: "include-expired"` to disable TTL filtering
+ * (required for `read → mutate → write` round-trips that must preserve
+ * peer state). Pass `mode: "filter-and-drop"` to physically GC expired
+ * rows from the registry file.
  */
 export async function readAgentRegistryRecords(
-  options: { configPath?: string } = {},
+  options: { configPath?: string; expiryPolicy?: RegistryExpiryPolicy } = {},
 ): Promise<AgentRegistryRecord[]> {
   const configPath = options.configPath ?? resolveSharedAgentRegistryPath();
+  const policy: RegistryExpiryPolicy = options.expiryPolicy ?? { mode: "filter-expired" };
+  const nowFn = policy.now ?? (() => new Date());
+  const logger = policy.logger;
+
+  const all = await readRecordsRaw(configPath);
+
+  if (policy.mode === "include-expired") return all;
+
+  const nowInstant = nowFn();
+  const expiredNames = new Set<string>();
+  const kept: AgentRegistryRecord[] = [];
+  for (const rec of all) {
+    if (isRegistryRecordExpired(rec, nowInstant, logger)) {
+      expiredNames.add(rec.name);
+    } else {
+      kept.push(rec);
+    }
+  }
+
+  if (policy.mode === "filter-expired") return kept;
+
+  // filter-and-drop: physically remove expired rows from disk, atomic
+  // vs concurrent writers. Re-read right before the rewrite and merge
+  // any rows that appeared in the window between the two reads — those
+  // are competing writes that must survive the drop pass.
+  if (expiredNames.size === 0) return kept;
+
+  if (policy.__beforeDropRereadHook !== undefined) {
+    await policy.__beforeDropRereadHook();
+  }
+
+  const fresh = await readRecordsRaw(configPath);
+  const merged: Record<string, AgentRegistryRecord> = {};
+  for (const rec of fresh) {
+    if (expiredNames.has(rec.name)) continue;
+    merged[rec.name] = rec;
+  }
+
+  await mkdir(dirname(configPath), { recursive: true });
+  // Temp-file + rename for atomic replace — crash mid-write leaves either
+  // the prior file or the new file, never a torn partial.
+  const tmpPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmpPath, `${JSON.stringify(serializeRecords(merged), null, 2)}\n`);
+  await rename(tmpPath, configPath);
+
+  return kept;
+}
+
+/** Inner read pass — no TTL filtering. Used by the policy dispatcher above. */
+async function readRecordsRaw(configPath: string): Promise<AgentRegistryRecord[]> {
   let raw: string;
   try {
     raw = await readFile(configPath, "utf-8");
@@ -273,7 +395,13 @@ export async function autoRegister(options: AutoRegisterOptions): Promise<AgentR
   }
   if (options.healthCheckUrl !== undefined) record.health_check_url = options.healthCheckUrl;
 
-  const existing = await readAgentRegistryRecords({ configPath });
+  // Round-trip read uses include-expired so that GC is never a silent
+  // side effect of autoRegister. Receiver-side TTL belongs on consumer
+  // reads, not on writers.
+  const existing = await readAgentRegistryRecords({
+    configPath,
+    expiryPolicy: { mode: "include-expired" },
+  });
   const merged: Record<string, AgentRegistryRecord> = {};
   for (const r of existing) merged[r.name] = r;
   merged[options.name] = record;

@@ -49,6 +49,7 @@ bun add @agents-js/a2a-client
 - **`extractMessageText`**
 - **`fetchPeerRecords`** — GET the peer gateway's sync endpoint and return the records it serves. Throws {PeerSyncError} on network failure, non-2xx, or malformed payload.
 - **`groupDiscoveredTargets`** — Group/dedupe a raw list of discovered targets by `name`, picking a canonical `preferred` entry per group under the configured policy. The function is pure and opt-in — passing no `options` (or `{}`...
+- **`isRegistryRecordExpired`** — Predicate: is this record expired at the given instant? A record is expired iff `expires_at` is present AND parseable AND `parseISO(expires_at) <= now`. Records with no `expires_at` are NEVER expir...
 - **`isTerminalTaskState`**
 - **`mergeRecords`** — Pure-function merge surface — exported for white-box tests of the matrix.
 - **`normalizeAgentTargetInput`**
@@ -57,7 +58,7 @@ bun add @agents-js/a2a-client
 - **`parseAgentMentions`** — Extracts `-name` mentions from text content. Returns an array of {ParsedMention} objects describing each valid mention found. Email addresses (e.g. `user.com`) are NOT matched because the `@` must ...
 - **`parseDispatchDirective`** — Parses a `@-name payload` dispatch directive from the user text. Unlike `` which are annotations that can appear anywhere, `@@` is a deterministic routing directive: the entire message is consumed ...
 - **`randomUuid`** — Secure-context-safe RFC 4122 v4 UUID generator. Browsers only expose `crypto.randomUUID()` in secure contexts (HTTPS origins or `localhost` / `127.0.0.1`). Serving the reference web-ui over plain H...
-- **`readAgentRegistryRecords`** — Read the v2 record shape, applying v1→v2 migration in-memory. Returns an empty map when the file is absent or unparsable (fails open).
+- **`readAgentRegistryRecords`** — Read the v2 record shape, applying v1→v2 migration in-memory. Returns an empty list when the file is absent or unparsable (fails open). Receiver-side TTL is applied via `expiryPolicy` (AJS-97). Def...
 - **`reduceA2ASessionState`**
 - **`resolveSharedAgentRegistryPath`**
 - **`runFederationTransportConformanceTests`** — Federation transport conformance suite. v1 surface only — test bodies are `test.todo` and become real assertions in v2 when an actual transport implementation lands (likely the HTTP A2A RemoteHarne...
@@ -160,6 +161,7 @@ bun add @agents-js/a2a-client
 - **`ParsedDispatchDirective`**
 - **`ParsedMention`** — Pure functions for parsing `-name` mentions from text content. Agent names are alphanumeric + hyphens (e.g. `knowledge-compiler`, `code-reviewer`). A mention is valid when preceded by whitespace or...
 - **`ProbeResult`**
+- **`RegistryExpiryPolicy`** — TTL policy options for {readAgentRegistryRecords}.
 - **`RegistrySyncHandle`** — Handle returned by {startRegistrySync}.
 - **`ResolvedAgentTarget`**
 - **`ResumeTurnOptions`**
@@ -195,6 +197,8 @@ bun add @agents-js/a2a-client
 - **`FetchLike`**
 - **`HeartbeatLogger`** — Console-shaped logger subset used by the heartbeat loop.
 - **`RawAgentCard`** — Raw card shape returned by a non-standard agent probe endpoint. Kept as a loose record to avoid over-constraining what Agent Zero returns.
+- **`RegistryExpiryMode`** — Receiver-side TTL policy applied to {readAgentRegistryRecords}. - `"include-expired"` — return every record verbatim. Used by writers that do `read → mutate → write` round-trips (autoRegister, sync...
+- **`RegistryReadLogger`** — Console-shaped logger subset used by the read/expiry helpers.
 - **`SessionStatus`**
 - **`SessionStatusAction`** — Re-export for convenience — consumers can override action labels.
 - **`SessionStatusViewModel`** — Re-export for convenience — consumers can override action labels.
