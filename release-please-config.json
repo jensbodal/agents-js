@@ -63,6 +63,11 @@
         },
         {
           "type": "json",
+          "path": "packages/agent-launch/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/agui-types/package.json",
           "jsonpath": "$.version"
         },

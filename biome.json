@@ -69,6 +69,7 @@
     {
       "includes": [
         "packages/cli/src/acp.ts",
+        "packages/cli/src/launch.ts",
         "packages/cli/src/serve.ts",
         "packages/acp-host/src/process.ts",
         "packages/acp-host/src/terminal-manager.ts",

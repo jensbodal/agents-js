@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "description": "Regression fixture for PR #99 cognee-codex review: claude-code Phase-1 agent coexists with profiles outside Phase 1 (codex without fresh_flags, virtual profile with null fields). Loading must succeed; resolving the valid claude-code agent must succeed; resolving a malformed profile must still throw clearly.",
+  "agents": {
+    "cognee-claude": {
+      "tmux_session": "cognee-claude",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/Users/jensbodal/workspace/dot-cognee",
+      "fresh_flags": "--agent cognee-claude --allow-dangerously-skip-permissions",
+      "git_author_name": "cognee-claude",
+      "git_author_email": "cognee-claude@agents.example",
+      "env_setup": "export MATRIX_AGENT=cognee-claude"
+    },
+    "cognee-codex": {
+      "tmux_session": "cognee-codex",
+      "harness": "codex-cli",
+      "binary": "codex",
+      "workspace": "/Users/jensbodal/workspace/dot-cognee",
+      "launch_flags": "--profile cognee-codex"
+    },
+    "jens-proxy": {
+      "tmux_session": null,
+      "harness": "virtual",
+      "binary": null,
+      "workspace": null,
+      "fresh_flags": null,
+      "notes": "Virtual profile — not launched; carried as fan-out target"
+    }
+  }
+}

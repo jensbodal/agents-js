@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture — single claude-code agent, mirrors the cognee-claude shape from dot-cognee config",
+  "agents": {
+    "cognee-claude": {
+      "tmux_session": "cognee-claude",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/Users/jensbodal/workspace/dot-cognee",
+      "launch_flags": "--agent cognee-claude --resume {session_id} --allow-dangerously-skip-permissions --permission-mode bypassPermissions",
+      "fresh_flags": "--agent cognee-claude --allow-dangerously-skip-permissions --permission-mode bypassPermissions",
+      "identity_files": ["CLAUDE.md", ".claude/agents/cognee-claude.md"],
+      "matrix_mxid": "@cognee-claude:matrix.example",
+      "env_setup": "export MATRIX_AGENT=cognee-claude",
+      "git_author_name": "cognee-claude",
+      "git_author_email": "cognee-claude@agents.example",
+      "model": "claude-opus-4-7",
+      "notes": "Test fixture — extra fields (identity_files, model, notes) round-trip through extra bag"
+    }
+  }
+}

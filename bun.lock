@@ -331,6 +331,13 @@
         "@agents-js/policy": "0.5.1",
       },
     },
+    "packages/agent-launch": {
+      "name": "@agents-js/agent-launch",
+      "version": "0.5.1",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/agui-types": {
       "name": "@agents-js/agui-types",
       "version": "0.5.1",
@@ -361,6 +368,7 @@
       "version": "0.5.1",
       "bin": {
         "agents-js": "dist/bin.mjs",
+        "ajs": "dist/bin.mjs",
       },
       "dependencies": {
         "@agentclientprotocol/claude-agent-acp": "0.33.1",
@@ -368,6 +376,7 @@
         "@agents-js/a2a-client": "0.5.1",
         "@agents-js/acp": "0.5.1",
         "@agents-js/acp-host": "0.5.1",
+        "@agents-js/agent-launch": "0.5.1",
         "@agents-js/gateway-runtime": "0.5.1",
         "@agents-js/host": "0.5.1",
         "@agents-js/mcp-bridge": "0.5.1",
@@ -611,6 +620,8 @@
     "@agents-js/acp": ["@agents-js/acp@workspace:packages/acp"],
 
     "@agents-js/acp-host": ["@agents-js/acp-host@workspace:packages/acp-host"],
+
+    "@agents-js/agent-launch": ["@agents-js/agent-launch@workspace:packages/agent-launch"],
 
     "@agents-js/agui-types": ["@agents-js/agui-types@workspace:packages/agui-types"],
 

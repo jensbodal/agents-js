@@ -5,6 +5,7 @@ import { runAcpCommand } from "./acp.ts";
 import { runBridgeCommand } from "./bridge.ts";
 import { runClientCommand } from "./client/command.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
+import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
 import { runRegistryCommand } from "./registry.ts";
 import { runSendCommand } from "./send.ts";
@@ -28,6 +29,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  client    Open the A2A client TUI",
       "  send      Send a one-shot prompt to a running serve and print the response",
       "  registry  Manage the shared agent registry",
+      "  launch    Launch or attach to an agent's tmux session (Phase 1 — claude-code)",
       "  skill     Print the installable agents-js SKILL.md document",
       "",
       "Global options:",
@@ -88,6 +90,11 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "registry") {
     return runRegistryCommand(rest);
+  }
+
+  if (command === "launch") {
+    const result = await runLaunchCommand(rest);
+    return typeof result === "number" ? result : EXIT_OK;
   }
 
   if (command === "skill") {

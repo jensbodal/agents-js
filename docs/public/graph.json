@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-28T17:16:21.855Z",
-  "package_count": 39,
-  "publishable_count": 27,
+  "generated_at": "2026-05-28T17:59:22.735Z",
+  "package_count": 40,
+  "publishable_count": 28,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -112,6 +112,16 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/agent-launch",
+      "dir": "packages/agent-launch",
+      "private": false,
+      "version": "0.5.1",
+      "internal_deps": [],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/agui-types",
       "dir": "packages/agui-types",
       "private": false,
@@ -174,6 +184,7 @@
         "@agents-js/a2a-client",
         "@agents-js/acp",
         "@agents-js/acp-host",
+        "@agents-js/agent-launch",
         "@agents-js/gateway-runtime",
         "@agents-js/host",
         "@agents-js/mcp-bridge",
@@ -684,6 +695,9 @@
     ],
     "@agents-js/skills": [
       "@agents-js/mcp-bridge"
+    ],
+    "@agents-js/agent-launch": [
+      "@agents-js/cli"
     ],
     "@agents-js/acp": [
       "@agents-js/host",

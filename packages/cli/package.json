@@ -60,6 +60,7 @@
     "@agents-js/acp": "0.5.1",
     "@agents-js/acp-host": "0.5.1",
     "@agents-js/a2a": "0.5.1",
+    "@agents-js/agent-launch": "0.5.1",
     "@agents-js/gateway-runtime": "0.5.1",
     "@agents-js/host": "0.5.1",
     "@agents-js/mcp-bridge": "0.5.1",
