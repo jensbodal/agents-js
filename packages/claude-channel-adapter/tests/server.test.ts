@@ -129,4 +129,47 @@ describe("createClaudeChannelServer", () => {
     expect(frame.params.meta.idempotency_key).toBe("k1");
     await server.close();
   });
+
+  test("sender-spoofing defense: caller-supplied meta.sender CANNOT override gated sender", async () => {
+    // Regression for hostname-null-claude-0 live-smoke finding 2026-05-28
+    // ($91CJLzvbFuM073MDKi_gpa7hK486hzHZiDRy69Yezao): the spread-order in
+    // `emitChannelMessage` used to be `{sender: input.sender, ...input.meta}`,
+    // which let a caller's `meta.sender` overwrite the value that just
+    // passed the sender-gate. The fix flips to `{...input.meta, sender:
+    // input.sender}` so the gated sender wins.
+    const sent: unknown[] = [];
+    const captureTransport = {
+      async start() {},
+      async send(msg: unknown) {
+        sent.push(msg);
+      },
+      async close() {},
+      onmessage: undefined,
+      onclose: undefined,
+      onerror: undefined,
+    };
+    const server = createClaudeChannelServer({
+      serverInfo: { name: "test", version: "0.0.0" },
+      // Only "trusted-peer" passes the gate; "attacker" must NOT appear in
+      // the rendered <channel source=…> tag even though caller-meta tries.
+      senderGate: createSenderGate({ allowedSenders: ["trusted-peer"] }),
+      gatewayEmit: noopGatewayEmit(),
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: minimal mock transport
+    await server.connect(captureTransport as any);
+    const result = await server.emitChannelMessage({
+      content: "hi",
+      sender: "trusted-peer", // gate-passed
+      meta: { sender: "attacker", idempotency_key: "k1" }, // spoof attempt
+    });
+    expect(result).toEqual({ status: "emitted" });
+    const frame = sent[0] as {
+      params: { meta: Record<string, unknown> };
+    };
+    // CRITICAL: gated sender wins, caller-supplied spoof is dropped
+    expect(frame.params.meta.sender).toBe("trusted-peer");
+    expect(frame.params.meta.sender).not.toBe("attacker");
+    expect(frame.params.meta.idempotency_key).toBe("k1");
+    await server.close();
+  });
 });

@@ -257,11 +257,20 @@ export function createClaudeChannelServer(
       let sanitized: SanitizedMeta;
       try {
         sanitized = sanitizeMetaForChannel({
-          // Sender is always present in the rendered <channel> tag, but
-          // route it through meta so the sanitizer normalizes its key
-          // shape consistently with operator-supplied meta.
-          sender: input.sender,
+          // SENDER-SPOOFING DEFENSE (hostname-null-claude-0 live smoke
+          // 2026-05-28, matrix
+          // $91CJLzvbFuM073MDKi_gpa7hK486hzHZiDRy69Yezao):
+          // spread caller-supplied meta FIRST, then layer the
+          // gate-passed `sender` on top so a malicious or buggy
+          // caller-supplied `meta.sender` CANNOT override the value
+          // that passed the sender-gate. The reversed shape
+          // `{sender, ...input.meta}` would let untrusted meta override
+          // the source attribute in the rendered `<channel source=…>`
+          // tag, defeating the gate.
+          // Sender is routed through meta so the sanitizer normalizes
+          // its key shape consistently with operator-supplied keys.
           ...(input.meta ?? {}),
+          sender: input.sender,
         });
       } catch (err: unknown) {
         return {
