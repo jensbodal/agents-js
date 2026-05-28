@@ -32,7 +32,7 @@ hostname-null-claude-0's harness research surfaced a **decisive finding** that i
 **0.6.0 scope under this revision**:
 - WakeSignalStore primitive (package location TBD per OQ 1)
 - Trigger publisher (location TBD per OQ 1)
-- `@agents-js/channel-adapter` (or sibling) — `claude/channel`-capable MCP server translating gateway wake/inbox events into Claude Code channel messages
+- `@agents-js/claude-channel-adapter` (path: `packages/claude-channel-adapter/`) — `claude/channel`-capable MCP server translating gateway wake/inbox events into Claude Code channel messages
 - Integration through `mcp-bus-bridge` SSE event surface (reused, not new)
 - Estimated total: ~1500-2000 LOC across store + publisher + channel adapter. Non-trivial but no time pressure (Jens 2026-05-28 confirmed no cut-date).
 
