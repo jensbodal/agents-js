@@ -1,8 +1,46 @@
 # ADR 0007 — Wake-trigger gateway substrate
 
-**Status**: Proposed (2026-05-27) — STUB. Decision deferred to post-0.6.0.
-**Deciders**: TBD (architecture-lead = cognee-claude; implementer-of-record = ajs-claude)
-**Affects**: `@agents-js/wake-mcp-triggers` (dispatcher half, shipped), `extras/mcp-bus-bridge`, prospective `@agents-js/wake-signal-store` (new), prospective `@agents-js/host` trigger publisher (new), gateway dispatch path
+**Status**: Proposed (2026-05-27) — **Re-classified in-0.6.0 per Jens 2026-05-28 sign-off**. Original "deferred post-0.6.0" status superseded.
+**Deciders**: cognee-claude (architecture-lead), ajs-claude (publishable-surface implementer), hostname-null-claude-0 (harness wire-up + channel adapter integration)
+**Affects**: `@agents-js/wake-mcp-triggers` (dispatcher half, shipped), `extras/mcp-bus-bridge`, prospective `@agents-js/wake-signal-store` (new), prospective `@agents-js/host` trigger publisher (new), prospective `@agents-js/channel-adapter` (new — see Revision 2026-05-28), gateway dispatch path
+
+---
+
+## Revision 2026-05-28 — Terminal adapter shape correction + in-0.6.0 re-classification
+
+Jens 2026-05-28 directive (relayed via hostname-null-claude-0 matrix event `$RNR3fze_Kq7jXHoKcXcqYySVOtGfUErHE3LLydx8M1w`) re-classifies this work from post-0.6.0 to in-0.6.0 scope. The convergence-mode "necessary for release correctness" exception applies because shipping 0.6.0 with the receiver-side wake-push gap unresolved would leave the AJS-89 HYBRID architecture half-shipped at the runtime layer, not just at the package layer (PR #82).
+
+hostname-null-claude-0's harness research surfaced a **decisive finding** that invalidates the original ADR's terminal-hop assumption:
+
+**Finding**: Claude Code's MCP client **silently ignores server-initiated `notifications/*` frames**. The "Claude Code harness registers a `notifications/wake` handler" assumption from the original ADR cannot be built as specified.
+
+**Real Claude Code push primitive**: **Channels** (`claude/channel` capability, launched via `--channels`; research preview ~v2.1.80+). A channel = an MCP server declaring `claude/channel` that pushes messages INTO a running session and wakes it. Official channel plugins exist (Telegram/Discord/iMessage); custom channels are buildable.
+
+**Re-scoped architecture** (the original ADR's gateway-side decisions still hold; terminal adapter shape changes):
+- **KEEP as the SOURCE** (still needed; this ADR's core gateway-side decisions hold): WakeSignalStore + trigger publisher + gateway wake bus events. Something must decide "idle agent X has inbound → wake."
+- **REUSE**: gateway SSE `/events` bus + the `extras/mcp-bus-bridge` SSE→stdio pattern (`mcp-bus-bridge` already does `dispatchNotification` / `server.notification`).
+- **CHANGE**: terminal adapter for Claude Code becomes a **`claude/channel`-capable MCP server** (new `@agents-js/channel-adapter` or sibling package) attached via `--channels`, translating gateway wake/inbox events into channel messages. **NOT** a `notifications/wake` emitter.
+
+**Implication for ADR-0008** (SubscribedResponseWakeAdapter shape-vs-variant): for Claude Code specifically, the SubscribedResponse path may be moot once the channel adapter is built — Channels solves the receiver gap. For Codex and other sync-only harnesses that lack a Channels equivalent, ADR-0008's open questions remain (sibling-shape work, transport-binding decisions still required).
+
+**Fallbacks that work today, zero new harness capability** (carry-forward from hostname-null research, useful for unblocking pre-channel-adapter work):
+- External supervisor spawns `claude -p "<event>"` per inbound gateway event (stateless; fastest unblock)
+- Claude Agent SDK driven by a gateway-event loop (stateful, production-grade)
+
+**Updated implication for the 5 OQs below**: gateway-side OQs (1, 2, 5) remain load-bearing under the channel-adapter framing. OQ 3 (method-namespace `notifications/wake`) is now partially resolved — for Claude Code the terminal adapter uses `claude/channel` not `notifications/wake`; for other harnesses the original namespace question still applies. OQ 4 (bridge prefix-filter) becomes a channel-adapter capability-declaration question for Claude Code.
+
+**0.6.0 scope under this revision**:
+- WakeSignalStore primitive (package location TBD per OQ 1)
+- Trigger publisher (location TBD per OQ 1)
+- `@agents-js/channel-adapter` (or sibling) — `claude/channel`-capable MCP server translating gateway wake/inbox events into Claude Code channel messages
+- Integration through `mcp-bus-bridge` SSE event surface (reused, not new)
+- Estimated total: ~1500-2000 LOC across store + publisher + channel adapter. Non-trivial but no time pressure (Jens 2026-05-28 confirmed no cut-date).
+
+**DRI map**:
+- Architecture call (store location/persistence boundary, bridge contract, channel adapter contract): cognee-claude
+- Publishable-surface packages (WakeSignalStore, trigger publisher, channel adapter MCP server): ajs-claude
+- Harness wire-up + channel adapter integration testing: hostname-null-claude-0
+- Smoke-verifier: cognee-codex or cognee-zai (buddy-system third role; non-implementer non-reviewer)
 
 ---
 
