@@ -29,10 +29,9 @@ import { access, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PUBLISH_REGISTRY_ENV, resolvePublishRegistry } from "./release-config.ts";
-import { auditReleaseSurface } from "./release-preflight.ts";
+import { type AuditedPackage, auditReleaseSurface } from "./release-preflight.ts";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
-const packagesRoot = path.join(repoRoot, "packages");
 
 interface PackageManifest {
   name: string;
@@ -65,6 +64,12 @@ interface PackageResult {
   version: string;
   status: "published" | "would-publish" | "skipped" | "failed";
   detail?: string;
+}
+
+interface PackageTarget {
+  dirName: string;
+  packageDir: string;
+  relativePath: string;
 }
 
 class PublishError extends Error {
@@ -179,6 +184,15 @@ Options:
 `;
   console.log(usage);
   process.exit(code);
+}
+
+function createPackageTarget(pkg: AuditedPackage): PackageTarget {
+  const packageDir = path.dirname(pkg.manifestPath);
+  return {
+    dirName: pkg.dirName,
+    packageDir,
+    relativePath: path.relative(repoRoot, packageDir),
+  };
 }
 
 async function readManifest(packageDir: string): Promise<PackageManifest> {
@@ -372,32 +386,30 @@ function indent(text: string, prefix = "    "): string {
 function formatHeader(
   index: number,
   total: number,
-  dirName: string,
+  target: PackageTarget,
   manifest: PackageManifest,
 ): string {
-  return `\n[${index}/${total}] ${manifest.name}@${manifest.version}  (packages/${dirName})`;
+  return `\n[${index}/${total}] ${manifest.name}@${manifest.version}  (${target.relativePath})`;
 }
 
 async function processPackage(
-  dirName: string,
+  target: PackageTarget,
   options: CliOptions,
   index: number,
   total: number,
   registry: string,
 ): Promise<PackageResult> {
-  const packageDir = path.join(packagesRoot, dirName);
-
-  if (!(await pathExists(packageDir))) {
-    throw new PublishError(`Package directory not found: ${packageDir}`, dirName);
+  if (!(await pathExists(target.packageDir))) {
+    throw new PublishError(`Package directory not found: ${target.packageDir}`, target.dirName);
   }
 
-  const manifest = await readManifest(packageDir);
-  console.log(formatHeader(index, total, dirName, manifest));
+  const manifest = await readManifest(target.packageDir);
+  console.log(formatHeader(index, total, target, manifest));
 
   if (manifest.private === true) {
     console.log("    private: true — skipping");
     return {
-      dirName,
+      dirName: target.dirName,
       manifestName: manifest.name,
       version: manifest.version,
       status: "skipped",
@@ -409,20 +421,20 @@ async function processPackage(
     console.log("    skip build (--skip-build)");
   } else {
     console.log("    build: bun run build");
-    await buildPackage(packageDir, dirName);
+    await buildPackage(target.packageDir, target.dirName);
   }
 
-  const distDir = path.join(packageDir, "dist");
+  const distDir = path.join(target.packageDir, "dist");
   if (!(await isNonEmptyDir(distDir))) {
     throw new PublishError(
-      `dist/ is missing or empty for ${dirName} (looked at ${distDir}). ` +
+      `dist/ is missing or empty for ${target.dirName} (looked at ${distDir}). ` +
         `Run without --skip-build or investigate the build output.`,
-      dirName,
+      target.dirName,
     );
   }
   console.log("    verify: dist/ present");
   console.log("    verify: npm pack --dry-run");
-  await verifyPackDryRun(packageDir, dirName, manifest);
+  await verifyPackDryRun(target.packageDir, target.dirName, manifest);
 
   const effectiveTag = options.tag ?? inferDistTag(manifest.version);
   const tagDescription = effectiveTag ? ` --tag ${effectiveTag}` : "";
@@ -430,11 +442,11 @@ async function processPackage(
 
   if (options.dryRun) {
     console.log(
-      `    dry-run: would run "npm publish${registryDescription}${tagDescription}" in packages/${dirName} ` +
+      `    dry-run: would run "npm publish${registryDescription}${tagDescription}" in ${target.relativePath} ` +
         `(${manifest.name}@${manifest.version})`,
     );
     return {
-      dirName,
+      dirName: target.dirName,
       manifestName: manifest.name,
       version: manifest.version,
       status: "would-publish",
@@ -442,9 +454,9 @@ async function processPackage(
   }
 
   console.log(`    publish: npm publish${registryDescription}${tagDescription}`);
-  await publishPackage(packageDir, dirName, effectiveTag, registry);
+  await publishPackage(target.packageDir, target.dirName, effectiveTag, registry);
   return {
-    dirName,
+    dirName: target.dirName,
     manifestName: manifest.name,
     version: manifest.version,
     status: "published",
@@ -548,9 +560,21 @@ async function main(): Promise<void> {
     options.packages.length > 0
       ? knownPackages.filter((pkg) => options.packages.includes(pkg))
       : knownPackages;
+  const targetsByDirName = new Map(
+    audit.packages.map((pkg) => [pkg.dirName, createPackageTarget(pkg)]),
+  );
+  const publishTargets = targets.map((dirName) => {
+    const target = targetsByDirName.get(dirName);
+    if (!target) {
+      throw new Error(
+        `release audit returned publish order entry without package metadata: ${dirName}`,
+      );
+    }
+    return target;
+  });
 
   console.log(
-    `publish-all: ${targets.length} package(s), ` +
+    `publish-all: ${publishTargets.length} package(s), ` +
       `mode=${options.dryRun ? "dry-run" : "PUBLISH"}` +
       `${options.skipBuild ? ", skip-build" : ""}`,
   );
@@ -561,25 +585,25 @@ async function main(): Promise<void> {
   // failure list (e.g. a Trusted-Publisher gap surfaces all missing
   // packages in one run instead of forcing per-tag iteration).
   const results: PackageResult[] = [];
-  for (let i = 0; i < targets.length; i += 1) {
-    const dirName = targets[i];
+  for (let i = 0; i < publishTargets.length; i += 1) {
+    const target = publishTargets[i];
     try {
-      const result = await processPackage(dirName, options, i + 1, targets.length, registry);
+      const result = await processPackage(target, options, i + 1, publishTargets.length, registry);
       results.push(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`\nFAILED in packages/${dirName}: ${message}`);
-      let manifestName = dirName;
+      console.error(`\nFAILED in ${target.relativePath}: ${message}`);
+      let manifestName = target.dirName;
       let manifestVersion = "unknown";
       try {
-        const manifest = await readManifest(path.join(packagesRoot, dirName));
+        const manifest = await readManifest(target.packageDir);
         manifestName = manifest.name;
         manifestVersion = manifest.version;
       } catch {
         // best-effort: if even reading package.json fails, fall back to dir name
       }
       results.push({
-        dirName,
+        dirName: target.dirName,
         manifestName,
         version: manifestVersion,
         status: "failed",
