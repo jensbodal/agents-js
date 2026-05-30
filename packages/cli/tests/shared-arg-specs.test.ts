@@ -307,6 +307,20 @@ describe("MCP_SETUP_ARG_SPEC (mcp setup subcommand)", () => {
     if (claude?.kind !== "flag") throw new Error("expected --claude to be a flag entry");
     expect(claude.description).toMatch(/claude mcp add/);
   });
+
+  test("--url describes the A2A gateway bridge target", () => {
+    const url = MCP_SETUP_ARG_SPEC["--url"];
+    if (url?.kind !== "value") throw new Error("expected --url to be a value entry");
+    expect(url.description).toMatch(/A2A gateway/);
+    expect(url.valueExample).toBe("<gateway-url>");
+  });
+
+  test("--name describes the MCP server name override", () => {
+    const name = MCP_SETUP_ARG_SPEC["--name"];
+    if (name?.kind !== "value") throw new Error("expected --name to be a value entry");
+    expect(name.description).toMatch(/MCP server name/);
+    expect(name.valueExample).toBe("<server-name>");
+  });
 });
 
 describe("MCP_BRIDGE_ARG_SPEC (mcp bridge subcommand)", () => {

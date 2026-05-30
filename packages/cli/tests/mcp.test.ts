@@ -84,6 +84,19 @@ describe("parseMcpCommandArgs", () => {
     expect(args.help).toBe(true);
   });
 
+  test("parses setup --url and --name", () => {
+    const args = parseMcpCommandArgs([
+      "setup",
+      "--url",
+      "http://localhost:4000",
+      "--name",
+      "hostname-null-codex",
+    ]);
+    expect(args.subcommand).toBe("setup");
+    expect(args.url).toBe("http://localhost:4000");
+    expect(args.name).toBe("hostname-null-codex");
+  });
+
   test("throws on unknown top-level argument with helpful message", () => {
     expect(() => parseMcpCommandArgs(["--bogus"])).toThrow(
       "[agents-js] Unknown mcp argument: --bogus",
@@ -239,6 +252,48 @@ describe("runMcpCommand", () => {
     }),
   );
 
+  test(
+    "setup --url --name writes a single-gateway bridge entry to .mcp.json",
+    withTempDir(async (dir) => {
+      const output = makeOutputBuffer();
+      const exitCode = await runMcpCommand(
+        ["setup", "--url", "http://localhost:4000", "--name", "hostname-null-codex"],
+        { output, cwd: dir },
+      );
+
+      expect(exitCode).toBe(0);
+      const written = JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf-8")) as {
+        mcpServers: Record<string, { command: string; args: string[] }>;
+      };
+      expect(written.mcpServers["hostname-null-codex"]).toEqual({
+        command: "agents-js",
+        args: ["mcp", "bridge", "--url", "http://localhost:4000"],
+      });
+    }),
+  );
+
+  test(
+    "setup --url without --name defaults the server name to `agents-js-mcp-bridge`",
+    withTempDir(async (dir) => {
+      const output = makeOutputBuffer();
+      const exitCode = await runMcpCommand(["setup", "--url", "http://localhost:4321"], {
+        output,
+        cwd: dir,
+      });
+
+      expect(exitCode).toBe(0);
+      const written = JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf-8")) as {
+        mcpServers: Record<string, { command: string; args: string[] }>;
+      };
+      expect(written.mcpServers["agents-js-mcp-bridge"]).toEqual({
+        command: "agents-js",
+        args: ["mcp", "bridge", "--url", "http://localhost:4321"],
+      });
+      // Default-name path must not also write the registry-backed `agents-js-mcp` key.
+      expect(written.mcpServers["agents-js-mcp"]).toBeUndefined();
+    }),
+  );
+
   test("setup --global parses (flag is still accepted for one-release deprecation window)", () => {
     const args = parseMcpCommandArgs(["setup", "--global"]);
     expect(args.global).toBe(true);
@@ -295,6 +350,14 @@ describe("buildClaudeMcpAddArgs", () => {
   test("never uses `-s local` (regression guard for AJS-74 bug #4)", () => {
     const args = buildClaudeMcpAddArgs("agents-js", ["mcp"]);
     expect(args).not.toContain("local");
+  });
+
+  test("accepts an optional serverName override (used by setup --claude --name)", () => {
+    const args = buildClaudeMcpAddArgs("agents-js", ["mcp"], "hostname-null-codex");
+    expect(args[4]).toBe("hostname-null-codex");
+    // Scope stays at -s user regardless of server name.
+    expect(args[2]).toBe("-s");
+    expect(args[3]).toBe("user");
   });
 });
 

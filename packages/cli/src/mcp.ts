@@ -19,6 +19,7 @@ export interface McpCommandArgs {
   subcommand?: "setup" | "bridge";
   claude?: boolean;
   global?: boolean;
+  name?: string;
   url?: string;
 }
 
@@ -63,6 +64,24 @@ export const MCP_SETUP_ARG_SPEC: ArgSpec<McpCommandArgs> = {
       a.claude = true;
     },
     description: "Register with Claude Code via `claude mcp add`.",
+  },
+  "--url": {
+    kind: "value",
+    assign: (a, v) => {
+      a.url = v;
+    },
+    description:
+      "Bridge a single A2A gateway through this MCP entry — the written server invokes `agents-js mcp bridge --url <gateway-url>` instead of the registry-backed default.",
+    valueExample: "<gateway-url>",
+  },
+  "--name": {
+    kind: "value",
+    assign: (a, v) => {
+      a.name = v;
+    },
+    description:
+      "Override the MCP server name written to .mcp.json / passed to `claude mcp add`. Defaults to `agents-js-mcp-bridge` when `--url` is set, else `agents-js-mcp`.",
+    valueExample: "<server-name>",
   },
 };
 
@@ -121,6 +140,7 @@ function printMcpUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  agents-js mcp [options]            Start MCP server on stdio",
       "  agents-js mcp setup                Write MCP config to .mcp.json in cwd",
       "  agents-js mcp setup --claude       Register with Claude Code via `claude mcp add`",
+      "  agents-js mcp setup --url <url>    Write MCP config for a single A2A gateway bridge",
       "  agents-js mcp setup --global       [removed] use `--claude` for Claude user-scope; unflagged for project-scope",
       "  agents-js mcp bridge --url <url>   Bridge a single external A2A gateway over stdio",
       "",
@@ -144,12 +164,15 @@ function printMcpSetupUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "Write or register the MCP server config so an MCP client can launch it.",
       "",
       "Usage:",
-      "  agents-js mcp setup            Write MCP config to .mcp.json in cwd",
-      "  agents-js mcp setup --global   [removed] use `--claude` for Claude user-scope; unflagged for project-scope",
-      "  agents-js mcp setup --claude   Register with Claude Code via `claude mcp add -s user`",
+      "  agents-js mcp setup                              Write MCP config to .mcp.json in cwd",
+      "  agents-js mcp setup --global                     [removed] use `--claude` for Claude user-scope; unflagged for project-scope",
+      "  agents-js mcp setup --claude                     Register with Claude Code via `claude mcp add -s user`",
+      "  agents-js mcp setup --url <url> [--name <name>]  Write a single-gateway bridge entry (server invokes `mcp bridge --url <url>`)",
       "",
       "Options:",
-      "  --help   Show this message",
+      "  --url <gateway-url>    Bridge a single A2A gateway through this MCP entry.",
+      "  --name <server-name>   Override the MCP server name (default: `agents-js-mcp-bridge` with --url, else `agents-js-mcp`).",
+      "  --help                 Show this message",
     ].join("\n")}\n`,
   );
 }
@@ -173,14 +196,33 @@ function printMcpBridgeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
   );
 }
 
-function generateMcpServerConfig(): {
+/**
+ * Build the MCP server config block that `agents-js mcp setup` writes to
+ * `.mcp.json` (and that the `--claude` path mirrors into Claude Code's
+ * user-scope registration).
+ *
+ * Default branch (no `url`) is byte-identical to the historical
+ * `{ command: "agents-js", args: ["mcp"] }` entry under the
+ * `agents-js-mcp` key — i.e. registry-backed MCP server.
+ *
+ * Bridge branch (`url` set) emits a single-gateway entry whose server
+ * command invokes `agents-js mcp bridge --url <url>`. The server name
+ * defaults to `agents-js-mcp-bridge` when `--url` is set so the two
+ * variants can coexist in the same `.mcp.json` without name collision;
+ * an explicit `name` always wins.
+ */
+function generateMcpServerConfig(opts?: { name?: string; url?: string }): {
   mcpServers: Record<string, { command: string; args: string[] }>;
 } {
+  const url = opts?.url;
+  const defaultName = url ? "agents-js-mcp-bridge" : "agents-js-mcp";
+  const name = opts?.name ?? defaultName;
+  const args = url ? ["mcp", "bridge", "--url", url] : ["mcp"];
   return {
     mcpServers: {
-      "agents-js-mcp": {
+      [name]: {
         command: "agents-js",
-        args: ["mcp"],
+        args,
       },
     },
   };
@@ -293,11 +335,20 @@ function resolveClaudeMcpCommand(): { command: string; args: string[] } {
  * path. Project-scope registration is still the right call for shared
  * team configs (`.mcp.json` via `agents-js mcp setup` without flags).
  *
+ * Optional `serverName` lets callers override the registered name when
+ * `agents-js mcp setup --url <gateway> [--name <name>] --claude` writes
+ * a single-gateway bridge entry into Claude Code's user-scope registry
+ * (default: `agents-js-mcp`).
+ *
  * Exposed for unit-testing; the actual `execFileSync` side effect lives
  * in {@link runSetup}.
  */
-export function buildClaudeMcpAddArgs(launchCommand: string, launchArgs: string[]): string[] {
-  return ["mcp", "add", "-s", "user", "agents-js-mcp", "--", launchCommand, ...launchArgs];
+export function buildClaudeMcpAddArgs(
+  launchCommand: string,
+  launchArgs: string[],
+  serverName: string = "agents-js-mcp",
+): string[] {
+  return ["mcp", "add", "-s", "user", serverName, "--", launchCommand, ...launchArgs];
 }
 
 function runSetup(
@@ -307,11 +358,16 @@ function runSetup(
 ): number {
   if (args.claude) {
     const { command, args: launchArgs } = resolveClaudeMcpCommand();
+    const defaultName = args.url ? "agents-js-mcp-bridge" : "agents-js-mcp";
+    const serverName = args.name ?? defaultName;
+    const effectiveLaunchArgs = args.url
+      ? [...launchArgs, "bridge", "--url", args.url]
+      : launchArgs;
     try {
-      execFileSync("claude", buildClaudeMcpAddArgs(command, launchArgs), {
+      execFileSync("claude", buildClaudeMcpAddArgs(command, effectiveLaunchArgs, serverName), {
         stdio: "inherit",
       });
-      output.write("[agents-js] Registered agents-js-mcp with Claude Code\n");
+      output.write(`[agents-js] Registered ${serverName} with Claude Code\n`);
       return EXIT_OK;
     } catch {
       output.write("[agents-js] Failed to register — is `claude` CLI on PATH?\n");
@@ -342,7 +398,7 @@ function runSetup(
     return EXIT_ERROR;
   }
 
-  const mcpConfig = generateMcpServerConfig();
+  const mcpConfig = generateMcpServerConfig({ name: args.name, url: args.url });
   const targetPath = join(cwd, ".mcp.json");
   writeMcpConfig(targetPath, mcpConfig.mcpServers, { mkdirParent: false });
   output.write(`[agents-js] Wrote MCP config to ${targetPath}\n`);
