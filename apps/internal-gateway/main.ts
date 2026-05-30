@@ -46,6 +46,7 @@ import {
   resolveGatewayPort,
   resolveGatewayPublicUrl,
 } from "./discovery.ts";
+import { createDocsViewHandler } from "./docs-view-mount.ts";
 import { gatewayConfig } from "./gateway.config.ts";
 import { setupGiteaBridge } from "./gitea-bridge-mount.ts";
 import { buildLaneControllerFactory } from "./lane-controller-factory.ts";
@@ -155,9 +156,18 @@ export function composeAdditionalFetch(handlers: {
    * `AGENTS_MCP_JWT_SIGNING_KEY` is unset.
    */
   agentsMcpHandler?: ((req: Request) => Promise<Response | null>) | null;
+  /**
+   * Gateway `/docs` landing view. Self-routes on `GET /docs`. `null`
+   * (or absent) leaves the route unmounted — but `setupServer` always
+   * supplies it, so the view is always-on in production. Optional here
+   * so existing `composeAdditionalFetch` callers (and tests) that don't
+   * supply it keep working unchanged.
+   */
+  docsViewHandler?: ((req: Request) => Promise<Response | null>) | null;
 }): (req: Request) => Promise<Response | null> {
   const giteaWebhookHandler = handlers.giteaWebhookHandler ?? null;
   const agentsMcpHandler = handlers.agentsMcpHandler ?? null;
+  const docsViewHandler = handlers.docsViewHandler ?? null;
   return async (req: Request): Promise<Response | null> => {
     // Bus endpoints self-route on path (`/events`, `/admin/publish`)
     // and return null otherwise — safe to attempt before AG-UI's
@@ -177,6 +187,10 @@ export function composeAdditionalFetch(handlers: {
     if (agentsMcpHandler !== null) {
       const agentsMcpResponse = await agentsMcpHandler(req);
       if (agentsMcpResponse !== null) return agentsMcpResponse;
+    }
+    if (docsViewHandler !== null) {
+      const docsViewResponse = await docsViewHandler(req);
+      if (docsViewResponse !== null) return docsViewResponse;
     }
     const aguiResponse = await handlers.aguiHandler(req);
     if (aguiResponse !== null) return aguiResponse;
@@ -274,11 +288,17 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     console.log("[Gateway] agents-MCP tool surface enabled (POST /api/agents/send_message)");
   }
 
+  // Always-on gateway docs landing view (GET /docs). Carries no secret
+  // and no external dependency, so — unlike the Gitea / agents-MCP
+  // surfaces — it is not env-gated.
+  const docsViewHandler = createDocsViewHandler();
+
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
       giteaWebhookHandler: giteaBridge?.fetchHandler ?? null,
       agentsMcpHandler: agentsMcp?.fetchHandler ?? null,
+      docsViewHandler,
       aguiHandler,
       busSubscribeHandler,
       busPublishHandler,

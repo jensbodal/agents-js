@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createDocsViewHandler } from "../docs-view-mount.ts";
 import { composeAdditionalFetch } from "../main.ts";
 
 /**
@@ -235,6 +236,122 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
     expect(giteaHandled).toBe(true);
     expect(aguiHandled).toBe(false);
 
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+  });
+
+  /**
+   * WHAT: When `docsViewHandler` is absent, the chain behaves exactly as
+   *       before — `/docs` falls through and AG-UI's `/agent` still wins.
+   * WHY: Optional-field back-compat. Every pre-existing call site (these
+   *       tests included) omits the field and must keep working.
+   */
+  test("docs-view route NOT mounted when handler is absent (default)", async () => {
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      // docsViewHandler intentionally omitted
+    });
+
+    const docsRes = await compose(new Request("http://gw.local/docs", { method: "GET" }));
+    expect(docsRes).toBeNull();
+
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+  });
+
+  /**
+   * WHAT: When `docsViewHandler` is provided, it handles `/docs` and
+   *       falls through for unrelated paths so AG-UI continues to work.
+   * WHY: The handler self-routes (returns null for other paths); the
+   *       chain must respect that null-passthrough contract so the docs
+   *       view never shadows `/agent` or the API routes.
+   */
+  test("docs-view route IS mounted when handler provided; non-matching paths pass through", async () => {
+    let docsHandled = false;
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      docsViewHandler: async (req) => {
+        if (new URL(req.url).pathname === "/docs" && req.method === "GET") {
+          docsHandled = true;
+          return new Response("<!doctype html>", {
+            status: 200,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+        return null;
+      },
+    });
+
+    const docsRes = await compose(new Request("http://gw.local/docs", { method: "GET" }));
+    expect(docsRes?.status).toBe(200);
+    expect(docsHandled).toBe(true);
+    expect(aguiHandled).toBe(false);
+
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+  });
+
+  /**
+   * WHAT: The REAL `createDocsViewHandler()` — the exact construction
+   *       `setupServer` performs — composed into the chain serves
+   *       `GET /docs` as 200 HTML and falls through for `/agent`.
+   * WHY: The other docs-view test above uses a mock handler, which only
+   *       proves the chain's null-passthrough plumbing. This test proves
+   *       the production handler itself works inside the production
+   *       composition, so the wiring `setupServer` relies on is observed
+   *       end-to-end through the chain (no ACP binary / full boot needed,
+   *       matching this suite's convention).
+   */
+  test("real createDocsViewHandler composed in the chain serves GET /docs as HTML", async () => {
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      docsViewHandler: createDocsViewHandler(),
+    });
+
+    const docsRes = await compose(new Request("http://gw.local/docs", { method: "GET" }));
+    expect(docsRes?.status).toBe(200);
+    expect(docsRes?.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+    const body = await docsRes?.text();
+    expect(body).toContain("https://agents-js.bodal.dev");
+    expect(body).toContain("https://agents-js.q4m.dev");
+
+    // Real handler self-routes — it must not shadow the AG-UI route.
     const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
     expect(aguiRes?.status).toBe(200);
     expect(aguiHandled).toBe(true);
