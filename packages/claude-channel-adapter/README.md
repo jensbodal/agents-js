@@ -12,21 +12,46 @@ bun add @agents-js/claude-channel-adapter
 
 <!-- Auto-generated from JSDoc -->
 
+### Classes
+
+- **`FileCursorStore`** — File-backed store. Reads tolerate a missing/corrupt file (returns empty state) so a first run or a clobbered cursor never crashes the launcher — at worst it re-surfaces the current inbox window once.
+- **`HttpGatewayInboxClient`**
+- **`McpGatewayInboxClient`** — {GatewayInboxClient} backed by an `agents-gateway` MCP server over stdio. Connects lazily on first use. The server owns JWT minting; this class only marshals tool calls and parses their JSON text p...
+- **`MemoryCursorStore`** — In-memory store — for tests and ephemeral runs.
+
 ### Functions
 
+- **`buildSignedBytes`** — Build the exact bytes the gateway expects to be ed25519-signed.
+- **`canonicalSignedObject`** — Canonical JSON (RFC 8785 JCS) for the flat signed object. JCS sorts keys by UTF-16 code unit; `challenge` < `entity` < `requested_scopes` are already in that order and all values are JSON strings /...
 - **`createClaudeChannelServer`** — Build the Claude Code channel-adapter MCP server. Caller invokes `connect()` to attach a transport (defaults to stdio), then `emitChannelMessage(...)` per inbound gateway wake/inbox event.
 - **`createSenderGate`** — Build a {SenderGate} from static allowlist + optional dynamic callback. Deny-unknown by default — a gate with no `allowedSenders` and no `allow` callback rejects every sender.
+- **`dedupKey`** — Dedup key: bridge-fanout idempotency key, else message id.
+- **`mintGatewayJwt`** — Run the full challenge -> sign -> redeem flow and return the minted JWT (plus its TTL/scopes). Throws on any non-200 or malformed response.
+- **`runInboxPoller`** — Run the poll loop until `signal` aborts. Returns on abort or on a fatal identity-guard violation. Never throws on transport errors (backoff instead).
 - **`sanitizeMetaForChannel`** — Reject (or with `autoRewrite: true`, rewrite) hyphenated meta keys before they reach the `notifications/claude/channel` `meta` field. `Error` when a hyphenated key is detected and `autoRewrite` is ...
 
 ### Interfaces
 
 - **`ClaudeChannelServer`** — Handle returned from {createClaudeChannelServer}.
 - **`CreateClaudeChannelServerOptions`** — Options for {createClaudeChannelServer}.
+- **`CursorState`** — Bounded most-recently-seen dedup-key state.
+- **`CursorStore`**
 - **`GatewayEmit`** — Caller-supplied gateway emit callback for outbound (CC → mesh) tool calls.
 - **`GatewayEmitResult`** — Result of an outbound `agents_js_*` tool invocation, returned to Claude Code by the MCP `CallTool` handler. Stays minimal in v1; richer typing lands when AJS-XX (typed MatrixTool send-failure shape...
+- **`GatewayInboxClient`** — Transport-agnostic durable-inbox client. The poller depends only on this.
+- **`GetMessagesResult`** — Result of {GatewayInboxClient.getMessages}.
+- **`HttpGatewayInboxClientOptions`**
+- **`InboxMessage`** — One durable-inbox row (DOT-502 §7). `kind` discriminates bridge-fanout rows (`"matrix_room_mention"`) from native sends (`"agents_message"`); absent `kind` is treated as `"agents_message"` (back-co...
+- **`InboxPollerOptions`**
+- **`MatrixOrigin`** — Structured Matrix-origin envelope (DOT-502 §2/§7). Optional per row.
+- **`McpGatewayInboxClientOptions`** — Spawn config for {McpGatewayInboxClient}. Supplied by provisioning.
+- **`MintOptions`**
+- **`MintResult`**
+- **`PollerLogger`** — Minimal logger contract — `console` satisfies it.
 - **`SanitizeMetaOptions`** — Options for {sanitizeMetaForChannel}.
 - **`SenderGate`** — Result of a {SenderGate} check.
 - **`SenderGateConfig`** — Configuration for {createSenderGate}.
+- **`SendMessageResult`** — Result of {GatewayInboxClient.sendMessage}.
 
 ### Types
 
@@ -35,6 +60,7 @@ bun add @agents-js/claude-channel-adapter
 
 ### Constants
 
+- **`CHALLENGE_MINT_DOMAIN`** — Domain separator the gateway prepends before the canonical JSON.
 - **`CLAUDE_CHANNEL_METHOD`** — Method name for the Channels protocol inbound push.
 - **`TOOL_REPLY`** — Outbound tool: context-bearing reply (typically threaded to source sender).
 - **`TOOL_SEND`** — Outbound tool: free-form send to a target identifier.
