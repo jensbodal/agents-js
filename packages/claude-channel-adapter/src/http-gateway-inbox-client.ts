@@ -84,7 +84,16 @@ export class HttpGatewayInboxClient implements GatewayInboxClient {
       body: JSON.stringify(body),
     });
     const text = await res.text();
-    if (!res.ok) throw new Error(`${path} HTTP ${res.status}: ${text.slice(0, 300)}`);
+    if (!res.ok) {
+      // On an auth rejection, drop the cached JWT so the next call re-mints
+      // instead of replaying a rotated/revoked-but-unexpired token for up to
+      // the full refresh window.
+      if (res.status === 401 || res.status === 403) {
+        this.jwt = null;
+        this.expiresAtMs = 0;
+      }
+      throw new Error(`${path} HTTP ${res.status}: ${text.slice(0, 300)}`);
+    }
     try {
       return text ? (JSON.parse(text) as Record<string, unknown>) : {};
     } catch {

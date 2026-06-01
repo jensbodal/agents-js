@@ -117,4 +117,39 @@ describe("HttpGatewayInboxClient", () => {
     });
     await expect(client.getMessages({ identity: ENTITY })).rejects.toThrow(/HTTP 401/);
   });
+
+  test("clears the cached JWT on a 401 so the next call re-mints", async () => {
+    let mints = 0;
+    let firstRead = true;
+    const fetchImpl = (async (url: string) => {
+      if (url.endsWith("/mint/challenge"))
+        return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
+      if (url.endsWith("/mint/redeem")) {
+        mints += 1;
+        return new Response(JSON.stringify({ jwt: `JWT-${mints}`, expires_in: 900, sub: ENTITY }), {
+          status: 200,
+        });
+      }
+      // First inbox read rejects the (freshly minted) token; the retry succeeds.
+      if (firstRead) {
+        firstRead = false;
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({ ok: true, messages: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const client = new HttpGatewayInboxClient({
+      baseUrl: BASE,
+      entity: ENTITY,
+      getPrivateKeyPem: async () => pem(),
+      fetchImpl,
+      now: () => 1000, // every call is well within the JWT TTL
+    });
+    await expect(client.getMessages({ identity: ENTITY })).rejects.toThrow(/HTTP 401/);
+    expect(mints).toBe(1);
+    // Within TTL a cached token would be reused; the 401 must have cleared it,
+    // forcing a second mint on the retry rather than replaying the dead JWT.
+    const r = await client.getMessages({ identity: ENTITY });
+    expect(r.ok).toBe(true);
+    expect(mints).toBe(2);
+  });
 });

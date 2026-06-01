@@ -110,10 +110,9 @@ export async function runInboxPoller(options: InboxPollerOptions): Promise<void>
 
       // IDENTITY GUARD — fatal. Never surface another identity's inbox.
       if (res.identity !== options.identity) {
-        logger.error("[inbox-poller] identity mismatch — halting", {
-          requested: options.identity,
-          returned: res.identity,
-        });
+        logger.error(
+          `[inbox-poller] identity mismatch — halting: requested=${options.identity} returned=${res.identity}`,
+        );
         return;
       }
 
@@ -129,10 +128,9 @@ export async function runInboxPoller(options: InboxPollerOptions): Promise<void>
             seen.add(key);
             persist();
           } catch (err) {
-            logger.warn("[inbox-poller] sink failed; will retry next poll", {
-              key,
-              error: err instanceof Error ? err.message : String(err),
-            });
+            logger.warn(
+              `[inbox-poller] sink failed; will retry next poll: key=${key} error=${err instanceof Error ? err.message : String(err)}`,
+            );
           }
         }
       } else {
@@ -141,9 +139,12 @@ export async function runInboxPoller(options: InboxPollerOptions): Promise<void>
       }
     } catch (err) {
       if (options.signal.aborted) return;
-      logger.warn("[inbox-poller] getMessages error", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      // Single interpolated string: some launcher loggers stringify each arg
+      // with String(), which turns a structured object into "[object Object]"
+      // and silently discards the real HTTP status/body.
+      logger.warn(
+        `[inbox-poller] getMessages error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       failed = true;
     }
 
