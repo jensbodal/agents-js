@@ -148,6 +148,11 @@
         },
         {
           "type": "json",
+          "path": "packages/wake-signal-store/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/wake-mcp-triggers/package.json",
           "jsonpath": "$.version"
         },
