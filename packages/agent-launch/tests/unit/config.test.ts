@@ -70,6 +70,50 @@ describe("parseLaunchConfig — well-formed input", () => {
     expect(entry.extra.tmux_session).toBeUndefined();
     expect(entry.extra.harness).toBeUndefined();
   });
+
+  test("channel_env is promoted to entry.channelEnv (not left in extra)", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "claude-code",
+            binary: "claude",
+            workspace: "/tmp",
+            fresh_flags: "--agent foo",
+            channel_env: "export CH_GATEWAY_URL=https://gw && export CH_GATEWAY_IDENTITY=foo",
+          },
+        },
+      }),
+      "inline.json",
+    );
+    const entry = resolveAgentEntry(config, "foo");
+    expect(entry.channelEnv).toBe(
+      "export CH_GATEWAY_URL=https://gw && export CH_GATEWAY_IDENTITY=foo",
+    );
+    expect(entry.extra.channel_env).toBeUndefined();
+  });
+
+  test("channel_env wrong type (not a string) throws", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "claude-code",
+            binary: "claude",
+            workspace: "/tmp",
+            fresh_flags: "--agent foo",
+            channel_env: { not: "a string" },
+          },
+        },
+      }),
+      "inline.json",
+    );
+    expect(() => resolveAgentEntry(config, "foo")).toThrow(/field "channel_env" must be a string/);
+  });
 });
 
 describe("parseLaunchConfig — top-level error cases", () => {

@@ -71,6 +71,15 @@ export interface AgentEntry {
    * rejected with a descriptive error.
    */
   readonly envSetup?: string;
+  /**
+   * Optional channel-adapter provisioning env (e.g.
+   * `export CH_GATEWAY_URL=… && export CH_GATEWAY_IDENTITY=…`). Parsed like
+   * {@link envSetup} but kept as a distinct field because these vars must
+   * reach the spawned harness's process env (so its child channel-adapter
+   * MCP inherits them) WITHOUT being pushed session-wide via
+   * `tmux set-environment` like the identity vars are.
+   */
+  readonly channelEnv?: string;
   /** Git author identity for commits made from inside the session. */
   readonly gitAuthorName?: string;
   /** Git author identity for commits made from inside the session. */
@@ -141,6 +150,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "workspace",
   "fresh_flags",
   "env_setup",
+  "channel_env",
   "git_author_name",
   "git_author_email",
   "matrix_mxid",
@@ -208,6 +218,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     workspace: requireString(obj, "workspace", ctx),
     freshFlags: requireString(obj, "fresh_flags", ctx),
     envSetup: optionalString(obj, "env_setup", ctx),
+    channelEnv: optionalString(obj, "channel_env", ctx),
     gitAuthorName: optionalString(obj, "git_author_name", ctx),
     gitAuthorEmail: optionalString(obj, "git_author_email", ctx),
     matrixMxid: optionalString(obj, "matrix_mxid", ctx),

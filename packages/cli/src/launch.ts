@@ -291,7 +291,12 @@ export async function runLaunchCommand(
   // as a single send-keys payload so the harness inherits the env vars.
   // Phase 2+ revisits this when codex-cli's printf-quoted launch_prompt
   // surfaces shell-quoting concerns.
-  const envExports = Object.entries(plan.sessionEnv)
+  //
+  // Both sessionEnv (identity) and channelEnv (channel-adapter provisioning)
+  // are exported into the harness process env so a launched session is fully
+  // provisioned. channelEnv is intentionally absent from set-environment above
+  // — it should not persist to later windows in the session.
+  const envExports = Object.entries({ ...plan.sessionEnv, ...plan.channelEnv })
     .map(([k, v]) => `export ${k}=${JSON.stringify(v)}`)
     .join(" && ");
   const cmdLine = `${envExports ? `${envExports} && ` : ""}cd ${JSON.stringify(plan.cwd)} && ${plan.command} ${plan.args.join(" ")}`;

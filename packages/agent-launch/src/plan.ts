@@ -30,7 +30,7 @@
  */
 
 import type { AgentEntry } from "./config.ts";
-import { injectIdentityEnv, type LaunchEnv } from "./identity.ts";
+import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
 
 /**
  * Phase 1 supports `"fresh"` only. Phase 5 adds `"resume"` once
@@ -69,6 +69,14 @@ export interface LaunchPlan {
   readonly env: LaunchEnv;
   /** Subset of env that should ALSO be pushed via tmux set-environment. */
   readonly sessionEnv: LaunchEnv;
+  /**
+   * Channel-adapter provisioning env (from `channel_env`). These reach the
+   * spawned harness's PROCESS env (so its child channel-adapter MCP inherits
+   * them) but are intentionally NOT pushed via tmux set-environment — they
+   * carry per-launch gateway wiring (incl. a key-fetch command), not the
+   * session-wide identity vars in {@link sessionEnv}. Empty when unset.
+   */
+  readonly channelEnv: LaunchEnv;
   /** Harness kind — copied through for downstream observability. */
   readonly harness: SupportedHarness;
   /** Mode — Phase 1 always `"fresh"`. */
@@ -155,7 +163,13 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     );
   }
 
-  const env = injectIdentityEnv(entry, options.baseEnv);
+  // Channel-adapter env is parsed like envSetup but kept separate so the CLI
+  // can export it into the harness process env without pushing it session-wide.
+  const channelEnv: LaunchEnv = entry.channelEnv
+    ? Object.freeze({ ...parseEnvSetup(entry.channelEnv, entry.tmuxSession) })
+    : Object.freeze({});
+  // The full child env is identity + channel vars layered on the base.
+  const env = Object.freeze({ ...injectIdentityEnv(entry, options.baseEnv), ...channelEnv });
   const args = splitFlags(entry.freshFlags);
   if (args.length === 0) {
     throw new LaunchPlanError(
@@ -174,6 +188,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     args,
     env,
     sessionEnv: pickSessionEnv(env),
+    channelEnv,
     harness: "claude-code",
     mode,
   };

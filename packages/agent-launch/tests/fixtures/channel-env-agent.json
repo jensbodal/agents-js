@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture — claude-code agent with channel_env provisioning",
+  "agents": {
+    "olthoi0-ajs-claude-0": {
+      "tmux_session": "olthoi0-ajs-claude-0",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/tmp/ws",
+      "fresh_flags": "--agent olthoi0-ajs-claude-0",
+      "git_author_name": "olthoi0-ajs-claude-0",
+      "git_author_email": "olthoi0-ajs-claude-0@agents.example",
+      "env_setup": "export MATRIX_AGENT=olthoi0-ajs-claude-0",
+      "channel_env": "export CH_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CH_GATEWAY_IDENTITY=olthoi0-ajs-claude-0"
+    }
+  }
+}

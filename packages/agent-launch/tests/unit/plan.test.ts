@@ -148,3 +148,46 @@ describe("buildLaunchPlan — flag splitting", () => {
     expect(plan.args).toEqual(["--foo", "bar", "--baz", "qux"]);
   });
 });
+
+describe("buildLaunchPlan — channel_env propagation", () => {
+  const entryWithChannelEnv = {
+    tmuxSession: "x",
+    harness: "claude-code",
+    binary: "claude",
+    workspace: "/tmp",
+    freshFlags: "--agent x",
+    channelEnv:
+      "export CH_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CH_GATEWAY_IDENTITY=olthoi0-ajs-claude-0",
+    extra: {},
+  };
+
+  test("channel_env vars reach plan.env and plan.channelEnv", () => {
+    const plan = buildLaunchPlan(entryWithChannelEnv, { baseEnv: { PATH: "/usr/bin" } });
+    expect(plan.env.CH_GATEWAY_URL).toBe("https://ajs-gateway.q4m.dev");
+    expect(plan.env.CH_GATEWAY_IDENTITY).toBe("olthoi0-ajs-claude-0");
+    expect(plan.channelEnv.CH_GATEWAY_URL).toBe("https://ajs-gateway.q4m.dev");
+    expect(plan.channelEnv.CH_GATEWAY_IDENTITY).toBe("olthoi0-ajs-claude-0");
+  });
+
+  test("channel_env vars are NOT in sessionEnv (not pushed session-wide)", () => {
+    const plan = buildLaunchPlan(entryWithChannelEnv, { baseEnv: {} });
+    expect(plan.sessionEnv.CH_GATEWAY_URL).toBeUndefined();
+    expect(plan.sessionEnv.CH_GATEWAY_IDENTITY).toBeUndefined();
+  });
+
+  test("channelEnv is an empty frozen object when channel_env is unset", () => {
+    const plan = buildLaunchPlan(
+      {
+        tmuxSession: "x",
+        harness: "claude-code",
+        binary: "claude",
+        workspace: "/tmp",
+        freshFlags: "--y",
+        extra: {},
+      },
+      { baseEnv: {} },
+    );
+    expect(plan.channelEnv).toEqual({});
+    expect(Object.isFrozen(plan.channelEnv)).toBe(true);
+  });
+});

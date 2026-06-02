@@ -13,6 +13,11 @@ const FIXTURE_PATH = path.join(
   "../../agent-launch/tests/fixtures/cognee-claude-only.json",
 );
 
+const CHANNEL_ENV_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/channel-env-agent.json",
+);
+
 interface FakeRunnerCalls {
   hasSession: string[];
   newSessionDetached: Array<[string, string]>;
@@ -94,6 +99,34 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(sentCmd).toContain("cd ");
     expect(sentCmd).toContain("claude --agent cognee-claude");
     expect(out.text).toContain('launch: session "cognee-claude" created');
+  });
+
+  test("channel_env vars are exported into the harness command but NOT set session-wide", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      ["olthoi0-ajs-claude-0", "--bg", "--config", CHANNEL_ENV_FIXTURE_PATH],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(0);
+
+    // CH_GATEWAY_* are exported in the launch command so the harness (and its
+    // child channel-adapter MCP) inherit them.
+    const sentCmd = calls.sendKeys[0]?.[1] ?? "";
+    expect(sentCmd).toContain("export CH_GATEWAY_URL=");
+    expect(sentCmd).toContain("export CH_GATEWAY_IDENTITY=");
+
+    // But they are NOT pushed via tmux set-environment (only identity vars are).
+    const sessionEnvKeys = calls.setEnvironment.map(([_, k]) => k);
+    expect(sessionEnvKeys).not.toContain("CH_GATEWAY_URL");
+    expect(sessionEnvKeys).not.toContain("CH_GATEWAY_IDENTITY");
+    expect(sessionEnvKeys).toContain("MATRIX_AGENT");
   });
 
   test("session-exists branch does not re-create + suggests manual attach", async () => {
