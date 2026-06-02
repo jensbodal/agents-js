@@ -39,3 +39,12 @@ map cannot silently diverge from the package surface.
 - "Undemonstrated" is not a criticism — much of the substrate is robustly
   tested and simply has no captured demo yet. The honest gap this map surfaces
   is **demonstration**, not correctness.
+
+## Dependency graph
+
+Each node is a package, colored by the **worst-wins** tier of the capabilities it
+serves (a package that is demonstrated in one role but undemonstrated in another
+shows as undemonstrated). Grey nodes are packages not yet mapped to any
+capability. Edges are internal dependencies.
+
+!!!include(_generated/capability-graph.md)!!!
