@@ -1,0 +1,75 @@
+name: Docs Preview
+
+# Builds the docs site from CURRENT main and uploads it as an artifact, so the
+# INTERNAL preview mirror (agents-js.q4m.dev) can reflect work-in-progress
+# during a stabilize-don't-release cycle.
+#
+# This is deliberately and STRUCTURALLY distinct from `docs-deploy.yml` (the
+# public, release-gated GitHub Pages deploy):
+#   - it has NO deploy step (no actions/deploy-pages, no github-pages
+#     environment), and NO `pages: write` / `id-token: write` permission — so it
+#     is incapable of publishing to the public Pages site regardless of trigger
+#     or ref;
+#   - it uses its own concurrency group (never `pages`), so it can never race or
+#     cancel a release deploy;
+#   - it produces a plain artifact (`docs-preview-dist`), NOT a Pages artifact.
+#
+# The actual "serve this on q4m" step lives on the q4m side (operator-owned): a
+# puller fetches `docs-preview-dist` and serves it. Keeping the pull on the q4m
+# side means no q4m credentials live in GitHub. This workflow only produces the
+# artifact; it does not deploy anywhere.
+#
+# `docs:consistency` is intentionally NOT run here — it asserts the README docs
+# host matches the public hostname, which is already gated for this commit by
+# `bun run check` in ci.yml. Re-running it here adds nothing and would couple a
+# preview build to public-hostname assertions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Preview builds SHOULD supersede each other (opposite of the public deploy,
+# which queues). Distinct group — never `pages`.
+concurrency:
+  group: docs-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only. No `pages: write`, no `id-token: write` — this workflow cannot
+# deploy to GitHub Pages by construction.
+permissions:
+  contents: read
+
+jobs:
+  build-preview:
+    # Match the repo's github-only job pattern; skip on the gitea mirror.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      # Build from current main HEAD — no `ref` pin. That is the entire point:
+      # the preview reflects in-flight main, not the last released tag.
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Cache Bun downloads
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('mise.toml', 'bun.lock') }}
+      # Same build proof the public deploy uses, so preview and public build
+      # identically (mise.toml: docs:deploy-build = bun run setup --ci && bun run docs:build).
+      - run: mise run docs:deploy-build
+      - name: Note preview provenance
+        run: |
+          {
+            echo "## Docs preview artifact"
+            echo
+            echo "Built from \`main\` @ \`${GITHUB_SHA}\` — **a preview of current main, not a release.**"
+            echo "Artifact: \`docs-preview-dist\`. The q4m mirror serves this; the public site (agents-js.bodal.dev) is release-gated and unaffected."
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Plain artifact (NOT actions/upload-pages-artifact) with a distinct name,
+      # so it is never mistaken for a Pages deploy artifact.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-preview-dist
+          path: docs/.vitepress/dist
+          retention-days: 14
