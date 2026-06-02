@@ -63,10 +63,12 @@ export interface GatewayEmitResult {
 export interface GatewayEmit {
   /**
    * Invoked by the `agents_js_reply` tool handler.
-   * @param target Identifier of the original sender being replied to.
+   * @param target Identifier of the original sender being replied to, or
+   *   `undefined` to let the adapter route to the most-recent inbound
+   *   sender (the relay `sender` in the `<channel>` tag is not routable).
    * @param content Reply text payload.
    */
-  reply(target: string, content: string): Promise<GatewayEmitResult>;
+  reply(target: string | undefined, content: string): Promise<GatewayEmitResult>;
   /**
    * Invoked by the `agents_js_send` tool handler.
    * @param target Identifier of the send recipient (free-form).
@@ -153,21 +155,21 @@ export function createClaudeChannelServer(
       {
         name: TOOL_REPLY,
         description:
-          "Reply to the agent that pushed the most-recent <channel> message into this session.",
+          "Reply to the agent that pushed the most-recent <channel> message into this session. Omit target and the adapter routes the reply to that sender automatically; the <channel> tag's own sender is the relay and is NOT a valid target.",
         inputSchema: {
           type: "object",
           properties: {
             target: {
               type: "string",
               description:
-                "Identifier of the original sender to reply to (typically echoed back from the inbound meta.sender).",
+                "Optional override of the reply recipient. Leave unset to reply to the most-recent inbound sender (the meta.reply_to the adapter resolved); set it only to direct the reply elsewhere.",
             },
             content: {
               type: "string",
               description: "Reply text payload.",
             },
           },
-          required: ["target", "content"],
+          required: ["content"],
         },
       },
       {
@@ -197,22 +199,27 @@ export function createClaudeChannelServer(
     const target = typeof args?.target === "string" ? args.target : undefined;
     const content = typeof args?.content === "string" ? args.content : undefined;
 
-    if (target === undefined || content === undefined) {
+    if (content === undefined) {
       return {
-        content: [
-          {
-            type: "text",
-            text: `tool "${name}" requires string "target" and "content" arguments`,
-          },
-        ],
+        content: [{ type: "text", text: `tool "${name}" requires a string "content" argument` }],
         isError: true,
       };
     }
 
     let result: GatewayEmitResult;
     if (name === TOOL_REPLY) {
+      // `target` is optional — when omitted the adapter resolves the
+      // most-recent inbound sender (the <channel> relay is not routable).
       result = await gatewayEmit.reply(target, content);
     } else if (name === TOOL_SEND) {
+      if (target === undefined) {
+        return {
+          content: [
+            { type: "text", text: `tool "${TOOL_SEND}" requires a string "target" argument` },
+          ],
+          isError: true,
+        };
+      }
       result = await gatewayEmit.send(target, content);
     } else {
       return {

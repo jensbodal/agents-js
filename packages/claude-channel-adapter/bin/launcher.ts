@@ -41,6 +41,7 @@ import { type GatewayInboxClient, McpGatewayInboxClient } from "../src/gateway-i
 import { HttpGatewayInboxClient } from "../src/http-gateway-inbox-client.ts";
 import { runInboxPoller } from "../src/inbox-poller.ts";
 import { createClaudeChannelServer, createSenderGate } from "../src/index.ts";
+import { replyTargetForRow, resolveReplyTarget } from "../src/reply-routing.ts";
 
 const LOG = Bun.env.CH_LOG ?? "/tmp/agentsjs-channel-launcher.log";
 const log = (m: string): void => {
@@ -121,14 +122,37 @@ const senderGate = createSenderGate({
   allowedSenders: ["agents-gateway-inbox", "test-harness"],
 });
 
+// Routable target of the most-recent inbound row, so a bare
+// `agents_js_reply(content)` threads back to whoever pushed it instead of the
+// unroutable relay sender. Set in the poller's onMessage below.
+let lastReplyTarget: string | undefined;
+// Optional coordinator fallback when no explicit target and no prior inbound.
+const replyFallback = Bun.env.CH_REPLY_FALLBACK;
+
 const gatewayEmit = {
-  async reply(target: string, content: string) {
+  async reply(target: string | undefined, content: string) {
     if (!inboxClient) {
-      log(`OUTBOUND reply DROPPED (gateway not provisioned) target=${target}`);
+      log("OUTBOUND reply DROPPED (gateway not provisioned)");
       return { ok: false, detail: "gateway not provisioned" };
     }
-    const res = await inboxClient.sendMessage({ target, body: content, identity: IDENTITY });
-    log(`OUTBOUND reply target=${target} ok=${res.ok} event_id=${res.event_id ?? ""}`);
+    const resolved = resolveReplyTarget(target, lastReplyTarget, replyFallback);
+    if (!resolved) {
+      log(
+        "OUTBOUND reply DROPPED (no routable target: no explicit target, no prior inbound, no CH_REPLY_FALLBACK)",
+      );
+      return {
+        ok: false,
+        detail: "no reply target — pass an explicit target or set CH_REPLY_FALLBACK",
+      };
+    }
+    const res = await inboxClient.sendMessage({
+      target: resolved,
+      body: content,
+      identity: IDENTITY,
+    });
+    log(
+      `OUTBOUND reply target=${resolved}${target ? "" : " (resolved)"} ok=${res.ok} event_id=${res.event_id ?? ""}`,
+    );
     return { ok: res.ok, detail: res.detail };
   },
   async send(target: string, content: string) {
@@ -147,7 +171,7 @@ const server = createClaudeChannelServer({
   senderGate,
   gatewayEmit,
   instructions:
-    "You are attached to the agents-js mesh channel. Messages from peer agents arrive as <channel> tags on your next turn. To reply use the agents_js_reply tool with target=<sender> content=<text>.",
+    "You are attached to the agents-js mesh channel. Messages from peer agents arrive as <channel> tags on your next turn. To reply, call agents_js_reply with content=<text> and NO target — the adapter routes it back to the sender of the most-recent message (shown as meta.reply_to). The <channel> tag's own sender is the relay and is not a valid target. Pass target only to override the recipient; use agents_js_send with an explicit target to message any other agent or room.",
 });
 
 await server.connect();
@@ -181,6 +205,10 @@ if (inboxClient) {
     },
     onMessage: async (row) => {
       const author = row.matrix_origin?.sender ?? row.sender ?? "unknown";
+      // Remember where a bare reply should go, and surface it as a routable
+      // `reply_to` attribute so the agent (and operator logs) can see it.
+      const replyTo = replyTargetForRow(row);
+      lastReplyTarget = replyTo;
       const res = await server.emitChannelMessage({
         content: row.body,
         sender: "agents-gateway-inbox",
@@ -189,6 +217,7 @@ if (inboxClient) {
           sender_identity: author,
           kind: row.kind ?? "agents_message",
           message_id: row.message_id,
+          ...(replyTo ? { reply_to: replyTo } : {}),
           ...(row.idempotency_key ? { idempotency_key: row.idempotency_key } : {}),
           ...(row.matrix_origin?.room_id ? { room_id: row.matrix_origin.room_id } : {}),
           ...(row.matrix_origin?.event_id ? { matrix_event_id: row.matrix_origin.event_id } : {}),

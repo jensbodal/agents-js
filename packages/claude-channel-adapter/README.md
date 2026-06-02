@@ -27,6 +27,8 @@ bun add @agents-js/claude-channel-adapter
 - **`createSenderGate`** — Build a {SenderGate} from static allowlist + optional dynamic callback. Deny-unknown by default — a gate with no `allowedSenders` and no `allow` callback rejects every sender.
 - **`dedupKey`** — Dedup key: bridge-fanout idempotency key, else message id.
 - **`mintGatewayJwt`** — Run the full challenge -> sign -> redeem flow and return the minted JWT (plus its TTL/scopes). Throws on any non-200 or malformed response.
+- **`replyTargetForRow`** — Routable reply target for a single inbound row, or `undefined` when the row carries no addressable origin (e.g. a system/relay message). - Matrix room mention → reply into the originating room, fal...
+- **`resolveReplyTarget`** — Final reply target precedence: an explicit caller-supplied `target` wins, else the most-recent inbound row's routable target, else a configured coordinator fallback. `undefined` means "no routable ...
 - **`runInboxPoller`** — Run the poll loop until `signal` aborts. Returns on abort or on a fatal identity-guard violation. Never throws on transport errors (backoff instead).
 - **`sanitizeMetaForChannel`** — Reject (or with `autoRewrite: true`, rewrite) hyphenated meta keys before they reach the `notifications/claude/channel` `meta` field. `Error` when a hyphenated key is detected and `autoRewrite` is ...
 
@@ -48,6 +50,7 @@ bun add @agents-js/claude-channel-adapter
 - **`MintOptions`**
 - **`MintResult`**
 - **`PollerLogger`** — Minimal logger contract — `console` satisfies it.
+- **`ReplyRoutingRow`** — Minimal shape of an inbound row needed to resolve a reply target.
 - **`SanitizeMetaOptions`** — Options for {sanitizeMetaForChannel}.
 - **`SenderGate`** — Result of a {SenderGate} check.
 - **`SenderGateConfig`** — Configuration for {createSenderGate}.

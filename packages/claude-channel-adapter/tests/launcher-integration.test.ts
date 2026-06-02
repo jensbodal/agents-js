@@ -41,10 +41,10 @@ function createCaptureTransport(sent: unknown[]) {
 
 /** GatewayEmit double whose reply/send only record calls. */
 function recordingGatewayEmit(
-  calls: Array<{ kind: string; target: string; content: string }>,
+  calls: Array<{ kind: string; target: string | undefined; content: string }>,
 ): GatewayEmit {
   return {
-    reply: async (target: string, content: string) => {
+    reply: async (target: string | undefined, content: string) => {
       calls.push({ kind: "reply", target, content });
       return { ok: true };
     },
