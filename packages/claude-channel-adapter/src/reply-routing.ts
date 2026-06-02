@@ -18,27 +18,40 @@
 
 /** Minimal shape of an inbound row needed to resolve a reply target. */
 export interface ReplyRoutingRow {
-  /** Native author identity (mesh-routable) for `agents_message` rows. */
+  /**
+   * Native author identity for `agents_message` rows — the only field that
+   * yields a `send_message`-routable target (a directory entity name). Matrix
+   * room/mxid origins are intentionally NOT consulted; see {@link replyTargetForRow}.
+   */
   readonly sender?: string;
-  /** Inbox kind discriminator (`agents_message` | `matrix_room_mention`). */
-  readonly kind?: string;
-  /** Present on bridge-fanout rows; carries the originating room + sender. */
-  readonly matrix_origin?: { readonly room_id?: string; readonly sender?: string };
 }
 
 /**
- * Routable reply target for a single inbound row, or `undefined` when the
- * row carries no addressable origin (e.g. a system/relay message).
+ * A target string the gateway's `send_message` can actually resolve. The
+ * gateway resolves `target` against a directory keyed by peer ENTITY NAME
+ * (`TargetDirectory.resolve` in host/load-trust-manifest.ts) — there is NO
+ * reverse lookup from a Matrix room id or mxid. So a raw room id (`!room:hs`)
+ * or mxid (`@alice:hs`) is NOT routable and 404s with `unknown-target`; only
+ * a plain entity name resolves.
+ */
+function isRoutableEntityName(s: string | undefined): s is string {
+  return !!s && !s.startsWith("@") && !s.startsWith("!");
+}
+
+/**
+ * Routable reply target for a single inbound row, or `undefined` when the row
+ * carries no `send_message`-routable origin.
  *
- * - Matrix room mention → reply into the originating room, falling back to
- *   the sender's mxid, then any native author.
- * - Native agent message → the authoring agent identity.
+ * Returns the row's `sender` only when it is a plausible directory entity name
+ * (a native agent identity). For Matrix room mentions the origin is a room id
+ * / mxid, which the gateway directory cannot resolve, so this returns
+ * `undefined` and the caller falls through to an explicit `target` or the
+ * configured fallback. Replying *into* the originating Matrix room needs a
+ * gateway-side reverse route (room id/mxid → entity) that does not exist yet —
+ * tracked as a follow-up, not papered over with a guaranteed-404 target.
  */
 export function replyTargetForRow(row: ReplyRoutingRow): string | undefined {
-  if (row.kind === "matrix_room_mention" || row.matrix_origin) {
-    return row.matrix_origin?.room_id ?? row.matrix_origin?.sender ?? row.sender ?? undefined;
-  }
-  return row.sender ?? undefined;
+  return isRoutableEntityName(row.sender) ? row.sender : undefined;
 }
 
 /**

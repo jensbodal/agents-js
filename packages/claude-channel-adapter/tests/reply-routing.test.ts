@@ -2,28 +2,22 @@ import { describe, expect, test } from "bun:test";
 import { replyTargetForRow, resolveReplyTarget } from "../src/reply-routing.ts";
 
 describe("replyTargetForRow", () => {
-  test("native agent message → the authoring agent identity", () => {
-    expect(replyTargetForRow({ kind: "agents_message", sender: "cognee-claude" })).toBe(
-      "cognee-claude",
-    );
+  test("native agent message → the authoring agent identity (a directory name)", () => {
+    expect(replyTargetForRow({ sender: "cognee-claude" })).toBe("cognee-claude");
   });
 
-  test("matrix room mention → the originating room", () => {
-    expect(
-      replyTargetForRow({
-        kind: "matrix_room_mention",
-        sender: "agents-gateway-inbox",
-        matrix_origin: { room_id: "!room:hs", sender: "@alice:hs" },
-      }),
-    ).toBe("!room:hs");
+  test("sender that is a raw mxid → undefined (not directory-routable)", () => {
+    // The gateway resolves targets by entity name; a raw @mxid 404s, so it is
+    // not returned — the caller falls through to an explicit target/fallback.
+    expect(replyTargetForRow({ sender: "@alice:hs" })).toBeUndefined();
   });
 
-  test("matrix origin without room → falls back to the sender mxid", () => {
-    expect(replyTargetForRow({ matrix_origin: { sender: "@alice:hs" } })).toBe("@alice:hs");
+  test("sender that is a raw room id → undefined (not directory-routable)", () => {
+    expect(replyTargetForRow({ sender: "!room:hs" })).toBeUndefined();
   });
 
-  test("system/relay row with no addressable origin → undefined", () => {
-    // The wake-proof case: sender is the relay, no real author, no matrix origin.
+  test("system/relay row with no sender → undefined", () => {
+    // The wake-proof case: no real author travels on the row.
     expect(replyTargetForRow({})).toBeUndefined();
   });
 });
