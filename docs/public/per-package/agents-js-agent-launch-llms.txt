@@ -29,6 +29,7 @@ bun add @agents-js/agent-launch
 
 - **`buildLaunchPlan`** — Build a {LaunchPlan} for `entry` in `mode`. Throws {LaunchPlanError} for unsupported harnesses or mode.
 - **`createTmuxRunner`** — Build a {TmuxRunner}. Production callers pass no options; tests inject `tmuxBin` and/or `spawner` to avoid the real binary. The function eagerly verifies tmux is on PATH (via a `tmux -V` probe) so ...
+- **`deriveLaunchProfile`** — Derive the {AgentLaunchProfile} for a parsed numbered identity. Pure. - native: `command` = the harness binary (operator host); provider env set. - ajs-fronted: `command` = `agents-js-gateway --run...
 - **`deriveRuntimeHost`** — Derive the host where the runtime actually runs: ajs-fronted → the fronting gateway's host (co-located ACP subprocess) native → the operator host `gatewayHost` is the host of the gateway that front...
 - **`injectIdentityEnv`** — Layer git identity + MATRIX_AGENT (from envSetup) onto `baseEnv` and return a fresh frozen env record. Caller passes `process.env` as baseEnv in production; tests inject a controlled record.
 - **`loadLaunchConfig`** — Load + parse + validate the launch config at `path`. Throws {LaunchConfigError} for any structural failure; filesystem failures propagate as-is from `readFile`.
@@ -41,7 +42,10 @@ bun add @agents-js/agent-launch
 
 - **`AgentEntry`** — One agent entry from `agent-launch-config.json`. Phase 1 fields only; later phases extend (resume flags, matrix token, gemini symlinks, etc.). The `extra` bag captures unrecognized fields so the lo...
 - **`AgentIdentity`** — Parsed numbered identity.
+- **`AgentLaunchProfile`** — Structured launch profile derived from a numbered identity.
 - **`BuildLaunchPlanOptions`**
+- **`DeriveLaunchProfileOptions`**
+- **`LaunchCommandSpec`** — The command an executor runs, by launch mode.
 - **`LaunchConfig`** — Top-level config shape. **Lazy normalization** (PR #99 cognee-codex review fix): `agents` holds RAW entries (`unknown`), not normalized {AgentEntry}s. Per-entry validation happens in {resolveAgentE...
 - **`LaunchPlan`** — Structured plan returned by {buildLaunchPlan}. The tmux layer consumes this verbatim — `command` + `args` go to the child process; `env` becomes the child env; `sessionEnv` is what gets pushed via ...
 - **`TmuxRunner`** — Resolved tmux runner. Constructed once by the launch path (CLI) and passed to every tmux operation in the same launch.
@@ -53,11 +57,14 @@ bun add @agents-js/agent-launch
 - **`HarnessToken`**
 - **`LaunchEnv`** — Env record passed to {injectIdentityEnv} as the base; returned as a fresh object with identity vars layered on top.
 - **`LaunchMode`** — Phase 1 supports `"fresh"` only. Phase 5 adds `"resume"` once per-harness session resolvers land.
+- **`LaunchPathMode`** — Operational class of a launch — the native-vs-AJS-fronted runtime-path axis.
 - **`SupportedHarness`** — Harnesses supported in Phase 1. Phase 2 extends this union with `"codex-cli"`, `"opencode"`, `"kiro-cli"`, etc. The union is the source of truth — adding a harness requires updating the switch in {...
 - **`TmuxSpawner`** — Spawner signature. `args` is `["tmux", ...tmuxArgs]` semantically — caller passes JUST the tmux args; the spawner prepends the resolved tmux binary internally.
 
 ### Constants
 
+- **`HARNESS_NATIVE_BINARY`** — Native binary name per harness token (the direct, non-fronted harness CLI).
+- **`HARNESS_PROVIDER_ENV`** — Provider env var read directly by a harness (no adapter/LiteLLM in the path). Pi supports Zai natively via `ZAI_API_KEY`. Harnesses absent from this map manage provider auth by other means (e.g. cl...
 - **`HARNESS_TOKEN_TO_KIND`** — Map a scheme harness token to the `agent-launch-config.json` harness kind consumed by {buildLaunchPlan}. Only `claude` is launch-supported today (Phase 1); the rest map their kinds for forward use.
 - **`HARNESS_TOKENS`** — Short harness tokens used in the identity scheme (NOT the config harness kind).
 

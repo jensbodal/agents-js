@@ -60,6 +60,15 @@ export {
   parseAgentIdentity,
 } from "./identity-scheme.ts";
 export {
+  type AgentLaunchProfile,
+  type DeriveLaunchProfileOptions,
+  deriveLaunchProfile,
+  HARNESS_NATIVE_BINARY,
+  HARNESS_PROVIDER_ENV,
+  type LaunchCommandSpec,
+  type LaunchPathMode,
+} from "./launch-profile.ts";
+export {
   type BuildLaunchPlanOptions,
   buildLaunchPlan,
   type LaunchMode,
