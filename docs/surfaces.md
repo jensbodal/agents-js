@@ -299,7 +299,8 @@ answer into the user's own conversation — all without either user leaving thei
 
 ### What Cross-Host Delegation Lets You Do
 
-User A is in Obsidian. They type `@docs-agent what changed in v0.2?`. The `docs-agent`
+Example: User A is in an external Obsidian host — a plugin built on `@agents-js/acp-host`,
+not shipped in this repo. They type `@docs-agent what changed in v0.2?`. The `docs-agent`
 lives on a different machine, runs a different ACP runtime, and has a different tool
 belt — maybe it's `opencode` pointed at a docs repo on User B's laptop. User A's host
 catches the mention, dispatches it to User B's gateway over A2A, waits for the answer,
@@ -315,8 +316,8 @@ Two users, two machines, two hosts, one shared registry file per user.
 
 **User A's machine:**
 
-- A host — any of `apps/web-ui`, the `@agents-js/client` terminal harness, the
-  `obsidian-acp-plugin`, or a custom embedder built on `@agents-js/acp-host`.
+- A host — `apps/web-ui`, the `@agents-js/client` terminal harness, or any custom
+  embedder built on `@agents-js/acp-host` (e.g. an external Obsidian ACP plugin).
 - A local ACP runtime subprocess spawned by that host (`claude`, `codex`, `opencode`,
   `pi`, `droid`, or `gemini`).
 - A `~/.agents-js/registry.json` file listing every remote agent they want to reach.
@@ -352,9 +353,9 @@ bun apps/internal-gateway/cli.ts --port 9300 --permission-mode yolo
 ```
 
 The reference gateway is the shortest path to a live A2A endpoint, but it is not the
-only host. The `obsidian-acp-plugin` is the canonical embedder-style Host A in day-to-day
-use, and any host built on `@agents-js/acp-host` can wire the same middleware. For the
-embedder path, see [ACP Host Embedding](/harness-guide).
+only host. Any host built on `@agents-js/acp-host` can wire the same middleware — for
+example, an external Obsidian ACP plugin built on agents-js (not shipped in this repo).
+For the embedder path, see [ACP Host Embedding](/harness-guide).
 
 ### Two Dispatch Modes: `@mention` vs `@@dispatch`
 
@@ -385,8 +386,7 @@ happens when User A types `@bob-reviewer please look at this diff`:
    `ACPSessionController` from `@agents-js/acp-host`.
 
 2. **The `beforePrompt` hook fires.** That hook was wired at session-start time to
-   `createA2AMentionMiddleware(...)` from `@agents-js/a2a-client`. The canonical
-   wiring lives in `obsidian-acp-plugin/src/session-lifecycle.ts`. The controller
+   `createA2AMentionMiddleware(...)` from `@agents-js/a2a-client`. The controller
    awaits the hook in `packages/acp-host/src/session-controller.ts` before any
    prompt bytes reach the local runtime.
 
@@ -663,8 +663,9 @@ backward compatibility with pre-discriminator registries.
 **Default path:** `~/.agents-js/registry.json` (expanded with `$HOME`).
 
 **Override:** set the `$AGENTS_JS_REGISTRY` environment variable to an absolute path.
-Hosts that honor the override (including the obsidian-acp-plugin and the reference
-browser app) will read the override path instead of the default. Invalid or
+Hosts that honor the override (including the reference browser app and external
+embedders such as an Obsidian ACP plugin) will read the override path instead of the
+default. Invalid or
 unreadable paths fail open — the host continues running but cannot resolve mentions.
 
 The file does NOT need to exist at host-start time. If it's missing, the registry

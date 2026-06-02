@@ -54,7 +54,7 @@ The diagram in markdown form: each row is a layer, each cell is a standard.
 
 **Where it sits:** Presentation layer — streaming transport to UIs.
 **What it solves:** How agent events (streaming text, tool calls, activity, state deltas) reach a user-facing UI in real time. Superset transport — carries MCP apps, A2A payloads, and A2UI blueprints.
-**In agents-js:** `@agents-js/agui-types` ships the event vocabulary. The gateway's AG-UI endpoint feeds the reference browser UI and the Obsidian plugin.
+**In agents-js:** `@agents-js/agui-types` ships the event vocabulary. The gateway's AG-UI endpoint feeds the reference browser UI.
 **Deeper:** [Streaming, Events, and Concurrency](/streaming-and-events).
 
 ### A2UI — Agent-to-UI (Google's declarative-UI spec)

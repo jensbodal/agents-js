@@ -77,7 +77,7 @@ The [Playground](/playground) page runs a local docs agent entirely in your brow
 ## Where to go next
 
 - I want to understand the seven protocols → [Protocols Primer](/protocols-primer)
-- I want to drive it from a different host (Obsidian plugin, custom desktop) → [Surfaces](/surfaces)
+- I want to drive it from a different host (external Obsidian plugin, custom desktop) → [Surfaces](/surfaces)
 - I want to embed ACP in my own app → [Harness Guide](/harness-guide)
 - I want to know what shipped in this release → [CHANGELOG](/CHANGELOG)
 - I want a peer agent on my trusted network to find this one → [Surfaces → Agent Registry](/surfaces#agent-registry)

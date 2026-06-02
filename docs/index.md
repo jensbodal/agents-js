@@ -25,7 +25,7 @@ features:
   - title: Mention vs dispatch, not magic
     details: "@mention resolves through host policy (delegation with audit). @@dispatch routes through a direct-dispatch host such as the gateway or native Pi peer mode (no policy gate). Two distinct surfaces, both deterministic."
   - title: A2UI declarative surfaces
-    details: Agents emit UI as data; renderers (web-ui, Obsidian) bind it to native components. No agent-side DOM. No surface-side prompt logic.
+    details: Agents emit UI as data; renderers (web-ui, ACP Lit primitives) bind it to native components. No agent-side DOM. No surface-side prompt logic.
   - title: Bridge into any MCP host
     details: Registered/configured A2A agents project into MCP tools two ways — local stdio via `agents-js mcp` (registry-backed) or `agents-js mcp bridge --url <gateway>` (single-gateway bridge), or the gateway-hosted HTTP MCP surface (JWT-gated when AGENTS_MCP_JWT_SIGNING_KEY is set). One agent process; many operator UXs.
   - title: Local-operator first
