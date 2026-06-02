@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateEd25519KeyPair } from "../src/ed25519.ts";
@@ -113,6 +113,45 @@ describe("packages/host/tests/load-trust-manifest.test.ts — AJS-55 loader cont
       expect(entry).not.toBeNull();
       expect(entry?.matrix?.room).toBe("!ajs-claude:matrix.example");
       expect(entry?.inbox?.session).toBe("ajs-claude");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: A RELATIVE `record_path` resolves against the manifest file's
+   *       directory, not the gateway process CWD.
+   * WHY: The federation doc specifies record paths relative to the manifest
+   *       dir, and the canonical operator layout is `records/<entity>.json`
+   *       beside `trust.json`. Resolving against CWD silently WARN-skipped
+   *       every peer when the gateway ran from a different directory.
+   */
+  test("relative record_path resolves against the manifest directory (not process CWD)", async () => {
+    const tmpDir = makeTempDir();
+    try {
+      const { privateKeyPem, publicKeyPem } = generateEd25519KeyPair();
+      const trustRootPath = join(tmpDir, "trust-root.pub");
+      writeFileSync(trustRootPath, publicKeyPem, "utf-8");
+
+      const peerPubKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      // Canonical layout: records/ beside the manifest, referenced relatively.
+      mkdirSync(join(tmpDir, "records"));
+      writeSignedRecord(
+        join(tmpDir, "records", "ajs-claude.json"),
+        makeUnsignedRecord("ajs-claude", peerPubKey),
+        privateKeyPem,
+      );
+      const manifestPath = join(tmpDir, "trust.json");
+      writeManifest(manifestPath, [
+        { entity: "ajs-claude", record_path: "./records/ajs-claude.json" },
+      ]);
+
+      const result = await loadTrustManifest({ manifestPath, trustRootPath });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("expected ok=true");
+      // Resolved relative to the manifest dir → peer loads. If it resolved
+      // against the process CWD, the record would be unreadable → WARN-skip.
+      expect(result.targetDirectory.resolve("ajs-claude")?.inbox?.session).toBe("ajs-claude");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

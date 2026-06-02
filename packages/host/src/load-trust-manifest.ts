@@ -35,7 +35,7 @@
 
 import { existsSync, type FSWatcher, readFileSync, watch } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { TargetDirectory, TargetDirectoryEntry } from "./agents-tool-surface.ts";
 import { type SignedPeerRecord, verifyPeerRecord } from "./peer-record.ts";
 
@@ -310,10 +310,15 @@ export async function loadTrustManifest(
   const pubkeyMap = new Map<string, string>();
   const capabilitiesMap = new Map<string, { scopes: readonly string[] }>();
   const loadedEntities = new Set<string>();
+  // Records are referenced relative to the MANIFEST's directory (per the
+  // federation doc), not the gateway process CWD. Resolve against the manifest
+  // dir; absolute record_paths pass through `resolve` unchanged.
+  const manifestDir = dirname(manifestPath);
   for (const peer of manifest.peers) {
+    const recordPath = resolve(manifestDir, peer.record_path);
     let recordText: string;
     try {
-      recordText = readFileSync(peer.record_path, "utf-8");
+      recordText = readFileSync(recordPath, "utf-8");
     } catch (err) {
       logger.warn(
         `[load-trust-manifest] peer '${peer.entity}' record_path ${peer.record_path} is unreadable: ${
