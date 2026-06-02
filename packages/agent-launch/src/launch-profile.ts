@@ -120,3 +120,62 @@ export function deriveLaunchProfile(
     commandSpec,
   });
 }
+
+/**
+ * Options for {@link deriveChannelEnv}. `keyCmd` is **caller-supplied** — the
+ * gopass-path convention for an identity's private key lives in the fleet
+ * package (dot-cognee), not here: hardcoding an operator-specific path would
+ * trip `check:operator-strings` and violate the package/fleet boundary.
+ */
+export interface ChannelEnvOptions {
+  /** Gateway base URL the channel-adapter mints/redeems against (CH_GATEWAY_URL). */
+  readonly gatewayUrl: string;
+  /** Command that prints the identity's private-key PEM to stdout (CH_GATEWAY_KEY_CMD). */
+  readonly keyCmd: string;
+  /** Optional log-file override (CH_LOG). */
+  readonly logPath?: string;
+}
+
+/**
+ * Generate the `CH_GATEWAY_*` channel-adapter env for a numbered identity —
+ * the AJS-55 mint/redeem transport wiring the wake/inbox channel-adapter reads
+ * (`packages/claude-channel-adapter/bin/launcher.ts`). Generated, not
+ * hand-authored (cognee-codex delta #3): `CH_GATEWAY_IDENTITY` is derived from
+ * the identity name; the gateway URL + key-fetch command are supplied by the
+ * fleet package.
+ */
+export function deriveChannelEnv(
+  identity: AgentIdentity,
+  options: ChannelEnvOptions,
+): Readonly<Record<string, string>> {
+  const env: Record<string, string> = {
+    CH_GATEWAY_IDENTITY: identity.name,
+    CH_GATEWAY_URL: options.gatewayUrl,
+    CH_GATEWAY_KEY_CMD: options.keyCmd,
+  };
+  if (options.logPath !== undefined) {
+    env.CH_LOG = options.logPath;
+  }
+  return Object.freeze(env);
+}
+
+/** A native-path A2A registry entry (`~/.agents-js/registry.json`). */
+export interface A2ARegistryEntry {
+  readonly kind: "a2a";
+  readonly name: string;
+  readonly url: string;
+}
+
+/**
+ * Generate the native-path A2A registry entry for a numbered identity — the
+ * `{kind:"a2a", name, url}` shape consumed by the agent registry
+ * (`packages/host/src/agent-registry.ts`) and emitted by
+ * `agents-js registry add <name> --kind a2a --url <url>`. The native profile
+ * registers so a peer (and `agents-js mcp`, registry-backed) can reach it.
+ */
+export function deriveRegistryEntry(
+  identity: AgentIdentity,
+  options: { readonly url: string },
+): A2ARegistryEntry {
+  return Object.freeze({ kind: "a2a", name: identity.name, url: options.url });
+}

@@ -60,9 +60,13 @@ export {
   parseAgentIdentity,
 } from "./identity-scheme.ts";
 export {
+  type A2ARegistryEntry,
   type AgentLaunchProfile,
+  type ChannelEnvOptions,
   type DeriveLaunchProfileOptions,
+  deriveChannelEnv,
   deriveLaunchProfile,
+  deriveRegistryEntry,
   HARNESS_NATIVE_BINARY,
   HARNESS_PROVIDER_ENV,
   type LaunchCommandSpec,
