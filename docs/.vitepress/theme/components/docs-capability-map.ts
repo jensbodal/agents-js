@@ -77,14 +77,30 @@ export class DocsCapabilityMap extends LitElement {
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 12px;
     }
-    .meta {
-      margin-top: 16px;
-      font-size: 12px;
+    .build-meta {
+      margin: 0 0 12px;
+      font-size: 11.5px;
       color: var(--vp-c-text-2, #67676c);
+      letter-spacing: 0.01em;
+    }
+    .build-meta code {
+      font-size: 11px;
     }
     .empty {
       color: var(--vp-c-text-2, #67676c);
       font-style: italic;
+    }
+    @media (max-width: 640px) {
+      .grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .summary {
+        gap: 6px;
+      }
+      button.chip {
+        padding: 3px 10px;
+      }
     }
   `;
 
@@ -104,6 +120,16 @@ export class DocsCapabilityMap extends LitElement {
         : doc.capabilities.filter((c) => c.tier === this._filter);
 
     return html`
+      ${
+        doc.source_commit || doc.generated_at
+          ? html`<p class="build-meta">
+              ${doc.source_commit ? html`source <code>${doc.source_commit}</code>` : nothing}${
+                doc.source_commit && doc.generated_at ? " · " : ""
+              }${doc.generated_at ? html`generated ${doc.generated_at}` : nothing} · ${total}
+              capabilities
+            </p>`
+          : nothing
+      }
       <div class="summary">
         <button
           class="chip"
@@ -127,13 +153,6 @@ export class DocsCapabilityMap extends LitElement {
       <div class="grid">
         ${shown.map((cap) => html`<acp-capability-card .capability=${cap}></acp-capability-card>`)}
       </div>
-      ${
-        doc.source_commit
-          ? html`<p class="meta">
-              Generated from source <code>${doc.source_commit}</code> · ${total} capabilities
-            </p>`
-          : nothing
-      }
     `;
   }
 }

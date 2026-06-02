@@ -97,6 +97,7 @@ export default withMermaid(
         { text: "How It Works", link: "/protocols-primer" },
         { text: "Surfaces", link: "/surfaces" },
         { text: "Build", link: "/primitives" },
+        { text: "Ecosystem", link: "/ecosystem" },
         { text: "Reference", link: "/protocols" },
         {
           text: "Develop",
