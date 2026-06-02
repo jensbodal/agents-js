@@ -114,6 +114,56 @@ describe("parseLaunchConfig — well-formed input", () => {
     );
     expect(() => resolveAgentEntry(config, "foo")).toThrow(/field "channel_env" must be a string/);
   });
+
+  test("allowed_tools is promoted to entry.allowedTools (not left in extra)", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "claude-code",
+            binary: "claude",
+            workspace: "/tmp",
+            fresh_flags: "--agent foo",
+            allowed_tools: [
+              "mcp__claude-channel-adapter__agents_js_send",
+              "mcp__claude-channel-adapter__agents_js_reply",
+            ],
+          },
+        },
+      }),
+      "inline.json",
+    );
+    const entry = resolveAgentEntry(config, "foo");
+    expect(entry.allowedTools).toEqual([
+      "mcp__claude-channel-adapter__agents_js_send",
+      "mcp__claude-channel-adapter__agents_js_reply",
+    ]);
+    expect(entry.extra.allowed_tools).toBeUndefined();
+  });
+
+  test("allowed_tools wrong type (not an array of strings) throws", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "claude-code",
+            binary: "claude",
+            workspace: "/tmp",
+            fresh_flags: "--agent foo",
+            allowed_tools: "not-an-array",
+          },
+        },
+      }),
+      "inline.json",
+    );
+    expect(() => resolveAgentEntry(config, "foo")).toThrow(
+      /field "allowed_tools" must be an array of strings/,
+    );
+  });
 });
 
 describe("parseLaunchConfig — top-level error cases", () => {

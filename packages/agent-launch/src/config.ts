@@ -86,6 +86,16 @@ export interface AgentEntry {
   readonly gitAuthorEmail?: string;
   /** Matrix user id, used by gateway / bridge for routing. */
   readonly matrixMxid?: string;
+  /**
+   * Tools to pre-authorize for unattended operation, emitted as a
+   * `--allowedTools` flag so the harness runs them without a per-call
+   * permission prompt. Entries use Claude Code's `mcp__<server>__<tool>`
+   * naming, e.g. `mcp__claude-channel-adapter__agents_js_send` (wildcards
+   * like `mcp__claude-channel-adapter__*` are allowed). Pair with an
+   * appropriate `--permission-mode` in `fresh_flags` for the desired
+   * deny-by-default posture.
+   */
+  readonly allowedTools?: readonly string[];
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -154,6 +164,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "git_author_name",
   "git_author_email",
   "matrix_mxid",
+  "allowed_tools",
 ]);
 
 function requireString(
@@ -186,6 +197,22 @@ function optionalString(
     );
   }
   return value;
+}
+
+function optionalStringArray(
+  raw: Record<string, unknown>,
+  field: string,
+  ctx: { path: string; agent: string },
+): readonly string[] | undefined {
+  const value = raw[field];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
+    throw new LaunchConfigError(
+      `agent "${ctx.agent}" field "${field}" must be an array of strings when present`,
+      { path: ctx.path, agent: ctx.agent, field },
+    );
+  }
+  return Object.freeze([...value]);
 }
 
 function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string }): AgentEntry {
@@ -222,6 +249,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     gitAuthorName: optionalString(obj, "git_author_name", ctx),
     gitAuthorEmail: optionalString(obj, "git_author_email", ctx),
     matrixMxid: optionalString(obj, "matrix_mxid", ctx),
+    allowedTools: optionalStringArray(obj, "allowed_tools", ctx),
     extra,
   };
 }

@@ -77,6 +77,12 @@ export interface LaunchPlan {
    * session-wide identity vars in {@link sessionEnv}. Empty when unset.
    */
   readonly channelEnv: LaunchEnv;
+  /**
+   * Pre-authorized tools (from `allowed_tools`), also rendered into
+   * {@link args} as a `--allowedTools` flag. Carried here too for
+   * introspection/testing. Empty when unset.
+   */
+  readonly allowedTools: readonly string[];
   /** Harness kind — copied through for downstream observability. */
   readonly harness: SupportedHarness;
   /** Mode — Phase 1 always `"fresh"`. */
@@ -170,8 +176,8 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     : Object.freeze({});
   // The full child env is identity + channel vars layered on the base.
   const env = Object.freeze({ ...injectIdentityEnv(entry, options.baseEnv), ...channelEnv });
-  const args = splitFlags(entry.freshFlags);
-  if (args.length === 0) {
+  const flagArgs = splitFlags(entry.freshFlags);
+  if (flagArgs.length === 0) {
     throw new LaunchPlanError(
       `fresh_flags is empty after split — harness would launch with no flags`,
       {
@@ -181,6 +187,13 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     );
   }
 
+  // Declarative tool allowlist → a single comma-joined `--allowedTools` flag
+  // appended after the operator's fresh_flags (comma form avoids the variadic
+  // flag greedily consuming later tokens). Empty when unset.
+  const allowedTools = entry.allowedTools ?? [];
+  const args =
+    allowedTools.length > 0 ? [...flagArgs, "--allowedTools", allowedTools.join(",")] : flagArgs;
+
   return {
     tmuxSession: entry.tmuxSession,
     cwd: entry.workspace,
@@ -189,6 +202,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     env,
     sessionEnv: pickSessionEnv(env),
     channelEnv,
+    allowedTools,
     harness: "claude-code",
     mode,
   };

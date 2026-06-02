@@ -191,3 +191,51 @@ describe("buildLaunchPlan — channel_env propagation", () => {
     expect(Object.isFrozen(plan.channelEnv)).toBe(true);
   });
 });
+
+describe("buildLaunchPlan — allowed_tools", () => {
+  test("appends a comma-joined --allowedTools flag after fresh_flags", () => {
+    const plan = buildLaunchPlan(
+      {
+        tmuxSession: "x",
+        harness: "claude-code",
+        binary: "claude",
+        workspace: "/tmp",
+        freshFlags: "--agent x --permission-mode dontAsk",
+        allowedTools: [
+          "mcp__claude-channel-adapter__agents_js_send",
+          "mcp__claude-channel-adapter__agents_js_reply",
+        ],
+        extra: {},
+      },
+      { baseEnv: {} },
+    );
+    expect(plan.args).toEqual([
+      "--agent",
+      "x",
+      "--permission-mode",
+      "dontAsk",
+      "--allowedTools",
+      "mcp__claude-channel-adapter__agents_js_send,mcp__claude-channel-adapter__agents_js_reply",
+    ]);
+    expect(plan.allowedTools).toEqual([
+      "mcp__claude-channel-adapter__agents_js_send",
+      "mcp__claude-channel-adapter__agents_js_reply",
+    ]);
+  });
+
+  test("no --allowedTools flag when allowed_tools is unset", () => {
+    const plan = buildLaunchPlan(
+      {
+        tmuxSession: "x",
+        harness: "claude-code",
+        binary: "claude",
+        workspace: "/tmp",
+        freshFlags: "--agent x",
+        extra: {},
+      },
+      { baseEnv: {} },
+    );
+    expect(plan.args).toEqual(["--agent", "x"]);
+    expect(plan.allowedTools).toEqual([]);
+  });
+});
