@@ -52,6 +52,14 @@ export {
   parseEnvSetup,
 } from "./identity.ts";
 export {
+  type AgentIdentity,
+  deriveRuntimeHost,
+  HARNESS_TOKEN_TO_KIND,
+  HARNESS_TOKENS,
+  type HarnessToken,
+  parseAgentIdentity,
+} from "./identity-scheme.ts";
+export {
   type BuildLaunchPlanOptions,
   buildLaunchPlan,
   type LaunchMode,
