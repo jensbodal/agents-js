@@ -5,6 +5,13 @@
 export { AcpAgentStatusBlock } from "./acp-agent-status-block.ts";
 export { AcpAuthSelector } from "./acp-auth-selector.ts";
 export { AcpButton } from "./acp-button.ts";
+export {
+  AcpCapabilityCard,
+  type CapabilityCardData,
+  type CapabilityEvidence,
+  type CapabilityPackageRef,
+  type CapabilityTier,
+} from "./acp-capability-card.ts";
 export { AcpChatApp } from "./acp-chat-app.ts";
 export { AcpCheckbox } from "./acp-checkbox.ts";
 export { type AcpChoiceOption, AcpChoicePicker } from "./acp-choice-picker.ts";

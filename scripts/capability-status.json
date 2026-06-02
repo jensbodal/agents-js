@@ -1,0 +1,212 @@
+{
+  "_comment": "Capability classification for the docs ecosystem map (docs/public/capability-status.json + /ecosystem page). Hand-authored. Tier authority is the capability-reconciliation effort; this file records that classification — the generator (scripts/capability-status.ts) NEVER infers a tier, it only joins `packages` against docs/public/graph.json and fails if a referenced package does not exist. Tier enum: demonstrated (a human has seen it work first-hand) | undemonstrated (built + tested, no captured human-visible proof) | over-claimed (docs/vision assert more than exists) | missing (named but not built). 'evidence.kind': run (a command/example run first-hand) | test | story | doc | live.",
+  "capabilities": {
+    "cli": {
+      "title": "CLI",
+      "tier": "demonstrated",
+      "packages": ["@agents-js/cli"],
+      "evidence": [
+        {
+          "kind": "run",
+          "ref": "packages/cli/dist/bin.mjs --help",
+          "note": "Built bin runs; full command surface (serve/bridge/acp/mcp/client/send/registry/launch/skill)."
+        }
+      ],
+      "notes": "Run first-hand 2026-06-01."
+    },
+    "federation-registry": {
+      "title": "Federation / agent registry",
+      "tier": "demonstrated",
+      "packages": ["@agents-js/gateway-runtime", "@agents-js/host", "@agents-js/a2a-client"],
+      "evidence": [
+        {
+          "kind": "run",
+          "ref": "agents-js registry list",
+          "note": "Showed 3 live registered A2A gateways in ~/.agents-js/registry.json — real dogfooding state."
+        }
+      ],
+      "notes": "Cross-gateway peer sync (--registry-sync) remains undemonstrated."
+    },
+    "memory": {
+      "title": "Memory substrate",
+      "tier": "demonstrated",
+      "packages": ["@agents-js/memory", "@agents-js/memory-local", "@agents-js/memory-postgres"],
+      "evidence": [
+        {
+          "kind": "run",
+          "ref": "examples/memory-local-smoke",
+          "note": "Ran: save→update→delete with revisions on real sqlite."
+        }
+      ],
+      "notes": "Postgres backend not exercised first-hand."
+    },
+    "permissions": {
+      "title": "Permissions / ACL",
+      "tier": "demonstrated",
+      "packages": ["@agents-js/policy"],
+      "evidence": [
+        {
+          "kind": "run",
+          "ref": "examples/memory-local-smoke",
+          "note": "ACL deny path raised MemoryAclError — a real permission demonstration."
+        }
+      ],
+      "notes": "Pure-function policy evaluation."
+    },
+    "acp-runtime": {
+      "title": "ACP runtime contract",
+      "tier": "undemonstrated",
+      "packages": ["@agents-js/acp", "@agents-js/acp-host"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "packages/acp + packages/acp-host tests",
+          "note": "Adapters tested; no captured side-by-side harness session."
+        }
+      ],
+      "notes": "Every harness adapter speaks ACP as its local-boundary contract."
+    },
+    "wake-system": {
+      "title": "Wake system",
+      "tier": "undemonstrated",
+      "packages": [
+        "@agents-js/wake-types",
+        "@agents-js/wake-signal-store",
+        "@agents-js/wake-mcp-triggers",
+        "@agents-js/wake-channel-bridge",
+        "@agents-js/claude-channel-adapter"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "wake package tests",
+          "note": "Built + tested; never shown end-to-end (wake proofs disallowed this cycle)."
+        }
+      ],
+      "notes": "PR #112/#113 hardened the channel-adapter transport; the wake loop itself is unproven to a human."
+    },
+    "hardening": {
+      "title": "Hardening track (signing / JWT / trust-manifest)",
+      "tier": "undemonstrated",
+      "packages": ["@agents-js/host"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "packages/host/src ed25519, peer-record, mint-redeem-flow, load-trust-manifest",
+          "note": "10 impl files, tested; zero operator walkthrough."
+        }
+      ],
+      "notes": "Gated behind AGENTS_MCP_JWT_SIGNING_KEY. Built, not aspirational — but invisible."
+    },
+    "a2ui": {
+      "title": "A2UI declarative surfaces",
+      "tier": "undemonstrated",
+      "packages": [
+        "@agents-js/a2ui-renderer",
+        "@agents-js/a2ui-host",
+        "@agents-js/a2ui-types",
+        "@agents-js/ui-components",
+        "@agents-js/canvas-model"
+      ],
+      "evidence": [
+        {
+          "kind": "story",
+          "ref": "packages/ui-components/stories",
+          "note": "Histoire stories + renderer-adapter-prototype exist; visual hydration not captured."
+        }
+      ],
+      "notes": "This ecosystem map dogfoods the A2UI/ui-components surface."
+    },
+    "ag-ui": {
+      "title": "AG-UI streaming transport",
+      "tier": "undemonstrated",
+      "packages": ["@agents-js/agui-types"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "packages/agui-types tests",
+          "note": "Types/helpers/stream layer (infrastructure); no standalone demonstrable surface."
+        }
+      ],
+      "notes": "Shows up only inside a consuming UI."
+    },
+    "ack-reply-routing": {
+      "title": "ACK / reply-target routing",
+      "tier": "undemonstrated",
+      "packages": ["@agents-js/claude-channel-adapter"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "packages/claude-channel-adapter reply-routing.ts",
+          "note": "Landed via PR #113; tested, undemonstrated end-to-end."
+        }
+      ],
+      "notes": "Resolves reply target by precedence at the launcher layer. Was previously missing."
+    },
+    "agent-launch": {
+      "title": "agent-launch (harness/tmux launcher)",
+      "tier": "undemonstrated",
+      "packages": ["@agents-js/agent-launch"],
+      "evidence": [
+        {
+          "kind": "run",
+          "ref": "agents-js launch --help",
+          "note": "Phase-1 claude-code fresh-mode surface shown; actual tmux launch not demonstrated."
+        }
+      ],
+      "notes": "Phase-1 slice only."
+    },
+    "browser-ux": {
+      "title": "Browser/operator experience",
+      "tier": "over-claimed",
+      "packages": ["@agents-js/web-ui", "@agents-js/gateway", "@agents-js/browser-runtime"],
+      "evidence": [
+        {
+          "kind": "doc",
+          "ref": "docs/getting-started.md, docs/surfaces.md",
+          "note": "Flagship 'bun run dev → Connect → Hello' path documented but never captured."
+        }
+      ],
+      "notes": "browser-runtime docs meta-agent is prototype/experimental."
+    },
+    "ch-gateway-propagation": {
+      "title": "Channel-env (CH_GATEWAY_*) propagation",
+      "tier": "missing",
+      "packages": ["@agents-js/agent-launch"],
+      "evidence": [
+        {
+          "kind": "doc",
+          "ref": "packages/agent-launch README (Phase-1 limitation)",
+          "note": "Phase 1 handles only simple `export KEY=VALUE`; complex channel-env injection unbuilt."
+        }
+      ],
+      "notes": "Blocks honest operator-launch dogfooding."
+    },
+    "unified-profile": {
+      "title": "Unified agent profile abstraction",
+      "tier": "missing",
+      "packages": [],
+      "evidence": [
+        {
+          "kind": "doc",
+          "ref": "(no module)",
+          "note": "Grep confirms no profile abstraction package/module exists."
+        }
+      ],
+      "notes": "0.7.0-class; no single harness+identity+channel surface."
+    },
+    "obsidian-renderer": {
+      "title": "Obsidian A2UI renderer",
+      "tier": "missing",
+      "packages": [],
+      "evidence": [
+        {
+          "kind": "doc",
+          "ref": "(no impl; docs corrected in PR #115)",
+          "note": "No Obsidian package/impl in this repo; the plugin is an external consumer."
+        }
+      ],
+      "notes": "Docs previously over-claimed this; corrected to align with protocols.md."
+    }
+  }
+}

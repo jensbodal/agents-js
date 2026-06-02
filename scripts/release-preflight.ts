@@ -922,14 +922,14 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
     filePath: "package.json",
     validate: (contents) => {
       if (
-        !/"docs:generated":\s*"bun run docs:readmes && bun run docs:reference && bun run docs:bundle"/.test(
+        !/"docs:generated":\s*"bun run docs:readmes && bun run docs:reference && bun run docs:capability-status && bun run docs:bundle"/.test(
           contents,
         )
       ) {
         return "package.json must define docs:generated for committed generated docs";
       }
       if (
-        !/"docs:generated:check":\s*"bun run docs:readmes:check && bun run docs:reference:check && bun run docs:bundle:check"/.test(
+        !/"docs:generated:check":\s*"bun run docs:readmes:check && bun run docs:reference:check && bun run docs:capability-status:check && bun run docs:bundle:check"/.test(
           contents,
         )
       ) {

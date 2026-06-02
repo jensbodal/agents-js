@@ -17,6 +17,7 @@ bun add @agents-js/ui-components
 - **`AcpAgentStatusBlock`**
 - **`AcpAuthSelector`**
 - **`AcpButton`**
+- **`AcpCapabilityCard`**
 - **`AcpChatApp`**
 - **`AcpCheckbox`**
 - **`AcpChoicePicker`**
@@ -98,6 +99,9 @@ bun add @agents-js/ui-components
 - **`AcpToolCallDetailData`** — Mirrors the shape of `ActiveToolCall` from the `agents-js/a2a-client` package without taking a runtime dependency on it — keeps `ui-components` framework-agnostic. Consumers can pass an `ActiveTool...
 - **`AgentCardLike`** — Unified agent card shape — covers preview, snapshot, and view uses.
 - **`BrowserLaunchConfig`**
+- **`CapabilityCardData`** — One capability row from `docs/public/capability-status.json`.
+- **`CapabilityEvidence`**
+- **`CapabilityPackageRef`**
 - **`ChatAppDerivedState`**
 - **`ConnectPreferences`**
 - **`ConnectProfile`**
@@ -155,6 +159,7 @@ bun add @agents-js/ui-components
 ### Types
 
 - **`AgentVisualState`** — Four bucketed visual states the block renders distinct affordances for. Bucketing is intentional: hosts that want a finer scale derive their own from `activity_age_seconds` directly without re-runn...
+- **`CapabilityTier`** — Evidence tier for a capability, per the capability-reconciliation classification.
 - **`HostStateListener`**
 - **`IconRegistry`** — Icon registry type: a record mapping icon names to SVG path data strings.
 - **`InboxKindLike`** — AJS-88 / DOT-502 v0.2 — origin discriminator. Open extension: future additions like `"sms_inbound"` are allowed; consumers MUST handle unknown values with a sensible default (treat as `"agents_mess...
