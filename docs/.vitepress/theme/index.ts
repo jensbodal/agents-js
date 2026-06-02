@@ -1,6 +1,7 @@
 import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme";
 import DocsArchitectureMap from "./components/DocsArchitectureMap.vue";
+import DocsCapabilityMap from "./components/DocsCapabilityMap.vue";
 import DocsMetaAgent from "./components/DocsMetaAgent.vue";
 import "./custom.css";
 
@@ -9,6 +10,7 @@ const theme: Theme = {
   enhanceApp({ app }) {
     app.component("DocsMetaAgent", DocsMetaAgent);
     app.component("DocsArchitectureMap", DocsArchitectureMap);
+    app.component("DocsCapabilityMap", DocsCapabilityMap);
   },
 };
 

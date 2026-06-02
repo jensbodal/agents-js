@@ -124,6 +124,7 @@ export default withMermaid(
             items: [
               { text: "Primitives", link: "/primitives" },
               { text: "Architecture", link: "/architecture" },
+              { text: "Ecosystem Map", link: "/ecosystem" },
               { text: "Hosted MCP Tool Surface", link: "/hosted-mcp-tool-surface" },
               { text: "Workspace Isolation", link: "/workspace-isolation" },
               { text: "Harness Guide", link: "/harness-guide" },
