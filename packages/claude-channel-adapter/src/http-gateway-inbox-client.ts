@@ -85,10 +85,13 @@ export class HttpGatewayInboxClient implements GatewayInboxClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      // On an auth rejection, drop the cached JWT so the next call re-mints
-      // instead of replaying a rotated/revoked-but-unexpired token for up to
-      // the full refresh window.
-      if (res.status === 401 || res.status === 403) {
+      // On a 401 (authentication failed → the token is rotated/revoked/expired)
+      // drop the cached JWT so the next call re-mints instead of replaying a
+      // dead-but-unexpired token for up to the full refresh window. A 403 is
+      // deliberately NOT cleared: it means authenticated-but-forbidden (a scope
+      // or permission denial), and a re-mint requests the SAME scopes — it
+      // can't lift the denial, so clearing would only burn a needless mint.
+      if (res.status === 401) {
         this.jwt = null;
         this.expiresAtMs = 0;
       }

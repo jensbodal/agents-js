@@ -152,4 +152,33 @@ describe("HttpGatewayInboxClient", () => {
     expect(r.ok).toBe(true);
     expect(mints).toBe(2);
   });
+
+  test("does NOT clear the cached JWT on a 403 (scope/permission denial)", async () => {
+    let mints = 0;
+    const fetchImpl = (async (url: string) => {
+      if (url.endsWith("/mint/challenge"))
+        return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
+      if (url.endsWith("/mint/redeem")) {
+        mints += 1;
+        return new Response(JSON.stringify({ jwt: `JWT-${mints}`, expires_in: 900, sub: ENTITY }), {
+          status: 200,
+        });
+      }
+      // Every inbox read is forbidden — a re-mint requests the same scopes and
+      // can't lift the denial, so the cached token must be reused (not re-minted).
+      return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 });
+    }) as unknown as typeof fetch;
+    const client = new HttpGatewayInboxClient({
+      baseUrl: BASE,
+      entity: ENTITY,
+      getPrivateKeyPem: async () => pem(),
+      fetchImpl,
+      now: () => 1000, // every call is well within the JWT TTL
+    });
+    await expect(client.getMessages({ identity: ENTITY })).rejects.toThrow(/HTTP 403/);
+    await expect(client.getMessages({ identity: ENTITY })).rejects.toThrow(/HTTP 403/);
+    // One mint total: the 403 left the (valid) token cached rather than burning
+    // a second pointless mint.
+    expect(mints).toBe(1);
+  });
 });
