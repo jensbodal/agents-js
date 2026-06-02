@@ -304,7 +304,7 @@
       "name": "@agents-js/a2ui-types",
       "version": "0.5.1",
       "dependencies": {
-        "@a2ui/web_core": "0.9.2",
+        "@a2ui/web_core": "0.10.0",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -558,7 +558,7 @@
   },
   "catalog": {
     "@a2a-js/sdk": "0.3.13",
-    "@ag-ui/core": "0.0.53",
+    "@ag-ui/core": "0.0.55",
     "@agentclientprotocol/sdk": "0.21.0",
     "@biomejs/biome": "2.4.13",
     "@braintree/sanitize-url": "7.1.2",
@@ -596,11 +596,11 @@
   "packages": {
     "@a2a-js/sdk": ["@a2a-js/sdk@0.3.13", "", { "dependencies": { "uuid": "^11.1.0" }, "peerDependencies": { "@bufbuild/protobuf": "^2.10.2", "@grpc/grpc-js": "^1.11.0", "express": "^4.21.2 || ^5.1.0" }, "optionalPeers": ["@bufbuild/protobuf", "@grpc/grpc-js", "express"] }, "sha512-BZr0f9JVNQs3GKOM9xINWCh6OKIJWZFPyqqVqTym5mxO2Eemc6I/0zL7zWnljHzGdaf5aZQyQN5xa6PSH62q+A=="],
 
-    "@a2ui/web_core": ["@a2ui/web_core@0.9.2", "", { "dependencies": { "@preact/signals-core": "^1.13.0", "date-fns": "^4.1.0", "zod": "^3.25.76", "zod-to-json-schema": "^3.25.1" } }, "sha512-EOfhLOF7tnpPmNq4y116k3gxWdrXQW8h3dhKF0pC++21zLZnCSLSHl6zgQFG+kPeVAZb64t+sQiRXlnyS8+RBg=="],
+    "@a2ui/web_core": ["@a2ui/web_core@0.10.0", "", { "dependencies": { "@preact/signals-core": "^1.13.0", "date-fns": "^4.1.0", "zod": "^3.25.76", "zod-to-json-schema": "^3.25.1" } }, "sha512-pSieKxaB6aZWBL2LjZfKo4/1v4xMWylczpzte1ehuGH0kfNGf/iTd73PKsIKYx3b0FNWTbD8gAloOM4JCVqUig=="],
 
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
 
-    "@ag-ui/core": ["@ag-ui/core@0.0.53", "", { "dependencies": { "zod": "^3.22.4" } }, "sha512-11UocR7fFdMWw503bWCX2IOK15vbWfxT11Mn9xOiPBVO/UVcn57ywGrlLL4UaBlPgmUTvuzr2yYR2ElSqiN2wQ=="],
+    "@ag-ui/core": ["@ag-ui/core@0.0.55", "", { "dependencies": { "zod": "^3.22.4" } }, "sha512-Pj7Ke0NsCxbCFgI3xK5YE56LaMRxnXnyeDUgDFTYxeF6KZDcSf5E0x2gB6/37w6bE0hcn/LRNPFd8Es18eIEzA=="],
 
     "@agentclientprotocol/claude-agent-acp": ["@agentclientprotocol/claude-agent-acp@0.33.1", "", { "dependencies": { "@agentclientprotocol/sdk": "0.21.0", "@anthropic-ai/claude-agent-sdk": "0.2.132", "zod": "^3.25.0 || ^4.0.0" }, "bin": { "claude-agent-acp": "dist/index.js" } }, "sha512-k4wCNTqrjk/d9RRafWa/51Y08heeONYLpJB/7k7WgxueoKwwHzCBl9kBYQgu2SzllamyUUEbSQ/cVa1MC7jQEg=="],
 
