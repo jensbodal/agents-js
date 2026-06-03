@@ -2,24 +2,76 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Message } from "@a2a-js/sdk";
-import type { ExecutionEventBus, RequestContext, Task } from "@agents-js/a2a";
+import { type Message, type Part, Role, type Task, TaskState, type TaskStatus } from "@a2a-js/sdk";
+import type { ExecutionEventBus, RequestContext } from "@agents-js/a2a";
 import type { A2ATransport, ResolvedAgentTarget } from "@agents-js/a2a-client";
 import type { ACPSessionEvent, ACPSessionState } from "@agents-js/acp-host";
 import { HostA2AExecutor } from "../src/host-executor.ts";
 import { createMockTransport } from "./mock-a2a-transport.ts";
 
-function createRequestContext(text: string): RequestContext {
+/** The `task` variant of a transport stream payload (`{ $case, value }`). */
+type TaskStreamPayload = { $case: "task"; value: Task };
+
+function textPart(value: string): Part {
   return {
-    taskId: "task-1",
-    contextId: "ctx-1",
-    userMessage: {
-      kind: "message",
-      messageId: "msg-1",
-      role: "user",
-      parts: [{ kind: "text", text }],
-    },
+    content: { $case: "text", value },
+    metadata: undefined,
+    filename: "",
+    mediaType: "text/plain",
+  };
+}
+
+function userMessage(text: string): Message {
+  return {
+    messageId: "msg-1",
+    role: Role.ROLE_USER,
+    parts: [textPart(text)],
+    taskId: "",
+    contextId: "",
+    metadata: undefined,
+    extensions: [],
+    referenceTaskIds: [],
+  };
+}
+
+function createRequestContext(
+  text: string,
+  ids?: { taskId?: string; contextId?: string; messageId?: string },
+): RequestContext {
+  return {
+    taskId: ids?.taskId ?? "task-1",
+    contextId: ids?.contextId ?? "ctx-1",
+    userMessage: { ...userMessage(text), messageId: ids?.messageId ?? "msg-1" },
   } as RequestContext;
+}
+
+/**
+ * Published events are `AgentEvent` wrappers (`{ kind, data }`). These helpers
+ * unwrap them and read proto-shaped parts/state so assertions stay in plain
+ * terms.
+ */
+function partText(part: Part | undefined): string | undefined {
+  return part?.content?.$case === "text" ? part.content.value : undefined;
+}
+
+/**
+ * Find a terminal event by state. A2A 1.0 forbids a second Task in the
+ * task-lifecycle stream, so the normal `execute()` turn terminates with a
+ * terminal `statusUpdate`, while the dispatch / task-failed paths still
+ * publish a terminal `task`. Match either wrapper on `data.status.state`.
+ */
+function findTerminalStatus(published: unknown[], state: TaskState): TaskStatus | undefined {
+  const wrapper = published.find(
+    (e) =>
+      ((e as { kind?: string }).kind === "task" ||
+        (e as { kind?: string }).kind === "statusUpdate") &&
+      (e as { data?: { status?: TaskStatus } }).data?.status?.state === state,
+  ) as { data?: { status?: TaskStatus } } | undefined;
+  return wrapper?.data?.status;
+}
+
+function terminalText(published: unknown[], state: TaskState): string | undefined {
+  return partText(findTerminalStatus(published, state)?.message?.parts?.[0]);
 }
 
 function createEventBus() {
@@ -50,15 +102,7 @@ function createEventBus() {
 
 /** Extract the text from the agent message in the first published Task event */
 function getFailedTaskText(published: unknown[]): string | undefined {
-  const task = published.find(
-    (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "failed",
-  ) as Task | undefined;
-  const parts = task?.status?.message?.parts;
-  if (parts && parts.length > 0) {
-    const first = parts[0] as { kind: string; text?: string } | undefined;
-    if (first && first.kind === "text") return first.text;
-  }
-  return undefined;
+  return terminalText(published, TaskState.TASK_STATE_FAILED);
 }
 
 describe("HostA2AExecutor", () => {
@@ -370,14 +414,9 @@ describe("HostA2AExecutor", () => {
 
     expect(bus.finished).toBe(true);
 
-    const completed = bus.published.find(
-      (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-    ) as Task | undefined;
+    const completed = findTerminalStatus(bus.published, TaskState.TASK_STATE_COMPLETED);
     expect(completed).toBeDefined();
-    const parts = completed?.status?.message?.parts;
-    const first = parts?.[0] as { kind: string; text?: string } | undefined;
-    expect(first?.kind).toBe("text");
-    expect(first?.text).toBe("Prompt completed.");
+    expect(getCompletedTaskText(bus.published)).toBe("Prompt completed.");
   });
 
   test("cancel-race publishes terminal Task with state 'canceled' on the original eventBus", async () => {
@@ -445,16 +484,12 @@ describe("HostA2AExecutor", () => {
 
     // Assert a canonical canceled terminal Task fired on the ORIGINAL event
     // bus — NOT the cancel-RPC bus.
-    const canceled = originalBus.published.find(
-      (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "canceled",
-    ) as Task | undefined;
+    const canceled = findTerminalStatus(originalBus.published, TaskState.TASK_STATE_CANCELED);
     expect(canceled).toBeDefined();
-    expect(canceled?.status?.state).toBe("canceled");
+    expect(canceled?.state).toBe(TaskState.TASK_STATE_CANCELED);
 
-    // And no "completed" task leaked to the original bus (we canceled).
-    const completed = originalBus.published.find(
-      (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-    ) as Task | undefined;
+    // And no "completed" terminal leaked to the original bus (we canceled).
+    const completed = findTerminalStatus(originalBus.published, TaskState.TASK_STATE_COMPLETED);
     expect(completed).toBeUndefined();
 
     // Sanity: the cancel-RPC eventBus was also finished by cancelTask().
@@ -523,16 +558,7 @@ describe("HostA2AExecutor", () => {
     currentChunkText = "first-response";
     const firstBus = createEventBus();
     await executor.execute(
-      {
-        taskId: "task-1",
-        contextId: "ctx-1",
-        userMessage: {
-          kind: "message",
-          messageId: "msg-1",
-          role: "user",
-          parts: [{ kind: "text", text: "first" }],
-        },
-      } as RequestContext,
+      createRequestContext("first", { taskId: "task-1", contextId: "ctx-1", messageId: "msg-1" }),
       firstBus.eventBus,
     );
 
@@ -544,16 +570,7 @@ describe("HostA2AExecutor", () => {
     currentChunkText = "second-response";
     const secondBus = createEventBus();
     await executor.execute(
-      {
-        taskId: "task-2",
-        contextId: "ctx-2",
-        userMessage: {
-          kind: "message",
-          messageId: "msg-2",
-          role: "user",
-          parts: [{ kind: "text", text: "second" }],
-        },
-      } as RequestContext,
+      createRequestContext("second", { taskId: "task-2", contextId: "ctx-2", messageId: "msg-2" }),
       secondBus.eventBus,
     );
 
@@ -562,11 +579,7 @@ describe("HostA2AExecutor", () => {
 
     // The first bus saw "first-response" (either as a working status update
     // or in the terminal task's message text).
-    const firstCompleted = firstBus.published.find(
-      (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-    ) as Task | undefined;
-    const firstText = (firstCompleted?.status?.message?.parts?.[0] as { text?: string } | undefined)
-      ?.text;
+    const firstText = getCompletedTaskText(firstBus.published);
     expect(firstText).toBe("first-response");
 
     // The second bus saw "second-response" — critically, it did NOT see
@@ -574,12 +587,7 @@ describe("HostA2AExecutor", () => {
     // old "first task by insertion order" routing, if activeTasks had any
     // stale ordering issue, task-1's buffer would have absorbed both chunks;
     // the new owningTaskId routing guarantees clean separation.
-    const secondCompleted = secondBus.published.find(
-      (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-    ) as Task | undefined;
-    const secondText = (
-      secondCompleted?.status?.message?.parts?.[0] as { text?: string } | undefined
-    )?.text;
+    const secondText = getCompletedTaskText(secondBus.published);
     expect(secondText).toBe("second-response");
     expect(secondText).not.toContain("first-response");
   });
@@ -607,23 +615,22 @@ function createStubController() {
 
 /** Extract the completed task text from published events */
 function getCompletedTaskText(published: unknown[]): string | undefined {
-  const task = published.find(
-    (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-  ) as Task | undefined;
-  const parts = task?.status?.message?.parts;
-  if (parts && parts.length > 0) {
-    const first = parts[0] as { kind: string; text?: string } | undefined;
-    if (first && first.kind === "text") return first.text;
-  }
-  return undefined;
+  return terminalText(published, TaskState.TASK_STATE_COMPLETED);
 }
 
-/** Extract metadata from the completed task */
+/**
+ * Extract dispatch metadata from the published events. A2A 1.0 stream ordering
+ * forbids a terminal Task in the lifecycle stream, so dispatch metadata rides
+ * the INITIAL `task` event (the SDK preserves `task.metadata` across every
+ * subsequent statusUpdate). Read it from that initial task wrapper.
+ */
 function getCompletedTaskMetadata(published: unknown[]): Record<string, unknown> | undefined {
-  const task = published.find(
-    (e) => (e as { kind?: string }).kind === "task" && (e as Task).status?.state === "completed",
-  ) as Task | undefined;
-  return task?.status?.message?.metadata as Record<string, unknown> | undefined;
+  const wrapper = published.find(
+    (e) =>
+      (e as { kind?: string }).kind === "task" &&
+      (e as { data?: Task }).data?.metadata !== undefined,
+  ) as { data?: Task } | undefined;
+  return wrapper?.data?.metadata as Record<string, unknown> | undefined;
 }
 
 /** Get text sent to the mock transport */
@@ -637,8 +644,8 @@ function createCapturingTransport(
     ...base,
     sentTexts,
     async sendMessage(target: ResolvedAgentTarget, params: unknown): Promise<Message> {
-      const p = params as { message?: { parts?: Array<{ text?: string }> } };
-      const text = p?.message?.parts?.[0]?.text;
+      const p = params as { message?: { parts?: Part[] } };
+      const text = partText(p?.message?.parts?.[0]);
       if (text) sentTexts.push(text);
       return base.sendMessage(target, params as never) as Promise<Message>;
     },
@@ -683,17 +690,18 @@ describe("HostA2AExecutor.cancelTask — dispatch non-cancelable", () => {
     await executor.cancelTask("dispatch-task-1", bus.eventBus);
 
     expect(bus.finished).toBe(true);
-    const statusUpdate = bus.published.find(
-      (e) => (e as { kind?: string }).kind === "status-update",
-    ) as
+    const wrapper = bus.published.find((e) => (e as { kind?: string }).kind === "statusUpdate") as
       | {
-          metadata?: { "agents-js.cancelable"?: boolean };
-          status: { message?: { parts: { kind: string; text?: string }[] } };
+          data?: {
+            metadata?: { "agents-js.cancelable"?: boolean };
+            status?: { message?: Message };
+          };
         }
       | undefined;
+    const statusUpdate = wrapper?.data;
     expect(statusUpdate).toBeDefined();
     expect(statusUpdate?.metadata?.["agents-js.cancelable"]).toBe(false);
-    const text = statusUpdate?.status.message?.parts.find((p) => p.kind === "text")?.text;
+    const text = partText(statusUpdate?.status?.message?.parts?.[0]);
     expect(text).toContain("Cancel rejected");
     expect(text).toContain("@@dispatch");
     expect(text).toContain("non-cancelable");
@@ -1051,7 +1059,7 @@ describe("@@dispatch", () => {
 describe("@@dispatch streaming-by-default (AJS-92)", () => {
   function createInstrumentedDispatchTransport(opts: {
     supportsStreaming: boolean;
-    streamItems?: Task[];
+    streamItems?: TaskStreamPayload[];
     streamYieldDelayMs?: number;
     messageResponseText?: string;
   }) {
@@ -1064,13 +1072,18 @@ describe("@@dispatch streaming-by-default (AJS-92)", () => {
           card: {
             name: "mock-agent",
             description: "mock",
-            url: input.url,
+            supportedInterfaces: [
+              { url: input.url, protocolBinding: "JSONRPC", tenant: "", protocolVersion: "1" },
+            ],
             version: "1.0.0",
-            protocolVersion: "0.3.0",
             skills: [],
             defaultInputModes: ["text"],
             defaultOutputModes: ["text"],
-            capabilities: opts.supportsStreaming ? { streaming: true } : {},
+            capabilities: { extensions: [], streaming: opts.supportsStreaming },
+            provider: undefined,
+            securitySchemes: {},
+            securityRequirements: [],
+            signatures: [],
           },
           protocolVersion: "0.3.0",
           capabilities: {
@@ -1080,7 +1093,7 @@ describe("@@dispatch streaming-by-default (AJS-92)", () => {
             supportsTextOutput: true,
             supportsStreaming: opts.supportsStreaming,
             supportsPushNotifications: false,
-            raw: opts.supportsStreaming ? { streaming: true } : {},
+            raw: { extensions: [], streaming: opts.supportsStreaming },
           },
         };
         return target;
@@ -1091,11 +1104,15 @@ describe("@@dispatch streaming-by-default (AJS-92)", () => {
       async sendMessage(): Promise<Message> {
         calls.push("sendMessage");
         return {
-          kind: "message",
           messageId: crypto.randomUUID(),
-          role: "agent",
-          parts: [{ kind: "text", text: opts.messageResponseText ?? "non-streaming" }],
-        } as Message;
+          role: Role.ROLE_AGENT,
+          parts: [textPart(opts.messageResponseText ?? "non-streaming")],
+          taskId: "",
+          contextId: "",
+          metadata: undefined,
+          extensions: [],
+          referenceTaskIds: [],
+        } satisfies Message;
       },
       async *sendMessageStream() {
         calls.push("sendMessageStream");
@@ -1138,30 +1155,38 @@ describe("@@dispatch streaming-by-default (AJS-92)", () => {
     return { transport, calls };
   }
 
-  function streamingTaskItems(text: string): Task[] {
+  function streamingTaskItems(text: string): TaskStreamPayload[] {
+    const working: Task = {
+      id: "task-1",
+      contextId: "ctx-1",
+      status: { state: TaskState.TASK_STATE_WORKING, message: undefined, timestamp: undefined },
+      artifacts: [],
+      history: [],
+      metadata: undefined,
+    };
+    const completed: Task = {
+      id: "task-1",
+      contextId: "ctx-1",
+      status: { state: TaskState.TASK_STATE_COMPLETED, message: undefined, timestamp: undefined },
+      artifacts: [],
+      history: [
+        {
+          messageId: "msg-1",
+          role: Role.ROLE_AGENT,
+          parts: [textPart(text)],
+          taskId: "",
+          contextId: "",
+          metadata: undefined,
+          extensions: [],
+          referenceTaskIds: [],
+        },
+      ],
+      metadata: undefined,
+    };
     return [
-      {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "working" },
-        history: [],
-      },
-      {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "completed" },
-        history: [
-          {
-            kind: "message",
-            messageId: "msg-1",
-            role: "agent",
-            parts: [{ kind: "text", text }],
-          },
-        ],
-      },
-    ] as Task[];
+      { $case: "task", value: working },
+      { $case: "task", value: completed },
+    ];
   }
 
   test("uses streaming dispatch when the target advertises streaming", async () => {

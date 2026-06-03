@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import {
   normalizeAgentTargetInput,
   normalizeHeaders,
   originCardFallback,
   summarizeCapabilities,
 } from "../src/index.ts";
+import { makeAgentCard } from "./mock-a2a-transport.ts";
 
 describe("a2a-client target helpers", () => {
   test("normalizes a base URL input", () => {
@@ -87,20 +87,15 @@ describe("a2a-client target helpers", () => {
   });
 
   test("summarizes capabilities from an agent card", () => {
-    const summary = summarizeCapabilities({
-      name: "agent",
-      description: "desc",
-      url: "http://127.0.0.1:55363",
-      version: "1.0.0",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      skills: [],
-      defaultInputModes: ["text"],
-      defaultOutputModes: ["text/plain"],
-      capabilities: {
-        streaming: true,
-        pushNotifications: false,
-      },
-    });
+    const summary = summarizeCapabilities(
+      makeAgentCard({
+        name: "agent",
+        description: "desc",
+        defaultInputModes: ["text"],
+        defaultOutputModes: ["text/plain"],
+        capabilities: { streaming: true, pushNotifications: false },
+      }),
+    );
 
     expect(summary.supportsTextInput).toBe(true);
     expect(summary.supportsTextOutput).toBe(true);

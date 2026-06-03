@@ -82,23 +82,31 @@ export class AGUITransport {
   async resolveTarget(input: AgentTargetInput): Promise<ResolvedAgentTarget> {
     const normalized = normalizeAgentTargetInput({ ...input, mode: "base" });
     const baseUrl = normalized.baseUrl;
+    const protocolVersion = "agui/0.0.52";
+    // AG-UI has no agent card; synthesize a proto-canonical (A2A 1.0)
+    // AgentCard so downstream consumers get a uniform shape.
     const card = {
       name: "agui-agent",
       description: "AG-UI native agent (no agent card).",
-      url: baseUrl,
+      supportedInterfaces: [
+        { url: baseUrl, protocolBinding: "JSONRPC", tenant: "", protocolVersion },
+      ],
+      provider: undefined,
       version: "0.0.0",
-      protocolVersion: "agui/0.0.52",
-      skills: [],
+      capabilities: { streaming: true, extensions: [] },
+      securitySchemes: {},
+      securityRequirements: [],
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
-      capabilities: { streaming: true } as Record<string, unknown>,
-    };
+      skills: [],
+      signatures: [],
+    } as unknown as ResolvedAgentTarget["card"];
     return {
       baseUrl,
       cardUrl: `${baseUrl}${RUN_PATH}`,
-      card: card as ResolvedAgentTarget["card"],
-      protocolVersion: card.protocolVersion,
-      capabilities: summarizeCapabilities(card as ResolvedAgentTarget["card"]),
+      card,
+      protocolVersion,
+      capabilities: summarizeCapabilities(card),
     };
   }
 

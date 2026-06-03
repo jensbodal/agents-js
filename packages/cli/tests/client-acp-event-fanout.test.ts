@@ -90,7 +90,7 @@ describe("CLI client ACP event fan-out — end-to-end", () => {
       const gatewayCard = buildAgentCard({
         name: "acp-event-fanout-gateway",
         description: "Layer 3 ACP event fan-out test gateway",
-        capabilities: { "text-to-text": {} },
+        capabilities: { "text-to-text": {}, extensions: [] },
       });
       const serverWrapper = new UniversalA2AServer(new ACPtoA2AExecutor(acp.stream), gatewayCard);
       server = await serverWrapper.start(0);

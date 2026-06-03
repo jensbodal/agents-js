@@ -175,8 +175,11 @@ export async function createBridgeServer(
           blocking: true,
         });
 
+        // A2A 1.0 dropped the `kind` discriminator from the proto model.
+        // `A2ASendResult` is `Message | Task`; a `Message` carries
+        // `messageId`/`role`, a `Task` carries `status`/`artifacts`.
         const text =
-          result.kind === "message" ? extractMessageText(result) : extractLatestAgentText(result);
+          "messageId" in result ? extractMessageText(result) : extractLatestAgentText(result);
 
         return {
           content: [{ type: "text" as const, text: text || "(no response)" }],

@@ -149,14 +149,14 @@ async function sendMessage(url: string, text: string): Promise<Record<string, un
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
-      method: "message/send",
+      method: "SendMessage",
       params: {
-        configuration: { blocking: true },
+        tenant: "",
+        configuration: { returnImmediately: false },
         message: {
-          kind: "message",
           messageId: "m1",
-          role: "user",
-          parts: [{ kind: "text", text }],
+          role: "ROLE_USER",
+          parts: [{ text }],
         },
       },
     }),
@@ -181,9 +181,12 @@ describe("native Pi peer mode", () => {
 
     const cardResponse = await fetch(`${url}/.well-known/agent-card.json`);
     expect(cardResponse.status).toBe(200);
-    const card = (await cardResponse.json()) as { name?: string; url?: string };
+    const card = (await cardResponse.json()) as {
+      name?: string;
+      supportedInterfaces?: Array<{ url?: string }>;
+    };
     expect(card.name).toBe("pi-a");
-    expect(card.url).toBe(url);
+    expect(card.supportedInterfaces?.[0]?.url).toBe(url);
 
     const body = await sendMessage(url, "hello from a2a");
     expect(pi.userMessages).toEqual(["hello from a2a"]);
@@ -204,7 +207,7 @@ describe("native Pi peer mode", () => {
 
     const body = await sendMessage(url, "run this");
 
-    expect(JSON.stringify(body)).toContain("failed");
+    expect(JSON.stringify(body)).toContain("TASK_STATE_FAILED");
     expect(JSON.stringify(body)).toContain("No API key found for test");
   });
 
@@ -265,14 +268,14 @@ describe("native Pi peer mode", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "message/send",
+        method: "SendMessage",
         params: {
-          configuration: { blocking: true },
+          tenant: "",
+          configuration: { returnImmediately: false },
           message: {
-            kind: "message",
             messageId: "m-first",
-            role: "user",
-            parts: [{ kind: "text", text: "first" }],
+            role: "ROLE_USER",
+            parts: [{ text: "first" }],
           },
         },
       }),
@@ -332,23 +335,23 @@ describe("native Pi peer mode", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "message/send",
+        method: "SendMessage",
         params: {
-          configuration: { blocking: false },
+          tenant: "",
+          configuration: { returnImmediately: true },
           message: {
-            kind: "message",
             messageId: "m1",
-            role: "user",
-            parts: [{ kind: "text", text: "hang please" }],
+            role: "ROLE_USER",
+            parts: [{ text: "hang please" }],
           },
         },
       }),
     });
     expect(sendRes.status).toBe(200);
     const sendBody = (await sendRes.json()) as {
-      result?: { id?: string; kind?: string };
+      result?: { task?: { id?: string } };
     };
-    const taskId = sendBody.result?.id;
+    const taskId = sendBody.result?.task?.id;
     expect(taskId).toBeTruthy();
 
     const cancelRes = await fetch(url, {
@@ -357,7 +360,7 @@ describe("native Pi peer mode", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 2,
-        method: "tasks/cancel",
+        method: "CancelTask",
         params: { id: taskId },
       }),
     });
@@ -365,7 +368,7 @@ describe("native Pi peer mode", () => {
     const cancelBody = (await cancelRes.json()) as {
       result?: { status?: { state?: string } };
     };
-    expect(cancelBody.result?.status?.state).toBe("canceled");
+    expect(cancelBody.result?.status?.state).toBe("TASK_STATE_CANCELED");
 
     // Confirm the peer accepts a new turn (proves inflight cleared and
     // agentActive was reset).
@@ -387,14 +390,14 @@ describe("native Pi peer mode", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "message/send",
+        method: "SendMessage",
         params: {
-          configuration: { blocking: true },
+          tenant: "",
+          configuration: { returnImmediately: false },
           message: {
-            kind: "message",
             messageId: "m1",
-            role: "user",
-            parts: [{ kind: "text", text: huge }],
+            role: "ROLE_USER",
+            parts: [{ text: huge }],
           },
         },
       }),

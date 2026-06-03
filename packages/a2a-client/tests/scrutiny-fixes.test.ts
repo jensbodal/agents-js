@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Role, TaskState } from "@a2a-js/sdk";
 import type { A2AEvent, A2AToolCallArgsEvent } from "../src/index.ts";
 import {
   A2AClientProvider,
@@ -6,6 +7,15 @@ import {
   createInitialSessionState,
   reduceA2ASessionState,
 } from "../src/index.ts";
+import { makeMessage, makeTextPart, statusEvent } from "./mock-a2a-transport.ts";
+
+/** Terminal stream payload carrying the final agent reply (A2A 1.0). */
+const TERMINAL_DONE = statusEvent({
+  taskId: "task-1",
+  contextId: "ctx-1",
+  state: TaskState.TASK_STATE_COMPLETED,
+  message: makeMessage({ messageId: "m1", role: Role.ROLE_AGENT, parts: [makeTextPart("done")] }),
+});
 
 describe("Fix 1: JSON Patch getValue enforces key existence", () => {
   test("copy rejects invalid source path with descriptive error", () => {
@@ -190,22 +200,8 @@ describe("Fix 5: Provider emits reasoning and tool_call.args events from stream"
       { type: "reasoning.start" },
       { type: "reasoning.message.content", text: "thinking..." },
       { type: "reasoning.end" },
-      // Terminal task to end the stream
-      {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: {
-          state: "completed",
-          message: {
-            role: "agent",
-            parts: [{ kind: "text", text: "done" }],
-            kind: "message",
-            messageId: "m1",
-          },
-        },
-        history: [],
-      },
+      // Terminal status-update ends the stream (A2A 1.0 — no terminal Task).
+      TERMINAL_DONE,
     ];
 
     const transport = createMockTransport(streamEvents);
@@ -242,22 +238,8 @@ describe("Fix 5: Provider emits reasoning and tool_call.args events from stream"
     const streamEvents = [
       { type: "tool_call.args", toolCallId: "tc-1", argsChunk: '{"query":' },
       { type: "tool_call.args", toolCallId: "tc-1", argsChunk: ' "weather"}' },
-      // Terminal task to end the stream
-      {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: {
-          state: "completed",
-          message: {
-            role: "agent",
-            parts: [{ kind: "text", text: "done" }],
-            kind: "message",
-            messageId: "m1",
-          },
-        },
-        history: [],
-      },
+      // Terminal status-update ends the stream (A2A 1.0 — no terminal Task).
+      TERMINAL_DONE,
     ];
 
     const transport = createMockTransport(streamEvents);

@@ -1,8 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import type { Message, Task, TaskStatusUpdateEvent } from "@a2a-js/sdk";
+import { Role, TaskState } from "@a2a-js/sdk";
 import { A2AClientProvider } from "../src/index.ts";
 import type { A2AEvent, A2AMessageDeltaEvent } from "../src/types.ts";
-import { createStreamingMockTransport, type StreamItem } from "./mock-a2a-transport.ts";
+import {
+  createStreamingMockTransport,
+  makeMessage,
+  makeTextPart,
+  type StreamItem,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 /**
  * Reasoning and message tracking regressions:
@@ -16,21 +23,19 @@ import { createStreamingMockTransport, type StreamItem } from "./mock-a2a-transp
  * messages previously cross-contaminated each other's delta computation.
  */
 
-function terminalTask(taskId: string, contextId: string, finalText: string): Task {
-  return {
-    kind: "task",
+function terminalTask(taskId: string, contextId: string, finalText: string): StreamItem {
+  return taskEvent({
     id: taskId,
     contextId,
-    status: { state: "completed" },
+    state: TaskState.TASK_STATE_COMPLETED,
     history: [
-      {
-        kind: "message",
+      makeMessage({
         messageId: `msg-${taskId}-final`,
-        role: "agent",
-        parts: [{ kind: "text", text: finalText }],
-      },
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart(finalText)],
+      }),
     ],
-  };
+  });
 }
 
 function statusUpdate(
@@ -39,23 +44,17 @@ function statusUpdate(
   messageId: string | undefined,
   text: string,
   final = false,
-): TaskStatusUpdateEvent {
-  const message: Message = {
-    kind: "message",
-    role: "agent",
-    ...(messageId !== undefined && { messageId }),
-    parts: [{ kind: "text", text }],
-  } as Message;
-  return {
-    kind: "status-update",
+): StreamItem {
+  return statusEvent({
     taskId,
     contextId,
-    final,
-    status: {
-      state: final ? "completed" : "working",
-      message,
-    },
-  };
+    state: final ? TaskState.TASK_STATE_COMPLETED : TaskState.TASK_STATE_WORKING,
+    message: makeMessage({
+      role: Role.ROLE_AGENT,
+      ...(messageId !== undefined ? { messageId } : {}),
+      parts: [makeTextPart(text)],
+    }),
+  });
 }
 
 async function runStream(streamResults: StreamItem[]): Promise<A2AEvent[]> {
@@ -123,11 +122,15 @@ describe("A3 — reasoning.start/end get enriched with current agent messageId",
   });
 });
 
-describe("B3 — anonymous messages do not cross-contaminate delta computation", () => {
-  test("two successive anonymous messages each emit their full text as the delta", async () => {
+describe("B3 — distinct messages do not cross-contaminate delta computation", () => {
+  test("two messages with distinct ids each emit their full text as the delta", async () => {
+    // A2A 1.0 messages always carry a messageId (the proto field is a required
+    // string), so the prior "anonymous message" path no longer exists. The
+    // invariant that survives: two messages with DISTINCT ids each get their own
+    // delta bucket — the second is not prefix-subtracted against the first.
     const events = await runStream([
-      statusUpdate("task-1", "ctx-1", undefined, "Hello"),
-      statusUpdate("task-1", "ctx-1", undefined, "World"),
+      statusUpdate("task-1", "ctx-1", "msg-A", "Hello"),
+      statusUpdate("task-1", "ctx-1", "msg-B", "World"),
       terminalTask("task-1", "ctx-1", "World"),
     ]);
 
@@ -137,14 +140,11 @@ describe("B3 — anonymous messages do not cross-contaminate delta computation",
     const first = deltas[0];
     const second = deltas[1];
 
-    // Both anonymous: each carries its own text verbatim, not the prefix-subtracted delta
-    // from a shared bucket (which would have emitted "" for the second update since
-    // "World" does not start with "Hello").
-    expect(first?.messageId).toBeUndefined();
+    expect(first?.messageId).toBe("msg-A");
     expect(first?.text).toBe("Hello");
     expect(first?.delta).toBe("Hello");
 
-    expect(second?.messageId).toBeUndefined();
+    expect(second?.messageId).toBe("msg-B");
     expect(second?.text).toBe("World");
     expect(second?.delta).toBe("World");
   });

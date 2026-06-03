@@ -4,13 +4,8 @@ import {
   type ExtendedAgentCardProvider,
   InMemoryTaskStore,
   JsonRpcTransportHandler,
+  ServerCallContext,
 } from "@a2a-js/sdk/server";
-import {
-  validateA2AMessageSendResponseResult,
-  validateA2ARequest,
-  validateA2AResponse,
-} from "@agents-js/validation/a2a";
-import { ValidationError } from "@agents-js/validation/errors";
 import { type GatewayAgentCard, mapCapabilities } from "./discovery.ts";
 import { HTTP_STATUS } from "./http-status.ts";
 import { type A2ALogger, createConsoleLogger } from "./logger.ts";
@@ -137,15 +132,6 @@ function isAsyncGeneratorResponse(input: unknown): input is AsyncGenerator<unkno
     Symbol.asyncIterator in input &&
     typeof (input as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function"
   );
-}
-
-function hasResultWithoutError(input: unknown): input is { result: unknown; error?: undefined } {
-  if (typeof input !== "object" || input === null) {
-    return false;
-  }
-
-  const response = input as { result?: unknown; error?: unknown };
-  return response.result !== undefined && response.error === undefined;
 }
 
 function isJsonRpcResponseEnvelope(
@@ -329,30 +315,16 @@ export class UniversalA2AServer {
           const requestId = extractRequestId(body);
 
           try {
-            validateA2ARequest(body);
-          } catch (error) {
-            if (error instanceof ValidationError) {
-              const code = error.jsonRpcCode ?? -32600;
-              const message = code === -32602 ? "Invalid params" : "Invalid Request";
-              return applyCors(
-                new Response(
-                  JSON.stringify(
-                    makeJsonRpcErrorResponse(requestId, code, message, {
-                      issues: error.issues,
-                    }),
-                  ),
-                  {
-                    status: JSONRPC_HTTP_STATUS,
-                    headers: JSON_HEADERS,
-                  },
-                ),
-              );
-            }
-            throw error;
-          }
-
-          try {
-            const result = await handler.handle(body);
+            // A2A 1.0: the SDK's transport handler validates the JSON-RPC
+            // envelope and returns a JSON-RPC error response for malformed
+            // input (unknown/missing method, bad params). We lean on that
+            // rather than re-deriving A2A schemas here; the gateway is
+            // internal-only, so the SDK's envelope gate plus proto decode
+            // is the trust boundary.
+            const result = await handler.handle(
+              body as Record<string, unknown>,
+              new ServerCallContext({}),
+            );
 
             if (isAsyncGeneratorResponse(result)) {
               const stream = new ReadableStream({
@@ -368,7 +340,6 @@ export class UniversalA2AServer {
                             id: requestId,
                             result: event,
                           };
-                      validateA2AResponse(payload);
                       controller.enqueue(encoder.encode(formatSseEvent(payload)));
                     }
                   } catch (streamError) {
@@ -396,39 +367,12 @@ export class UniversalA2AServer {
               );
             }
 
-            validateA2AResponse(result);
-
-            if (
-              typeof body === "object" &&
-              body !== null &&
-              (body as { method?: unknown }).method === "message/send" &&
-              hasResultWithoutError(result)
-            ) {
-              validateA2AMessageSendResponseResult(result.result);
-            }
-
             return applyCors(
               new Response(JSON.stringify(result), {
                 headers: JSON_HEADERS,
               }),
             );
           } catch (error) {
-            if (error instanceof ValidationError) {
-              return applyCors(
-                new Response(
-                  JSON.stringify(
-                    makeJsonRpcErrorResponse(requestId, -32603, "Internal error", {
-                      issues: error.issues,
-                    }),
-                  ),
-                  {
-                    status: JSONRPC_HTTP_STATUS,
-                    headers: JSON_HEADERS,
-                  },
-                ),
-              );
-            }
-
             logger.error("Error processing request", { error: String(error) });
             return applyCors(
               new Response(
@@ -463,10 +407,17 @@ export class UniversalA2AServer {
   }
 
   private finalizeDefaultUrl(port: number | undefined, hostname?: string): void {
-    if (port === undefined || this.agentCard.url !== DEFAULT_GATEWAY_CARD_URL) {
+    if (port === undefined) {
       return;
     }
-
-    this.agentCard.url = buildAgentCardBaseUrl(port, hostname);
+    // A2A 1.0 moved the bind URL into `supportedInterfaces[].url`. Replace the
+    // placeholder interface (built by `discovery.ts` with DEFAULT_GATEWAY_CARD_URL)
+    // with the actually-bound authority once Bun has allocated the port.
+    const iface = this.agentCard.supportedInterfaces.find(
+      (entry) => entry.url === DEFAULT_GATEWAY_CARD_URL,
+    );
+    if (iface) {
+      iface.url = buildAgentCardBaseUrl(port, hostname);
+    }
   }
 }

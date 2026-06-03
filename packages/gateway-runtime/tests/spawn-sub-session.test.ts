@@ -37,7 +37,7 @@ function makeRuntime(): ResolvedGatewayRuntime {
     agentCard: {
       name: "universal-acp-gateway",
       description: "test",
-      capabilities: { "text-to-text": {} },
+      capabilities: { "text-to-text": {}, extensions: [] },
     },
   };
 }

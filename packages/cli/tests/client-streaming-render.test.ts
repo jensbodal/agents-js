@@ -56,7 +56,7 @@ describe("CLI client streaming render — end-to-end", () => {
     const gatewayCard = buildAgentCard({
       name: "streaming-render-gateway",
       description: "Layer 3 streaming render test gateway",
-      capabilities: { "text-to-text": {} },
+      capabilities: { "text-to-text": {}, extensions: [] },
     });
     const serverWrapper = new UniversalA2AServer(new ACPtoA2AExecutor(acp.stream), gatewayCard);
     const server = await serverWrapper.start(0);

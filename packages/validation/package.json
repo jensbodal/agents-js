@@ -112,7 +112,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "@a2a-js/sdk": "^0.3.13",
+    "@a2a-js/sdk": "1.0.0-alpha.0",
     "@agentclientprotocol/sdk": "^0.24.0",
     "zod": "^3"
   },

@@ -33,7 +33,7 @@ bun add @agents-js/a2a-client
 - **`buildA2ADelegationFramingText`** — Build the framing prompt that wraps a remote agent's response so the receiving LLM recognizes it as "the answer from ``" rather than ambient context. Without this framing, Claude tends to ignore an...
 - **`buildAcpElicitationResponseMetadata`**
 - **`buildSyncPayload`** — Produce the wire payload this gateway would serve at its sync endpoint. Three filters apply, in order: 1. `source !== "sync"` — loop prevention on the send side; we never re-serve records we receiv...
-- **`collectTextParts`**
+- **`collectTextParts`** — Recursively collect `text` from ACP-shaped content (`{ type: "text", text }` or `{ kind: "text", text }`). Used by the mention middleware to flatten ACP `ContentBlock[]` prompt content — this walks...
 - **`createA2AMentionMiddleware`**
 - **`createDebugFetch`**
 - **`createInitialSessionState`**
@@ -50,7 +50,7 @@ bun add @agents-js/a2a-client
 - **`fetchPeerRecords`** — GET the peer gateway's sync endpoint and return the records it serves. Throws {PeerSyncError} on network failure, non-2xx, or malformed payload.
 - **`groupDiscoveredTargets`** — Group/dedupe a raw list of discovered targets by `name`, picking a canonical `preferred` entry per group under the configured policy. The function is pure and opt-in — passing no `options` (or `{}`...
 - **`isRegistryRecordExpired`** — Predicate: is this record expired at the given instant? A record is expired iff `expires_at` is present AND parseable AND `parseISO(expires_at) <= now`. Records with no `expires_at` are NEVER expir...
-- **`isTerminalTaskState`**
+- **`isTerminalTaskState`** — Wire-boundary predicate: is this proto {TaskState} terminal? Terminal states close the SSE stream and clear the resumable task. Callers pass the raw proto enum from `task.status.state` / `update.st...
 - **`mergeRecords`** — Pure-function merge surface — exported for white-box tests of the matrix.
 - **`normalizeAgentTargetInput`**
 - **`normalizeHeaders`**
@@ -68,6 +68,7 @@ bun add @agents-js/a2a-client
 - **`stripMention`** — Removes a previously-parsed mention from the source text. Returns the text with the mention's `fullMatch` removed at the correct position. Trailing whitespace immediately after the mention is colla...
 - **`summarizeCapabilities`**
 - **`syncFromPeer`** — Pull-sync from a single peer. Fetches the peer's sync endpoint, drops self-originated records, merges the rest into the local registry, and writes the result to disk. Returns a {SyncSummary} descri...
+- **`taskStateToVocabulary`** — Translate the proto {TaskState} enum into the protocol-neutral hyphenated vocabulary that {A2ASessionState.taskState} and the session view-model speak (`"input-required"`, `"completed"`, ...). This...
 - **`truncateText`**
 
 ### Interfaces
@@ -183,7 +184,9 @@ bun add @agents-js/a2a-client
 - **`A2AEvent`**
 - **`A2AEventListener`**
 - **`A2ASendResult`**
+- **`A2AStreamElement`** — The full element type yielded by transport stream generators.
 - **`A2AStreamEvent`** — AG-UI event types that may appear in SSE streams alongside standard A2A events.
+- **`A2AStreamPayload`** — Unwrapped A2A stream payload — the `{ $case, value }` envelope the SDK's `StreamResponse.payload` carries, minus the `undefined` arm. The transport peels the `StreamResponse` wrapper at the wire ed...
 - **`ACPA2AElicitationContentValue`**
 - **`AgentActorType`** — Who or what is behind an agent. Governance classifier; distinct from transport `kind`.
 - **`AgentEntry`** — A single entry from the registry config file (discriminated on `kind`).

@@ -1,16 +1,17 @@
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type SubscribeToTaskRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
 import type { BaseEvent, RunAgentInput } from "@agents-js/agui-types";
 import { EventType } from "@agents-js/agui-types";
@@ -20,7 +21,9 @@ import type {
   A2ARunFinishedEvent,
   A2ARunStartedEvent,
   A2ASendResult,
+  A2AStreamElement,
   A2AStreamEvent,
+  A2AStreamPayload,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
@@ -80,12 +83,12 @@ export class AguiToA2ATransportAdapter implements A2ATransport {
    */
   async sendMessage(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<A2ASendResult> {
     let terminal: Task | undefined;
     for await (const event of this.sendMessageStream(target, params)) {
-      if (isTask(event)) {
-        terminal = event;
+      if (isTaskPayload(event)) {
+        terminal = event.value;
       }
     }
     if (!terminal) {
@@ -99,10 +102,8 @@ export class AguiToA2ATransportAdapter implements A2ATransport {
 
   sendMessageStream(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     const inner = this.inner;
     const run = inner.runAgent(target, buildRunAgentInput(params));
     return (async function* () {
@@ -116,38 +117,38 @@ export class AguiToA2ATransportAdapter implements A2ATransport {
           yield mapped;
         }
         if (event.type === EventType.RUN_STARTED && !initialTaskEmitted) {
-          yield synthesizeInitialTask(threadId, runId);
+          yield wrapTask(synthesizeInitialTask(threadId, runId));
           initialTaskEmitted = true;
         } else if (event.type === EventType.RUN_FINISHED) {
-          yield synthesizeTerminalTask(threadId, runId, "completed");
+          yield wrapTask(synthesizeTerminalTask(threadId, runId, TaskState.TASK_STATE_COMPLETED));
         } else if (event.type === EventType.RUN_ERROR) {
-          yield synthesizeTerminalTask(
-            threadId,
-            runId,
-            "failed",
-            typeof (event as { message?: unknown }).message === "string"
-              ? (event as { message?: string }).message
-              : undefined,
+          yield wrapTask(
+            synthesizeTerminalTask(
+              threadId,
+              runId,
+              TaskState.TASK_STATE_FAILED,
+              typeof (event as { message?: unknown }).message === "string"
+                ? (event as { message?: string }).message
+                : undefined,
+            ),
           );
         }
       }
     })();
   }
 
-  async getTask(_target: ResolvedAgentTarget, _params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, _params: GetTaskRequest): Promise<Task> {
     throw new AGUIUnsupportedOperationError("getTask");
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, _params: TaskIdParams): Promise<Task> {
+  async cancelTask(_target: ResolvedAgentTarget, _params: CancelTaskRequest): Promise<Task> {
     throw new AGUIUnsupportedOperationError("cancelTask");
   }
 
   resubscribeTask(
     _target: ResolvedAgentTarget,
-    _params: TaskIdParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    _params: SubscribeToTaskRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     return (async function* () {
       throw new AGUIUnsupportedOperationError("resubscribeTask");
       // Unreachable, but required to satisfy the generator return type.
@@ -165,21 +166,21 @@ export class AguiToA2ATransportAdapter implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new AGUIUnsupportedOperationError("getTaskPushNotificationConfig");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new AGUIUnsupportedOperationError("listTaskPushNotificationConfigs");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new AGUIUnsupportedOperationError("deleteTaskPushNotificationConfig");
   }
@@ -190,25 +191,28 @@ export class AguiToA2ATransportAdapter implements A2ATransport {
   }
 }
 
-function isTask(value: unknown): value is Task {
-  return (
-    typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === "task"
-  );
+/** Wrap a synthesized Task in the A2A 1.0 stream payload envelope. */
+function wrapTask(value: Task): A2AStreamPayload {
+  return { $case: "task", value };
 }
 
-function buildRunAgentInput(params: MessageSendParams): RunAgentInput {
-  const threadId =
-    typeof params.message.contextId === "string" && params.message.contextId.length > 0
-      ? params.message.contextId
-      : randomUuid();
+function isTaskPayload(
+  event: A2AStreamElement,
+): event is Extract<A2AStreamPayload, { $case: "task" }> {
+  return "$case" in event && event.$case === "task";
+}
+
+function buildRunAgentInput(params: SendMessageRequest): RunAgentInput {
+  const message = params.message;
+  const threadId = message && message.contextId.length > 0 ? message.contextId : randomUuid();
   const runId = randomUuid();
-  const content = extractMessageText(params.message);
+  const content = message ? extractMessageText(message) : "";
   return {
     threadId,
     runId,
     messages: [
       {
-        id: params.message.messageId ?? randomUuid(),
+        id: message?.messageId ?? randomUuid(),
         role: "user",
         content,
       },
@@ -222,45 +226,55 @@ function buildRunAgentInput(params: MessageSendParams): RunAgentInput {
 
 function synthesizeInitialTask(threadId: string, runId: string): Task {
   return {
-    kind: "task",
     id: runId,
     contextId: threadId,
     status: {
-      state: "working",
+      state: TaskState.TASK_STATE_WORKING,
       timestamp: new Date().toISOString(),
+      message: undefined,
     },
     history: [],
     artifacts: [],
+    metadata: undefined,
   };
 }
 
 function synthesizeTerminalTask(
   threadId: string,
   runId: string,
-  state: "completed" | "failed",
+  state: TaskState,
   errorMessage?: string,
 ): Task {
   const message: Message | undefined = errorMessage
     ? {
-        kind: "message",
         messageId: randomUuid(),
-        role: "agent",
-        parts: [{ kind: "text", text: errorMessage }],
+        role: Role.ROLE_AGENT,
+        parts: [
+          {
+            content: { $case: "text", value: errorMessage },
+            metadata: undefined,
+            filename: "",
+            mediaType: "text/plain",
+          },
+        ],
         contextId: threadId,
         taskId: runId,
+        metadata: undefined,
+        extensions: [],
+        referenceTaskIds: [],
       }
     : undefined;
   return {
-    kind: "task",
     id: runId,
     contextId: threadId,
     status: {
       state,
       timestamp: new Date().toISOString(),
-      ...(message ? { message } : {}),
+      message,
     },
     history: [],
     artifacts: [],
+    metadata: undefined,
   };
 }
 

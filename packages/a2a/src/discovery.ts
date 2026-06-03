@@ -82,7 +82,7 @@ interface HarnessRemoteOrigin {
   };
 }
 
-export type GatewayAgentCapabilities = AgentCard["capabilities"] & {
+export type GatewayAgentCapabilities = NonNullable<AgentCard["capabilities"]> & {
   "text-to-text"?: Record<string, unknown>;
   harnesses?: HarnessCapabilityEntry[];
   multimodal?: boolean;
@@ -106,13 +106,26 @@ export type GatewayCardInput = Omit<
 
 export function buildAgentCard(input: GatewayCardInput): GatewayAgentCard {
   return {
-    url: DEFAULT_GATEWAY_CARD_URL,
+    // A2A 1.0: transport is declared via `supportedInterfaces`. The
+    // placeholder URL is replaced with the actually-bound authority once the
+    // server allocates a port (see `UniversalA2AServer.finalizeDefaultUrl`).
+    supportedInterfaces: [
+      {
+        url: DEFAULT_GATEWAY_CARD_URL,
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: DEFAULT_GATEWAY_CARD_VERSION,
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    skills: [],
+    capabilities: { extensions: [] },
+    securitySchemes: {},
+    securityRequirements: [],
     defaultInputModes: [...DEFAULT_GATEWAY_INPUT_MODES],
     defaultOutputModes: [...DEFAULT_GATEWAY_OUTPUT_MODES],
-    capabilities: {},
+    skills: [],
+    signatures: [],
     ...input,
   };
 }

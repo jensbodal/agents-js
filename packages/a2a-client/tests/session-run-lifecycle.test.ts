@@ -1,19 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
-import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import { A2AClientProvider } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/session.ts";
 import type {
@@ -21,13 +20,20 @@ import type {
   A2ARunErrorEvent,
   A2ARunFinishedEvent,
   A2ARunStartedEvent,
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
   ResolvedAgentTarget,
   TargetInspection,
 } from "../src/types.ts";
+import {
+  createMockTarget,
+  makeMessage,
+  makeTask,
+  makeTextPart,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 class MockTransport implements A2ATransport {
   inspectResult: TargetInspection = { status: "ready" };
@@ -35,9 +41,7 @@ class MockTransport implements A2ATransport {
   constructor(
     private readonly sendResult: Message | Task,
     private readonly taskResults: Task[] = [],
-    private readonly streamResults: Array<
-      Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-    > = [],
+    private readonly streamResults: A2AStreamElement[] = [],
   ) {}
 
   subscribeDebug(listener: (record: DebugRecord) => void): () => void {
@@ -45,31 +49,7 @@ class MockTransport implements A2ATransport {
   }
 
   async resolveTarget(_input: AgentTargetInput): Promise<ResolvedAgentTarget> {
-    return {
-      baseUrl: "http://127.0.0.1:55363",
-      cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      card: {
-        name: "mock",
-        description: "mock",
-        url: "http://127.0.0.1:55363",
-        version: "1.0.0",
-        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-        skills: [],
-        defaultInputModes: ["text"],
-        defaultOutputModes: ["text"],
-        capabilities: {},
-      },
-      capabilities: {
-        inputModes: ["text"],
-        outputModes: ["text"],
-        supportsTextInput: true,
-        supportsTextOutput: true,
-        supportsStreaming: false,
-        supportsPushNotifications: false,
-        raw: {},
-      },
-    };
+    return createMockTarget("http://127.0.0.1:55363");
   }
 
   async inspectTarget(_input: AgentTargetInput): Promise<TargetInspection> {
@@ -78,20 +58,18 @@ class MockTransport implements A2ATransport {
 
   async sendMessage(
     _target: ResolvedAgentTarget,
-    _params: MessageSendParams,
+    _params: SendMessageRequest,
   ): Promise<Message | Task> {
     return this.sendResult;
   }
 
-  async *sendMessageStream(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+  async *sendMessageStream(): AsyncGenerator<A2AStreamElement> {
     for (const event of this.streamResults) {
       yield event;
     }
   }
 
-  async getTask(_target: ResolvedAgentTarget, _params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, _params: GetTaskRequest): Promise<Task> {
     const next = this.taskResults.shift();
     if (!next) {
       throw new Error("no task available");
@@ -99,13 +77,11 @@ class MockTransport implements A2ATransport {
     return next;
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, _params: TaskIdParams): Promise<Task> {
+  async cancelTask(_target: ResolvedAgentTarget, _params: CancelTaskRequest): Promise<Task> {
     throw new Error("not implemented");
   }
 
-  async *resubscribeTask(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {
     // noop
   }
 
@@ -118,21 +94,21 @@ class MockTransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not implemented");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not implemented");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {}
 
   async getExtendedAgentCard(_target: ResolvedAgentTarget): Promise<AgentCard> {
@@ -146,12 +122,13 @@ class MockTransport implements A2ATransport {
 
 class ErrorTransport extends MockTransport {
   constructor(private readonly sendError: Error) {
-    super({
-      kind: "message",
-      messageId: "msg-unused",
-      role: "agent",
-      parts: [{ kind: "text", text: "unused" }],
-    });
+    super(
+      makeMessage({
+        messageId: "msg-unused",
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("unused")],
+      }),
+    );
   }
 
   override async sendMessage(): Promise<Message | Task> {
@@ -324,13 +301,14 @@ describe("run lifecycle events — reducer pass-through", () => {
 describe("provider emits run lifecycle alongside legacy events", () => {
   test("sendTurn emits run.started alongside turn.started with matching ids", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-1",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-1",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -357,12 +335,13 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 
   test("run.started is emitted after turn.started in the same turn", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -382,13 +361,14 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 
   test("sendTurn emits run.finished alongside message.completed", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-1",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-1",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -413,13 +393,14 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 
   test("run.started and run.finished share the same runId/threadId in a single turn", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-shared",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-shared",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -444,13 +425,14 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 
   test("threadId derives from options.contextId when provided", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-provided",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-provided",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -470,12 +452,13 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 
   test("input on run.started carries the user text", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -540,36 +523,32 @@ describe("provider emits run lifecycle alongside legacy events", () => {
   test("streaming path emits run.started and run.finished", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
+        makeTask({
           id: "task-terminal",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
+            makeMessage({
               messageId: "msg-stream-1",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done")],
+            }),
           ],
-        },
+        }),
         [],
         [
-          {
-            kind: "task",
+          taskEvent({
             id: "task-terminal",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-stream-2",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -598,24 +577,22 @@ describe("provider emits run lifecycle alongside legacy events", () => {
 });
 
 describe("resumeTurn emits run lifecycle", () => {
-  const resumableTask: Task = {
-    kind: "task",
+  const resumableTask: Task = makeTask({
     id: "task-to-resume",
     contextId: "ctx-resume",
-    status: { state: "completed" },
+    state: TaskState.TASK_STATE_COMPLETED,
     history: [
-      {
-        kind: "message",
+      makeMessage({
         messageId: "msg-resume-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "resumed" }],
-      },
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("resumed")],
+      }),
     ],
-  };
+  });
 
   test("resumeTurn (polling path) emits run.started and run.finished with matching ids", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({ kind: "message", messageId: "unused", role: "agent", parts: [] }, [
+      new MockTransport(makeMessage({ messageId: "unused", role: Role.ROLE_AGENT, parts: [] }), [
         resumableTask,
       ]),
     );
@@ -642,7 +619,7 @@ describe("resumeTurn emits run lifecycle", () => {
 
   test("resumeTurn threadId derives from options.contextId when provided", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({ kind: "message", messageId: "unused", role: "agent", parts: [] }, [
+      new MockTransport(makeMessage({ messageId: "unused", role: Role.ROLE_AGENT, parts: [] }), [
         resumableTask,
       ]),
     );
@@ -663,7 +640,7 @@ describe("resumeTurn emits run lifecycle", () => {
   test("resumeTurn emits run.error when transport throws", async () => {
     class ThrowingTransport extends MockTransport {
       constructor() {
-        super({ kind: "message", messageId: "unused", role: "agent", parts: [] });
+        super(makeMessage({ messageId: "unused", role: Role.ROLE_AGENT, parts: [] }));
       }
       override async getTask(): Promise<Task> {
         throw new Error("resume boom");

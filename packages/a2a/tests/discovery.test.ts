@@ -9,6 +9,11 @@ import {
   mapCapabilities,
 } from "../src/index.ts";
 
+/** A2A 1.0 moved the bind URL into `supportedInterfaces[].url`. */
+function cardUrl(card: GatewayAgentCard): string | undefined {
+  return card.supportedInterfaces[0]?.url;
+}
+
 function createAgentCard() {
   return buildAgentCard({ name: "test", description: "Gateway test card" });
 }
@@ -19,26 +24,33 @@ test("buildAgentCard: fills required defaults for minimal input", () => {
     description: "Gateway test agent",
   });
 
-  expect(card.url).toBe("http://127.0.0.1");
+  expect(cardUrl(card)).toBe("http://127.0.0.1");
+  expect(card.supportedInterfaces[0]?.protocolVersion).toBe(CURRENT_A2A_PROTOCOL_VERSION);
   expect(card.version).toBe("1.0.0");
-  expect(card.protocolVersion).toBe(CURRENT_A2A_PROTOCOL_VERSION);
   expect(card.skills).toEqual([]);
   expect(card.defaultInputModes).toEqual(["text"]);
   expect(card.defaultOutputModes).toEqual(["text"]);
-  expect(card.capabilities).toEqual({});
+  expect(card.capabilities).toEqual({ extensions: [] });
 });
 
 test("buildAgentCard: preserves caller overrides", () => {
   const card = buildAgentCard({
     name: "gateway",
     description: "Gateway test agent",
-    url: "https://example.com/agent-card.json",
+    supportedInterfaces: [
+      {
+        url: "https://example.com/agent-card.json",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
     version: "2.0.0",
     defaultInputModes: ["application/json"],
-    capabilities: { "text-to-text": { enabled: true } },
+    capabilities: { extensions: [], "text-to-text": { enabled: true } },
   });
 
-  expect(card.url).toBe("https://example.com/agent-card.json");
+  expect(cardUrl(card)).toBe("https://example.com/agent-card.json");
   expect(card.version).toBe("2.0.0");
   expect(card.defaultInputModes).toEqual(["application/json"]);
   expect(card.capabilities["text-to-text"]).toEqual({ enabled: true });
@@ -79,7 +91,6 @@ test("buildAgentCard: omits harnesses capability unless explicitly added", () =>
     description: "Gateway test agent",
   });
 
-  expect(card.capabilities).toEqual({});
   expect("harnesses" in card.capabilities).toBe(false);
   expect(card.capabilities.harnesses).toBeUndefined();
 });

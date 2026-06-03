@@ -1,9 +1,9 @@
-import type {
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskStatusUpdateEvent,
+import {
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskStatusUpdateEvent,
 } from "@a2a-js/sdk";
 // Import the wire-kinds discriminator via the subpath export so the
 // browser bundle (apps/web-ui) doesn't drag in the executor + acp-host
@@ -22,6 +22,7 @@ import type {
   A2AEventListener,
   A2ASendResult,
   A2AStreamClosedEvent,
+  A2AStreamElement,
   A2AStreamEvent,
   A2ATransport,
   ACPA2AElicitationResponse,
@@ -76,33 +77,57 @@ function abortReason(signal?: AbortSignal): string | undefined {
   return undefined;
 }
 
-function createMessageSendParams(text: string, options: SendTurnOptions = {}): MessageSendParams {
+/**
+ * Build a proto-canonical {@link SendMessageRequest} (A2A 1.0). The wire scaffold
+ * — Role enum, `content.$case` parts, required `tenant`/`contextId`/`taskId`/
+ * `extensions`/`referenceTaskIds`, and the `blocking → returnImmediately`
+ * inversion — is contained here at the wire edge. Client-side `SendTurnOptions`
+ * stay in plain terms (`blocking`, `acceptedOutputModes`).
+ */
+function createMessageSendParams(text: string, options: SendTurnOptions = {}): SendMessageRequest {
+  const hasOutputModes = !!options.acceptedOutputModes && options.acceptedOutputModes.length > 0;
+  // `returnImmediately` is the inverse of the public `blocking` flag (default
+  // false = wait for a terminal/interrupted state). Omit the whole
+  // configuration when neither output modes nor blocking is specified.
+  const configuration: SendMessageRequest["configuration"] =
+    hasOutputModes || options.blocking !== undefined
+      ? {
+          acceptedOutputModes: hasOutputModes ? [...(options.acceptedOutputModes ?? [])] : [],
+          taskPushNotificationConfig: undefined,
+          returnImmediately: options.blocking === undefined ? false : !options.blocking,
+        }
+      : undefined;
+
   return {
-    configuration:
-      options.acceptedOutputModes && options.acceptedOutputModes.length > 0
-        ? {
-            acceptedOutputModes: [...options.acceptedOutputModes],
-            ...(options.blocking === undefined ? {} : { blocking: options.blocking }),
-          }
-        : options.blocking === undefined
-          ? undefined
-          : { blocking: options.blocking },
+    tenant: "",
+    configuration,
+    metadata: options.metadata,
     message: {
-      kind: "message",
       messageId: randomUuid(),
-      role: "user",
-      parts: [{ kind: "text", text }],
-      ...(options.contextId ? { contextId: options.contextId } : {}),
-      ...(options.taskId ? { taskId: options.taskId } : {}),
-      ...(options.metadata ? { metadata: options.metadata } : {}),
+      role: Role.ROLE_USER,
+      parts: [
+        {
+          content: { $case: "text", value: text },
+          metadata: undefined,
+          filename: "",
+          mediaType: "text/plain",
+        },
+      ],
+      contextId: options.contextId ?? "",
+      taskId: options.taskId ?? "",
+      metadata: options.metadata,
+      extensions: [],
+      referenceTaskIds: [],
     },
   };
 }
 
-function isMessageResult(
-  result: Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent,
-): result is Message {
-  return result.kind === "message";
+/**
+ * Discriminate the non-streaming {@link A2ASendResult} (bare `Message | Task`,
+ * NO `$case` wrapper). Tasks carry `id`; messages carry `messageId`.
+ */
+function isMessageResult(result: A2ASendResult): result is Message {
+  return "messageId" in result;
 }
 
 function createIgnoredTaskIdRecord(taskId: string): A2AEvent {
@@ -119,22 +144,6 @@ function createIgnoredTaskIdRecord(taskId: string): A2AEvent {
       body: `[a2a-client] Ignoring taskId "${taskId}" from direct message result; continuing with contextId only.`,
     },
   };
-}
-
-function isTaskStatusUpdateEvent(input: unknown): input is TaskStatusUpdateEvent {
-  return (
-    typeof input === "object" &&
-    input !== null &&
-    (input as { kind?: unknown }).kind === "status-update"
-  );
-}
-
-function isTaskArtifactUpdateEvent(input: unknown): input is TaskArtifactUpdateEvent {
-  return (
-    typeof input === "object" &&
-    input !== null &&
-    (input as { kind?: unknown }).kind === "artifact-update"
-  );
 }
 
 /** AG-UI event type strings that may appear in SSE streams. */
@@ -185,7 +194,7 @@ interface IdleTimerHandle {
  * a `Task` directly rather than re-checking the wider event union.
  */
 function isTerminalEvent(event: Task): boolean {
-  return isTerminalTaskState(event.status.state);
+  return isTerminalTaskState(event.status?.state);
 }
 
 /**
@@ -314,8 +323,11 @@ export class A2AClientProvider {
    * path. Returns `true` if the event was handled.
    */
   private fanOutAgentEventMetadata(event: TaskStatusUpdateEvent): boolean {
-    if (!isAgentEventMetadata(event.metadata)) return false;
-    const md = event.metadata;
+    // Metadata is `{ [key: string]: any } | undefined` on the proto type; cast
+    // away `any` so the discriminated-union guard narrows (TS won't narrow `any`).
+    const metadata = event.metadata as Record<string, unknown> | undefined;
+    if (!isAgentEventMetadata(metadata)) return false;
+    const md = metadata;
 
     switch (md.kind) {
       case "thought": {
@@ -605,7 +617,7 @@ export class A2AClientProvider {
       if (streaming) {
         const streamResult = await this.handleStreamingResult(
           target,
-          this.transport.resubscribeTask(target, { id: taskId }),
+          this.transport.resubscribeTask(target, { tenant: "", id: taskId }),
           {
             signal: options.signal,
             contextId: options.contextId,
@@ -621,6 +633,7 @@ export class A2AClientProvider {
         result = streamResult;
       } else {
         const task = await this.transport.getTask(target, {
+          tenant: "",
           id: taskId,
           historyLength: options.historyLength ?? DEFAULT_HISTORY_LENGTH,
         });
@@ -663,7 +676,11 @@ export class A2AClientProvider {
    */
   async cancelTask(target: ResolvedAgentTarget, taskId: string): Promise<Task> {
     try {
-      const task = await this.transport.cancelTask(target, { id: taskId });
+      const task = await this.transport.cancelTask(target, {
+        tenant: "",
+        id: taskId,
+        metadata: undefined,
+      });
       this.emit({ type: "task.updated", task });
       return task;
     } catch (error) {
@@ -753,7 +770,7 @@ export class A2AClientProvider {
     }
 
     if (options.poll === false) {
-      if (isTerminalTaskState(currentTask.status.state) && lastText) {
+      if (isTerminalTaskState(currentTask.status?.state) && lastText) {
         this.emit({
           type: "message.completed",
           text: lastText,
@@ -768,7 +785,7 @@ export class A2AClientProvider {
     const timeoutMs = options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
 
-    while (!isTerminalTaskState(currentTask.status.state)) {
+    while (!isTerminalTaskState(currentTask.status?.state)) {
       if (options.signal?.aborted) {
         this.emit({
           type: "abort.stream",
@@ -780,7 +797,7 @@ export class A2AClientProvider {
       }
       if (Date.now() >= deadline) {
         const error = new Error(
-          `[a2a-client] Polling timed out after ${timeoutMs}ms. Task "${currentTask.id}" is still in state "${currentTask.status.state}".`,
+          `[a2a-client] Polling timed out after ${timeoutMs}ms. Task "${currentTask.id}" is still in state "${currentTask.status?.state}".`,
         );
         this.emit({ type: "error", error: error.message, cause: error });
         throw error;
@@ -800,6 +817,7 @@ export class A2AClientProvider {
         throw error;
       }
       currentTask = await this.transport.getTask(target, {
+        tenant: "",
         id: currentTask.id,
         historyLength: options.historyLength ?? DEFAULT_HISTORY_LENGTH,
       });
@@ -834,9 +852,7 @@ export class A2AClientProvider {
 
   private async handleStreamingResult(
     target: ResolvedAgentTarget,
-    stream: AsyncGenerator<
-      Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-    >,
+    stream: AsyncGenerator<A2AStreamElement>,
     abortContext?: {
       signal?: AbortSignal;
       contextId?: string;
@@ -950,72 +966,112 @@ export class A2AClientProvider {
           continue;
         }
 
-        if (isMessageResult(event)) {
-          terminalMessage = event;
-          latestTaskId = event.taskId ?? latestTaskId;
-          if (event.messageId !== undefined) {
-            currentAgentMessageId = event.messageId;
+        // Remaining elements are unwrapped A2A stream payloads — discriminate
+        // on the proto `$case` tag (wire edge; proto stays contained here).
+        if (event.$case === "message") {
+          const message = event.value;
+          terminalMessage = message;
+          latestTaskId = message.taskId || latestTaskId;
+          if (message.messageId) {
+            currentAgentMessageId = message.messageId;
           }
-          const messageText = extractMessageText(event);
+          const messageText = extractMessageText(message);
           if (messageText && messageText !== lastText) {
             lastText = messageText;
-            const delta = computeDelta(event.messageId, messageText);
+            const delta = computeDelta(message.messageId, messageText);
             this.emit({
               type: "message.delta",
               text: messageText,
               delta,
-              messageId: event.messageId,
-              message: event,
-              contextId: event.contextId,
-              taskId: event.taskId,
+              messageId: message.messageId,
+              message,
+              contextId: message.contextId,
+              taskId: message.taskId,
             });
           }
           continue;
         }
 
-        if (isTaskStatusUpdateEvent(event)) {
-          latestTaskId = event.taskId;
-          if (event.status.message?.messageId !== undefined) {
-            currentAgentMessageId = event.status.message.messageId;
+        if (event.$case === "statusUpdate") {
+          const update = event.value;
+          latestTaskId = update.taskId;
+          if (update.status?.message?.messageId) {
+            currentAgentMessageId = update.status.message.messageId;
           }
-          this.emit({ type: "task.status.updated", update: event });
+          this.emit({ type: "task.status.updated", update });
 
           // Agent-event metadata fan-out: when the executor publishes a
           // TaskStatusUpdateEvent with `metadata.kind` (see
           // @agents-js/a2a/wire-kinds), translate to typed client events.
           // Skips the text-delta path below — these events carry no
           // cumulative agent text in the status message.
-          if (this.fanOutAgentEventMetadata(event)) {
+          if (this.fanOutAgentEventMetadata(update)) {
             continue;
           }
 
-          const nextText = extractMessageText(event.status.message);
+          // A2A 1.0 terminates a turn with a TERMINAL TaskStatusUpdateEvent
+          // (state COMPLETED/FAILED/CANCELED/REJECTED carrying the final agent
+          // reply in `status.message`) — there is no terminal Task event. Commit
+          // the agent transcript entry here, synthesizing the returned Task from
+          // the update so the streaming function still resolves to a Task.
+          // INPUT_REQUIRED/AUTH_REQUIRED are NOT terminal and fall through to
+          // the delta path (firing message.completed there would clear
+          // resumableTaskId and break the elicitation/auth resume path).
+          if (isTerminalTaskState(update.status?.state)) {
+            const finalText = extractMessageText(update.status?.message) || lastText;
+            const synthesized: Task = {
+              id: update.taskId,
+              contextId: update.contextId,
+              status: update.status,
+              artifacts: [],
+              history: update.status?.message ? [update.status.message] : [],
+              metadata: update.metadata,
+            };
+            currentTask = synthesized;
+            if (finalText) {
+              lastText = finalText;
+              emittedCompletedMessage = true;
+              this.emit({
+                type: "message.completed",
+                text: finalText,
+                task: synthesized,
+                contextId: update.contextId,
+                taskId: update.taskId,
+              });
+            }
+            continue;
+          }
+
+          const nextText = extractMessageText(update.status?.message);
           if (nextText && nextText !== lastText) {
             lastText = nextText;
-            const delta = computeDelta(event.status.message?.messageId, nextText);
+            const delta = computeDelta(update.status?.message?.messageId, nextText);
             this.emit({
               type: "message.delta",
               text: nextText,
               delta,
-              messageId: event.status.message?.messageId,
-              message: event.status.message,
-              contextId: event.contextId,
-              taskId: event.taskId,
+              messageId: update.status?.message?.messageId,
+              message: update.status?.message,
+              contextId: update.contextId,
+              taskId: update.taskId,
             });
           }
           continue;
         }
 
-        if (isTaskArtifactUpdateEvent(event)) {
-          latestTaskId = event.taskId;
-          this.emit({ type: "task.artifact.updated", update: event });
+        if (event.$case === "artifactUpdate") {
+          const update = event.value;
+          latestTaskId = update.taskId;
+          this.emit({ type: "task.artifact.updated", update });
           continue;
         }
 
-        currentTask = event;
-        latestTaskId = event.id;
-        this.emit({ type: "task.updated", task: event });
-        const completedText = extractLatestAgentText(event);
+        // event.$case === "task"
+        const task = event.value;
+        currentTask = task;
+        latestTaskId = task.id;
+        this.emit({ type: "task.updated", task });
+        const completedText = extractLatestAgentText(task);
         // Only fire `message.completed` when the task itself has reached a
         // terminal state (see `isTerminalEvent`). For non-terminal states
         // like `input-required` or `auth-required`, the agent's text is the
@@ -1023,15 +1079,15 @@ export class A2AClientProvider {
         // message.completed early causes the session reducer to clear
         // `resumableTaskId`, breaking the resume path that
         // respondToElicitation/respondToAuthRequired depend on.
-        if (completedText && isTerminalEvent(event)) {
+        if (completedText && isTerminalEvent(task)) {
           lastText = completedText;
           emittedCompletedMessage = true;
           this.emit({
             type: "message.completed",
             text: completedText,
-            task: event,
-            contextId: event.contextId,
-            taskId: event.id,
+            task,
+            contextId: task.contextId,
+            taskId: task.id,
           });
         } else if (completedText) {
           // Capture the text so any later terminal event can still emit a
@@ -1042,6 +1098,7 @@ export class A2AClientProvider {
 
       if (!currentTask && latestTaskId) {
         currentTask = await this.transport.getTask(target, {
+          tenant: "",
           id: latestTaskId,
           historyLength: DEFAULT_HISTORY_LENGTH,
         });
@@ -1075,7 +1132,7 @@ export class A2AClientProvider {
       // message arc and must preserve `resumableTaskId` for the resume path.
       if (
         finalText &&
-        isTerminalTaskState(currentTask.status.state) &&
+        isTerminalTaskState(currentTask.status?.state) &&
         (!emittedCompletedMessage || finalText !== lastText)
       ) {
         emittedCompletedMessage = true;
@@ -1089,7 +1146,7 @@ export class A2AClientProvider {
       }
 
       closeStreamLifecycle(
-        isTerminalTaskState(currentTask.status.state) ? "completed" : "exhausted",
+        isTerminalTaskState(currentTask.status?.state) ? "completed" : "exhausted",
       );
       return currentTask;
     } catch (error) {

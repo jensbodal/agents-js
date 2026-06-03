@@ -1,10 +1,4 @@
-export {
-  a2aValidationSchemas,
-  validateA2AMessageSendResponseResult,
-  validateA2ARequest,
-  validateA2AResponse,
-  validateAgentCard,
-} from "./a2a.ts";
+export { validateAgentCard } from "./a2a.ts";
 export {
   ACP_AUTH_REQUIRED_METADATA_KEY,
   ACP_ELICITATION_METADATA_KEY,

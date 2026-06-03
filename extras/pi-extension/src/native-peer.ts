@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { hostname as osHostname } from "node:os";
-import type { AgentCard, Message } from "@a2a-js/sdk";
+import { type AgentCard, TaskState } from "@a2a-js/sdk";
 import {
+  AgentEvent,
   DefaultRequestHandler,
   InMemoryTaskStore,
   JsonRpcTransportHandler,
+  ServerCallContext,
 } from "@a2a-js/sdk/server";
 import {
   buildAgentCard,
@@ -22,8 +24,8 @@ import {
 import {
   A2AClientProvider,
   type A2AEvent,
+  extractA2AResponseText,
   extractLatestAgentText,
-  extractMessageText,
   parseAgentMentions,
   parseDispatchDirective,
   stripMention,
@@ -90,13 +92,6 @@ interface PendingPiTurn {
   reject(error: Error): void;
   resolve(text: string): void;
   textBuffer: string;
-}
-
-interface JsonRpcEnvelope {
-  id?: null | number | string;
-  jsonrpc?: string;
-  method?: string;
-  params?: unknown;
 }
 
 function isObject(input: unknown): input is Record<string, unknown> {
@@ -315,13 +310,6 @@ function consumePromptMark(map: Map<string, number>, prompt: string): boolean {
   return true;
 }
 
-function normalizeUserMessage(message: Message): Message {
-  return {
-    ...message,
-    kind: "message",
-  };
-}
-
 function isAsyncGeneratorResponse(input: unknown): input is AsyncGenerator<unknown> {
   return (
     typeof input === "object" &&
@@ -442,7 +430,10 @@ async function startNativeA2AServer(options: {
 
     const requestId = extractRequestId(body);
     try {
-      const result = await transportHandler.handle(body as JsonRpcEnvelope);
+      const result = await transportHandler.handle(
+        body as Record<string, unknown>,
+        new ServerCallContext({}),
+      );
       if (isAsyncGeneratorResponse(result)) {
         await writeSse(res, result);
         return;
@@ -466,7 +457,11 @@ async function startNativeA2AServer(options: {
   const address = server.address();
   const actualPort = isObject(address) && typeof address.port === "number" ? address.port : port;
   const url = buildAgentCardBaseUrl(actualPort, host);
-  options.card.url = url;
+  // A2A 1.0 moved the bind URL into `supportedInterfaces[].url`.
+  const iface = options.card.supportedInterfaces[0];
+  if (iface) {
+    iface.url = url;
+  }
 
   return {
     port: actualPort,
@@ -662,21 +657,30 @@ class NativePiExecutor implements InitializableExecutor {
   }
 
   async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
-    const userMessage = normalizeUserMessage(context.userMessage);
-    eventBus.publish({
-      kind: "task",
-      id: context.taskId,
-      contextId: context.contextId,
-      status: { state: "submitted", timestamp: nowIso() },
-      history: [userMessage],
-    });
+    const userMessage = context.userMessage;
+    eventBus.publish(
+      AgentEvent.task({
+        id: context.taskId,
+        contextId: context.contextId,
+        status: {
+          state: TaskState.TASK_STATE_SUBMITTED,
+          timestamp: nowIso(),
+          message: undefined,
+        },
+        artifacts: [],
+        history: [userMessage],
+        metadata: undefined,
+      }),
+    );
 
     if (this.turnRunner.isBusy()) {
       eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, userMessage, {
-          state: "failed",
-          text: "Native Pi session is busy; retry after the current turn finishes.",
-        }),
+        AgentEvent.task(
+          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+            state: TaskState.TASK_STATE_FAILED,
+            text: "Native Pi session is busy; retry after the current turn finishes.",
+          }),
+        ),
       );
       eventBus.finished();
       return;
@@ -686,27 +690,36 @@ class NativePiExecutor implements InitializableExecutor {
     this.inflight.set(context.taskId, { contextId: context.contextId, controller });
 
     eventBus.publish(
-      buildStatusUpdate(context.taskId, context.contextId, {
-        state: "working",
-        final: false,
-      }),
+      AgentEvent.statusUpdate(
+        buildStatusUpdate(context.taskId, context.contextId, {
+          state: TaskState.TASK_STATE_WORKING,
+        }),
+      ),
     );
 
     try {
       const prompt = getMessageText(userMessage);
       const responseText = await this.turnRunner.runPrompt(prompt, controller.signal);
       eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, userMessage, {
-          state: controller.signal.aborted ? "canceled" : "completed",
-          text: responseText || "(no response)",
-        }),
+        AgentEvent.task(
+          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+            state: controller.signal.aborted
+              ? TaskState.TASK_STATE_CANCELED
+              : TaskState.TASK_STATE_COMPLETED,
+            text: responseText || "(no response)",
+          }),
+        ),
       );
     } catch (error) {
       eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, userMessage, {
-          state: controller.signal.aborted ? "canceled" : "failed",
-          text: formatError(error),
-        }),
+        AgentEvent.task(
+          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+            state: controller.signal.aborted
+              ? TaskState.TASK_STATE_CANCELED
+              : TaskState.TASK_STATE_FAILED,
+            text: formatError(error),
+          }),
+        ),
       );
     } finally {
       this.inflight.delete(context.taskId);
@@ -719,11 +732,12 @@ class NativePiExecutor implements InitializableExecutor {
     if (entry) {
       entry.controller.abort();
       eventBus.publish(
-        buildStatusUpdate(taskId, entry.contextId, {
-          state: "canceled",
-          final: true,
-          text: "Native Pi task canceled.",
-        }),
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(taskId, entry.contextId, {
+            state: TaskState.TASK_STATE_CANCELED,
+            text: "Native Pi task canceled.",
+          }),
+        ),
       );
       eventBus.finished();
       return;
@@ -732,11 +746,12 @@ class NativePiExecutor implements InitializableExecutor {
     // terminal canceled signal anyway so the SDK's post-cancel store check
     // passes; the SDK ignores the contextId here.
     eventBus.publish(
-      buildStatusUpdate(taskId, crypto.randomUUID(), {
-        state: "canceled",
-        final: true,
-        text: "Native Pi task cancellation requested (no in-flight turn).",
-      }),
+      AgentEvent.statusUpdate(
+        buildStatusUpdate(taskId, crypto.randomUUID(), {
+          state: TaskState.TASK_STATE_CANCELED,
+          text: "Native Pi task cancellation requested (no in-flight turn).",
+        }),
+      ),
     );
     eventBus.finished();
   }
@@ -778,8 +793,10 @@ class NativeDispatchClient {
         stream: canStream,
         blocking: !canStream,
       });
-      const finalText =
-        result.kind === "message" ? extractMessageText(result) : extractLatestAgentText(result);
+      // A2A 1.0 dropped the `kind` discriminator from Message; the
+      // a2a-client helper distinguishes Message (`messageId`) from Task
+      // (`id`) at the wire boundary and extracts the reply text.
+      const finalText = extractA2AResponseText(result);
       return finalText || latestText || "(no response)";
     } finally {
       unsubscribe();
@@ -824,6 +841,7 @@ export function installNativePeerBridge(
     capabilities: {
       "text-to-text": {},
       streaming: false,
+      extensions: [],
     },
   });
 

@@ -42,16 +42,17 @@ async function main(): Promise<void> {
     }
     console.log("[gateway-smoke] Agent card: ok");
 
-    // 2. Send an A2A message/send JSON-RPC request
+    // 2. Send an A2A 1.0 SendMessage JSON-RPC request (proto-canonical wire:
+    //    proto RPC method name, `ROLE_USER` enum, parts as `{ text }`).
     const rpcBody = {
       jsonrpc: "2.0",
       id: 1,
-      method: "message/send",
+      method: "SendMessage",
       params: {
         message: {
-          role: "user",
+          role: "ROLE_USER",
           messageId: "smoke-001",
-          parts: [{ kind: "text", text: "Hello from gateway smoke" }],
+          parts: [{ text: "Hello from gateway smoke" }],
         },
       },
     };
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
         `[gateway-smoke] Expected response to contain "Mock ACP Agent", got: ${resultStr}`,
       );
     }
-    console.log("[gateway-smoke] message/send: ok");
+    console.log("[gateway-smoke] SendMessage: ok");
 
     console.log("[gateway-smoke] All checks passed.");
   } finally {

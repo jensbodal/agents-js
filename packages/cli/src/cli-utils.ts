@@ -53,3 +53,19 @@ export function parsePort(raw: string): number {
 export function normalizeHost(host: string | undefined): string {
   return host?.trim() ? host.trim() : "127.0.0.1";
 }
+
+/**
+ * Terminal task-state values in the protocol-neutral vocabulary that
+ * {@link import("@agents-js/a2a-client").A2ASessionState}.`taskState`
+ * speaks (hyphenated strings — see `taskStateToVocabulary`). The CLI
+ * stays on the vocabulary side of the proto boundary: A2A 1.0's
+ * `isTerminalTaskState` operates on the proto `TaskState` enum, so the
+ * non-interactive `send`/one-shot flows test terminality against this
+ * set instead of pushing the proto enum up into client-side logic.
+ */
+const TERMINAL_TASK_VOCABULARY = new Set(["completed", "failed", "canceled", "rejected"]);
+
+/** True when a session-vocabulary `taskState` is terminal. */
+export function isTerminalTaskVocabulary(taskState: string | undefined): boolean {
+  return taskState !== undefined && TERMINAL_TASK_VOCABULARY.has(taskState);
+}

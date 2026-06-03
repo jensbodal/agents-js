@@ -1,30 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
-import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import { A2AClientProvider, ACP_A2A_ELICITATION_METADATA_KEY } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/session.ts";
 import type {
   A2AEvent,
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
   ResolvedAgentTarget,
   TargetInspection,
 } from "../src/types.ts";
+import {
+  createMockTarget,
+  makeMessage,
+  makeTask,
+  makeTextPart,
+  messageEvent,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 class MockTransport implements A2ATransport {
   inspectResult: TargetInspection = { status: "ready" };
@@ -32,12 +40,11 @@ class MockTransport implements A2ATransport {
   constructor(
     private readonly sendResult: Message | Task,
     private readonly taskResults: Task[] = [],
-    private readonly streamResults: Array<
-      Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-    > = [],
-    private readonly resubscribeResults: Array<
-      Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-    > = taskResults,
+    private readonly streamResults: A2AStreamElement[] = [],
+    private readonly resubscribeResults: A2AStreamElement[] = taskResults.map((value) => ({
+      $case: "task",
+      value,
+    })),
   ) {}
 
   subscribeDebug(listener: (record: DebugRecord) => void): () => void {
@@ -45,31 +52,7 @@ class MockTransport implements A2ATransport {
   }
 
   async resolveTarget(_input: AgentTargetInput): Promise<ResolvedAgentTarget> {
-    return {
-      baseUrl: "http://127.0.0.1:55363",
-      cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      card: {
-        name: "mock",
-        description: "mock",
-        url: "http://127.0.0.1:55363",
-        version: "1.0.0",
-        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-        skills: [],
-        defaultInputModes: ["text"],
-        defaultOutputModes: ["text"],
-        capabilities: {},
-      },
-      capabilities: {
-        inputModes: ["text"],
-        outputModes: ["text"],
-        supportsTextInput: true,
-        supportsTextOutput: true,
-        supportsStreaming: false,
-        supportsPushNotifications: false,
-        raw: {},
-      },
-    };
+    return createMockTarget("http://127.0.0.1:55363");
   }
 
   async inspectTarget(_input: AgentTargetInput): Promise<TargetInspection> {
@@ -78,23 +61,21 @@ class MockTransport implements A2ATransport {
 
   async sendMessage(
     _target: ResolvedAgentTarget,
-    _params: MessageSendParams,
+    _params: SendMessageRequest,
   ): Promise<Message | Task> {
     return this.sendResult;
   }
 
   async *sendMessageStream(
     _target: ResolvedAgentTarget,
-    _params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    _params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     for (const event of this.streamResults) {
       yield event;
     }
   }
 
-  async getTask(_target: ResolvedAgentTarget, _params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, _params: GetTaskRequest): Promise<Task> {
     const next = this.taskResults.shift();
     if (!next) {
       throw new Error("no task available");
@@ -102,13 +83,11 @@ class MockTransport implements A2ATransport {
     return next;
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, _params: TaskIdParams): Promise<Task> {
+  async cancelTask(_target: ResolvedAgentTarget, _params: CancelTaskRequest): Promise<Task> {
     throw new Error("not implemented");
   }
 
-  async *resubscribeTask(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {
     for (const event of this.resubscribeResults) {
       yield event;
     }
@@ -123,21 +102,21 @@ class MockTransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not implemented");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not implemented");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new Error("not implemented");
   }
@@ -154,14 +133,15 @@ class MockTransport implements A2ATransport {
 describe("A2AClientProvider", () => {
   test("emits a completed message for immediate message/send results", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-1",
-        taskId: "task-ignored",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-1",
+          taskId: "task-ignored",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -186,12 +166,13 @@ describe("A2AClientProvider", () => {
   });
 
   test("returns inspection results without emitting a session error", async () => {
-    const transport = new MockTransport({
-      kind: "message",
-      messageId: "message-1",
-      role: "agent",
-      parts: [{ kind: "text", text: "hello" }],
-    });
+    const transport = new MockTransport(
+      makeMessage({
+        messageId: "message-1",
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("hello")],
+      }),
+    );
     transport.inspectResult = {
       status: "unreachable",
       error: "connect ECONNREFUSED 127.0.0.1:55363",
@@ -211,14 +192,15 @@ describe("A2AClientProvider", () => {
 
   test("ignores taskId from direct message results and emits a debug warning", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "message",
-        messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
-        contextId: "ctx-1",
-        taskId: "task-1",
-      }),
+      new MockTransport(
+        makeMessage({
+          messageId: "message-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello")],
+          contextId: "ctx-1",
+          taskId: "task-1",
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -248,27 +230,20 @@ describe("A2AClientProvider", () => {
   test("polls task results until terminal completion", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
-          id: "task-1",
-          contextId: "ctx-1",
-          status: { state: "working" },
-        },
+        makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
         [
-          {
-            kind: "task",
+          makeTask({
             id: "task-1",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-1",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -287,20 +262,20 @@ describe("A2AClientProvider", () => {
 
   test("emits a completed message for terminal tasks even when polling is disabled", async () => {
     const provider = new A2AClientProvider(
-      new MockTransport({
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "completed" },
-        history: [
-          {
-            kind: "message",
-            messageId: "msg-history-2",
-            role: "agent",
-            parts: [{ kind: "text", text: "done without polling" }],
-          },
-        ],
-      }),
+      new MockTransport(
+        makeTask({
+          id: "task-1",
+          contextId: "ctx-1",
+          state: TaskState.TASK_STATE_COMPLETED,
+          history: [
+            makeMessage({
+              messageId: "msg-history-2",
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done without polling")],
+            }),
+          ],
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -318,51 +293,42 @@ describe("A2AClientProvider", () => {
   test("consumes streamed status updates and final task when streaming is supported", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
+        makeTask({
           id: "task-terminal",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
+            makeMessage({
               messageId: "msg-history-3",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done")],
+            }),
           ],
-        },
+        }),
         [],
         [
-          {
-            kind: "status-update",
+          statusEvent({
             taskId: "task-terminal",
             contextId: "ctx-1",
-            final: false,
-            status: {
-              state: "working",
-              message: {
-                kind: "message",
-                role: "agent",
-                messageId: "msg-1",
-                parts: [{ kind: "text", text: "partial" }],
-              },
-            },
-          },
-          {
-            kind: "task",
+            state: TaskState.TASK_STATE_WORKING,
+            message: makeMessage({
+              messageId: "msg-1",
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("partial")],
+            }),
+          }),
+          taskEvent({
             id: "task-terminal",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-4",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -386,59 +352,49 @@ describe("A2AClientProvider", () => {
   test("treats streamed raw messages as deltas until the final task arrives", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
+        makeTask({
           id: "task-terminal",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
+            makeMessage({
               messageId: "msg-history-5",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done")],
+            }),
           ],
-        },
+        }),
         [],
         [
-          {
-            kind: "status-update",
+          statusEvent({
             taskId: "task-terminal",
             contextId: "ctx-1",
-            final: false,
-            status: {
-              state: "working",
-              message: {
-                kind: "message",
-                role: "agent",
-                messageId: "msg-1",
-                parts: [{ kind: "text", text: "partial" }],
-              },
-            },
-          },
-          {
-            kind: "message",
+            state: TaskState.TASK_STATE_WORKING,
+            message: makeMessage({
+              messageId: "msg-1",
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("partial")],
+            }),
+          }),
+          messageEvent({
             messageId: "msg-1",
-            role: "agent",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("partial and still running")],
             contextId: "ctx-1",
             taskId: "task-terminal",
-            parts: [{ kind: "text", text: "partial and still running" }],
-          },
-          {
-            kind: "task",
+          }),
+          taskEvent({
             id: "task-terminal",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-6",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -471,45 +427,40 @@ describe("A2AClientProvider", () => {
   test("emits a final completion when streaming falls back to getTask after raw message events", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
+        makeTask({
           id: "task-fallback",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
+            makeMessage({
               messageId: "msg-history-7",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done")],
+            }),
           ],
-        },
+        }),
         [
-          {
-            kind: "task",
+          makeTask({
             id: "task-fallback",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-8",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
         [
-          {
-            kind: "message",
+          messageEvent({
             messageId: "msg-fallback",
-            role: "agent",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("done")],
             contextId: "ctx-1",
             taskId: "task-fallback",
-            parts: [{ kind: "text", text: "done" }],
-          },
+          }),
         ],
       ),
     );
@@ -535,22 +486,20 @@ describe("A2AClientProvider", () => {
   test("treats a terminal streamed raw message as a completed result", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "message",
+        makeMessage({
           messageId: "terminal-msg-1",
-          role: "agent",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("final answer")],
           contextId: "ctx-1",
-          parts: [{ kind: "text", text: "final answer" }],
-        },
+        }),
         [],
         [
-          {
-            kind: "message",
+          messageEvent({
             messageId: "terminal-msg-1",
-            role: "agent",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("final answer")],
             contextId: "ctx-1",
-            parts: [{ kind: "text", text: "final answer" }],
-          },
+          }),
         ],
       ),
     );
@@ -565,7 +514,7 @@ describe("A2AClientProvider", () => {
 
     const result = await provider.sendTurn(target, "hi");
 
-    expect(result.kind).toBe("message");
+    expect("messageId" in result).toBe(true);
     expect(events.filter((event) => event.type === "message.completed")).toHaveLength(1);
     expect(events.find((event) => event.type === "message.completed")).toEqual(
       expect.objectContaining({
@@ -576,11 +525,11 @@ describe("A2AClientProvider", () => {
   });
 
   test("respondToElicitation sends continuation metadata without transcript text", async () => {
-    let observedParams: MessageSendParams | undefined;
+    let observedParams: SendMessageRequest | undefined;
     class ResponseTransport extends MockTransport {
       override async sendMessage(
         target: ResolvedAgentTarget,
-        params: MessageSendParams,
+        params: SendMessageRequest,
       ): Promise<Message | Task> {
         observedParams = params;
         return await super.sendMessage(target, params);
@@ -588,20 +537,14 @@ describe("A2AClientProvider", () => {
     }
 
     const provider = new A2AClientProvider(
-      new ResponseTransport({
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "completed" },
-        history: [
-          {
-            kind: "message",
-            messageId: "msg-history-9",
-            role: "agent",
-            parts: [{ kind: "text", text: "done" }],
-          },
-        ],
-      }),
+      new ResponseTransport(
+        makeTask({
+          id: "task-1",
+          contextId: "ctx-1",
+          state: TaskState.TASK_STATE_COMPLETED,
+          history: [makeMessage({ messageId: "msg-history-9", text: "done" })],
+        }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -610,67 +553,45 @@ describe("A2AClientProvider", () => {
       content: { project: "demo" },
     });
 
-    expect((observedParams?.message as { text?: unknown } | undefined)?.text).toBeUndefined();
-    expect(observedParams?.message.parts[0]?.kind).toBe("text");
-    expect((observedParams?.message.parts[0] as { text?: string } | undefined)?.text).toBe("");
-    expect(observedParams?.message.taskId).toBe("task-1");
-    expect(observedParams?.message.contextId).toBe("ctx-1");
-    expect(observedParams?.message.metadata?.[ACP_A2A_ELICITATION_METADATA_KEY]).toBeUndefined();
-    expect(observedParams?.message.metadata).toBeDefined();
+    const part = observedParams?.message?.parts[0];
+    expect(part?.content?.$case).toBe("text");
+    expect(part?.content?.$case === "text" ? part.content.value : null).toBe("");
+    expect(observedParams?.message?.taskId).toBe("task-1");
+    expect(observedParams?.message?.contextId).toBe("ctx-1");
+    expect(observedParams?.message?.metadata?.[ACP_A2A_ELICITATION_METADATA_KEY]).toBeUndefined();
+    expect(observedParams?.message?.metadata).toBeDefined();
   });
 
   test("respondToElicitation resumes through the streaming path when supported", async () => {
     let streamed = false;
-    let observedParams: MessageSendParams | undefined;
+    let observedParams: SendMessageRequest | undefined;
 
     class StreamingResponseTransport extends MockTransport {
       override async *sendMessageStream(
         _target: ResolvedAgentTarget,
-        params: MessageSendParams,
-      ): AsyncGenerator<
-        Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-      > {
+        params: SendMessageRequest,
+      ): AsyncGenerator<A2AStreamElement> {
         streamed = true;
         observedParams = params;
-        yield {
-          kind: "status-update",
+        yield statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          final: false,
-          status: {
-            state: "working",
-            message: {
-              kind: "message",
-              role: "agent",
-              messageId: "msg-1",
-              parts: [{ kind: "text", text: "resuming" }],
-            },
-          },
-        };
-        yield {
-          kind: "task",
+          state: TaskState.TASK_STATE_WORKING,
+          message: makeMessage({ messageId: "msg-1", text: "resuming" }),
+        });
+        yield taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
-          history: [
-            {
-              kind: "message",
-              messageId: "msg-history-10",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
-          ],
-        };
+          state: TaskState.TASK_STATE_COMPLETED,
+          history: [makeMessage({ messageId: "msg-history-10", text: "done" })],
+        });
       }
     }
 
     const provider = new A2AClientProvider(
-      new StreamingResponseTransport({
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "working" },
-      }),
+      new StreamingResponseTransport(
+        makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
+      ),
     );
 
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });
@@ -687,7 +608,7 @@ describe("A2AClientProvider", () => {
     });
 
     expect(streamed).toBe(true);
-    expect(observedParams?.message.taskId).toBe("task-1");
+    expect(observedParams?.message?.taskId).toBe("task-1");
     expect(events).toContain("task.status.updated");
     expect(events).toContain("message.completed");
   });
@@ -695,33 +616,21 @@ describe("A2AClientProvider", () => {
   test("resubscribe streams task events when streaming is supported", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
-          id: "task-1",
-          contextId: "ctx-1",
-          status: { state: "working" },
-        },
+        makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
         [
-          {
-            kind: "task",
+          makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
+          makeTask({
             id: "task-1",
             contextId: "ctx-1",
-            status: { state: "working" },
-          },
-          {
-            kind: "task",
-            id: "task-1",
-            contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-11",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -741,12 +650,11 @@ describe("A2AClientProvider", () => {
   });
 
   test("polling times out and emits error when task stays non-terminal", async () => {
-    const nonTerminalTask: Task = {
-      kind: "task",
+    const nonTerminalTask: Task = makeTask({
       id: "task-stuck",
       contextId: "ctx-stuck",
-      status: { state: "working" },
-    };
+      state: TaskState.TASK_STATE_WORKING,
+    });
 
     class StuckTransport extends MockTransport {
       override async getTask(): Promise<Task> {
@@ -777,27 +685,20 @@ describe("A2AClientProvider", () => {
   test("polling completes normally when task reaches terminal state within timeout", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
-          id: "task-1",
-          contextId: "ctx-1",
-          status: { state: "working" },
-        },
+        makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
         [
-          {
-            kind: "task",
+          makeTask({
             id: "task-1",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-12",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );
@@ -808,53 +709,41 @@ describe("A2AClientProvider", () => {
       pollTimeoutMs: 5000,
     });
 
-    expect(result.kind).toBe("task");
-    if (result.kind === "task") {
-      expect(result.status.state).toBe("completed");
+    expect("id" in result).toBe(true);
+    if ("id" in result) {
+      expect(result.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
     }
   });
 
   test("resubscribe preserves resumable state until the terminal task arrives", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(
-        {
-          kind: "task",
-          id: "task-1",
-          contextId: "ctx-1",
-          status: { state: "working" },
-        },
+        makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
         [],
         [],
         [
-          {
-            kind: "status-update",
+          statusEvent({
             taskId: "task-1",
             contextId: "ctx-1",
-            final: false,
-            status: {
-              state: "working",
-              message: {
-                kind: "message",
-                messageId: "msg-status-1",
-                role: "agent",
-                parts: [{ kind: "text", text: "still running" }],
-              },
-            },
-          },
-          {
-            kind: "task",
+            state: TaskState.TASK_STATE_WORKING,
+            message: makeMessage({
+              messageId: "msg-status-1",
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("still running")],
+            }),
+          }),
+          taskEvent({
             id: "task-1",
             contextId: "ctx-1",
-            status: { state: "completed" },
+            state: TaskState.TASK_STATE_COMPLETED,
             history: [
-              {
-                kind: "message",
+              makeMessage({
                 messageId: "msg-history-13",
-                role: "agent",
-                parts: [{ kind: "text", text: "done" }],
-              },
+                role: Role.ROLE_AGENT,
+                parts: [makeTextPart("done")],
+              }),
             ],
-          },
+          }),
         ],
       ),
     );

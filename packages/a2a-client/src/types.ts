@@ -1,15 +1,17 @@
 import type {
   AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
+  CancelTaskRequest,
+  DeleteTaskPushNotificationConfigRequest,
+  GetTaskPushNotificationConfigRequest,
+  GetTaskRequest,
+  ListTaskPushNotificationConfigsRequest,
   Message,
-  MessageSendParams,
+  SendMessageRequest,
+  StreamResponse,
+  SubscribeToTaskRequest,
   Task,
   TaskArtifactUpdateEvent,
-  TaskIdParams,
   TaskPushNotificationConfig,
-  TaskQueryParams,
   TaskStatusUpdateEvent,
 } from "@a2a-js/sdk";
 // Agent-event payload shapes are taken straight from the ACP SDK so
@@ -91,6 +93,19 @@ export interface TranscriptEntry {
 }
 
 export type A2ASendResult = Message | Task;
+
+/**
+ * Unwrapped A2A stream payload — the `{ $case, value }` envelope the SDK's
+ * `StreamResponse.payload` carries, minus the `undefined` arm. The transport
+ * peels the `StreamResponse` wrapper at the wire edge and yields this tagged
+ * union (plus {@link A2AStreamEvent}) so the provider's stream loop discriminates
+ * on `$case`. Proto stays at the boundary; downstream session/view-model logic
+ * never sees `$case`.
+ */
+export type A2AStreamPayload = NonNullable<StreamResponse["payload"]>;
+
+/** The full element type yielded by transport stream generators. */
+export type A2AStreamElement = A2AStreamPayload | A2AStreamEvent;
 
 /** AG-UI event types that may appear in SSE streams alongside standard A2A events. */
 export type A2AStreamEvent =
@@ -1014,25 +1029,21 @@ export interface A2ATransport {
   /** Inspect a target for reachability without fully resolving it. Returns probe results and card if available. */
   inspectTarget(input: AgentTargetInput): Promise<TargetInspection>;
   /** Send a message to the agent and return the immediate result (message or task). */
-  sendMessage(target: ResolvedAgentTarget, params: MessageSendParams): Promise<A2ASendResult>;
+  sendMessage(target: ResolvedAgentTarget, params: SendMessageRequest): Promise<A2ASendResult>;
   /** Send a message and return a streaming async generator of events (messages, task updates, artifacts, and AG-UI events). */
   sendMessageStream(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  >;
+    params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement>;
   /** Get the current state of a task by ID. */
-  getTask(target: ResolvedAgentTarget, params: TaskQueryParams): Promise<Task>;
+  getTask(target: ResolvedAgentTarget, params: GetTaskRequest): Promise<Task>;
   /** Cancel a running task by ID. */
-  cancelTask(target: ResolvedAgentTarget, params: TaskIdParams): Promise<Task>;
+  cancelTask(target: ResolvedAgentTarget, params: CancelTaskRequest): Promise<Task>;
   /** Resubscribe to a task's event stream (for resumable flows). */
   resubscribeTask(
     target: ResolvedAgentTarget,
-    params: TaskIdParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  >;
+    params: SubscribeToTaskRequest,
+  ): AsyncGenerator<A2AStreamElement>;
   /** Set (create or update) a push notification config for a task. */
   setTaskPushNotificationConfig(
     target: ResolvedAgentTarget,
@@ -1041,17 +1052,17 @@ export interface A2ATransport {
   /** Get a specific push notification config for a task. */
   getTaskPushNotificationConfig(
     target: ResolvedAgentTarget,
-    params: GetTaskPushNotificationConfigParams,
+    params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig>;
   /** List all push notification configs for a task. */
   listTaskPushNotificationConfigs(
     target: ResolvedAgentTarget,
-    params: ListTaskPushNotificationConfigParams,
+    params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]>;
   /** Delete a push notification config for a task. */
   deleteTaskPushNotificationConfig(
     target: ResolvedAgentTarget,
-    params: DeleteTaskPushNotificationConfigParams,
+    params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void>;
   /** Get the extended agent card with authentication and capability details. */
   getExtendedAgentCard(target: ResolvedAgentTarget): Promise<AgentCard>;

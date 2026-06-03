@@ -150,10 +150,22 @@ function makeCard(name: string, description: string): AgentCard {
 
 function makeMessage(text: string): Message {
   return {
-    kind: "message",
     messageId: crypto.randomUUID(),
-    role: "agent",
-    parts: [{ kind: "text", text }],
+    // Role.ROLE_AGENT (proto enum value 2).
+    role: 2,
+    parts: [
+      {
+        content: { $case: "text", value: text },
+        metadata: undefined,
+        filename: "",
+        mediaType: "text/plain",
+      },
+    ],
+    contextId: "",
+    taskId: "",
+    metadata: undefined,
+    extensions: [],
+    referenceTaskIds: [],
   };
 }
 
@@ -283,7 +295,10 @@ describe("DirectClient", () => {
     expect(transport.sentMessages).toHaveLength(1);
     const [firstMsg] = transport.sentMessages;
     if (!firstMsg) throw new Error("expected one sent message");
-    expect(firstMsg.params.message.parts).toEqual([{ kind: "text", text: "hello" }]);
+    const outboundText = firstMsg.params.message.parts
+      .map((part) => (part.content?.$case === "text" ? part.content.value : ""))
+      .join("");
+    expect(outboundText).toBe("hello");
   });
 
   test("callTool() throws for unknown agent name", async () => {

@@ -7,13 +7,22 @@ import { AgentRegistry } from "../src/registry.ts";
 const VALID_AGENT_CARD = {
   name: "knowledge-compiler",
   description: "Compiles knowledge",
-  url: "http://localhost:55363",
+  supportedInterfaces: [
+    {
+      url: "http://localhost:55363",
+      protocolBinding: "JSONRPC",
+      tenant: "",
+      protocolVersion: "0.2.1",
+    },
+  ],
   version: "1.0.0",
-  protocolVersion: "0.2.1",
-  skills: [],
+  capabilities: { extensions: [] },
+  securitySchemes: {},
+  securityRequirements: [],
   defaultInputModes: ["text"],
   defaultOutputModes: ["text"],
-  capabilities: { "text-to-text": {} },
+  skills: [],
+  signatures: [],
 };
 
 function createMockFetch(cardsByUrl: Record<string, unknown> = {}): typeof fetch {
@@ -97,14 +106,16 @@ describe("AgentRegistry", () => {
       await expect(registry.resolve("broken")).rejects.toThrow(/Failed to fetch agent card/);
     });
 
-    test("throws when agent card is invalid", async () => {
+    test("throws when agent card is not a JSON object", async () => {
+      // A2A 1.0: `validateAgentCard` wraps `AgentCard.fromJSON`, which is
+      // lenient (fills proto defaults) for any object — the only hard rejection
+      // is the non-object guard. A malformed object like `{ invalid: true }`
+      // now resolves with defaults; a non-object body still throws.
       const configPath = await writeConfig({
         bad: { url: "http://localhost:55363" },
       });
       const mockFetch = createMockFetch({
-        "http://localhost:55363/.well-known/agent-card.json": {
-          invalid: true,
-        },
+        "http://localhost:55363/.well-known/agent-card.json": ["not-an-object"],
       });
       const registry = new AgentRegistry({
         configPath,

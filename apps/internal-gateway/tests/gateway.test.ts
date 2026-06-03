@@ -64,15 +64,14 @@ describe("A2A JSON-RPC protocol contracts", () => {
       description: "Standardized A2A interface for OpenCode ACP",
       capabilities: {
         "text-to-text": {},
+        extensions: [],
       },
     });
 
     expect(agentCard).toMatchObject({
       name: "universal-acp-gateway",
       description: "Standardized A2A interface for OpenCode ACP",
-      url: "http://127.0.0.1",
       version: "1.0.0",
-      protocolVersion: "0.3.0",
       skills: [],
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
@@ -80,6 +79,7 @@ describe("A2A JSON-RPC protocol contracts", () => {
         "text-to-text": {},
       },
     });
+    expect(agentCard.supportedInterfaces[0]?.url).toBe("http://127.0.0.1");
   });
 });
 
@@ -130,7 +130,7 @@ describe("Gateway runtime selection", () => {
       agentCard: {
         name: "Droid ACP",
         description: "Droid ACP runtime",
-        capabilities: { streaming: true },
+        capabilities: { streaming: true, extensions: [] },
       },
     });
 

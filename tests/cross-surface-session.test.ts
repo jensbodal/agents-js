@@ -13,13 +13,12 @@ const crossSurfaceCard = buildAgentCard({
 });
 
 interface TaskResult {
-  kind: string;
   id: string;
   contextId: string;
   status: {
     state: string;
     message?: {
-      parts: Array<{ kind: string; text: string }>;
+      parts: Array<{ text: string }>;
     };
   };
 }
@@ -27,7 +26,8 @@ interface TaskResult {
 interface JsonRpcResult {
   jsonrpc: string;
   id: number | string;
-  result?: TaskResult;
+  // A2A 1.0 SendMessage returns `{ task }`; GetTask returns a bare Task.
+  result?: { task?: TaskResult } & Partial<TaskResult>;
   error?: { code: number; message: string };
 }
 
@@ -44,6 +44,8 @@ async function postJsonRpc(baseUrl: string, body: unknown): Promise<JsonRpcResul
   return response.json() as Promise<JsonRpcResult>;
 }
 
+// A2A 1.0: protobuf-canonical message JSON — parts carry `{ text }` (no
+// `kind`), role is `"ROLE_USER"`.
 function buildMessageSend(
   rpcId: number | string,
   messageId: string,
@@ -53,13 +55,13 @@ function buildMessageSend(
   return {
     jsonrpc: "2.0",
     id: rpcId,
-    method: "message/send",
+    method: "SendMessage",
     params: {
       message: {
-        role: "user",
+        role: "ROLE_USER",
         messageId,
         contextId,
-        parts: [{ kind: "text", text }],
+        parts: [{ text }],
       },
     },
   };
@@ -87,9 +89,8 @@ describe("Cross-Surface Session Continuity", () => {
       );
 
       expect(clientA.error).toBeUndefined();
-      expect(clientA.result?.kind).toBe("task");
-      expect(clientA.result?.status.state).toBe("completed");
-      expect(clientA.result?.contextId).toEqual(expect.any(String));
+      expect(clientA.result?.task?.status.state).toBe("TASK_STATE_COMPLETED");
+      expect(clientA.result?.task?.contextId).toEqual(expect.any(String));
 
       // --- Client B sends a different message with the same contextId ---
       const clientB = await postJsonRpc(
@@ -98,11 +99,10 @@ describe("Cross-Surface Session Continuity", () => {
       );
 
       expect(clientB.error).toBeUndefined();
-      expect(clientB.result?.kind).toBe("task");
-      expect(clientB.result?.status.state).toBe("completed");
+      expect(clientB.result?.task?.status.state).toBe("TASK_STATE_COMPLETED");
 
-      expect(clientB.result?.contextId).toBe(clientA.result?.contextId);
-      expect(clientB.result?.id).not.toBe(clientA.result?.id);
+      expect(clientB.result?.task?.contextId).toBe(clientA.result?.task?.contextId);
+      expect(clientB.result?.task?.id).not.toBe(clientA.result?.task?.id);
     } finally {
       server.stop();
       acp.kill();
@@ -128,15 +128,15 @@ describe("Cross-Surface Session Continuity", () => {
         baseUrl,
         buildMessageSend("p-1", "msg-p1", "First message", persistenceContextId),
       );
-      expect(first.result?.status.state).toBe("completed");
+      expect(first.result?.task?.status.state).toBe("TASK_STATE_COMPLETED");
 
       const second = await postJsonRpc(
         baseUrl,
         buildMessageSend("p-2", "msg-p2", "Second message", persistenceContextId),
       );
-      expect(second.result?.status.state).toBe("completed");
+      expect(second.result?.task?.status.state).toBe("TASK_STATE_COMPLETED");
 
-      expect(second.result?.contextId).toBe(first.result?.contextId);
+      expect(second.result?.task?.contextId).toBe(first.result?.task?.contextId);
 
       // Verify the persistence layer recorded the mapping
       const persistencePath = path.join(process.cwd(), "_dot", "a2a-sessions.json");
@@ -168,32 +168,31 @@ describe("Cross-Surface Session Continuity", () => {
         baseUrl,
         buildMessageSend("tg-1", "msg-tg1", "Turn one", tasksGetContextId),
       );
-      expect(first.result?.kind).toBe("task");
+      expect(first.result?.task?.id).toEqual(expect.any(String));
 
       const second = await postJsonRpc(
         baseUrl,
         buildMessageSend("tg-2", "msg-tg2", "Turn two", tasksGetContextId),
       );
-      expect(second.result?.kind).toBe("task");
+      expect(second.result?.task?.id).toEqual(expect.any(String));
 
+      // GetTask returns a bare Task (no `{ task }` wrapper).
       const firstGet = await postJsonRpc(baseUrl, {
         jsonrpc: "2.0",
         id: "tg-get-1",
-        method: "tasks/get",
+        method: "GetTask",
         // biome-ignore lint/style/noNonNullAssertion: guarded by expect above
-        params: { id: first.result!.id },
+        params: { id: first.result!.task!.id },
       });
-      expect(firstGet.result?.kind).toBe("task");
       expect(firstGet.result?.contextId).toBe(tasksGetContextId);
 
       const secondGet = await postJsonRpc(baseUrl, {
         jsonrpc: "2.0",
         id: "tg-get-2",
-        method: "tasks/get",
+        method: "GetTask",
         // biome-ignore lint/style/noNonNullAssertion: guarded by expect above
-        params: { id: second.result!.id },
+        params: { id: second.result!.task!.id },
       });
-      expect(secondGet.result?.kind).toBe("task");
       expect(secondGet.result?.contextId).toBe(tasksGetContextId);
 
       expect(firstGet.result?.contextId).toBe(secondGet.result?.contextId);

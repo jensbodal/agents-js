@@ -1,8 +1,7 @@
 import {
   A2AClientProvider,
   type A2AEvent,
-  extractLatestAgentText,
-  extractMessageText,
+  extractA2AResponseText,
   type ResolvedAgentTarget,
 } from "@agents-js/a2a-client";
 import { createSharedAgentRegistry } from "@agents-js/a2a-client/node";
@@ -115,10 +114,10 @@ export class DirectClient implements AgentBridge {
         blocking: !canStream,
       });
 
-      const text =
-        result.kind === "message" ? extractMessageText(result) : extractLatestAgentText(result);
-
-      return text || "(no response)";
+      // A2A 1.0 dropped the `kind` discriminator from Message; the
+      // a2a-client helper distinguishes Message (`messageId`) from Task
+      // (`id`) at the wire boundary and extracts the reply text.
+      return extractA2AResponseText(result) || "(no response)";
     } finally {
       unsubscribe?.();
     }

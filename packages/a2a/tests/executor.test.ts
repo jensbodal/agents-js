@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Message } from "@a2a-js/sdk";
+import { type Message, type Part, Role, TaskState } from "@a2a-js/sdk";
 import { ndJsonStream } from "@agents-js/acp";
 import {
   extractValidAgentMessageId,
@@ -30,31 +30,42 @@ function asAcpResponse(value: unknown): AcpResponse {
   return value as AcpResponse;
 }
 
-const dataPart: Extract<Message["parts"][number], { kind: "data" }> = {
-  kind: "data",
-  data: { foo: "bar" },
-  metadata: {},
+const dataPart: Part = {
+  content: { $case: "data", value: { foo: "bar" } },
+  metadata: undefined,
+  filename: "",
+  mediaType: "application/json",
 };
+
+function textPart(text: string): Part {
+  return {
+    content: { $case: "text", value: text },
+    metadata: undefined,
+    filename: "",
+    mediaType: "text/plain",
+  };
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type ProtoPart = { content?: { $case: string; value: unknown } };
+type RecordedMessage = { messageId?: string; role?: Role; parts?: ProtoPart[] };
 type RecordedEvent = {
   kind: string;
   id?: string;
   messageId?: string;
-  parts?: Array<{ kind: string; text?: string }>;
+  parts?: ProtoPart[];
   taskId?: string;
   contextId?: string;
   status?: {
-    state: string;
-    message?: { messageId?: string; parts?: Array<{ kind: string; text?: string }> };
+    state: TaskState;
+    message?: RecordedMessage;
   };
-  history?: Array<{
-    kind: string;
-    messageId?: string;
-    role?: string;
-    parts?: Array<{ kind: string; text?: string }>;
-  }>;
-  final?: boolean;
+  history?: RecordedMessage[];
 };
+
+/** Read the text out of a proto text part, or undefined if not a text part. */
+function partText(part: ProtoPart | undefined): string | undefined {
+  return part?.content?.$case === "text" ? (part.content.value as string) : undefined;
+}
 type ExecutorWithSessionIdStore = {
   sessionIdStore: {
     load: () => Promise<Map<string, string>>;
@@ -62,57 +73,42 @@ type ExecutorWithSessionIdStore = {
   };
 };
 
+function userMessage(messageId: string, parts: Part[], role: Role = Role.ROLE_USER): Message {
+  return {
+    messageId,
+    role,
+    parts,
+    taskId: "",
+    contextId: "",
+    metadata: undefined,
+    extensions: [],
+    referenceTaskIds: [],
+  };
+}
+
 describe("getMessageText", () => {
   test("extracts text from a single text part", () => {
-    const message: Message = {
-      kind: "message",
-      messageId: "test-1",
-      role: "user",
-      parts: [{ kind: "text", text: "Hello world" }],
-    };
+    const message = userMessage("test-1", [textPart("Hello world")]);
     expect(getMessageText(message)).toBe("Hello world");
   });
 
   test("concatenates multiple text parts", () => {
-    const message: Message = {
-      kind: "message",
-      messageId: "test-2",
-      role: "user",
-      parts: [
-        { kind: "text", text: "Hello " },
-        { kind: "text", text: "world" },
-      ],
-    };
+    const message = userMessage("test-2", [textPart("Hello "), textPart("world")]);
     expect(getMessageText(message)).toBe("Hello world");
   });
 
   test("ignores non-text parts", () => {
-    const message: Message = {
-      kind: "message",
-      messageId: "test-3",
-      role: "user",
-      parts: [{ kind: "text", text: "Hello" }, dataPart, { kind: "text", text: " world" }],
-    };
+    const message = userMessage("test-3", [textPart("Hello"), dataPart, textPart(" world")]);
     expect(getMessageText(message)).toBe("Hello world");
   });
 
   test("returns empty string for no text parts", () => {
-    const message: Message = {
-      kind: "message",
-      messageId: "test-4",
-      role: "user",
-      parts: [],
-    };
+    const message = userMessage("test-4", []);
     expect(getMessageText(message)).toBe("");
   });
 
   test("handles agent role messages", () => {
-    const message: Message = {
-      kind: "message",
-      messageId: "test-5",
-      role: "agent",
-      parts: [{ kind: "text", text: "I am the agent" }],
-    };
+    const message = userMessage("test-5", [textPart("I am the agent")], Role.ROLE_AGENT);
     expect(getMessageText(message)).toBe("I am the agent");
   });
 });
@@ -470,14 +466,27 @@ async function runFakeAcpAgentAuthRequired(
   }
 }
 
+/**
+ * A2A 1.0 executors publish wrapped `AgentExecutionEvent`s
+ * (`{ kind: "task" | "statusUpdate" | "message" | "artifactUpdate", data }`).
+ * The mock unwraps the envelope onto a flat record so the existing
+ * assertions (`event.kind`, `task.id`, `task.status?.state`, ...) keep
+ * reading the inner shape. `statusUpdate` is normalized to the
+ * dashed `"status-update"` kind the assertions expect.
+ */
+function unwrapAgentEvent(event: { kind: string; data: Record<string, unknown> }): RecordedEvent {
+  const kind = event.kind === "statusUpdate" ? "status-update" : event.kind;
+  return { ...(event.data as Record<string, unknown>), kind } as RecordedEvent;
+}
+
 function createEventBus() {
   const events: RecordedEvent[] = [];
 
   return {
     events,
     eventBus: {
-      publish(event: RecordedEvent) {
-        events.push(event);
+      publish(event: { kind: string; data: Record<string, unknown> }) {
+        events.push(unwrapAgentEvent(event));
       },
       finished() {
         events.push({ kind: "finished" });
@@ -501,6 +510,33 @@ function getPublishedTask(events: RecordedEvent[]): RecordedEvent {
   return task!;
 }
 
+/** A2A 1.0 terminal task states — the executor closes the lifecycle on these. */
+const TERMINAL_TASK_STATES = new Set<TaskState>([
+  TaskState.TASK_STATE_COMPLETED,
+  TaskState.TASK_STATE_FAILED,
+  TaskState.TASK_STATE_CANCELED,
+  TaskState.TASK_STATE_REJECTED,
+]);
+
+/**
+ * The executor now terminates with a terminal `status-update` (carrying the
+ * agent reply in `status.message`) rather than a second `task` event. Return
+ * the last such event so terminal-state / reply assertions read it.
+ */
+function getTerminalStatusUpdate(events: RecordedEvent[]): RecordedEvent {
+  const terminal = events
+    .filter(
+      (event) =>
+        event.kind === "status-update" &&
+        event.status !== undefined &&
+        TERMINAL_TASK_STATES.has(event.status.state),
+    )
+    .at(-1);
+  expect(terminal).toBeDefined();
+  // biome-ignore lint/style/noNonNullAssertion: guarded by expect(terminal).toBeDefined() above
+  return terminal!;
+}
+
 describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
   test("publishes a task event with the first valid ACP chunk message ID", async () => {
     const harness = createAcpHarness();
@@ -519,12 +555,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-1",
         contextId: "context-1",
-        userMessage: {
-          kind: "message",
-          messageId: "user-1",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-1", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
@@ -535,16 +566,21 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
     expect(events.filter((e) => e.kind === "message")).toHaveLength(0);
     expect(events.filter((e) => e.kind === "task").length).toBeGreaterThanOrEqual(1);
 
+    // The initial task event is SUBMITTED with the user message in history.
     const task = getPublishedTask(events);
     expect(task.kind).toBe("task");
     expect(task.id).toBe("task-1");
     expect(task.contextId).toBe("context-1");
-    expect(task.status?.state).toBe("completed");
-    expect(task.status?.message?.messageId).toBe(firstId);
-    expect(task.history).toHaveLength(2);
-    expect(task.history?.[0]?.role).toBe("user");
-    expect(task.history?.[1]?.role).toBe("agent");
-    expect(task.history?.[1]?.messageId).toBe(firstId);
+    expect(task.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
+    expect(task.history).toHaveLength(1);
+    expect(task.history?.[0]?.role).toBe(Role.ROLE_USER);
+
+    // The terminal status-update carries the agent reply with the first
+    // valid ACP chunk message ID.
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(terminal.status?.message?.messageId).toBe(firstId);
+    expect(terminal.status?.message?.role).toBe(Role.ROLE_AGENT);
   });
 
   test("falls back to a UUID when the chunk message ID is empty", async () => {
@@ -559,12 +595,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-2",
         contextId: "context-2",
-        userMessage: {
-          kind: "message",
-          messageId: "user-2",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-2", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
@@ -575,8 +606,11 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
     expect(task.kind).toBe("task");
     expect(task.id).toBe("task-2");
     expect(task.contextId).toBe("context-2");
-    expect(task.status?.state).toBe("completed");
-    expect(task.status?.message?.messageId).toMatch(uuidPattern);
+    expect(task.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
+
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(terminal.status?.message?.messageId).toMatch(uuidPattern);
   });
 
   test("falls back to a UUID when no valid ACP chunk message ID is provided", async () => {
@@ -594,12 +628,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-4",
         contextId: "context-4",
-        userMessage: {
-          kind: "message",
-          messageId: "user-4",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-4", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
@@ -609,8 +638,11 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
     const task = getPublishedTask(events);
     expect(task.kind).toBe("task");
     expect(task.id).toBe("task-4");
-    expect(task.status?.state).toBe("completed");
-    expect(task.status?.message?.messageId).toMatch(uuidPattern);
+    expect(task.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
+
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(terminal.status?.message?.messageId).toMatch(uuidPattern);
   });
 
   test("does not overwrite the first accepted valid message ID in mixed chunks", async () => {
@@ -630,12 +662,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-3",
         contextId: "context-3",
-        userMessage: {
-          kind: "message",
-          messageId: "user-3",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-3", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
@@ -646,8 +673,11 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
     expect(task.kind).toBe("task");
     expect(task.id).toBe("task-3");
     expect(task.contextId).toBe("context-3");
-    expect(task.status?.state).toBe("completed");
-    expect(task.status?.message?.messageId).toBe(acceptedId);
+    expect(task.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
+
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(terminal.status?.message?.messageId).toBe(acceptedId);
   });
 
   test("surfaces unknown ACP extension methods as method-not-found responses", async () => {
@@ -662,12 +692,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-ext-1",
         contextId: "context-ext-1",
-        userMessage: {
-          kind: "message",
-          messageId: "user-ext-1",
-          role: "user",
-          parts: [{ kind: "text", text: "Check extension behavior" }],
-        },
+        userMessage: userMessage("user-ext-1", [textPart("Check extension behavior")]),
       } as never,
       eventBus as never,
     );
@@ -676,7 +701,10 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
 
     const task = getPublishedTask(events);
     expect(task.id).toBe("task-ext-1");
-    expect(task.status?.state).toBe("completed");
+    expect(task.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
+
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
   });
 
   test("surfaces missing-auth-method failures as terminal failed tasks", async () => {
@@ -694,12 +722,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
         {
           taskId: "task-auth-fail",
           contextId: "ctx-auth-fail",
-          userMessage: {
-            kind: "message",
-            messageId: "user-auth-fail",
-            role: "user",
-            parts: [{ kind: "text", text: "Say hello" }],
-          },
+          userMessage: userMessage("user-auth-fail", [textPart("Say hello")]),
         } as never,
         eventBus as never,
       ),
@@ -707,8 +730,8 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
 
     await agentTask;
 
-    const task = getPublishedTask(events);
-    expect(task.status?.state).toBe("failed");
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_FAILED);
   });
 
   test("text buffer caps content at the configured maximum size", async () => {
@@ -729,23 +752,18 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-buf",
         contextId: "ctx-buf",
-        userMessage: {
-          kind: "message",
-          messageId: "user-buf",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-buf", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
 
     await agentTask;
 
-    const task = getPublishedTask(events);
-    expect(task.status?.state).toBe("completed");
+    const terminal = getTerminalStatusUpdate(events);
+    expect(terminal.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
 
-    // The terminal task text (from textBuffer) should be capped at maxSize
-    const terminalText = task.status?.message?.parts?.[0]?.text;
+    // The terminal reply text (from textBuffer) should be capped at maxSize
+    const terminalText = partText(terminal.status?.message?.parts?.[0]);
     expect(terminalText).toBeDefined();
     expect(terminalText?.length).toBeLessThanOrEqual(maxSize);
     // First chunk is 15 chars, second is 15. With a 20 cap, only 5 of the second should be added.
@@ -771,12 +789,7 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
       {
         taskId: "task-permission",
         contextId: "ctx-permission",
-        userMessage: {
-          kind: "message",
-          messageId: "user-permission",
-          role: "user",
-          parts: [{ kind: "text", text: "Say hello" }],
-        },
+        userMessage: userMessage("user-permission", [textPart("Say hello")]),
       } as never,
       eventBus as never,
     );
@@ -785,7 +798,9 @@ describe("ACPtoA2AExecutor task persistence and message ID handling", () => {
 
     expect(
       events.some(
-        (event) => event.kind === "status-update" && event.status?.state === "input-required",
+        (event) =>
+          event.kind === "status-update" &&
+          event.status?.state === TaskState.TASK_STATE_INPUT_REQUIRED,
       ),
     ).toBe(false);
   });
@@ -901,12 +916,7 @@ describe("ACPtoA2AExecutor beforePrompt hook", () => {
       {
         taskId: "task-hook",
         contextId: "ctx-hook",
-        userMessage: {
-          kind: "message",
-          messageId: "user-hook",
-          role: "user",
-          parts: [{ kind: "text", text: "original prompt" }],
-        },
+        userMessage: userMessage("user-hook", [textPart("original prompt")]),
       } as never,
       eventBus as never,
     );
@@ -939,12 +949,7 @@ describe("ACPtoA2AExecutor beforePrompt hook", () => {
       {
         taskId: "task-noop",
         contextId: "ctx-noop",
-        userMessage: {
-          kind: "message",
-          messageId: "user-noop",
-          role: "user",
-          parts: [{ kind: "text", text: "passthrough prompt" }],
-        },
+        userMessage: userMessage("user-noop", [textPart("passthrough prompt")]),
       } as never,
       eventBus as never,
     );
@@ -974,12 +979,7 @@ describe("ACPtoA2AExecutor beforePrompt hook", () => {
       {
         taskId: "task-error",
         contextId: "ctx-error",
-        userMessage: {
-          kind: "message",
-          messageId: "user-error",
-          role: "user",
-          parts: [{ kind: "text", text: "should still work" }],
-        },
+        userMessage: userMessage("user-error", [textPart("should still work")]),
       } as never,
       eventBus as never,
     );

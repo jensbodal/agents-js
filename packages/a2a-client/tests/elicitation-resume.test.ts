@@ -1,56 +1,42 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
-import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import { ACP_A2A_ELICITATION_METADATA_KEY } from "../src/acp-state.ts";
 import { A2AClientController, A2AClientProvider } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/session.ts";
 import type {
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   ResolvedAgentTarget,
   TargetInspection,
 } from "../src/types.ts";
+import {
+  createMockTarget,
+  makeMessage,
+  makeStatusUpdate,
+  makeTask,
+  makeTextPart,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 function makeResolvedTarget(overrides: { supportsStreaming?: boolean } = {}): ResolvedAgentTarget {
-  return {
-    baseUrl: "http://127.0.0.1:55363",
-    cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    card: {
-      name: "mock",
-      description: "mock",
-      url: "http://127.0.0.1:55363",
-      version: "1.0.0",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      skills: [],
-      defaultInputModes: ["text"],
-      defaultOutputModes: ["text"],
-      capabilities: {},
-    },
-    capabilities: {
-      inputModes: ["text"],
-      outputModes: ["text"],
-      supportsTextInput: true,
-      supportsTextOutput: true,
-      supportsStreaming: overrides.supportsStreaming ?? false,
-      supportsPushNotifications: false,
-      raw: {},
-    },
-  };
+  const target = createMockTarget("http://127.0.0.1:55363");
+  target.capabilities.supportsStreaming = overrides.supportsStreaming ?? false;
+  return target;
 }
 
 function makeReadyInspection(): TargetInspection {
@@ -76,53 +62,47 @@ function makeReadyInspection(): TargetInspection {
  * agent's reply.
  */
 class ElicitationResumeTransport implements A2ATransport {
-  readonly sendCalls: MessageSendParams[] = [];
-  readonly streamCalls: MessageSendParams[] = [];
+  readonly sendCalls: SendMessageRequest[] = [];
+  readonly streamCalls: SendMessageRequest[] = [];
   supportsStreaming = false;
 
-  sendImpl: (params: MessageSendParams) => Promise<Message | Task> = async (params) => ({
-    kind: "task",
-    id: params.message.taskId ?? "task-1",
-    contextId: params.message.contextId ?? "ctx-1",
-    status: { state: "completed" },
-    history: [
-      {
-        kind: "message",
-        messageId: "agent-final",
-        role: "agent",
-        parts: [{ kind: "text", text: "completed reply" }],
-      },
-    ],
-  });
+  sendImpl: (params: SendMessageRequest) => Promise<Message | Task> = async (params) =>
+    makeTask({
+      id: params.message?.taskId || "task-1",
+      contextId: params.message?.contextId || "ctx-1",
+      state: TaskState.TASK_STATE_COMPLETED,
+      history: [
+        makeMessage({
+          messageId: "agent-final",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("completed reply")],
+        }),
+      ],
+    });
 
   // Default streaming behavior emits a working status, then a terminal
   // completed task with an agent message in history.
-  streamImpl: (
-    params: MessageSendParams,
-  ) => AsyncGenerator<Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent> =
-    async function* (params: MessageSendParams) {
-      yield {
-        kind: "status-update",
-        taskId: params.message.taskId ?? "task-1",
-        contextId: params.message.contextId ?? "ctx-1",
-        final: false,
-        status: { state: "working" },
-      } satisfies TaskStatusUpdateEvent;
-      yield {
-        kind: "task",
-        id: params.message.taskId ?? "task-1",
-        contextId: params.message.contextId ?? "ctx-1",
-        status: { state: "completed" },
-        history: [
-          {
-            kind: "message",
-            messageId: "agent-final-stream",
-            role: "agent",
-            parts: [{ kind: "text", text: "streamed reply" }],
-          },
-        ],
-      } satisfies Task;
-    };
+  streamImpl: (params: SendMessageRequest) => AsyncGenerator<A2AStreamElement> = async function* (
+    params: SendMessageRequest,
+  ) {
+    yield statusEvent({
+      taskId: params.message?.taskId || "task-1",
+      contextId: params.message?.contextId || "ctx-1",
+      state: TaskState.TASK_STATE_WORKING,
+    });
+    yield taskEvent({
+      id: params.message?.taskId || "task-1",
+      contextId: params.message?.contextId || "ctx-1",
+      state: TaskState.TASK_STATE_COMPLETED,
+      history: [
+        makeMessage({
+          messageId: "agent-final-stream",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("streamed reply")],
+        }),
+      ],
+    });
+  };
 
   async resolveTarget(_input: AgentTargetInput): Promise<ResolvedAgentTarget> {
     return makeResolvedTarget({ supportsStreaming: this.supportsStreaming });
@@ -134,7 +114,7 @@ class ElicitationResumeTransport implements A2ATransport {
 
   async sendMessage(
     _target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<Message | Task> {
     this.sendCalls.push(params);
     return this.sendImpl(params);
@@ -142,10 +122,8 @@ class ElicitationResumeTransport implements A2ATransport {
 
   async *sendMessageStream(
     _target: ResolvedAgentTarget,
-    params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     this.streamCalls.push(params);
     for await (const event of this.streamImpl(params)) {
       yield event;
@@ -155,29 +133,18 @@ class ElicitationResumeTransport implements A2ATransport {
   // Default getTask stub used by the streaming-input-required path: the
   // provider calls this when a stream ends without a terminal task, to
   // recover the latest task state. Tests can override per scenario.
-  getTaskImpl: (params: TaskQueryParams) => Promise<Task> = async (params) => ({
-    kind: "task",
-    id: params.id,
-    contextId: "ctx-1",
-    status: { state: "input-required" },
-  });
+  getTaskImpl: (params: GetTaskRequest) => Promise<Task> = async (params) =>
+    makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_INPUT_REQUIRED });
 
-  async getTask(_target: ResolvedAgentTarget, params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, params: GetTaskRequest): Promise<Task> {
     return this.getTaskImpl(params);
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, params: TaskIdParams): Promise<Task> {
-    return {
-      kind: "task",
-      id: params.id,
-      contextId: "ctx-1",
-      status: { state: "canceled" },
-    };
+  async cancelTask(_target: ResolvedAgentTarget, params: CancelTaskRequest): Promise<Task> {
+    return makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_CANCELED });
   }
 
-  async *resubscribeTask(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {}
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {}
 
   async setTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
@@ -188,21 +155,21 @@ class ElicitationResumeTransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not used");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not used");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new Error("not used");
   }
@@ -228,20 +195,15 @@ describe("input_required interaction model", () => {
     const initial = createInitialSessionState();
     const next = reduceA2ASessionState(initial, {
       type: "task.status.updated",
-      update: {
-        kind: "status-update",
+      update: makeStatusUpdate({
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: {
-          state: "input-required",
-          message: {
-            kind: "message",
-            messageId: "agent-elicit",
-            role: "agent",
-            parts: [{ kind: "text", text: "Which project?" }],
-          },
-        },
+        state: TaskState.TASK_STATE_INPUT_REQUIRED,
+        message: makeMessage({
+          messageId: "agent-elicit",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("Which project?")],
+        }),
         metadata: {
           [ACP_A2A_ELICITATION_METADATA_KEY]: {
             kind: "acp.elicitation",
@@ -258,7 +220,7 @@ describe("input_required interaction model", () => {
             },
           },
         },
-      },
+      }),
     });
 
     expect(next.status).toBe("input_required");
@@ -284,12 +246,10 @@ describe("input_required interaction model", () => {
     expect(() =>
       reduceA2ASessionState(initial, {
         type: "task.status.updated",
-        update: {
-          kind: "status-update",
+        update: makeStatusUpdate({
           taskId: "task-1",
           contextId: "ctx-1",
-          final: false,
-          status: { state: "input-required" },
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
           metadata: {
             [ACP_A2A_ELICITATION_METADATA_KEY]: {
               // Intentionally malformed: missing mode/sessionId/requestedSchema
@@ -297,22 +257,20 @@ describe("input_required interaction model", () => {
               not_a_real_field: true,
             } as unknown,
           },
-        },
+        }),
       }),
     ).not.toThrow();
 
     const next = reduceA2ASessionState(initial, {
       type: "task.status.updated",
-      update: {
-        kind: "status-update",
+      update: makeStatusUpdate({
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: { state: "input-required" },
+        state: TaskState.TASK_STATE_INPUT_REQUIRED,
         metadata: {
           [ACP_A2A_ELICITATION_METADATA_KEY]: "not even an object" as unknown,
         },
-      },
+      }),
     });
 
     expect(next.status).toBe("input_required");
@@ -347,11 +305,11 @@ describe("input_required interaction model", () => {
     // Non-streaming target by default → exactly one sendMessage call.
     expect(transport.sendCalls).toHaveLength(1);
     const params = transport.sendCalls[0];
-    expect(params?.message.taskId).toBe("task-1");
-    expect(params?.message.contextId).toBe("ctx-1");
+    expect(params?.message?.taskId).toBe("task-1");
+    expect(params?.message?.contextId).toBe("ctx-1");
     // The elicitation reply must be metadata-bearing, not transcript text.
-    expect(params?.message.parts[0]).toMatchObject({ kind: "text", text: "" });
-    expect(params?.message.metadata).toBeDefined();
+    expect(params?.message?.parts[0]?.content).toMatchObject({ $case: "text", value: "" });
+    expect(params?.message?.metadata).toBeDefined();
   });
 
   test("respondToElicitation throws when no resumable task is present (controller-level guard)", async () => {
@@ -393,8 +351,8 @@ describe("input_required interaction model", () => {
 
     expect(transport.streamCalls).toHaveLength(1);
     expect(transport.sendCalls).toHaveLength(0);
-    expect(transport.streamCalls[0]?.message.taskId).toBe("task-1");
-    expect(transport.streamCalls[0]?.message.contextId).toBe("ctx-1");
+    expect(transport.streamCalls[0]?.message?.taskId).toBe("task-1");
+    expect(transport.streamCalls[0]?.message?.contextId).toBe("ctx-1");
     // Streaming path emits intermediate status updates the reducer consumes.
     expect(seenEvents).toContain("task.status.updated");
     expect(seenEvents).toContain("message.completed");
@@ -421,8 +379,8 @@ describe("input_required interaction model", () => {
 
     expect(transport.sendCalls).toHaveLength(1);
     expect(transport.streamCalls).toHaveLength(0);
-    expect(transport.sendCalls[0]?.message.taskId).toBe("task-1");
-    expect(transport.sendCalls[0]?.message.contextId).toBe("ctx-1");
+    expect(transport.sendCalls[0]?.message?.taskId).toBe("task-1");
+    expect(transport.sendCalls[0]?.message?.contextId).toBe("ctx-1");
     // After non-streaming respond, the agent's terminal task is processed and
     // produces a message.completed transcript entry for the agent reply.
     expect(controller.getState().status).toBe("connected");
@@ -443,36 +401,33 @@ describe("input_required interaction model", () => {
     // getTask and we surface the same elicitation metadata so the reducer
     // can populate activeElicitation through the `task.updated` reducer
     // path.
-    transport.getTaskImpl = async (params) => ({
-      kind: "task",
-      id: params.id,
-      contextId: "ctx-1",
-      status: {
-        state: "input-required",
-        message: {
-          kind: "message",
+    transport.getTaskImpl = async (params) =>
+      makeTask({
+        id: params.id,
+        contextId: "ctx-1",
+        state: TaskState.TASK_STATE_INPUT_REQUIRED,
+        message: makeMessage({
           messageId: "agent-elicit",
-          role: "agent",
-          parts: [{ kind: "text", text: "Which project?" }],
-        },
-      },
-      metadata: {
-        [ACP_A2A_ELICITATION_METADATA_KEY]: {
-          kind: "acp.elicitation",
-          mode: "form",
-          message: "Pick a project",
-          sessionId: "sess-1",
-          requestedSchema: {
-            type: "object",
-            properties: { project: { type: "string" } },
-            required: ["project"],
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("Which project?")],
+        }),
+        metadata: {
+          [ACP_A2A_ELICITATION_METADATA_KEY]: {
+            kind: "acp.elicitation",
+            mode: "form",
+            message: "Pick a project",
+            sessionId: "sess-1",
+            requestedSchema: {
+              type: "object",
+              properties: { project: { type: "string" } },
+              required: ["project"],
+            },
           },
         },
-      },
-    });
+      });
 
     let callCount = 0;
-    transport.streamImpl = async function* (params: MessageSendParams) {
+    transport.streamImpl = async function* (params: SendMessageRequest) {
       callCount += 1;
       if (callCount === 1) {
         // Realistic input-required stream: the agent yields a final
@@ -481,24 +436,15 @@ describe("input_required interaction model", () => {
         // a terminal Task — the client must call respondToElicitation to
         // resume. The reducer's computeSessionStatusFromTaskState explicitly
         // maps "input-required" → "input_required" status.
-        yield {
-          kind: "status-update",
+        yield statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          // final:false because the task is not terminated; the agent is
-          // suspended waiting for client input. final:true would tell the
-          // reducer to drop resumableTaskId, which would break the resume
-          // path UI consumers depend on.
-          final: false,
-          status: {
-            state: "input-required",
-            message: {
-              kind: "message",
-              messageId: "agent-elicit",
-              role: "agent",
-              parts: [{ kind: "text", text: "Which project?" }],
-            },
-          },
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
+          message: makeMessage({
+            messageId: "agent-elicit",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("Which project?")],
+          }),
           metadata: {
             [ACP_A2A_ELICITATION_METADATA_KEY]: {
               kind: "acp.elicitation",
@@ -512,30 +458,27 @@ describe("input_required interaction model", () => {
               },
             },
           },
-        } satisfies TaskStatusUpdateEvent;
+        });
         return;
       }
       // Stage 2: elicitation reply → final completed task.
-      yield {
-        kind: "task",
-        id: params.message.taskId ?? "task-1",
-        contextId: params.message.contextId ?? "ctx-1",
-        status: { state: "completed" },
+      yield taskEvent({
+        id: params.message?.taskId ?? "task-1",
+        contextId: params.message?.contextId ?? "ctx-1",
+        state: TaskState.TASK_STATE_COMPLETED,
         history: [
-          {
-            kind: "message",
+          makeMessage({
             messageId: "agent-elicit",
-            role: "agent",
-            parts: [{ kind: "text", text: "Which project?" }],
-          },
-          {
-            kind: "message",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("Which project?")],
+          }),
+          makeMessage({
             messageId: "agent-final",
-            role: "agent",
-            parts: [{ kind: "text", text: "Scaffolded demo." }],
-          },
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("Scaffolded demo.")],
+          }),
         ],
-      } satisfies Task;
+      });
     };
 
     const controller = new A2AClientController({
@@ -598,8 +541,9 @@ describe("input_required interaction model", () => {
     // Two transport stream calls in order: original sendTurn + elicitation
     // reply. The reply MUST carry the resumableTaskId + contextId.
     expect(transport.streamCalls).toHaveLength(2);
-    expect(transport.streamCalls[0]?.message.taskId).toBeUndefined();
-    expect(transport.streamCalls[1]?.message.taskId).toBe("task-1");
-    expect(transport.streamCalls[1]?.message.contextId).toBe("ctx-1");
+    // A2A 1.0: absent taskId is the empty-string sentinel, not undefined.
+    expect(transport.streamCalls[0]?.message?.taskId).toBe("");
+    expect(transport.streamCalls[1]?.message?.taskId).toBe("task-1");
+    expect(transport.streamCalls[1]?.message?.contextId).toBe("ctx-1");
   });
 });

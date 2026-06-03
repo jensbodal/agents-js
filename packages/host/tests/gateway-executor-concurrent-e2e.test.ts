@@ -19,22 +19,25 @@ describe("gateway executor — concurrent request handling", () => {
   });
 
   async function sendMessage(text: string, contextId?: string): Promise<Response> {
+    // A2A 1.0 proto-canonical wire shape: `SendMessage` RPC, `role` enum
+    // string, parts as proto JSON (`{ text }`), `returnImmediately: false`
+    // for blocking semantics.
     return fetch(`${handle.url}/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: crypto.randomUUID(),
-        method: "message/send",
+        method: "SendMessage",
         params: {
+          tenant: "",
           message: {
-            kind: "message",
             messageId: crypto.randomUUID(),
-            role: "user",
-            parts: [{ kind: "text", text }],
+            role: "ROLE_USER",
+            parts: [{ text, mediaType: "text/plain" }],
             ...(contextId ? { contextId } : {}),
           },
-          configuration: { blocking: true },
+          configuration: { returnImmediately: false },
         },
       }),
     });
@@ -109,16 +112,16 @@ describe("gateway executor — concurrent request handling", () => {
           body: JSON.stringify({
             jsonrpc: "2.0",
             id: crypto.randomUUID(),
-            method: "message/send",
+            method: "SendMessage",
             params: {
+              tenant: "",
               message: {
-                kind: "message",
                 messageId: crypto.randomUUID(),
-                role: "user",
-                parts: [{ kind: "text", text }],
+                role: "ROLE_USER",
+                parts: [{ text, mediaType: "text/plain" }],
                 contextId,
               },
-              configuration: { blocking: true },
+              configuration: { returnImmediately: false },
             },
           }),
         });

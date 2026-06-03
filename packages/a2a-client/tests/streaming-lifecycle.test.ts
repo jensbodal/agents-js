@@ -1,8 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import type { Message, Task, TaskStatusUpdateEvent } from "@a2a-js/sdk";
+import { Role, TaskState } from "@a2a-js/sdk";
 import { A2AClientProvider } from "../src/index.ts";
-import type { A2AEvent, A2ATransport, ResolvedAgentTarget } from "../src/types.ts";
-import { createMockTarget, createStreamingMockTransport } from "./mock-a2a-transport.ts";
+import type {
+  A2AEvent,
+  A2AStreamElement,
+  A2AStreamPayload,
+  A2ATransport,
+  ResolvedAgentTarget,
+} from "../src/types.ts";
+import {
+  createMockTarget,
+  createStreamingMockTransport,
+  makeMessage,
+  makeTextPart,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 function makeStreamingTarget(url: string): ResolvedAgentTarget {
   const target = createMockTarget(url);
@@ -11,7 +24,7 @@ function makeStreamingTarget(url: string): ResolvedAgentTarget {
 }
 
 class DelayedStreamingTransport {
-  streamEvents: Array<{ delayMs: number; event: Task | TaskStatusUpdateEvent | Message }> = [];
+  streamEvents: Array<{ delayMs: number; event: A2AStreamPayload }> = [];
 
   async resolveTarget(input: { url: string }): Promise<ResolvedAgentTarget> {
     return makeStreamingTarget(input.url);
@@ -19,10 +32,10 @@ class DelayedStreamingTransport {
   async inspectTarget() {
     return { status: "ready" as const };
   }
-  async sendMessage(): Promise<Message> {
+  async sendMessage(): Promise<never> {
     throw new Error("non-streaming sendMessage not used");
   }
-  async *sendMessageStream(): AsyncGenerator<Task | TaskStatusUpdateEvent | Message> {
+  async *sendMessageStream(): AsyncGenerator<A2AStreamElement> {
     for (const item of this.streamEvents) {
       if (item.delayMs > 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, item.delayMs));
@@ -30,13 +43,13 @@ class DelayedStreamingTransport {
       yield item.event;
     }
   }
-  async getTask(): Promise<Task> {
+  async getTask(): Promise<never> {
     throw new Error("not implemented");
   }
-  async cancelTask(): Promise<Task> {
+  async cancelTask(): Promise<never> {
     throw new Error("not implemented");
   }
-  async *resubscribeTask(): AsyncGenerator<Task | TaskStatusUpdateEvent | Message> {}
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {}
   async setTaskPushNotificationConfig() {
     throw new Error("not implemented");
   }
@@ -61,20 +74,14 @@ class DelayedStreamingTransport {
 describe("Streaming lifecycle events", () => {
   test("streaming send emits request.sent → stream.opened → first_event → last_event → closed in order", async () => {
     const transport = createStreamingMockTransport([
-      {
-        kind: "task",
+      taskEvent({
         id: "task-1",
         contextId: "ctx-1",
-        status: { state: "completed" },
+        state: TaskState.TASK_STATE_COMPLETED,
         history: [
-          {
-            kind: "message",
-            messageId: "m1",
-            role: "agent",
-            parts: [{ kind: "text", text: "ok" }],
-          },
+          makeMessage({ messageId: "m1", role: Role.ROLE_AGENT, parts: [makeTextPart("ok")] }),
         ],
-      } satisfies Task,
+      }),
     ]);
 
     const provider = new A2AClientProvider(transport);
@@ -115,12 +122,11 @@ describe("Streaming lifecycle events", () => {
         return { status: "ready" };
       },
       async sendMessage() {
-        return {
-          kind: "message",
+        return makeMessage({
           messageId: "m1",
-          role: "agent",
-          parts: [{ kind: "text", text: "pong" }],
-        } as Message;
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("pong")],
+        });
       },
       async *sendMessageStream() {},
       async getTask() {
@@ -180,30 +186,23 @@ describe("Streaming lifecycle events", () => {
       // idle to fire.
       {
         delayMs: 5,
-        event: {
-          kind: "status-update",
+        event: statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          status: { state: "working", message: undefined },
-          final: false,
-        } satisfies TaskStatusUpdateEvent,
+          state: TaskState.TASK_STATE_WORKING,
+          message: makeMessage({}),
+        }),
       },
       {
         delayMs: 80,
-        event: {
-          kind: "task",
+        event: taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
-              messageId: "m1",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+            makeMessage({ messageId: "m1", role: Role.ROLE_AGENT, parts: [makeTextPart("done")] }),
           ],
-        } satisfies Task,
+        }),
       },
     ];
 
@@ -231,30 +230,23 @@ describe("Streaming lifecycle events", () => {
     transport.streamEvents = [
       {
         delayMs: 0,
-        event: {
-          kind: "status-update",
+        event: statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          status: { state: "working", message: undefined },
-          final: false,
-        } satisfies TaskStatusUpdateEvent,
+          state: TaskState.TASK_STATE_WORKING,
+          message: makeMessage({}),
+        }),
       },
       {
         delayMs: 5,
-        event: {
-          kind: "task",
+        event: taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
-              messageId: "m1",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+            makeMessage({ messageId: "m1", role: Role.ROLE_AGENT, parts: [makeTextPart("done")] }),
           ],
-        } satisfies Task,
+        }),
       },
     ];
 
@@ -273,12 +265,11 @@ describe("Streaming lifecycle events", () => {
     transport.streamEvents = [
       {
         delayMs: 50,
-        event: {
-          kind: "task",
+        event: taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
-        } satisfies Task,
+          state: TaskState.TASK_STATE_COMPLETED,
+        }),
       },
     ];
 
@@ -297,22 +288,20 @@ describe("Streaming lifecycle events", () => {
     transport.streamEvents = [
       {
         delayMs: 5,
-        event: {
-          kind: "status-update",
+        event: statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          status: { state: "working", message: undefined },
-          final: false,
-        } satisfies TaskStatusUpdateEvent,
+          state: TaskState.TASK_STATE_WORKING,
+          message: makeMessage({}),
+        }),
       },
       {
         delayMs: 200,
-        event: {
-          kind: "task",
+        event: taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
-        } satisfies Task,
+          state: TaskState.TASK_STATE_COMPLETED,
+        }),
       },
     ];
 

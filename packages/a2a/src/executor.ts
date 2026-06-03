@@ -1,5 +1,10 @@
-import type { Message, Task, TaskStatus } from "@a2a-js/sdk";
-import type { AgentExecutor, ExecutionEventBus, RequestContext } from "@a2a-js/sdk/server";
+import { type Message, type Task, TaskState, type TaskStatus } from "@a2a-js/sdk";
+import {
+  AgentEvent,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type RequestContext,
+} from "@a2a-js/sdk/server";
 import type { ContentBlock } from "@agentclientprotocol/sdk";
 import {
   type AcpStreamingSink,
@@ -18,7 +23,7 @@ import {
 } from "@agents-js/acp";
 import { buildACPA2ATaskMetadata, extractACPA2AContinuationMetadata } from "./acp-task-metadata.ts";
 import { isACPAuthRequiredError, withAuthRetry } from "./executor-auth.ts";
-import { buildStatusUpdate, buildTerminalTask, nowIso } from "./executor-events.ts";
+import { buildStatusUpdate, nowIso } from "./executor-events.ts";
 import { extractValidAgentMessageId, selectPermissionOutcome } from "./executor-policies.ts";
 import { formatErrorMessage } from "./format-error.ts";
 import { type A2ALogger, createConsoleLogger } from "./logger.ts";
@@ -68,8 +73,7 @@ async function callExecutorHook<T>(
 /** Extract text content from an A2A Message's parts array */
 export function getMessageText(message: Message): string {
   return message.parts
-    .filter((part): part is Extract<typeof part, { kind: "text" }> => part.kind === "text")
-    .map((part) => part.text)
+    .map((part) => (part.content?.$case === "text" ? part.content.value : ""))
     .join("");
 }
 
@@ -115,25 +119,22 @@ function createDeferred<T>(): PendingResolver<T> {
   return { promise, reject, resolve };
 }
 
-function normalizeUserMessage(message: Message): Message {
-  return {
-    ...message,
-    kind: "message",
-  };
-}
-
 function mapStopReasonToTaskState(stopReason: PromptResponse["stopReason"]): TaskStatus["state"] {
   switch (stopReason) {
     case "cancelled":
-      return "canceled";
+      return TaskState.TASK_STATE_CANCELED;
     case "refusal":
-      return "rejected";
+      return TaskState.TASK_STATE_REJECTED;
     case "end_turn":
     case "max_tokens":
     case "max_turn_requests":
-      return "completed";
+      return TaskState.TASK_STATE_COMPLETED;
     default:
-      return "unknown";
+      // An unrecognized stop reason still means the turn ended. Map to a
+      // terminal state (not UNSPECIFIED) so the terminal status update closes
+      // the SSE stream — A2A 1.0 drives stream lifecycle off TaskState
+      // terminality, and UNSPECIFIED is non-terminal.
+      return TaskState.TASK_STATE_COMPLETED;
   }
 }
 
@@ -215,9 +216,8 @@ export class ACPtoA2AExecutor implements AgentExecutor {
               task.textBuffer += chunk.length <= remaining ? chunk : chunk.slice(0, remaining);
             }
             this.publishStatusUpdate(task, {
-              state: "working",
+              state: TaskState.TASK_STATE_WORKING,
               text: task.textBuffer,
-              final: false,
             });
             return;
           }
@@ -252,9 +252,8 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         };
 
         this.publishStatusUpdate(task, {
-          state: "input-required",
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
           text: request.message,
-          final: false,
           metadata: buildACPA2ATaskMetadata({
             elicitation: {
               request,
@@ -296,7 +295,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     if (continuation?.elicitationResponse && existingTask?.pendingElicitation) {
       existingTask.eventBus = eventBus;
       if (context.task) {
-        eventBus.publish({ ...context.task, kind: "task" });
+        eventBus.publish(AgentEvent.task(context.task));
       }
       existingTask.pendingElicitation.resolve(continuation.elicitationResponse);
       await existingTask.runPromise;
@@ -306,7 +305,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     if (continuation?.authenticate && existingTask?.pendingAuth) {
       existingTask.eventBus = eventBus;
       if (context.task) {
-        eventBus.publish({ ...context.task, kind: "task" });
+        eventBus.publish(AgentEvent.task(context.task));
       }
       existingTask.pendingAuth.resolve(continuation.authenticate);
       await existingTask.runPromise;
@@ -352,47 +351,47 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     task: ActiveTaskState,
     userText: string,
   ): Promise<void> {
-    const normalizedUserMessage = normalizeUserMessage(context.userMessage);
+    const userMessage = context.userMessage;
 
     this.publishTask(task, {
-      kind: "task",
       id: task.taskId,
       contextId: task.contextId,
       status: {
-        state: "submitted",
+        state: TaskState.TASK_STATE_SUBMITTED,
         timestamp: nowIso(),
+        message: undefined,
       },
-      history: [normalizedUserMessage],
+      artifacts: [],
+      history: [userMessage],
+      metadata: undefined,
     });
 
     try {
       const sessionId = await this.ensureSession(task);
       this.publishStatusUpdate(task, {
-        state: "working",
-        final: false,
+        state: TaskState.TASK_STATE_WORKING,
       });
 
       const result = await this.runPromptWithRecovery(task, sessionId, userText);
       const finalState = mapStopReasonToTaskState(result.stopReason);
       const finalText = task.textBuffer || "Prompt completed.";
-      this.publishTask(
-        task,
-        buildTerminalTask(task.taskId, task.contextId, normalizedUserMessage, {
-          state: finalState,
-          text: finalText,
-          messageId: task.currentAgentMessageId ?? crypto.randomUUID(),
-        }),
-      );
+      // A2A 1.0 forbids publishing a second Task into the task lifecycle stream
+      // (the SDK's ResultManager throws a "stream ordering violation"). The
+      // turn terminates with a terminal TaskStatusUpdateEvent carrying the
+      // final reply text; the SDK reconstructs the final Task from it for both
+      // the streaming and blocking (sendMessage) paths.
+      this.publishStatusUpdate(task, {
+        state: finalState,
+        text: finalText,
+        messageId: task.currentAgentMessageId ?? crypto.randomUUID(),
+      });
       task.eventBus.finished();
     } catch (error) {
       this.logger.error("ACP task failed", { error: formatErrorMessage(error) });
-      this.publishTask(
-        task,
-        buildTerminalTask(task.taskId, task.contextId, normalizedUserMessage, {
-          state: "failed",
-          text: formatErrorMessage(error, "Unexpected ACP error"),
-        }),
-      );
+      this.publishStatusUpdate(task, {
+        state: TaskState.TASK_STATE_FAILED,
+        text: formatErrorMessage(error, "Unexpected ACP error"),
+      });
       task.eventBus.finished();
       throw error;
     } finally {
@@ -468,9 +467,8 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     };
 
     this.publishStatusUpdate(task, {
-      state: "auth-required",
+      state: TaskState.TASK_STATE_AUTH_REQUIRED,
       text: "Authentication is required before the ACP task can continue.",
-      final: false,
       metadata: buildACPA2ATaskMetadata({
         authRequired: {
           authMethods: [...this.acpInfo.authMethods],
@@ -481,23 +479,24 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     const request = await deferred.promise;
     await this.connection.authenticate(request);
     this.publishStatusUpdate(task, {
-      state: "working",
+      state: TaskState.TASK_STATE_WORKING,
       text: "Authentication accepted. Resuming task...",
-      final: false,
     });
     task.pendingAuth = undefined;
     return true;
   }
 
   private publishTask(task: ActiveTaskState, nextTask: Task): void {
-    task.eventBus.publish(nextTask);
+    task.eventBus.publish(AgentEvent.task(nextTask));
   }
 
   private publishStatusUpdate(
     task: ActiveTaskState,
     options: Parameters<typeof buildStatusUpdate>[2],
   ): void {
-    task.eventBus.publish(buildStatusUpdate(task.taskId, task.contextId, options));
+    task.eventBus.publish(
+      AgentEvent.statusUpdate(buildStatusUpdate(task.taskId, task.contextId, options)),
+    );
   }
 
   /**
@@ -516,8 +515,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
   private buildSessionSink(task: ActiveTaskState): AcpStreamingSink {
     const publishMetadata = (metadata: AgentEventMetadata) => {
       this.publishStatusUpdate(task, {
-        state: "working",
-        final: false,
+        state: TaskState.TASK_STATE_WORKING,
         metadata: metadata as unknown as Record<string, unknown>,
       });
     };
@@ -546,9 +544,8 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         // event surface continue to drive incremental render via the
         // provider's existing delta computation.
         this.publishStatusUpdate(task, {
-          state: "working",
+          state: TaskState.TASK_STATE_WORKING,
           text: task.textBuffer,
-          final: false,
           messageId: task.currentAgentMessageId,
         });
       },

@@ -33,19 +33,24 @@ const MOCK_AGENT = resolve(import.meta.dir, "../../../tests/mock-acp-agent.cjs")
 
 // -- Helpers ---------------------------------------------------------------
 
-interface A2AMessage {
-  kind: "message";
+/**
+ * A2A 1.0 proto-canonical wire shapes. A message on the wire carries a
+ * `role` enum string (`"ROLE_USER"`) and parts encoded as proto JSON
+ * (`{ text, mediaType }`). Task state is the `TaskState` enum string
+ * (`"TASK_STATE_COMPLETED"` etc.). A `SendMessage` result wraps the task
+ * under a `task` key.
+ */
+interface A2AWireMessage {
   messageId: string;
-  role: "user";
-  parts: { kind: "text"; text: string }[];
+  role: "ROLE_USER";
+  parts: { text: string; mediaType?: string }[];
   contextId?: string;
 }
 
 interface A2ATask {
-  kind: "task";
   id: string;
   contextId: string;
-  status: { state: string; message?: { parts: { kind: string; text?: string }[] } };
+  status: { state: string; message?: { parts: { text?: string }[] } };
   metadata?: Record<string, unknown>;
 }
 
@@ -61,11 +66,10 @@ async function sendMessage(
   text: string,
   contextId?: string,
 ): Promise<JsonRpcResponse<A2ATask>> {
-  const message: A2AMessage = {
-    kind: "message",
+  const message: A2AWireMessage = {
     messageId: crypto.randomUUID(),
-    role: "user",
-    parts: [{ kind: "text", text }],
+    role: "ROLE_USER",
+    parts: [{ text, mediaType: "text/plain" }],
   };
   if (contextId) {
     message.contextId = contextId;
@@ -76,24 +80,27 @@ async function sendMessage(
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: crypto.randomUUID(),
-      method: "message/send",
+      method: "SendMessage",
       params: {
+        tenant: "",
         message,
-        configuration: { blocking: true },
+        configuration: { returnImmediately: false },
       },
     }),
   });
-  return (await response.json()) as JsonRpcResponse<A2ATask>;
+  const body = (await response.json()) as JsonRpcResponse<{ task?: A2ATask; message?: unknown }>;
+  // A2A 1.0 wraps the terminal task under `result.task`; unwrap so call
+  // sites keep reading `response.result` as the task.
+  return {
+    jsonrpc: body.jsonrpc,
+    id: body.id,
+    ...(body.result?.task ? { result: body.result.task } : {}),
+    ...(body.error ? { error: body.error } : {}),
+  };
 }
 
 function getTaskText(task: A2ATask | undefined): string | undefined {
-  if (!task) return undefined;
-  const parts = task.status.message?.parts;
-  if (!parts || parts.length === 0) return undefined;
-  const first = parts[0];
-  if (!first) return undefined;
-  if (first.kind === "text") return first.text;
-  return undefined;
+  return task?.status.message?.parts?.[0]?.text;
 }
 
 // -- Registry fixtures -----------------------------------------------------
@@ -131,7 +138,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     const response = await sendMessage(handle.url, "@@acp-agent hello");
     const task = response.result;
     expect(task).toBeDefined();
-    expect(task?.status.state).toBe("completed");
+    expect(task?.status.state).toBe("TASK_STATE_COMPLETED");
 
     // Mock default reply chunks: "Hello from " + "Mock ACP Agent!"
     const text = getTaskText(task);
@@ -147,7 +154,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     const response = await sendMessage(handle.url, "@@acp-agent metadata probe");
     const task = response.result;
-    expect(task?.status.state).toBe("completed");
+    expect(task?.status.state).toBe("TASK_STATE_COMPLETED");
 
     const metadata = task?.metadata as
       | {
@@ -178,11 +185,11 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     });
 
     const first = await sendMessage(handle.url, "@@acp-agent first");
-    expect(first.result?.status.state).toBe("completed");
+    expect(first.result?.status.state).toBe("TASK_STATE_COMPLETED");
     const firstText = getTaskText(first.result);
 
     const second = await sendMessage(handle.url, "@@acp-agent second");
-    expect(second.result?.status.state).toBe("completed");
+    expect(second.result?.status.state).toBe("TASK_STATE_COMPLETED");
     const secondText = getTaskText(second.result);
 
     // Both dispatches should produce the same (deterministic) mock output,
@@ -212,7 +219,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     const response = await sendMessage(handle.url, "@@crash-agent please die");
     const task = response.result;
-    expect(task?.status.state).toBe("failed");
+    expect(task?.status.state).toBe("TASK_STATE_FAILED");
     const text = getTaskText(task);
     expect(text).toContain(`Dispatch to "crash-agent"`);
     expect(text).toContain(`harness "mock"`);
@@ -234,7 +241,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     const response = await sendMessage(handle.url, "@@bogus-agent hello");
     const task = response.result;
-    expect(task?.status.state).toBe("failed");
+    expect(task?.status.state).toBe("TASK_STATE_FAILED");
     const text = getTaskText(task);
     expect(text).toContain(`Dispatch to "bogus-agent"`);
   }, 30_000);
@@ -254,8 +261,8 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
       sendMessage(handle.url, "primary parallel"),
     ]);
 
-    expect(dispatchResult.result?.status.state).toBe("completed");
-    expect(primaryResult.result?.status.state).toBe("completed");
+    expect(dispatchResult.result?.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(primaryResult.result?.status.state).toBe("TASK_STATE_COMPLETED");
   }, 30_000);
 
   test("7. three concurrent dispatches spawn independent controllers", async () => {
@@ -272,7 +279,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     ]);
 
     for (const r of results) {
-      expect(r.result?.status.state).toBe("completed");
+      expect(r.result?.status.state).toBe("TASK_STATE_COMPLETED");
     }
   }, 30_000);
 
@@ -285,11 +292,11 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     // First dispatch
     const dispatchResponse = await sendMessage(handle.url, "@@acp-agent aside");
-    expect(dispatchResponse.result?.status.state).toBe("completed");
+    expect(dispatchResponse.result?.status.state).toBe("TASK_STATE_COMPLETED");
 
     // Then a normal primary prompt — should still work
     const primaryResponse = await sendMessage(handle.url, "regular hello");
-    expect(primaryResponse.result?.status.state).toBe("completed");
+    expect(primaryResponse.result?.status.state).toBe("TASK_STATE_COMPLETED");
   }, 30_000);
 
   test("9. slow dispatch (MOCK_ACP_PROMPT_DELAY_MS) completes after the delay elapses", async () => {
@@ -318,7 +325,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
     const response = await sendMessage(handle.url, "@@slow-agent slow");
     const elapsed = Date.now() - start;
 
-    expect(response.result?.status.state).toBe("completed");
+    expect(response.result?.status.state).toBe("TASK_STATE_COMPLETED");
     expect(elapsed).toBeGreaterThanOrEqual(700);
   }, 30_000);
 
@@ -352,10 +359,10 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
       });
 
       const acpResponse = await sendMessage(handle.url, "@@acp-agent acp path");
-      expect(acpResponse.result?.status.state).toBe("completed");
+      expect(acpResponse.result?.status.state).toBe("TASK_STATE_COMPLETED");
 
       const a2aResponse = await sendMessage(handle.url, "@@a2a-agent a2a path");
-      expect(a2aResponse.result?.status.state).toBe("completed");
+      expect(a2aResponse.result?.status.state).toBe("TASK_STATE_COMPLETED");
     } finally {
       await a2aTarget.stop();
     }
@@ -389,7 +396,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
         "@@target __ECHO__:two-host-hostexecutor-proof",
       );
       const task = response.result;
-      expect(task?.status.state).toBe("completed");
+      expect(task?.status.state).toBe("TASK_STATE_COMPLETED");
       expect(getTaskText(task)).toBe("__ECHO__:two-host-hostexecutor-proof");
 
       const metadata = task?.metadata as
@@ -435,7 +442,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
       const response = await sendMessage(handle.url, "@@a2a-agent metadata probe");
       const task = response.result;
-      expect(task?.status.state).toBe("completed");
+      expect(task?.status.state).toBe("TASK_STATE_COMPLETED");
 
       const metadata = task?.metadata as
         | {
@@ -470,7 +477,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     const response = await sendMessage(handle.url, "@@future-agent hello");
     const task = response.result;
-    expect(task?.status.state).toBe("failed");
+    expect(task?.status.state).toBe("TASK_STATE_FAILED");
     const text = getTaskText(task);
     expect(text).toContain(`Dispatch to "future-agent"`);
     expect(text).toContain("unknown registry kind");
@@ -485,7 +492,7 @@ describe("HostA2AExecutor — ACP-kind @@dispatch", () => {
 
     const response = await sendMessage(handle.url, "@@missing-agent hello");
     const task = response.result;
-    expect(task?.status.state).toBe("failed");
+    expect(task?.status.state).toBe("TASK_STATE_FAILED");
     const text = getTaskText(task);
     expect(text).toContain(`Unknown agent "missing-agent"`);
     expect(text).toContain("acp-agent");

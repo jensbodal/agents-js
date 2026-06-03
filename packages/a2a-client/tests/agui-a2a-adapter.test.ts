@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { Message, MessageSendParams, Task } from "@a2a-js/sdk";
+import { type SendMessageRequest, type Task, TaskState } from "@a2a-js/sdk";
 import { EventType } from "@agents-js/agui-types";
 import { AGUITransport } from "../src/transports/agui.ts";
 import { AguiToA2ATransportAdapter } from "../src/transports/agui-a2a-adapter.ts";
 import { AGUIUnsupportedOperationError } from "../src/transports/agui-errors.ts";
+import type { A2AStreamPayload } from "../src/types.ts";
+import { makeMessage, makeTextPart } from "./mock-a2a-transport.ts";
+
+/** Narrow an emitted stream element to a wrapped Task payload. */
+function isTaskPayload(e: unknown): e is Extract<A2AStreamPayload, { $case: "task" }> {
+  return typeof e === "object" && e !== null && (e as { $case?: string }).$case === "task";
+}
 
 interface ServerHandle {
   stop: () => void;
@@ -43,15 +50,17 @@ function frame(event: Record<string, unknown>): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
-function mkParams(text: string): MessageSendParams {
-  const message: Message = {
-    kind: "message",
-    messageId: "msg-1",
-    role: "user",
-    parts: [{ kind: "text", text }],
-    contextId: "ctx-from-caller",
+function mkParams(text: string): SendMessageRequest {
+  return {
+    tenant: "",
+    configuration: undefined,
+    metadata: undefined,
+    message: makeMessage({
+      messageId: "msg-1",
+      parts: [makeTextPart(text)],
+      contextId: "ctx-from-caller",
+    }),
   };
-  return { message };
 }
 
 const handles: ServerHandle[] = [];
@@ -80,13 +89,10 @@ describe("AguiToA2ATransportAdapter", () => {
 
     // Expect: run.started, Task(working), run.finished, Task(completed)
     expect(emitted).toHaveLength(4);
-    const tasks = emitted.filter(
-      (e): e is Task =>
-        typeof e === "object" && e !== null && (e as { kind?: string }).kind === "task",
-    );
+    const tasks = emitted.filter(isTaskPayload);
     expect(tasks).toHaveLength(2);
-    expect(tasks[0]?.status.state).toBe("working");
-    expect(tasks[1]?.status.state).toBe("completed");
+    expect(tasks[0]?.value.status?.state).toBe(TaskState.TASK_STATE_WORKING);
+    expect(tasks[1]?.value.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
     const stream = emitted.filter(
       (e) => typeof e === "object" && e !== null && (e as { type?: string }).type,
     ) as Array<{ type: string }>;
@@ -107,13 +113,10 @@ describe("AguiToA2ATransportAdapter", () => {
       emitted.push(event);
     }
 
-    const tasks = emitted.filter(
-      (e): e is Task =>
-        typeof e === "object" && e !== null && (e as { kind?: string }).kind === "task",
-    );
+    const tasks = emitted.filter(isTaskPayload);
     expect(tasks).toHaveLength(2);
-    expect(tasks[1]?.status.state).toBe("failed");
-    const statusMessage = tasks[1]?.status.message;
+    expect(tasks[1]?.value.status?.state).toBe(TaskState.TASK_STATE_FAILED);
+    const statusMessage = tasks[1]?.value.status?.message;
     expect(statusMessage).toBeDefined();
   });
 
@@ -127,8 +130,8 @@ describe("AguiToA2ATransportAdapter", () => {
     const adapter = new AguiToA2ATransportAdapter(new AGUITransport());
     const target = await adapter.resolveTarget({ url: server.url });
     const result = await adapter.sendMessage(target, mkParams("hi"));
-    expect((result as Task).kind).toBe("task");
-    expect((result as Task).status.state).toBe("completed");
+    expect("id" in result).toBe(true);
+    expect((result as Task).status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
   });
 
   test("maps TOOL_CALL_* events to A2A tool_call.* events", async () => {
@@ -164,32 +167,38 @@ describe("AguiToA2ATransportAdapter", () => {
     const adapter = new AguiToA2ATransportAdapter(new AGUITransport());
     const target = await adapter.resolveTarget({ url: server.url });
 
-    await expect(adapter.getTask(target, { id: "x" })).rejects.toBeInstanceOf(
+    await expect(adapter.getTask(target, { tenant: "", id: "x" })).rejects.toBeInstanceOf(
       AGUIUnsupportedOperationError,
     );
-    await expect(adapter.cancelTask(target, { id: "x" })).rejects.toBeInstanceOf(
-      AGUIUnsupportedOperationError,
-    );
-    await expect(adapter.resubscribeTask(target, { id: "x" }).next()).rejects.toBeInstanceOf(
-      AGUIUnsupportedOperationError,
-    );
+    await expect(
+      adapter.cancelTask(target, { tenant: "", id: "x", metadata: undefined }),
+    ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
+    await expect(
+      adapter.resubscribeTask(target, { tenant: "", id: "x" }).next(),
+    ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
     await expect(
       adapter.setTaskPushNotificationConfig(target, {
+        tenant: "",
+        id: "p",
         taskId: "x",
-        pushNotificationConfig: { url: "https://example.com" },
+        url: "https://example.com",
+        token: "",
+        authentication: undefined,
       }),
     ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
-    await expect(adapter.getTaskPushNotificationConfig(target, { id: "x" })).rejects.toBeInstanceOf(
-      AGUIUnsupportedOperationError,
-    );
     await expect(
-      adapter.listTaskPushNotificationConfigs(target, { id: "x" }),
+      adapter.getTaskPushNotificationConfig(target, { tenant: "", taskId: "x", id: "p" }),
     ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
     await expect(
-      adapter.deleteTaskPushNotificationConfig(target, {
-        id: "x",
-        pushNotificationConfigId: "p",
+      adapter.listTaskPushNotificationConfigs(target, {
+        tenant: "",
+        taskId: "x",
+        pageSize: 0,
+        pageToken: "",
       }),
+    ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
+    await expect(
+      adapter.deleteTaskPushNotificationConfig(target, { tenant: "", taskId: "x", id: "p" }),
     ).rejects.toBeInstanceOf(AGUIUnsupportedOperationError);
   });
 

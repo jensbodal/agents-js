@@ -11,6 +11,7 @@ import {
 } from "../../a2a/src/index.ts";
 import { spawnACPAgent } from "../../acp/src/index.ts";
 import { A2AClientController } from "../src/index.ts";
+import { makeAgentCard } from "./mock-a2a-transport.ts";
 
 describe("a2a-client integration", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -30,7 +31,7 @@ describe("a2a-client integration", () => {
     const gatewayCard = buildAgentCard({
       name: "client-integration-gateway",
       description: "Integration test gateway",
-      capabilities: { "text-to-text": {} },
+      capabilities: { extensions: [], "text-to-text": {} },
     });
     const serverWrapper = new UniversalA2AServer(new ACPtoA2AExecutor(acp.stream), gatewayCard);
     const server = await serverWrapper.start(0);
@@ -98,17 +99,14 @@ describe("a2a-client integration", () => {
       fetch(request): Response {
         const url = new URL(request.url);
         if (url.pathname === "/custom-card.json") {
-          return Response.json({
-            name: "custom-card-agent",
-            description: "Custom card path",
-            url: `http://127.0.0.1:${server.port}`,
-            version: "1.0.0",
-            protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-            skills: [],
-            defaultInputModes: ["text"],
-            defaultOutputModes: ["text"],
-            capabilities: {},
-          });
+          return Response.json(
+            makeAgentCard({
+              name: "custom-card-agent",
+              description: "Custom card path",
+              url: `http://127.0.0.1:${server.port}`,
+              protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+            }),
+          );
         }
 
         return new Response("Not Found", { status: 404 });
@@ -141,17 +139,14 @@ describe("a2a-client integration", () => {
       fetch(request): Response {
         const url = new URL(request.url);
         if (url.pathname === "/.well-known/agent-card.json") {
-          return Response.json({
-            name: "origin-card-agent",
-            description: "Served at origin only",
-            url: `http://127.0.0.1:${server.port}`,
-            version: "1.0.0",
-            protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-            skills: [],
-            defaultInputModes: ["text"],
-            defaultOutputModes: ["text"],
-            capabilities: {},
-          });
+          return Response.json(
+            makeAgentCard({
+              name: "origin-card-agent",
+              description: "Served at origin only",
+              url: `http://127.0.0.1:${server.port}`,
+              protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+            }),
+          );
         }
         return new Response("Not Found", { status: 404 });
       },

@@ -44,13 +44,23 @@ function createMockAgentCard(): GatewayAgentCard {
   return {
     name: "MockAgent",
     description: "Mock agent for testing",
-    url: "http://127.0.0.1",
+    supportedInterfaces: [
+      {
+        url: "http://127.0.0.1",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
-    capabilities: {},
+    capabilities: { extensions: [] },
   };
 }
 

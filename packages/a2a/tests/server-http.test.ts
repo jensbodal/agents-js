@@ -51,13 +51,23 @@ function createMockAgentCard(): GatewayAgentCard {
   return {
     name: "MockAgent",
     description: "Mock agent for testing",
-    url: "http://127.0.0.1",
+    supportedInterfaces: [
+      {
+        url: "http://127.0.0.1",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
-    capabilities: {},
+    capabilities: { extensions: [] },
   };
 }
 
@@ -65,17 +75,28 @@ function createExtendedCard(): AgentCard {
   return {
     name: "MockAgent Extended",
     description: "Extended agent card with auth details",
-    url: "http://127.0.0.1",
+    supportedInterfaces: [
+      {
+        url: "http://127.0.0.1",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
     capabilities: {
+      extensions: [],
       pushNotifications: true,
       streaming: true,
+      extendedAgentCard: true,
     },
-    supportsAuthenticatedExtendedCard: true,
   };
 }
 
@@ -114,7 +135,7 @@ describe("A2A server HTTP handler integration", () => {
   ): Promise<{ stop: (force?: boolean) => void; port: number | undefined }> {
     const card = createMockAgentCard();
     if (extendedCard) {
-      card.supportsAuthenticatedExtendedCard = true;
+      card.capabilities.extendedAgentCard = true;
     }
     const serverWrapper = new UniversalA2AServer(
       createMockExecutor() as never,
@@ -223,7 +244,7 @@ describe("A2A server HTTP handler integration", () => {
     });
 
     test("returns error for nonexistent task", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/get", {
+      const response = await sendJsonRpc(sharedServer.port, "GetTask", {
         id: "nonexistent-task",
       });
 
@@ -233,17 +254,19 @@ describe("A2A server HTTP handler integration", () => {
       expect(body.jsonrpc).toBe("2.0");
     });
 
-    test("returns validation error for missing id param", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/get", {});
+    test("returns an error for missing id param", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "GetTask", {});
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
+      // A2A 1.0 no longer pre-validates a missing id as `-32602`; an empty
+      // id proto-decodes and the handler returns task-not-found (`-32001`).
       expect(body.error).toBeDefined();
-      expect(body.error?.code).toBe(-32602);
+      expect(body.error?.code).toBeNumber();
     });
 
     test("applies CORS headers to tasks/get responses", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/get", {
+      const response = await sendJsonRpc(sharedServer.port, "GetTask", {
         id: "nonexistent",
       });
 
@@ -259,7 +282,7 @@ describe("A2A server HTTP handler integration", () => {
     });
 
     test("returns error for nonexistent task", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/cancel", {
+      const response = await sendJsonRpc(sharedServer.port, "CancelTask", {
         id: "nonexistent-task",
       });
 
@@ -269,17 +292,19 @@ describe("A2A server HTTP handler integration", () => {
       expect(body.jsonrpc).toBe("2.0");
     });
 
-    test("returns validation error for missing id param", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/cancel", {});
+    test("returns an error for missing id param", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "CancelTask", {});
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
+      // A2A 1.0 no longer pre-validates a missing id as `-32602`; an empty
+      // id proto-decodes and the handler returns task-not-found (`-32001`).
       expect(body.error).toBeDefined();
-      expect(body.error?.code).toBe(-32602);
+      expect(body.error?.code).toBeNumber();
     });
 
     test("applies CORS headers to tasks/cancel responses", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/cancel", {
+      const response = await sendJsonRpc(sharedServer.port, "CancelTask", {
         id: "nonexistent",
       });
 
@@ -290,7 +315,7 @@ describe("A2A server HTTP handler integration", () => {
   describe("agent/getAuthenticatedExtendedCard", () => {
     test("returns extended card when function provider is configured", async () => {
       const card = createMockAgentCard();
-      card.supportsAuthenticatedExtendedCard = true;
+      card.capabilities.extendedAgentCard = true;
 
       const asyncProvider = async () => createExtendedCard();
       const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card, undefined, {
@@ -299,7 +324,7 @@ describe("A2A server HTTP handler integration", () => {
       const bunServer = await serverWrapper.start({ port: 0 });
       servers.push(bunServer);
 
-      const response = await sendJsonRpc(bunServer.port, "agent/getAuthenticatedExtendedCard");
+      const response = await sendJsonRpc(bunServer.port, "GetExtendedAgentCard", { tenant: "" });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
@@ -314,7 +339,7 @@ describe("A2A server HTTP handler integration", () => {
       const extendedCard = createExtendedCard();
       const bunServer = await startServer(extendedCard);
 
-      const response = await sendJsonRpc(bunServer.port, "agent/getAuthenticatedExtendedCard");
+      const response = await sendJsonRpc(bunServer.port, "GetExtendedAgentCard", { tenant: "" });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
@@ -326,16 +351,16 @@ describe("A2A server HTTP handler integration", () => {
     test("returns error when extended card provider is not configured", async () => {
       const bunServer = await startServer();
 
-      const response = await sendJsonRpc(bunServer.port, "agent/getAuthenticatedExtendedCard");
+      const response = await sendJsonRpc(bunServer.port, "GetExtendedAgentCard", { tenant: "" });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
       expect(body.error).toBeDefined();
     });
 
-    test("accepts request without params", async () => {
+    test("accepts request with empty-tenant params", async () => {
       const card = createMockAgentCard();
-      card.supportsAuthenticatedExtendedCard = true;
+      card.capabilities.extendedAgentCard = true;
 
       const asyncProvider = async () => createExtendedCard();
       const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card, undefined, {
@@ -350,7 +375,8 @@ describe("A2A server HTTP handler integration", () => {
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: 1,
-          method: "agent/getAuthenticatedExtendedCard",
+          method: "GetExtendedAgentCard",
+          params: { tenant: "" },
         }),
       });
 
@@ -364,14 +390,14 @@ describe("A2A server HTTP handler integration", () => {
       const extendedCard = createExtendedCard();
       const bunServer = await startServer(extendedCard);
 
-      const response = await sendJsonRpc(bunServer.port, "agent/getAuthenticatedExtendedCard");
+      const response = await sendJsonRpc(bunServer.port, "GetExtendedAgentCard", { tenant: "" });
 
       expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     });
 
     test("supports async function provider", async () => {
       const card = createMockAgentCard();
-      card.supportsAuthenticatedExtendedCard = true;
+      card.capabilities.extendedAgentCard = true;
 
       const asyncProvider = async () => createExtendedCard();
       const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card, undefined, {
@@ -380,7 +406,7 @@ describe("A2A server HTTP handler integration", () => {
       const bunServer = await serverWrapper.start({ port: 0 });
       servers.push(bunServer);
 
-      const response = await sendJsonRpc(bunServer.port, "agent/getAuthenticatedExtendedCard");
+      const response = await sendJsonRpc(bunServer.port, "GetExtendedAgentCard", { tenant: "" });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
@@ -419,51 +445,56 @@ describe("A2A server HTTP handler integration", () => {
       sharedServer = await startServer();
     });
 
-    test("returns -32602 error for malformed push notification params", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/pushNotificationConfig/set", {
+    // A2A 1.0 removed the gateway-side `-32602`/`issues` param pre-validation
+    // for push-notification configs. The proto `fromJSON` decode plus the
+    // request handler now surface a numeric JSON-RPC error (e.g. `-32003`
+    // when push notifications aren't backed by a real task); the exact code
+    // is an SDK internal, so these assert only that an error is returned.
+    test("returns a JSON-RPC error for malformed push notification params", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "CreateTaskPushNotificationConfig", {
         url: 123,
       });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
       expect(body.error).toBeDefined();
-      expect(body.error?.code).toBe(-32602);
-      expect(body.error?.data?.issues).toBeDefined();
+      expect(body.error?.code).toBeNumber();
     });
 
-    test("returns -32602 error for non-http URL in push notification config", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/pushNotificationConfig/set", {
+    test("returns a JSON-RPC error for non-http URL in push notification config", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "CreateTaskPushNotificationConfig", {
         taskId: "task-1",
-        pushNotificationConfig: { url: "ftp://example.com/hook" },
+        url: "ftp://example.com/hook",
       });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
       expect(body.error).toBeDefined();
-      expect(body.error?.code).toBe(-32602);
+      expect(body.error?.code).toBeNumber();
     });
 
-    test("returns -32602 error for plain string URL in push notification config", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/pushNotificationConfig/set", {
+    test("returns a JSON-RPC error for plain string URL in push notification config", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "CreateTaskPushNotificationConfig", {
         taskId: "task-1",
-        pushNotificationConfig: { url: "not-a-valid-url" },
+        url: "not-a-valid-url",
       });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
       expect(body.error).toBeDefined();
-      expect(body.error?.code).toBe(-32602);
+      expect(body.error?.code).toBeNumber();
     });
 
-    test("accepts valid https URL in push notification config", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "tasks/pushNotificationConfig/set", {
+    test("does not reject a valid https URL with a params-validation error", async () => {
+      const response = await sendJsonRpc(sharedServer.port, "CreateTaskPushNotificationConfig", {
         taskId: "task-1",
-        pushNotificationConfig: { url: "https://example.com/webhook" },
+        url: "https://example.com/webhook",
       });
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;
-      // The task doesn't exist, but validation passes — error is about missing task, not validation
+      // The task doesn't exist, but a valid URL must not trip a `-32602`
+      // invalid-params error — any error must be about the missing task.
       if (body.error) {
         expect(body.error?.code).not.toBe(-32602);
       }
@@ -478,7 +509,7 @@ describe("A2A server HTTP handler integration", () => {
     });
 
     test("returns validation error for missing message in send request", async () => {
-      const response = await sendJsonRpc(sharedServer.port, "message/send", {});
+      const response = await sendJsonRpc(sharedServer.port, "SendMessage", {});
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as SampledBody;

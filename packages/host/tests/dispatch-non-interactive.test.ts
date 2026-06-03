@@ -1,7 +1,27 @@
 import { describe, expect, test } from "bun:test";
+import { type Part, TaskState, type TaskStatusUpdateEvent } from "@a2a-js/sdk";
 import type { ExecutionEventBus } from "@agents-js/a2a";
 import type { ACPSessionController, ACPSessionEvent, ACPSessionState } from "@agents-js/acp-host";
 import { subscribeDispatchController } from "../src/host-executor.ts";
+
+/**
+ * Published events are `AgentEvent` wrappers (`{ kind, data }`). Unwrap the
+ * `statusUpdate` variant and read the proto-shaped status/part so assertions
+ * stay in plain terms.
+ */
+function findFailedStatusUpdate(published: unknown[]): TaskStatusUpdateEvent | undefined {
+  const wrapper = published.find(
+    (e) =>
+      (e as { kind?: string }).kind === "statusUpdate" &&
+      (e as { data?: TaskStatusUpdateEvent }).data?.status?.state === TaskState.TASK_STATE_FAILED,
+  ) as { data?: TaskStatusUpdateEvent } | undefined;
+  return wrapper?.data;
+}
+
+function statusText(status: TaskStatusUpdateEvent | undefined): string | undefined {
+  const part: Part | undefined = status?.status?.message?.parts?.[0];
+  return part?.content?.$case === "text" ? part.content.value : undefined;
+}
 
 /**
  * @@dispatch is non-interactive — it has no UI to prompt the operator
@@ -96,13 +116,9 @@ describe("subscribeDispatchController — non-interactive contract", () => {
     // Allow the fire-and-forget cancel microtask to run.
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const failed = published.find(
-      (e) =>
-        (e as { kind?: string; status?: { state?: string } }).kind === "status-update" &&
-        (e as { status: { state: string } }).status.state === "failed",
-    ) as { status: { message?: { parts: { kind: string; text?: string }[] } } } | undefined;
+    const failed = findFailedStatusUpdate(published);
     expect(failed).toBeDefined();
-    const text = failed?.status.message?.parts.find((p) => p.kind === "text")?.text;
+    const text = statusText(failed);
     expect(text).toContain("non-interactive");
     expect(text).toContain("Read file");
     expect(stub.cancelCalls()).toBe(1);
@@ -126,13 +142,9 @@ describe("subscribeDispatchController — non-interactive contract", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const failed = published.find(
-      (e) =>
-        (e as { kind?: string; status?: { state?: string } }).kind === "status-update" &&
-        (e as { status: { state: string } }).status.state === "failed",
-    ) as { status: { message?: { parts: { kind: string; text?: string }[] } } } | undefined;
+    const failed = findFailedStatusUpdate(published);
     expect(failed).toBeDefined();
-    const text = failed?.status.message?.parts.find((p) => p.kind === "text")?.text;
+    const text = statusText(failed);
     expect(text).toContain("non-interactive");
     expect(text).toContain("drafts/notes.md");
     expect(stub.cancelCalls()).toBe(1);
@@ -161,11 +173,7 @@ describe("subscribeDispatchController — non-interactive contract", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const failed = published.find(
-      (e) =>
-        (e as { kind?: string; status?: { state?: string } }).kind === "status-update" &&
-        (e as { status: { state: string } }).status.state === "failed",
-    );
+    const failed = findFailedStatusUpdate(published);
     expect(failed).toBeDefined();
     expect(stub.cancelCalls()).toBe(1);
   });
@@ -248,11 +256,7 @@ describe("subscribeDispatchController — non-interactive contract", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(stub.cancelCalls()).toBe(0);
-    const failed = published.find(
-      (e) =>
-        (e as { kind?: string; status?: { state?: string } }).kind === "status-update" &&
-        (e as { status: { state: string } }).status.state === "failed",
-    );
+    const failed = findFailedStatusUpdate(published);
     expect(failed).toBeDefined();
   });
 });

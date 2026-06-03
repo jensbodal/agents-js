@@ -13,13 +13,23 @@ function makeTarget(overrides: Partial<ResolvedAgentTarget> = {}): ResolvedAgent
     card: {
       name: "test-agent",
       description: "A test agent",
-      url: "http://127.0.0.1:55363",
+      supportedInterfaces: [
+        {
+          url: "http://127.0.0.1:55363",
+          protocolBinding: "JSONRPC",
+          tenant: "",
+          protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+        },
+      ],
+      provider: undefined,
       version: "1.0.0",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      securitySchemes: {},
+      securityRequirements: [],
       skills: [],
+      signatures: [],
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
-      capabilities: {},
+      capabilities: { extensions: [] },
     },
     capabilities: {
       inputModes: ["text"],
@@ -28,7 +38,7 @@ function makeTarget(overrides: Partial<ResolvedAgentTarget> = {}): ResolvedAgent
       supportsTextOutput: true,
       supportsStreaming: false,
       supportsPushNotifications: false,
-      raw: {},
+      raw: { extensions: [] },
     },
     ...overrides,
   };
@@ -124,7 +134,7 @@ describe("inspector", () => {
             supportsTextOutput: true,
             supportsStreaming: true,
             supportsPushNotifications: false,
-            raw: {},
+            raw: { extensions: [] },
           },
         }),
       });

@@ -193,7 +193,7 @@ export async function createGatewayTestServer(
   const agentCard = buildAgentCard({
     name: "gateway-test",
     description: "Test gateway",
-    capabilities: { "text-to-text": {} },
+    capabilities: { extensions: [], "text-to-text": {} },
   });
 
   const a2aServer = new UniversalA2AServer(executor, agentCard);

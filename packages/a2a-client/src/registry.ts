@@ -317,7 +317,7 @@ export class AgentRegistry {
       baseUrl: normalizedBase,
       cardUrl,
       card,
-      protocolVersion: card.protocolVersion,
+      protocolVersion: card.supportedInterfaces[0]?.protocolVersion,
       capabilities: summarizeCapabilities(card),
     };
   }

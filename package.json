@@ -31,7 +31,7 @@
     "tests/trial-agent"
   ],
   "catalog": {
-    "@a2a-js/sdk": "0.3.13",
+    "@a2a-js/sdk": "1.0.0-alpha.0",
     "@ag-ui/core": "0.0.55",
     "@agentclientprotocol/sdk": "0.24.0",
     "@biomejs/biome": "2.4.13",

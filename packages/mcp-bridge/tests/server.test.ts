@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type {
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
@@ -12,26 +12,26 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 // @a2a-js/sdk is a transitive dep through @agents-js/a2a-client; reach it via a relative
 // path so this test does not require declaring the SDK directly in mcp-bridge/package.json.
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
-} from "../../a2a-client/node_modules/@a2a-js/sdk/dist/index.d.ts";
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
+} from "../../a2a-client/node_modules/@a2a-js/sdk/dist/index.js";
 import type { BridgeConfig } from "../src/server.ts";
 import { createBridgeServer } from "../src/server.ts";
 
 /** Minimal mock A2A transport that returns fixed responses. */
 class MockA2ATransport implements A2ATransport {
-  readonly sentMessages: Array<{ target: ResolvedAgentTarget; params: MessageSendParams }> = [];
+  readonly sentMessages: Array<{ target: ResolvedAgentTarget; params: SendMessageRequest }> = [];
 
   constructor(
     private readonly cards: Map<string, AgentCard>,
@@ -59,7 +59,7 @@ class MockA2ATransport implements A2ATransport {
         supportsTextOutput: true,
         supportsStreaming: false,
         supportsPushNotifications: false,
-        raw: card.capabilities ?? {},
+        raw: card.capabilities,
       },
     };
   }
@@ -70,7 +70,7 @@ class MockA2ATransport implements A2ATransport {
 
   async sendMessage(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<Message | Task> {
     this.sentMessages.push({ target, params });
     const response = this.responses.get(target.baseUrl);
@@ -82,24 +82,20 @@ class MockA2ATransport implements A2ATransport {
 
   async *sendMessageStream(
     _target: ResolvedAgentTarget,
-    _params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    _params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     // Not used in these tests (stream: false)
   }
 
-  async getTask(_target: ResolvedAgentTarget, _params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, _params: GetTaskRequest): Promise<Task> {
     throw new Error("not implemented");
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, _params: TaskIdParams): Promise<Task> {
+  async cancelTask(_target: ResolvedAgentTarget, _params: CancelTaskRequest): Promise<Task> {
     throw new Error("not implemented");
   }
 
-  async *resubscribeTask(): AsyncGenerator<
-    Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {
     // Not used
   }
 
@@ -112,21 +108,21 @@ class MockA2ATransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not implemented");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not implemented");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new Error("not implemented");
   }
@@ -144,22 +140,43 @@ function makeCard(name: string, description: string): AgentCard {
   return {
     name,
     description,
-    url: `http://127.0.0.1:${3000 + name.length}`,
+    supportedInterfaces: [
+      {
+        url: `http://127.0.0.1:${3000 + name.length}`,
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: "0.2.3",
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: "0.2.3",
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
-    capabilities: {},
+    capabilities: { extensions: [] },
   };
 }
 
 function makeMessage(text: string): Message {
   return {
-    kind: "message",
     messageId: crypto.randomUUID(),
-    role: "agent",
-    parts: [{ kind: "text", text }],
+    role: Role.ROLE_AGENT,
+    parts: [
+      {
+        content: { $case: "text", value: text },
+        metadata: undefined,
+        filename: "",
+        mediaType: "text/plain",
+      },
+    ],
+    taskId: "",
+    contextId: "",
+    metadata: undefined,
+    extensions: [],
+    referenceTaskIds: [],
   };
 }
 
@@ -277,8 +294,8 @@ describe("MCP Bridge Server", () => {
 
     const [firstSent, secondSent] = mockTransport.sentMessages;
     if (!firstSent || !secondSent) throw new Error("expected two recorded sends");
-    const firstContextId = firstSent.params.message.contextId;
-    const secondContextId = secondSent.params.message.contextId;
+    const firstContextId = firstSent.params.message?.contextId;
+    const secondContextId = secondSent.params.message?.contextId;
 
     expect(firstContextId).toBeDefined();
     expect(firstContextId).toBe(secondContextId);
@@ -308,10 +325,14 @@ describe("MCP Bridge Server", () => {
 
     cards.set("http://localhost:3001", makeCard("empty", "Empty agent"));
     responses.set("http://localhost:3001", {
-      kind: "message",
       messageId: crypto.randomUUID(),
-      role: "agent",
+      role: Role.ROLE_AGENT,
       parts: [],
+      taskId: "",
+      contextId: "",
+      metadata: undefined,
+      extensions: [],
+      referenceTaskIds: [],
     });
 
     const mockTransport = new MockA2ATransport(cards, responses);
@@ -562,27 +583,34 @@ describe("MCP Bridge Server", () => {
     const cards = new Map<string, AgentCard>();
 
     cards.set("http://localhost:3001", makeCard("task-agent", "Task agent"));
+    const agentMessage: Message = {
+      messageId: "msg-1",
+      role: Role.ROLE_AGENT,
+      parts: [
+        {
+          content: { $case: "text", value: "task completed" },
+          metadata: undefined,
+          filename: "",
+          mediaType: "text/plain",
+        },
+      ],
+      taskId: "task-1",
+      contextId: "ctx-1",
+      metadata: undefined,
+      extensions: [],
+      referenceTaskIds: [],
+    };
     const task: Task = {
-      kind: "task",
       id: "task-1",
       contextId: "ctx-1",
       status: {
-        state: "completed",
-        message: {
-          kind: "message",
-          messageId: "msg-1",
-          role: "agent",
-          parts: [{ kind: "text", text: "task completed" }],
-        },
+        state: TaskState.TASK_STATE_COMPLETED,
+        message: agentMessage,
+        timestamp: undefined,
       },
-      history: [
-        {
-          kind: "message",
-          messageId: "msg-1",
-          role: "agent",
-          parts: [{ kind: "text", text: "task completed" }],
-        },
-      ],
+      artifacts: [],
+      history: [agentMessage],
+      metadata: undefined,
     };
 
     // Use a transport that returns a Task instead of a Message

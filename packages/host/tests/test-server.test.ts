@@ -32,13 +32,13 @@ describe("createGatewayTestServer", () => {
       const card = (await response.json()) as {
         name?: string;
         description?: string;
-        url?: string;
+        supportedInterfaces?: Array<{ url?: string }>;
         capabilities?: Record<string, unknown>;
       };
       expect(card.name).toBe("gateway-test");
       expect(card.description).toBe("Test gateway");
       // The server rewrites the default agent-card URL to the bound host:port.
-      expect(card.url).toBe(handle.url);
+      expect(card.supportedInterfaces?.[0]?.url).toBe(handle.url);
       // text-to-text is the baseline capability we configured.
       expect(card.capabilities).toBeDefined();
       expect(card.capabilities?.["text-to-text"]).toBeDefined();

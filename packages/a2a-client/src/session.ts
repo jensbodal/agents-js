@@ -1,4 +1,4 @@
-import type { Message, Task } from "@a2a-js/sdk";
+import { type Message, Role, type Task, TaskState } from "@a2a-js/sdk";
 import { extractAcpAuthRequiredMetadata, extractAcpElicitationMetadata } from "./acp-state.ts";
 import { applyJsonPatch } from "./json-patch.ts";
 import type {
@@ -10,12 +10,58 @@ import type {
 } from "./types.ts";
 import { randomUuid } from "./uuid.ts";
 
-const TERMINAL_TASK_STATES = new Set(["completed", "failed", "canceled", "rejected", "unknown"]);
+const TERMINAL_TASK_STATES = new Set<TaskState>([
+  TaskState.TASK_STATE_COMPLETED,
+  TaskState.TASK_STATE_FAILED,
+  TaskState.TASK_STATE_CANCELED,
+  TaskState.TASK_STATE_REJECTED,
+]);
 
-export function isTerminalTaskState(state: string): boolean {
-  return TERMINAL_TASK_STATES.has(state);
+/**
+ * Wire-boundary predicate: is this proto {@link TaskState} terminal?
+ * Terminal states close the SSE stream and clear the resumable task. Callers
+ * pass the raw proto enum from `task.status.state` / `update.status.state`.
+ */
+export function isTerminalTaskState(state: TaskState | undefined): boolean {
+  return state !== undefined && TERMINAL_TASK_STATES.has(state);
 }
 
+/**
+ * Translate the proto {@link TaskState} enum into the protocol-neutral
+ * hyphenated vocabulary that {@link A2ASessionState.taskState} and the session
+ * view-model speak (`"input-required"`, `"completed"`, ...). This keeps proto
+ * `TaskState` numbers at the wire edge; client-side status logic stays in
+ * string terms.
+ */
+export function taskStateToVocabulary(state: TaskState | undefined): string | undefined {
+  switch (state) {
+    case TaskState.TASK_STATE_SUBMITTED:
+      return "submitted";
+    case TaskState.TASK_STATE_WORKING:
+      return "working";
+    case TaskState.TASK_STATE_COMPLETED:
+      return "completed";
+    case TaskState.TASK_STATE_FAILED:
+      return "failed";
+    case TaskState.TASK_STATE_CANCELED:
+      return "canceled";
+    case TaskState.TASK_STATE_REJECTED:
+      return "rejected";
+    case TaskState.TASK_STATE_INPUT_REQUIRED:
+      return "input-required";
+    case TaskState.TASK_STATE_AUTH_REQUIRED:
+      return "auth-required";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Recursively collect `text` from ACP-shaped content (`{ type: "text", text }`
+ * or `{ kind: "text", text }`). Used by the mention middleware to flatten ACP
+ * `ContentBlock[]` prompt content — this walks the ACP content shape, NOT A2A
+ * proto parts (those use `content.$case === "text"`; see {@link extractMessageText}).
+ */
 export function collectTextParts(input: unknown, out: string[] = []): string[] {
   if (input === null || input === undefined) {
     return out;
@@ -46,10 +92,12 @@ export function collectTextParts(input: unknown, out: string[] = []): string[] {
 }
 
 export function extractMessageText(message: Partial<Message> | null | undefined): string {
-  if (!message) {
+  if (!message?.parts) {
     return "";
   }
-  return collectTextParts(message.parts ?? [])
+  return message.parts
+    .map((part) => (part.content?.$case === "text" ? part.content.value : ""))
+    .filter((text) => text.length > 0)
     .join("\n")
     .trim();
 }
@@ -58,13 +106,13 @@ export function extractLatestAgentMessage(task: Task): Message | undefined {
   const history = Array.isArray(task.history) ? task.history : [];
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const candidate = history[index];
-    if (candidate?.role === "agent") {
+    if (candidate?.role === Role.ROLE_AGENT) {
       return candidate;
     }
   }
 
   const statusMessage = task.status?.message;
-  if (statusMessage?.role === "agent") {
+  if (statusMessage?.role === Role.ROLE_AGENT) {
     return statusMessage;
   }
 
@@ -204,7 +252,7 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
         resumableTaskId: undefined,
         activeElicitation: undefined,
         activeAuth: undefined,
-        taskState: event.task?.status.state,
+        taskState: taskStateToVocabulary(event.task?.status?.state),
         transcript: appendTranscriptEntry(state.transcript, {
           id: randomUuid(),
           role: "agent",
@@ -215,23 +263,26 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
         }),
       };
     case "task.status.updated": {
-      const text = extractMessageText(event.update.status.message);
+      const text = extractMessageText(event.update.status?.message);
       const metadata = event.update.metadata;
       const activeElicitation = extractAcpElicitationMetadata(metadata);
       const activeAuth = extractAcpAuthRequiredMetadata(metadata);
+      // A2A 1.0 dropped `final`; terminal state drives termination.
+      const isFinal = isTerminalTaskState(event.update.status?.state);
 
       return {
         ...state,
-        status: computeSessionStatusFromTaskState(event.update.status.state, !!event.update.final),
+        status: computeSessionStatusFromTaskState(
+          taskStateToVocabulary(event.update.status?.state) ?? "",
+          isFinal,
+        ),
         contextId: event.update.contextId ?? state.contextId,
         taskId: event.update.taskId ?? state.taskId,
-        resumableTaskId: event.update.final
-          ? undefined
-          : (event.update.taskId ?? state.resumableTaskId),
-        taskState: event.update.status.state,
+        resumableTaskId: isFinal ? undefined : (event.update.taskId ?? state.resumableTaskId),
+        taskState: taskStateToVocabulary(event.update.status?.state),
         activeElicitation,
         activeAuth,
-        pendingAgentText: text ? text : event.update.final ? undefined : state.pendingAgentText,
+        pendingAgentText: text ? text : isFinal ? undefined : state.pendingAgentText,
       };
     }
     case "task.artifact.updated":
@@ -241,25 +292,23 @@ export function reduceA2ASessionState(state: A2ASessionState, event: A2AEvent): 
         taskId: event.update.taskId ?? state.taskId,
         resumableTaskId: event.update.taskId ?? state.resumableTaskId,
       };
-    case "task.updated":
+    case "task.updated": {
+      const taskState = event.task.status?.state;
+      const isFinal = isTerminalTaskState(taskState);
       return {
         ...state,
-        status: computeSessionStatusFromTaskState(
-          event.task.status.state,
-          isTerminalTaskState(event.task.status.state),
-        ),
+        status: computeSessionStatusFromTaskState(taskStateToVocabulary(taskState) ?? "", isFinal),
         contextId: event.task.contextId ?? state.contextId,
         taskId: event.task.id ?? state.taskId,
-        resumableTaskId: isTerminalTaskState(event.task.status.state)
-          ? undefined
-          : (event.task.id ?? state.resumableTaskId),
-        taskState: event.task.status.state,
+        resumableTaskId: isFinal ? undefined : (event.task.id ?? state.resumableTaskId),
+        taskState: taskStateToVocabulary(taskState),
         activeElicitation: extractAcpElicitationMetadata(event.task.metadata),
         activeAuth: extractAcpAuthRequiredMetadata(event.task.metadata),
-        pendingAgentText: isTerminalTaskState(event.task.status.state)
+        pendingAgentText: isFinal
           ? undefined
-          : extractMessageText(event.task.status.message) || state.pendingAgentText,
+          : extractMessageText(event.task.status?.message) || state.pendingAgentText,
       };
+    }
     case "debug.record":
       return {
         ...state,

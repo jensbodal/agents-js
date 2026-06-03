@@ -661,7 +661,11 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // lane manager and the A2A server hold the same reference.
   const gatewayCard = buildAgentCard(selectedRuntime.agentCard);
   if (cliArgs.publicUrl !== undefined) {
-    gatewayCard.url = cliArgs.publicUrl;
+    // A2A 1.0 moved the bind URL into `supportedInterfaces[].url`.
+    const iface = gatewayCard.supportedInterfaces[0];
+    if (iface) {
+      iface.url = cliArgs.publicUrl;
+    }
   }
 
   // Build the harness fleet entries and construct the lane manager.

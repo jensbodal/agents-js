@@ -1,12 +1,14 @@
 import type {
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  MessageSendParams,
+  CancelTaskRequest,
+  DeleteTaskPushNotificationConfigRequest,
+  GetTaskPushNotificationConfigRequest,
+  GetTaskRequest,
+  ListTaskPushNotificationConfigsRequest,
+  SendMessageRequest,
+  StreamResponse,
+  SubscribeToTaskRequest,
   Task,
-  TaskIdParams,
   TaskPushNotificationConfig,
-  TaskQueryParams,
 } from "@a2a-js/sdk";
 import {
   ClientFactory,
@@ -26,6 +28,8 @@ import {
 } from "./target.ts";
 import type {
   A2ASendResult,
+  A2AStreamElement,
+  A2AStreamPayload,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
@@ -40,11 +44,6 @@ interface ResolvedClientContext {
   client: Awaited<ReturnType<ClientFactory["createFromUrl"]>>;
 }
 
-type StreamEventEnvelope = {
-  error?: { message?: string } | null;
-  result?: unknown;
-};
-
 function buildProbeHeaders(headers: Record<string, string>): Headers {
   const probeHeaders = new Headers(headers);
   if (!probeHeaders.has("accept")) {
@@ -53,17 +52,17 @@ function buildProbeHeaders(headers: Record<string, string>): Headers {
   return probeHeaders;
 }
 
-function unwrapStreamEvent<T>(event: T | StreamEventEnvelope): T {
-  if (typeof event !== "object" || event === null || !("result" in event || "error" in event)) {
-    return event as T;
+/**
+ * Peel the A2A 1.0 `StreamResponse` envelope at the wire edge, yielding the
+ * tagged `{ $case, value }` payload the provider's stream loop discriminates on.
+ * Errors now surface as thrown exceptions from the SDK transport, so a payload
+ * is always present on a yielded response.
+ */
+function unwrapStreamResponse(response: StreamResponse): A2AStreamPayload {
+  if (!response.payload) {
+    throw new Error("[a2a-client] Streaming response yielded an empty payload.");
   }
-
-  const envelope = event as StreamEventEnvelope;
-  if (envelope.error) {
-    throw new Error(envelope.error.message ?? "[a2a-client] Streaming request failed.");
-  }
-
-  return envelope.result as T;
+  return response.payload;
 }
 
 async function probeEndpoint(
@@ -186,11 +185,15 @@ export class SdkA2ATransport implements A2ATransport {
     );
     const card = validateAgentCard(await client.getAgentCard());
 
+    // A2A 1.0 moved url/protocolVersion off the card top-level onto the
+    // per-transport AgentInterface entries.
+    const primaryInterface = card.supportedInterfaces[0];
+    const cardUrl = primaryInterface?.url;
     const target: ResolvedAgentTarget = {
-      baseUrl: typeof card.url === "string" && card.url.length > 0 ? card.url : normalized.baseUrl,
+      baseUrl: typeof cardUrl === "string" && cardUrl.length > 0 ? cardUrl : normalized.baseUrl,
       cardUrl: normalized.cardUrl,
       card,
-      protocolVersion: card.protocolVersion,
+      protocolVersion: primaryInterface?.protocolVersion,
       capabilities: summarizeCapabilities(card),
     };
 
@@ -243,7 +246,7 @@ export class SdkA2ATransport implements A2ATransport {
 
   async sendMessage(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<A2ASendResult> {
     const { client } = this.getContext(target);
     return client.sendMessage(params);
@@ -251,44 +254,34 @@ export class SdkA2ATransport implements A2ATransport {
 
   sendMessageStream(
     target: ResolvedAgentTarget,
-    params: MessageSendParams,
-  ): AsyncGenerator<
-    | import("@a2a-js/sdk").Message
-    | Task
-    | import("@a2a-js/sdk").TaskStatusUpdateEvent
-    | import("@a2a-js/sdk").TaskArtifactUpdateEvent
-  > {
+    params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     const { client } = this.getContext(target);
     return (async function* () {
       for await (const event of client.sendMessageStream(params)) {
-        yield unwrapStreamEvent(event);
+        yield unwrapStreamResponse(event);
       }
     })();
   }
 
-  async getTask(target: ResolvedAgentTarget, params: TaskQueryParams): Promise<Task> {
+  async getTask(target: ResolvedAgentTarget, params: GetTaskRequest): Promise<Task> {
     const { client } = this.getContext(target);
     return client.getTask(params);
   }
 
-  async cancelTask(target: ResolvedAgentTarget, params: TaskIdParams): Promise<Task> {
+  async cancelTask(target: ResolvedAgentTarget, params: CancelTaskRequest): Promise<Task> {
     const { client } = this.getContext(target);
     return client.cancelTask(params);
   }
 
   resubscribeTask(
     target: ResolvedAgentTarget,
-    params: TaskIdParams,
-  ): AsyncGenerator<
-    | import("@a2a-js/sdk").Message
-    | Task
-    | import("@a2a-js/sdk").TaskStatusUpdateEvent
-    | import("@a2a-js/sdk").TaskArtifactUpdateEvent
-  > {
+    params: SubscribeToTaskRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     const { client } = this.getContext(target);
     return (async function* () {
       for await (const event of client.resubscribeTask(params)) {
-        yield unwrapStreamEvent(event);
+        yield unwrapStreamResponse(event);
       }
     })();
   }
@@ -298,12 +291,12 @@ export class SdkA2ATransport implements A2ATransport {
     params: TaskPushNotificationConfig,
   ): Promise<TaskPushNotificationConfig> {
     const { client } = this.getContext(target);
-    return client.setTaskPushNotificationConfig(params);
+    return client.createTaskPushNotificationConfig(params);
   }
 
   async getTaskPushNotificationConfig(
     target: ResolvedAgentTarget,
-    params: GetTaskPushNotificationConfigParams,
+    params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     const { client } = this.getContext(target);
     return client.getTaskPushNotificationConfig(params);
@@ -311,15 +304,16 @@ export class SdkA2ATransport implements A2ATransport {
 
   async listTaskPushNotificationConfigs(
     target: ResolvedAgentTarget,
-    params: ListTaskPushNotificationConfigParams,
+    params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     const { client } = this.getContext(target);
-    return client.listTaskPushNotificationConfig(params);
+    const response = await client.listTaskPushNotificationConfig(params);
+    return response.configs;
   }
 
   async deleteTaskPushNotificationConfig(
     target: ResolvedAgentTarget,
-    params: DeleteTaskPushNotificationConfigParams,
+    params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     const { client } = this.getContext(target);
     await client.deleteTaskPushNotificationConfig(params);
@@ -329,7 +323,7 @@ export class SdkA2ATransport implements A2ATransport {
     target: ResolvedAgentTarget,
   ): Promise<import("@a2a-js/sdk").AgentCard> {
     const { client } = this.getContext(target);
-    return client.transport.getExtendedAgentCard();
+    return client.transport.getExtendedAgentCard({ tenant: "" });
   }
 
   async probe(input: AgentTargetInput): Promise<ProbeResult[]> {

@@ -24,7 +24,7 @@ bun add @agents-js/a2a
 - **`buildACPA2ATaskMetadata`**
 - **`buildAgentCard`**
 - **`buildAgentCardBaseUrl`**
-- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status.
+- **`buildStatusUpdate`** — Build a TaskStatusUpdateEvent for streaming status changes. Optionally includes a text message in the status. A2A 1.0 dropped the `final` discriminator: stream termination is driven by the task's `...
 - **`buildTerminalTask`** — Build a terminal Task snapshot with an agent message in the history. Used for final (completed/failed/rejected/canceled) task publications.
 - **`createAuditEmitter`** — Build a bounded in-process audit emitter with structured logging.
 - **`createConsoleLogger`**

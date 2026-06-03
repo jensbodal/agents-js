@@ -1,55 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
 import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import { A2AClientController, A2AClientProvider } from "../src/index.ts";
 import type {
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   DebugRecord,
   ResolvedAgentTarget,
   TargetInspection,
 } from "../src/types.ts";
+import {
+  createMockTarget,
+  makeAgentCard,
+  makeMessage,
+  makeTask,
+  makeTextPart,
+} from "./mock-a2a-transport.ts";
 
 function makeResolvedTarget(): ResolvedAgentTarget {
-  return {
-    baseUrl: "http://127.0.0.1:55363",
-    cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    card: {
-      name: "mock",
-      description: "mock",
-      url: "http://127.0.0.1:55363",
-      version: "1.0.0",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      skills: [],
-      defaultInputModes: ["text"],
-      defaultOutputModes: ["text"],
-      capabilities: {},
-    },
-    capabilities: {
-      inputModes: ["text"],
-      outputModes: ["text"],
-      supportsTextInput: true,
-      supportsTextOutput: true,
-      supportsStreaming: false,
-      supportsPushNotifications: false,
-      raw: {},
-    },
-  };
+  return createMockTarget("http://127.0.0.1:55363");
 }
 
 function makeInspection(
@@ -78,21 +61,11 @@ function makeProbeRecord(url: string): DebugRecord {
 }
 
 class RecordingTransport implements A2ATransport {
-  readonly sendParams: MessageSendParams[] = [];
+  readonly sendParams: SendMessageRequest[] = [];
   readonly inspectCalls: AgentTargetInput[] = [];
   inspectImpl: (input: AgentTargetInput) => Promise<TargetInspection> = async (input) =>
     makeInspection("ready", {
-      card: {
-        name: "mock",
-        description: "mock",
-        url: input.url,
-        version: "1.0.0",
-        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-        skills: [],
-        defaultInputModes: ["text"],
-        defaultOutputModes: ["text"],
-        capabilities: {},
-      },
+      card: makeAgentCard({ url: input.url, protocolVersion: CURRENT_A2A_PROTOCOL_VERSION }),
       results: [
         {
           method: "GET",
@@ -130,53 +103,43 @@ class RecordingTransport implements A2ATransport {
 
   async sendMessage(
     _target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<Message | Task> {
     this.sendParams.push(params);
     if (this.sendParams.length === 1) {
-      return {
-        kind: "message",
+      return makeMessage({
         messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("hello")],
         contextId: "ctx-1",
         taskId: "task-1",
-      };
+      });
     }
 
-    return {
-      kind: "message",
+    return makeMessage({
       messageId: "message-2",
-      role: "agent",
-      parts: [{ kind: "text", text: "still works" }],
+      role: Role.ROLE_AGENT,
+      parts: [makeTextPart("still works")],
       contextId: "ctx-1",
-    };
+    });
   }
 
-  async getTask(_target: ResolvedAgentTarget, _params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, _params: GetTaskRequest): Promise<Task> {
     throw new Error("not implemented");
   }
 
-  readonly cancelCalls: TaskIdParams[] = [];
-  cancelImpl: (params: TaskIdParams) => Promise<Task> = async (params) => ({
-    kind: "task",
-    id: params.id,
-    contextId: "ctx-1",
-    status: { state: "canceled" },
-  });
+  readonly cancelCalls: CancelTaskRequest[] = [];
+  cancelImpl: (params: CancelTaskRequest) => Promise<Task> = async (params) =>
+    makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_CANCELED });
 
-  async cancelTask(_target: ResolvedAgentTarget, params: TaskIdParams): Promise<Task> {
+  async cancelTask(_target: ResolvedAgentTarget, params: CancelTaskRequest): Promise<Task> {
     this.cancelCalls.push(params);
     return this.cancelImpl(params);
   }
 
-  async *sendMessageStream(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {}
+  async *sendMessageStream(): AsyncGenerator<A2AStreamElement> {}
 
-  async *resubscribeTask(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {}
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {}
 
   async setTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
@@ -187,21 +150,21 @@ class RecordingTransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not implemented");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not implemented");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new Error("not implemented");
   }
@@ -262,7 +225,7 @@ describe("A2AClientController", () => {
 
     await Bun.sleep(0);
     expect(controller.getState().targetInspection?.status).toBe("ready");
-    expect(controller.getState().targetInspection?.card?.name).toBe("mock");
+    expect(controller.getState().targetInspection?.card?.name).toBe("mock-agent");
     expect(controller.getState().debugRecords).toHaveLength(1);
   });
 
@@ -297,10 +260,7 @@ describe("A2AClientController", () => {
       }
 
       return makeInspection("ready", {
-        card: {
-          ...makeResolvedTarget().card,
-          url: input.url,
-        },
+        card: makeAgentCard({ url: input.url }),
         results: [
           {
             method: "GET",
@@ -331,16 +291,15 @@ describe("A2AClientController", () => {
 
     resolveFirst?.(
       makeInspection("ready", {
-        card: {
-          ...makeResolvedTarget().card,
-          url: "http://127.0.0.1:55363",
-        },
+        card: makeAgentCard({ url: "http://127.0.0.1:55363" }),
       }),
     );
 
     await Bun.sleep(0);
     expect(controller.getState().targetInput?.url).toBe("http://127.0.0.1:55364");
-    expect(controller.getState().targetInspection?.card?.url).toBe("http://127.0.0.1:55364");
+    expect(controller.getState().targetInspection?.card?.supportedInterfaces[0]?.url).toBe(
+      "http://127.0.0.1:55364",
+    );
   });
 
   test("reuses only contextId after a direct message result", async () => {
@@ -354,10 +313,11 @@ describe("A2AClientController", () => {
     await controller.sendTurn("follow up");
 
     expect(transport.sendParams).toHaveLength(2);
-    expect(transport.sendParams[0]?.message.contextId).toBeUndefined();
-    expect(transport.sendParams[0]?.message.taskId).toBeUndefined();
-    expect(transport.sendParams[1]?.message.contextId).toBe("ctx-1");
-    expect(transport.sendParams[1]?.message.taskId).toBeUndefined();
+    // A2A 1.0: absent contextId/taskId is the empty-string sentinel.
+    expect(transport.sendParams[0]?.message?.contextId).toBe("");
+    expect(transport.sendParams[0]?.message?.taskId).toBe("");
+    expect(transport.sendParams[1]?.message?.contextId).toBe("ctx-1");
+    expect(transport.sendParams[1]?.message?.taskId).toBe("");
 
     const state = controller.getState();
     expect(state.contextId).toBe("ctx-1");
@@ -438,7 +398,7 @@ describe("A2AClientController", () => {
     await controller.sendTurn("hello");
     expect(controller.getState().contextId).toBe("ctx-1");
     expect(transport.sendParams).toHaveLength(1);
-    expect(transport.sendParams[0]?.message.contextId).toBeUndefined();
+    expect(transport.sendParams[0]?.message?.contextId).toBe("");
 
     controller.resetSession();
     expect(controller.getState().contextId).toBeUndefined();
@@ -447,7 +407,7 @@ describe("A2AClientController", () => {
 
     // Second sendTurn should not carry the old contextId
     expect(transport.sendParams).toHaveLength(2);
-    expect(transport.sendParams[1]?.message.contextId).toBeUndefined();
+    expect(transport.sendParams[1]?.message?.contextId).toBe("");
   });
 });
 

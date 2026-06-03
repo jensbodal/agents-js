@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Role, TaskState } from "@a2a-js/sdk";
 import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import {
   ACP_A2A_AUTH_REQUIRED_METADATA_KEY,
@@ -8,39 +9,44 @@ import {
   extractMessageText,
   reduceA2ASessionState,
 } from "../src/index.ts";
+import {
+  createMockTarget,
+  makeAgentCard,
+  makeMessage,
+  makeStatusUpdate,
+  makeTask,
+  makeTextPart,
+} from "./mock-a2a-transport.ts";
 
 describe("a2a-client session helpers", () => {
   test("extracts message text from text parts", () => {
     expect(
       extractMessageText({
-        parts: [{ kind: "text", text: "hello world" }],
+        parts: [makeTextPart("hello world")],
       }),
     ).toBe("hello world");
   });
 
   test("extracts latest agent text from task history", () => {
-    const text = extractLatestAgentText({
-      kind: "task",
-      id: "task-1",
-      contextId: "ctx-1",
-      status: {
-        state: "completed",
-      },
-      history: [
-        {
-          kind: "message",
-          messageId: "msg-user-1",
-          role: "user",
-          parts: [{ kind: "text", text: "hi" }],
-        },
-        {
-          kind: "message",
-          messageId: "msg-agent-1",
-          role: "agent",
-          parts: [{ kind: "text", text: "hello" }],
-        },
-      ],
-    });
+    const text = extractLatestAgentText(
+      makeTask({
+        id: "task-1",
+        contextId: "ctx-1",
+        state: TaskState.TASK_STATE_COMPLETED,
+        history: [
+          makeMessage({
+            messageId: "msg-user-1",
+            role: Role.ROLE_USER,
+            parts: [makeTextPart("hi")],
+          }),
+          makeMessage({
+            messageId: "msg-agent-1",
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("hello")],
+          }),
+        ],
+      }),
+    );
 
     expect(text).toBe("hello");
   });
@@ -52,12 +58,7 @@ describe("a2a-client session helpers", () => {
       text: "hello",
       contextId: "ctx-1",
       taskId: "task-1",
-      task: {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "completed" },
-      },
+      task: makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_COMPLETED }),
     });
 
     expect(next.contextId).toBe("ctx-1");
@@ -71,46 +72,15 @@ describe("a2a-client session helpers", () => {
       targetInput: { url: "http://127.0.0.1:55363" },
       targetInspection: {
         status: "ready",
-        card: {
-          name: "mock",
-          description: "mock",
+        card: makeAgentCard({
           url: "http://127.0.0.1:55363",
-          version: "1.0.0",
           protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-          defaultInputModes: ["text"],
-          defaultOutputModes: ["text"],
-          skills: [],
-          capabilities: {},
-        },
+        }),
       },
     });
     const next = reduceA2ASessionState(initial, {
       type: "target.resolved",
-      target: {
-        baseUrl: "http://127.0.0.1:55363",
-        cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-        card: {
-          name: "mock",
-          description: "mock",
-          url: "http://127.0.0.1:55363",
-          version: "1.0.0",
-          protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-          defaultInputModes: ["text"],
-          defaultOutputModes: ["text"],
-          skills: [],
-          capabilities: {},
-        },
-        capabilities: {
-          inputModes: ["text"],
-          outputModes: ["text"],
-          supportsTextInput: true,
-          supportsTextOutput: true,
-          supportsStreaming: false,
-          supportsPushNotifications: false,
-          raw: {},
-        },
-      },
+      target: createMockTarget("http://127.0.0.1:55363"),
     });
 
     expect(next.targetInput?.url).toBe("http://127.0.0.1:55363");
@@ -126,14 +96,13 @@ describe("a2a-client session helpers", () => {
       type: "message.completed",
       text: "hello",
       contextId: "ctx-1",
-      message: {
-        kind: "message",
+      message: makeMessage({
         messageId: "message-1",
-        role: "agent",
-        parts: [{ kind: "text", text: "hello" }],
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("hello")],
         contextId: "ctx-1",
         taskId: "task-1",
-      },
+      }),
     });
 
     expect(next.contextId).toBe("ctx-1");
@@ -145,11 +114,15 @@ describe("a2a-client session helpers", () => {
     const initial = createInitialSessionState();
     const next = reduceA2ASessionState(initial, {
       type: "task.status.updated",
-      update: {
-        kind: "status-update",
+      update: makeStatusUpdate({
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
+        state: TaskState.TASK_STATE_INPUT_REQUIRED,
+        message: makeMessage({
+          role: Role.ROLE_AGENT,
+          messageId: "agent-1",
+          parts: [makeTextPart("Need project details")],
+        }),
         metadata: {
           [ACP_A2A_ELICITATION_METADATA_KEY]: {
             kind: "acp.elicitation",
@@ -165,16 +138,7 @@ describe("a2a-client session helpers", () => {
             sessionId: "session-1",
           },
         },
-        status: {
-          state: "input-required",
-          message: {
-            kind: "message",
-            role: "agent",
-            messageId: "agent-1",
-            parts: [{ kind: "text", text: "Need project details" }],
-          },
-        },
-      },
+      }),
     });
 
     expect(next.status).toBe("input_required");
@@ -188,20 +152,17 @@ describe("a2a-client session helpers", () => {
     const initial = createInitialSessionState();
     const next = reduceA2ASessionState(initial, {
       type: "task.updated",
-      task: {
-        kind: "task",
+      task: makeTask({
         id: "task-1",
         contextId: "ctx-1",
+        state: TaskState.TASK_STATE_AUTH_REQUIRED,
         metadata: {
           [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
             kind: "acp.auth-required",
             message: "Authenticate before continuing.",
           },
         },
-        status: {
-          state: "auth-required",
-        },
-      },
+      }),
     });
 
     expect(next.status).toBe("auth_required");

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { TaskState } from "@a2a-js/sdk";
 import type {
   A2AEvent,
   A2AMessageEndEvent,
@@ -7,6 +8,7 @@ import type {
   A2AStepStartedEvent,
 } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/index.ts";
+import { makeAgentCard, makeTask } from "./mock-a2a-transport.ts";
 
 describe("AG-UI message lifecycle events", () => {
   test("message.start event type has required fields", () => {
@@ -102,12 +104,7 @@ describe("AG-UI message lifecycle events", () => {
       text: "hello world",
       contextId: "ctx-1",
       taskId: "task-1",
-      task: {
-        kind: "task",
-        id: "task-1",
-        contextId: "ctx-1",
-        status: { state: "completed" },
-      },
+      task: makeTask({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_COMPLETED }),
     });
 
     expect(next.status).toBe("connected");
@@ -285,17 +282,13 @@ describe("existing A2AEvent variants unchanged", () => {
       target: {
         baseUrl: "http://localhost:3000",
         cardUrl: "http://localhost:3000/.well-known/agent-card.json",
-        card: {
+        card: makeAgentCard({
           name: "test",
           description: "test agent",
           url: "http://localhost:3000",
           version: "1.0",
           protocolVersion: "0.3.0",
-          defaultInputModes: ["text"],
-          defaultOutputModes: ["text"],
-          skills: [],
-          capabilities: {},
-        },
+        }),
         capabilities: {
           inputModes: ["text"],
           outputModes: ["text"],
@@ -303,7 +296,7 @@ describe("existing A2AEvent variants unchanged", () => {
           supportsTextOutput: true,
           supportsStreaming: false,
           supportsPushNotifications: false,
-          raw: {},
+          raw: { extensions: [] },
         },
       },
     });

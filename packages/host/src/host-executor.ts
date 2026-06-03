@@ -6,6 +6,8 @@
  * to the controller. This is much simpler than ACPtoA2AExecutor because the
  * controller handles the complexity.
  */
+import { TaskState } from "@a2a-js/sdk";
+import { AgentEvent } from "@a2a-js/sdk/server";
 import {
   buildStatusUpdate,
   buildTerminalTask,
@@ -215,6 +217,15 @@ interface PromptOutcome {
 }
 
 /**
+ * Map an internal ACP/dispatch-outcome state to the proto `TaskState` enum.
+ * Internal logic stays in plain `"completed" | "failed"` terms; the crossing
+ * to proto happens here at the wire boundary.
+ */
+function toTaskState(state: "completed" | "failed"): TaskState {
+  return state === "completed" ? TaskState.TASK_STATE_COMPLETED : TaskState.TASK_STATE_FAILED;
+}
+
+/**
  * Bridges A2A execution requests to an ACPSessionController.
  *
  * Unlike ACPtoA2AExecutor which manages raw ACP streams, this executor
@@ -400,38 +411,48 @@ export class HostA2AExecutor implements InitializableExecutor {
     // client sees a complete lifecycle, even when it joins an in-flight prompt.
     const normalizedUserMessage = this.normalizeMessage(context.userMessage);
     this.publishTask(task, {
-      kind: "task",
       id: task.taskId,
       contextId: task.contextId,
-      status: { state: "submitted", timestamp: nowIso() },
+      status: {
+        state: TaskState.TASK_STATE_SUBMITTED,
+        timestamp: nowIso(),
+        message: undefined,
+      },
+      artifacts: [],
       history: [normalizedUserMessage],
+      metadata: undefined,
     });
-    this.publishStatusUpdate(task, { state: "working", final: false });
+    this.publishStatusUpdate(task, { state: TaskState.TASK_STATE_WORKING });
 
     let terminalState: "completed" | "failed" | "canceled" = "completed";
     try {
       const outcome = await this.trackPromptOwnership(lane, task, userText, normalizedUserMessage);
 
+      // A2A 1.0 forbids a second Task in the task-lifecycle stream (the SDK's
+      // ResultManager throws a "stream ordering violation"). The turn
+      // terminates with a terminal TaskStatusUpdateEvent carrying the final
+      // reply text; the SDK reconstructs the terminal Task from it for both
+      // the streaming and blocking (SendMessage) paths.
       if (task.cancelled) {
         terminalState = "canceled";
-        this.publishTerminalTask(task, outcome.normalizedUserMessage, {
-          state: "canceled",
+        this.publishStatusUpdate(task, {
+          state: TaskState.TASK_STATE_CANCELED,
           text: "",
         });
         return;
       }
 
       terminalState = outcome.state === "completed" ? "completed" : "failed";
-      this.publishTerminalTask(task, outcome.normalizedUserMessage, {
-        state: outcome.state,
+      this.publishStatusUpdate(task, {
+        state: toTaskState(outcome.state),
         text: outcome.text,
         ...(outcome.messageId ? { messageId: outcome.messageId } : {}),
       });
     } catch (error) {
       if (task.cancelled) {
         terminalState = "canceled";
-        this.publishTerminalTask(task, normalizedUserMessage, {
-          state: "canceled",
+        this.publishStatusUpdate(task, {
+          state: TaskState.TASK_STATE_CANCELED,
           text: "",
         });
         return;
@@ -439,8 +460,8 @@ export class HostA2AExecutor implements InitializableExecutor {
       const message = formatRequestError(error);
       console.error("[Gateway] HostA2AExecutor: task failed", { error: message });
       terminalState = "failed";
-      this.publishTerminalTask(task, normalizedUserMessage, {
-        state: "failed",
+      this.publishStatusUpdate(task, {
+        state: TaskState.TASK_STATE_FAILED,
         text: message,
       });
     } finally {
@@ -770,22 +791,17 @@ export class HostA2AExecutor implements InitializableExecutor {
       return;
     }
 
-    // Shared prelude: publish submitted/working for any valid kind before
-    // diverging to the kind-specific backend.
-    eventBus.publish(
-      buildStatusUpdate(context.taskId, context.contextId, {
-        state: "submitted",
-        final: false,
-      }),
-    );
-    eventBus.publish(
-      buildStatusUpdate(context.taskId, context.contextId, {
-        state: "working",
-        text: `Dispatching to ${agentName}...`,
-        final: false,
-      }),
-    );
-
+    // A2A 1.0 stream-ordering: the FIRST event must be a Task (not a
+    // statusUpdate), and once the task lifecycle is established only
+    // statusUpdate/artifactUpdate events are legal — a second Task throws a
+    // "stream ordering violation" under the streaming ResultManager. Each
+    // kind-specific backend therefore owns its own lifecycle:
+    //   1. initial AgentEvent.task(SUBMITTED) — carries the terminal dispatch
+    //      metadata, which the SDK preserves on task.metadata across every
+    //      subsequent statusUpdate (applyStatusUpdate never overwrites it);
+    //   2. WORKING statusUpdate(s) for progress;
+    //   3. terminal statusUpdate(COMPLETED/FAILED/CANCELED) carrying the
+    //      result/error text on status.message.
     if (entry.kind === "a2a") {
       await this.dispatchA2A(context, eventBus, directive, entry, normalizedUserMessage);
       return;
@@ -799,15 +815,72 @@ export class HostA2AExecutor implements InitializableExecutor {
     // Future-proof: any unknown kind publishes a descriptive failed terminal.
     // This branch is structurally unreachable today (AgentEntry is a
     // discriminated union of "a2a" | "acp") but prevents silent drop on
-    // registry schema extensions.
+    // registry schema extensions. A single terminal Task as the first (and
+    // only) event is ordering-valid (UNDETERMINED → task-lifecycle → finished).
     const unknownEntry = entry as { kind: string };
     eventBus.publish(
-      buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-        state: "failed",
-        text: `Dispatch to "${agentName}" failed: unknown registry kind "${unknownEntry.kind}"`,
-      }),
+      AgentEvent.task(
+        buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
+          state: TaskState.TASK_STATE_FAILED,
+          text: `Dispatch to "${agentName}" failed: unknown registry kind "${unknownEntry.kind}"`,
+        }),
+      ),
     );
     eventBus.finished();
+  }
+
+  /**
+   * Publish the initial dispatch Task that establishes the task lifecycle.
+   * Carries the dispatch metadata so it survives onto the reconstructed
+   * `task.metadata` through every subsequent statusUpdate. Followed by a
+   * WORKING status update for the "dispatching..." progress signal.
+   */
+  private publishDispatchStart(
+    context: RequestContext,
+    eventBus: ExecutionEventBus,
+    agentName: string,
+    userMessage: Message,
+    metadata: Record<string, unknown>,
+  ): void {
+    eventBus.publish(
+      AgentEvent.task({
+        id: context.taskId,
+        contextId: context.contextId,
+        status: {
+          state: TaskState.TASK_STATE_SUBMITTED,
+          timestamp: nowIso(),
+          message: undefined,
+        },
+        artifacts: [],
+        history: [userMessage],
+        metadata,
+      }),
+    );
+    eventBus.publish(
+      AgentEvent.statusUpdate(
+        buildStatusUpdate(context.taskId, context.contextId, {
+          state: TaskState.TASK_STATE_WORKING,
+          text: `Dispatching to ${agentName}...`,
+        }),
+      ),
+    );
+  }
+
+  /** Publish a terminal dispatch status update (no second Task — see ordering note). */
+  private publishDispatchTerminal(
+    context: RequestContext,
+    eventBus: ExecutionEventBus,
+    options: { state: TaskState; text: string; messageId?: string },
+  ): void {
+    eventBus.publish(
+      AgentEvent.statusUpdate(
+        buildStatusUpdate(context.taskId, context.contextId, {
+          state: options.state,
+          text: options.text,
+          ...(options.messageId ? { messageId: options.messageId } : {}),
+        }),
+      ),
+    );
   }
 
   private async dispatchA2A(
@@ -836,6 +909,26 @@ export class HostA2AExecutor implements InitializableExecutor {
       kindVariant: "a2a",
       taskId: context.taskId,
     });
+
+    // Dispatch metadata rides the INITIAL task so it survives reconstruction
+    // onto `task.metadata` (the SDK's applyStatusUpdate never overwrites task
+    // metadata). Both terminal exits inherit it.
+    const dispatchMetadata: Record<string, unknown> = {
+      "agents-js.cancelable": false,
+      "agents-js.correlationId": correlationId,
+      "agents-js.dispatch": {
+        agentName,
+        agentUrl: entry.url,
+        directive: directive.fullMatch,
+      },
+    };
+    this.publishDispatchStart(
+      context,
+      eventBus,
+      agentName,
+      normalizedUserMessage,
+      dispatchMetadata,
+    );
 
     let dispatchState: "completed" | "failed" = "completed";
     try {
@@ -880,21 +973,10 @@ export class HostA2AExecutor implements InitializableExecutor {
 
       const responseText = extractA2AResponseText(result);
 
-      eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-          state: "completed",
-          text: responseText || "(empty response)",
-          metadata: {
-            "agents-js.cancelable": false,
-            "agents-js.correlationId": correlationId,
-            "agents-js.dispatch": {
-              agentName,
-              agentUrl: entry.url,
-              directive: directive.fullMatch,
-            },
-          },
-        }),
-      );
+      this.publishDispatchTerminal(context, eventBus, {
+        state: TaskState.TASK_STATE_COMPLETED,
+        text: responseText || "(empty response)",
+      });
     } catch (error) {
       dispatchState = "failed";
       const message = formatRequestError(error);
@@ -902,16 +984,10 @@ export class HostA2AExecutor implements InitializableExecutor {
         agentName,
         error: message,
       });
-      eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-          state: "failed",
-          text: `Dispatch to "${agentName}" failed: ${message}`,
-          metadata: {
-            "agents-js.cancelable": false,
-            "agents-js.correlationId": correlationId,
-          },
-        }),
-      );
+      this.publishDispatchTerminal(context, eventBus, {
+        state: TaskState.TASK_STATE_FAILED,
+        text: `Dispatch to "${agentName}" failed: ${message}`,
+      });
     } finally {
       this.audit?.record({
         kind: "dispatch-finished",
@@ -981,6 +1057,29 @@ export class HostA2AExecutor implements InitializableExecutor {
       taskId: context.taskId,
     });
 
+    // Dispatch metadata rides the INITIAL task so it survives reconstruction
+    // onto `task.metadata`. Published BEFORE runEphemeralPrompt so the WORKING
+    // status updates that subscribeDispatchController streams (and any
+    // non-interactive-failure terminal it publishes) ride a task lifecycle
+    // that is already established by an initial Task event.
+    const dispatchMetadata: Record<string, unknown> = {
+      "agents-js.cancelable": false,
+      "agents-js.correlationId": correlationId,
+      "agents-js.dispatch": {
+        agentName,
+        harness: entry.harness,
+        ...(entry.command ? { command: entry.command } : {}),
+        directive: directive.fullMatch,
+      },
+    };
+    this.publishDispatchStart(
+      context,
+      eventBus,
+      agentName,
+      normalizedUserMessage,
+      dispatchMetadata,
+    );
+
     let dispatchState: "completed" | "failed" = "completed";
     try {
       await this.spawnEphemeralController(dispatchController, entry);
@@ -1006,23 +1105,11 @@ export class HostA2AExecutor implements InitializableExecutor {
       if (nonInteractiveFailure) {
         dispatchState = "failed";
       } else {
-        eventBus.publish(
-          buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-            state: "completed",
-            text: text || "(empty response)",
-            ...(messageId ? { messageId } : {}),
-            metadata: {
-              "agents-js.cancelable": false,
-              "agents-js.correlationId": correlationId,
-              "agents-js.dispatch": {
-                agentName,
-                harness: entry.harness,
-                ...(entry.command ? { command: entry.command } : {}),
-                directive: directive.fullMatch,
-              },
-            },
-          }),
-        );
+        this.publishDispatchTerminal(context, eventBus, {
+          state: TaskState.TASK_STATE_COMPLETED,
+          text: text || "(empty response)",
+          ...(messageId ? { messageId } : {}),
+        });
       }
     } catch (error) {
       dispatchState = "failed";
@@ -1032,16 +1119,10 @@ export class HostA2AExecutor implements InitializableExecutor {
         harness: entry.harness,
         error: message,
       });
-      eventBus.publish(
-        buildTerminalTask(context.taskId, context.contextId, normalizedUserMessage, {
-          state: "failed",
-          text: `Dispatch to "${agentName}" (harness "${entry.harness}") failed: ${message}`,
-          metadata: {
-            "agents-js.cancelable": false,
-            "agents-js.correlationId": correlationId,
-          },
-        }),
-      );
+      this.publishDispatchTerminal(context, eventBus, {
+        state: TaskState.TASK_STATE_FAILED,
+        text: `Dispatch to "${agentName}" (harness "${entry.harness}") failed: ${message}`,
+      });
     } finally {
       this.audit?.record({
         kind: "dispatch-finished",
@@ -1148,12 +1229,13 @@ export class HostA2AExecutor implements InitializableExecutor {
     const dispatchContextId = this.dispatchedTaskIds.get(taskId);
     if (dispatchContextId !== undefined) {
       eventBus.publish(
-        buildStatusUpdate(taskId, dispatchContextId, {
-          state: "working",
-          text: "Cancel rejected: @@dispatch tasks are non-cancelable in this release.",
-          final: false,
-          metadata: { "agents-js.cancelable": false },
-        }),
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(taskId, dispatchContextId, {
+            state: TaskState.TASK_STATE_WORKING,
+            text: "Cancel rejected: @@dispatch tasks are non-cancelable in this release.",
+            metadata: { "agents-js.cancelable": false },
+          }),
+        ),
       );
       eventBus.finished();
       return;
@@ -1365,9 +1447,8 @@ export class HostA2AExecutor implements InitializableExecutor {
           }
 
           this.publishStatusUpdate(task, {
-            state: "working",
+            state: TaskState.TASK_STATE_WORKING,
             text: task.textBuffer,
-            final: false,
             messageId: task.agentMessageId,
           });
         }
@@ -1376,33 +1457,29 @@ export class HostA2AExecutor implements InitializableExecutor {
 
       case "permission_requested":
         this.publishStatusUpdate(task, {
-          state: "input-required",
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
           text: `Permission requested: ${event.request.toolCall?.title ?? "tool call"}`,
-          final: false,
         });
         break;
 
       case "write_gate_requested":
         this.publishStatusUpdate(task, {
-          state: "input-required",
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
           text: `Write approval needed: ${event.path}`,
-          final: false,
         });
         break;
 
       case "elicitation_requested":
         this.publishStatusUpdate(task, {
-          state: "input-required",
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
           text: event.request.message,
-          final: false,
         });
         break;
 
       case "error":
         this.publishStatusUpdate(task, {
-          state: "failed",
+          state: TaskState.TASK_STATE_FAILED,
           text: event.message,
-          final: true,
         });
         break;
 
@@ -1413,33 +1490,20 @@ export class HostA2AExecutor implements InitializableExecutor {
   }
 
   private normalizeMessage(message: Message): Message {
-    return {
-      ...message,
-      kind: "message",
-    };
+    return { ...message };
   }
 
   private publishTask(task: ActiveTask, nextTask: Task): void {
-    task.eventBus.publish(nextTask);
+    task.eventBus.publish(AgentEvent.task(nextTask));
   }
 
   private publishStatusUpdate(
     task: ActiveTask,
     options: Parameters<typeof buildStatusUpdate>[2],
   ): void {
-    task.eventBus.publish(buildStatusUpdate(task.taskId, task.contextId, options));
-  }
-
-  private publishTerminalTask(
-    task: ActiveTask,
-    userMessage: Message,
-    options: {
-      state: Parameters<typeof buildTerminalTask>[3]["state"];
-      text: string;
-      messageId?: string;
-    },
-  ): void {
-    this.publishTask(task, buildTerminalTask(task.taskId, task.contextId, userMessage, options));
+    task.eventBus.publish(
+      AgentEvent.statusUpdate(buildStatusUpdate(task.taskId, task.contextId, options)),
+    );
   }
 
   private publishTaskFailed(
@@ -1448,14 +1512,16 @@ export class HostA2AExecutor implements InitializableExecutor {
     errorMessage: string,
   ): void {
     eventBus.publish(
-      buildTerminalTask(
-        context.taskId,
-        context.contextId,
-        this.normalizeMessage(context.userMessage),
-        {
-          state: "failed",
-          text: errorMessage,
-        },
+      AgentEvent.task(
+        buildTerminalTask(
+          context.taskId,
+          context.contextId,
+          this.normalizeMessage(context.userMessage),
+          {
+            state: TaskState.TASK_STATE_FAILED,
+            text: errorMessage,
+          },
+        ),
       ),
     );
   }
@@ -1541,12 +1607,13 @@ export function subscribeDispatchController(
           }
 
           sink.eventBus.publish(
-            buildStatusUpdate(sink.taskId, sink.contextId, {
-              state: "working",
-              text: textBuffer,
-              final: false,
-              ...(agentMessageId ? { messageId: agentMessageId } : {}),
-            }),
+            AgentEvent.statusUpdate(
+              buildStatusUpdate(sink.taskId, sink.contextId, {
+                state: TaskState.TASK_STATE_WORKING,
+                text: textBuffer,
+                ...(agentMessageId ? { messageId: agentMessageId } : {}),
+              }),
+            ),
           );
         }
         break;
@@ -1555,13 +1622,14 @@ export function subscribeDispatchController(
       case "permission_requested":
         nonInteractiveFailure = true;
         sink.eventBus.publish(
-          buildStatusUpdate(sink.taskId, sink.contextId, {
-            state: "failed",
-            text: `Dispatch target requested permission; dispatch is non-interactive (tool: ${
-              event.request.toolCall?.title ?? "unknown"
-            })`,
-            final: true,
-          }),
+          AgentEvent.statusUpdate(
+            buildStatusUpdate(sink.taskId, sink.contextId, {
+              state: TaskState.TASK_STATE_FAILED,
+              text: `Dispatch target requested permission; dispatch is non-interactive (tool: ${
+                event.request.toolCall?.title ?? "unknown"
+              })`,
+            }),
+          ),
         );
         cancelDispatchController();
         break;
@@ -1569,11 +1637,12 @@ export function subscribeDispatchController(
       case "write_gate_requested":
         nonInteractiveFailure = true;
         sink.eventBus.publish(
-          buildStatusUpdate(sink.taskId, sink.contextId, {
-            state: "failed",
-            text: `Dispatch target requested write approval; dispatch is non-interactive (path: ${event.path})`,
-            final: true,
-          }),
+          AgentEvent.statusUpdate(
+            buildStatusUpdate(sink.taskId, sink.contextId, {
+              state: TaskState.TASK_STATE_FAILED,
+              text: `Dispatch target requested write approval; dispatch is non-interactive (path: ${event.path})`,
+            }),
+          ),
         );
         cancelDispatchController();
         break;
@@ -1581,22 +1650,24 @@ export function subscribeDispatchController(
       case "elicitation_requested":
         nonInteractiveFailure = true;
         sink.eventBus.publish(
-          buildStatusUpdate(sink.taskId, sink.contextId, {
-            state: "failed",
-            text: `Dispatch target elicitation is not supported: ${event.request.message}`,
-            final: true,
-          }),
+          AgentEvent.statusUpdate(
+            buildStatusUpdate(sink.taskId, sink.contextId, {
+              state: TaskState.TASK_STATE_FAILED,
+              text: `Dispatch target elicitation is not supported: ${event.request.message}`,
+            }),
+          ),
         );
         cancelDispatchController();
         break;
 
       case "error":
         sink.eventBus.publish(
-          buildStatusUpdate(sink.taskId, sink.contextId, {
-            state: "failed",
-            text: event.message,
-            final: true,
-          }),
+          AgentEvent.statusUpdate(
+            buildStatusUpdate(sink.taskId, sink.contextId, {
+              state: TaskState.TASK_STATE_FAILED,
+              text: event.message,
+            }),
+          ),
         );
         break;
 

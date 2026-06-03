@@ -2,11 +2,11 @@ import {
   A2AClientController,
   type AgentTargetInput,
   type DebugRecord,
-  isTerminalTaskState,
   type ProbeResult,
 } from "@agents-js/a2a-client";
 import { type CliRenderer, createCliRenderer, type KeyEvent } from "@opentui/core";
 import { type ArgSpec, parseArgv } from "../argv-parser.ts";
+import { isTerminalTaskVocabulary } from "../cli-utils.ts";
 import { EXIT_ERROR, EXIT_OK } from "../exit-codes.ts";
 import { CLI_VERSION, handleVersionFlag } from "../version.ts";
 import { type ClientApp, createClientApp } from "./ui/app.ts";
@@ -324,7 +324,7 @@ export async function runOneShotMessage(
           messageCompleted = true;
         }
 
-        if (!state.taskState || !isTerminalTaskState(state.taskState)) {
+        if (!isTerminalTaskVocabulary(state.taskState)) {
           return;
         }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Task } from "@a2a-js/sdk";
+import { Role, TaskState } from "@a2a-js/sdk";
 import type { ContentBlock } from "@agentclientprotocol/sdk";
 import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "../src/middleware.ts";
@@ -13,7 +13,11 @@ import {
   createMockTarget,
   createMockTransport,
   createStreamingMockTransport,
+  makeMessage,
+  makeTextPart,
   type StreamItem,
+  statusEvent,
+  taskEvent,
 } from "./mock-a2a-transport.ts";
 
 interface AnnotatedTextBlock {
@@ -587,8 +591,8 @@ function createInstrumentedTransport(opts: {
       const target = createMockTarget(input.url);
       target.capabilities.supportsStreaming = opts.supportsStreaming;
       if (opts.supportsStreaming) {
-        target.capabilities.raw = { streaming: true };
-        target.card.capabilities = { streaming: true };
+        target.capabilities.raw = { streaming: true, extensions: [] };
+        target.card.capabilities = { streaming: true, extensions: [] };
       }
       return target;
     },
@@ -597,12 +601,10 @@ function createInstrumentedTransport(opts: {
     },
     async sendMessage() {
       calls.push("sendMessage");
-      return {
-        kind: "message",
-        messageId: crypto.randomUUID(),
-        role: "agent",
-        parts: [{ kind: "text", text: opts.messageResponseText ?? "non-streaming reply" }],
-      };
+      return makeMessage({
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart(opts.messageResponseText ?? "non-streaming reply")],
+      });
     },
     async *sendMessageStream(): AsyncGenerator<StreamItem> {
       calls.push("sendMessageStream");
@@ -653,37 +655,22 @@ function createInstrumentedTransport(opts: {
 }
 
 function buildStreamingTaskItems(text: string): StreamItem[] {
-  // Two intermediate status events + one terminal task. The provider's
-  // streaming loop accumulates these and resolves on the terminal task.
+  // Two intermediate status events + one terminal status-update carrying the
+  // final reply. A2A 1.0 has no terminal Task event — the provider resolves on
+  // the terminal status-update.
   return [
-    {
-      kind: "task",
-      id: "task-1",
-      contextId: "ctx-1",
-      status: { state: "working" },
-      history: [],
-    } satisfies Task,
-    {
-      kind: "status-update",
+    taskEvent({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
+    statusEvent({ taskId: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
+    statusEvent({
       taskId: "task-1",
       contextId: "ctx-1",
-      status: { state: "working" },
-      final: false,
-    } as StreamItem,
-    {
-      kind: "task",
-      id: "task-1",
-      contextId: "ctx-1",
-      status: { state: "completed" },
-      history: [
-        {
-          kind: "message",
-          messageId: "msg-1",
-          role: "agent",
-          parts: [{ kind: "text", text }],
-        },
-      ],
-    } satisfies Task,
+      state: TaskState.TASK_STATE_COMPLETED,
+      message: makeMessage({
+        messageId: "msg-1",
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart(text)],
+      }),
+    }),
   ];
 }
 

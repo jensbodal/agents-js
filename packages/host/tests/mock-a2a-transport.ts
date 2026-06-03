@@ -3,7 +3,7 @@
  *
  * Used by the host-executor test suite.
  */
-import type { Message } from "@a2a-js/sdk";
+import { type Message, Role } from "@a2a-js/sdk";
 import type {
   A2ATransport,
   AgentTargetInput,
@@ -18,13 +18,16 @@ export function createMockTarget(url: string): ResolvedAgentTarget {
     card: {
       name: "mock-agent",
       description: "Mock agent for testing",
-      url,
+      supportedInterfaces: [{ url, protocolBinding: "JSONRPC", tenant: "", protocolVersion: "1" }],
       version: "1.0.0",
-      protocolVersion: "0.3.0",
       skills: [],
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
-      capabilities: {},
+      capabilities: { extensions: [] },
+      provider: undefined,
+      securitySchemes: {},
+      securityRequirements: [],
+      signatures: [],
     },
     protocolVersion: "0.3.0",
     capabilities: {
@@ -34,7 +37,7 @@ export function createMockTarget(url: string): ResolvedAgentTarget {
       supportsTextOutput: true,
       supportsStreaming: false,
       supportsPushNotifications: false,
-      raw: {},
+      raw: { extensions: [] },
     },
   };
 }
@@ -50,11 +53,22 @@ export function createMockTransport(responses: Record<string, string>): A2ATrans
     async sendMessage(target: ResolvedAgentTarget): Promise<Message> {
       const responseText = responses[target.baseUrl] ?? "no response configured";
       return {
-        kind: "message",
         messageId: crypto.randomUUID(),
-        role: "agent",
-        parts: [{ kind: "text", text: responseText }],
-      } as Message;
+        role: Role.ROLE_AGENT,
+        parts: [
+          {
+            content: { $case: "text", value: responseText },
+            metadata: undefined,
+            filename: "",
+            mediaType: "text/plain",
+          },
+        ],
+        taskId: "",
+        contextId: "",
+        metadata: undefined,
+        extensions: [],
+        referenceTaskIds: [],
+      } satisfies Message;
     },
     sendMessageStream() {
       throw new Error("Streaming not supported in mock transport");

@@ -1,8 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import type { Message, Task, TaskStatusUpdateEvent } from "@a2a-js/sdk";
+import { Role, type Task, TaskState } from "@a2a-js/sdk";
 import { A2AClientController, A2AClientProvider } from "../src/index.ts";
-import type { A2AEvent, A2ATransport, ResolvedAgentTarget } from "../src/types.ts";
-import { createMockTarget, createStreamingMockTransport } from "./mock-a2a-transport.ts";
+import type {
+  A2AEvent,
+  A2AStreamElement,
+  A2AStreamPayload,
+  A2ATransport,
+  ResolvedAgentTarget,
+} from "../src/types.ts";
+import {
+  createMockTarget,
+  createStreamingMockTransport,
+  makeMessage,
+  makeTask,
+  makeTextPart,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 function makeStreamingTarget(url: string): ResolvedAgentTarget {
   const target = createMockTarget(url);
@@ -13,7 +27,7 @@ function makeStreamingTarget(url: string): ResolvedAgentTarget {
 class StreamingTaskMockTransport {
   readonly cancelCalls: Array<{ id: string }> = [];
   // Streaming events to deliver. Test populates this to control timing.
-  streamEvents: Array<{ delayMs: number; event: Task | TaskStatusUpdateEvent | Message }> = [];
+  streamEvents: Array<{ delayMs: number; event: A2AStreamPayload }> = [];
 
   async resolveTarget(input: { url: string }): Promise<ResolvedAgentTarget> {
     return makeStreamingTarget(input.url);
@@ -21,10 +35,10 @@ class StreamingTaskMockTransport {
   async inspectTarget() {
     return { status: "ready" as const };
   }
-  async sendMessage(): Promise<Message> {
+  async sendMessage(): Promise<never> {
     throw new Error("non-streaming sendMessage not used in this test");
   }
-  async *sendMessageStream(): AsyncGenerator<Task | TaskStatusUpdateEvent | Message> {
+  async *sendMessageStream(): AsyncGenerator<A2AStreamElement> {
     for (const item of this.streamEvents) {
       if (item.delayMs > 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, item.delayMs));
@@ -37,14 +51,9 @@ class StreamingTaskMockTransport {
   }
   async cancelTask(_target: ResolvedAgentTarget, params: { id: string }): Promise<Task> {
     this.cancelCalls.push(params);
-    return {
-      kind: "task",
-      id: params.id,
-      contextId: "ctx-1",
-      status: { state: "canceled" },
-    };
+    return makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_CANCELED });
   }
-  async *resubscribeTask(): AsyncGenerator<Task | TaskStatusUpdateEvent | Message> {}
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {}
   async setTaskPushNotificationConfig() {
     throw new Error("not implemented");
   }
@@ -99,39 +108,31 @@ describe("AbortSignal propagation", () => {
     transport.streamEvents = [
       {
         delayMs: 0,
-        event: {
-          kind: "task",
-          id: "task-1",
-          contextId: "ctx-1",
-          status: { state: "working" },
-        } satisfies Task,
+        event: taskEvent({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_WORKING }),
       },
       {
         delayMs: 50,
-        event: {
-          kind: "status-update",
+        event: statusEvent({
           taskId: "task-1",
           contextId: "ctx-1",
-          status: { state: "working", message: undefined },
-          final: false,
-        } satisfies TaskStatusUpdateEvent,
+          state: TaskState.TASK_STATE_WORKING,
+          message: makeMessage({}),
+        }),
       },
       {
         delayMs: 50,
-        event: {
-          kind: "task",
+        event: taskEvent({
           id: "task-1",
           contextId: "ctx-1",
-          status: { state: "completed" },
+          state: TaskState.TASK_STATE_COMPLETED,
           history: [
-            {
-              kind: "message",
+            makeMessage({
               messageId: "msg-1",
-              role: "agent",
-              parts: [{ kind: "text", text: "done" }],
-            },
+              role: Role.ROLE_AGENT,
+              parts: [makeTextPart("done")],
+            }),
           ],
-        } satisfies Task,
+        }),
       },
     ];
 
@@ -171,20 +172,14 @@ describe("AbortSignal propagation", () => {
 
   test("non-aborted signal does not interfere with normal send", async () => {
     const transport = createStreamingMockTransport([
-      {
-        kind: "task",
+      taskEvent({
         id: "task-1",
         contextId: "ctx-1",
-        status: { state: "completed" },
+        state: TaskState.TASK_STATE_COMPLETED,
         history: [
-          {
-            kind: "message",
-            messageId: "msg-1",
-            role: "agent",
-            parts: [{ kind: "text", text: "ok" }],
-          },
+          makeMessage({ messageId: "msg-1", role: Role.ROLE_AGENT, parts: [makeTextPart("ok")] }),
         ],
-      } satisfies Task,
+      }),
     ]);
     const provider = new A2AClientProvider(transport as unknown as A2ATransport);
     const target = await provider.connect({ url: "http://127.0.0.1:55363" });

@@ -54,7 +54,7 @@ function makeTrialRuntimeResolved(): ResolvedGatewayRuntime {
     agentCard: {
       name: "universal-acp-gateway",
       description: "integration test",
-      capabilities: { "text-to-text": {} },
+      capabilities: { "text-to-text": {}, extensions: [] },
     },
   };
 }

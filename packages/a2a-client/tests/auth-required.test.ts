@@ -1,19 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  AgentCard,
-  DeleteTaskPushNotificationConfigParams,
-  GetTaskPushNotificationConfigParams,
-  ListTaskPushNotificationConfigParams,
-  Message,
-  MessageSendParams,
-  Task,
-  TaskArtifactUpdateEvent,
-  TaskIdParams,
-  TaskPushNotificationConfig,
-  TaskQueryParams,
-  TaskStatusUpdateEvent,
+import {
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type Message,
+  Role,
+  type SendMessageRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+  TaskState,
 } from "@a2a-js/sdk";
-import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import {
   ACP_A2A_AUTH_REQUIRED_METADATA_KEY,
   extractAcpAuthRequiredMetadata,
@@ -21,39 +20,25 @@ import {
 import { A2AClientController, A2AClientProvider } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/session.ts";
 import type {
-  A2AStreamEvent,
+  A2AStreamElement,
   A2ATransport,
   AgentTargetInput,
   ResolvedAgentTarget,
   TargetInspection,
 } from "../src/types.ts";
+import {
+  createMockTarget,
+  makeMessage,
+  makeTask,
+  makeTextPart,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 function makeResolvedTarget(overrides: { supportsStreaming?: boolean } = {}): ResolvedAgentTarget {
-  return {
-    baseUrl: "http://127.0.0.1:55363",
-    cardUrl: "http://127.0.0.1:55363/.well-known/agent-card.json",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    card: {
-      name: "mock",
-      description: "mock",
-      url: "http://127.0.0.1:55363",
-      version: "1.0.0",
-      protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-      skills: [],
-      defaultInputModes: ["text"],
-      defaultOutputModes: ["text"],
-      capabilities: {},
-    },
-    capabilities: {
-      inputModes: ["text"],
-      outputModes: ["text"],
-      supportsTextInput: true,
-      supportsTextOutput: true,
-      supportsStreaming: overrides.supportsStreaming ?? false,
-      supportsPushNotifications: false,
-      raw: {},
-    },
-  };
+  const target = createMockTarget("http://127.0.0.1:55363");
+  target.capabilities.supportsStreaming = overrides.supportsStreaming ?? false;
+  return target;
 }
 
 function makeReadyInspection(): TargetInspection {
@@ -73,37 +58,31 @@ function makeReadyInspection(): TargetInspection {
 }
 
 class AuthRequiredTransport implements A2ATransport {
-  readonly sendCalls: MessageSendParams[] = [];
-  readonly streamCalls: MessageSendParams[] = [];
+  readonly sendCalls: SendMessageRequest[] = [];
+  readonly streamCalls: SendMessageRequest[] = [];
   supportsStreaming = false;
 
-  sendImpl: (params: MessageSendParams) => Promise<Message | Task> = async (params) => ({
-    kind: "task",
-    id: params.message.taskId ?? "task-1",
-    contextId: params.message.contextId ?? "ctx-1",
-    status: { state: "completed" },
-  });
+  sendImpl: (params: SendMessageRequest) => Promise<Message | Task> = async (params) =>
+    makeTask({
+      id: params.message?.taskId || "task-1",
+      contextId: params.message?.contextId || "ctx-1",
+      state: TaskState.TASK_STATE_COMPLETED,
+    });
 
-  streamImpl: (
-    params: MessageSendParams,
-  ) => AsyncGenerator<Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent> =
-    async function* (params: MessageSendParams) {
-      yield {
-        kind: "task",
-        id: params.message.taskId ?? "task-1",
-        contextId: params.message.contextId ?? "ctx-1",
-        status: { state: "completed" },
-      } satisfies Task;
-    };
+  streamImpl: (params: SendMessageRequest) => AsyncGenerator<A2AStreamElement> = async function* (
+    params: SendMessageRequest,
+  ) {
+    yield taskEvent({
+      id: params.message?.taskId || "task-1",
+      contextId: params.message?.contextId || "ctx-1",
+      state: TaskState.TASK_STATE_COMPLETED,
+    });
+  };
 
   // Default getTask returns an auth-required suspended task — used by the
   // streaming path's stream-end fallback when the agent yields no terminal.
-  getTaskImpl: (params: TaskQueryParams) => Promise<Task> = async (params) => ({
-    kind: "task",
-    id: params.id,
-    contextId: "ctx-1",
-    status: { state: "auth-required" },
-  });
+  getTaskImpl: (params: GetTaskRequest) => Promise<Task> = async (params) =>
+    makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_AUTH_REQUIRED });
 
   async resolveTarget(_input: AgentTargetInput): Promise<ResolvedAgentTarget> {
     return makeResolvedTarget({ supportsStreaming: this.supportsStreaming });
@@ -115,7 +94,7 @@ class AuthRequiredTransport implements A2ATransport {
 
   async sendMessage(
     _target: ResolvedAgentTarget,
-    params: MessageSendParams,
+    params: SendMessageRequest,
   ): Promise<Message | Task> {
     this.sendCalls.push(params);
     return this.sendImpl(params);
@@ -123,32 +102,23 @@ class AuthRequiredTransport implements A2ATransport {
 
   async *sendMessageStream(
     _target: ResolvedAgentTarget,
-    params: MessageSendParams,
-  ): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {
+    params: SendMessageRequest,
+  ): AsyncGenerator<A2AStreamElement> {
     this.streamCalls.push(params);
     for await (const event of this.streamImpl(params)) {
       yield event;
     }
   }
 
-  async getTask(_target: ResolvedAgentTarget, params: TaskQueryParams): Promise<Task> {
+  async getTask(_target: ResolvedAgentTarget, params: GetTaskRequest): Promise<Task> {
     return this.getTaskImpl(params);
   }
 
-  async cancelTask(_target: ResolvedAgentTarget, params: TaskIdParams): Promise<Task> {
-    return {
-      kind: "task",
-      id: params.id,
-      contextId: "ctx-1",
-      status: { state: "canceled" },
-    };
+  async cancelTask(_target: ResolvedAgentTarget, params: CancelTaskRequest): Promise<Task> {
+    return makeTask({ id: params.id, contextId: "ctx-1", state: TaskState.TASK_STATE_CANCELED });
   }
 
-  async *resubscribeTask(): AsyncGenerator<
-    Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | A2AStreamEvent
-  > {}
+  async *resubscribeTask(): AsyncGenerator<A2AStreamElement> {}
 
   async setTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
@@ -159,21 +129,21 @@ class AuthRequiredTransport implements A2ATransport {
 
   async getTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: GetTaskPushNotificationConfigParams,
+    _params: GetTaskPushNotificationConfigRequest,
   ): Promise<TaskPushNotificationConfig> {
     throw new Error("not used");
   }
 
   async listTaskPushNotificationConfigs(
     _target: ResolvedAgentTarget,
-    _params: ListTaskPushNotificationConfigParams,
+    _params: ListTaskPushNotificationConfigsRequest,
   ): Promise<TaskPushNotificationConfig[]> {
     throw new Error("not used");
   }
 
   async deleteTaskPushNotificationConfig(
     _target: ResolvedAgentTarget,
-    _params: DeleteTaskPushNotificationConfigParams,
+    _params: DeleteTaskPushNotificationConfigRequest,
   ): Promise<void> {
     throw new Error("not used");
   }
@@ -201,11 +171,13 @@ describe("auth_required metadata + action API", () => {
     const next = reduceA2ASessionState(initial, {
       type: "task.status.updated",
       update: {
-        kind: "status-update",
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: { state: "auth-required" },
+        status: {
+          state: TaskState.TASK_STATE_AUTH_REQUIRED,
+          message: undefined,
+          timestamp: undefined,
+        },
         metadata: {
           [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
             kind: "acp.auth-required",
@@ -263,11 +235,13 @@ describe("auth_required metadata + action API", () => {
       reduceA2ASessionState(initial, {
         type: "task.status.updated",
         update: {
-          kind: "status-update",
           taskId: "task-1",
           contextId: "ctx-1",
-          final: false,
-          status: { state: "auth-required" },
+          status: {
+            state: TaskState.TASK_STATE_AUTH_REQUIRED,
+            message: undefined,
+            timestamp: undefined,
+          },
           metadata: {
             [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: "not even an object" as unknown,
           },
@@ -278,11 +252,13 @@ describe("auth_required metadata + action API", () => {
     const next = reduceA2ASessionState(initial, {
       type: "task.status.updated",
       update: {
-        kind: "status-update",
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: { state: "auth-required" },
+        status: {
+          state: TaskState.TASK_STATE_AUTH_REQUIRED,
+          message: undefined,
+          timestamp: undefined,
+        },
         metadata: {
           [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
             // Missing `kind` discriminator → schema check fails
@@ -333,11 +309,13 @@ describe("auth_required metadata + action API", () => {
     const afterAuthRequired = reduceA2ASessionState(initial, {
       type: "task.status.updated",
       update: {
-        kind: "status-update",
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: { state: "auth-required" },
+        status: {
+          state: TaskState.TASK_STATE_AUTH_REQUIRED,
+          message: undefined,
+          timestamp: undefined,
+        },
         metadata: {
           [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
             kind: "acp.auth-required",
@@ -356,11 +334,10 @@ describe("auth_required metadata + action API", () => {
     const afterFailure = reduceA2ASessionState(afterAuthRequired, {
       type: "task.status.updated",
       update: {
-        kind: "status-update",
         taskId: "task-1",
         contextId: "ctx-1",
-        final: true,
-        status: { state: "failed" },
+        status: { state: TaskState.TASK_STATE_FAILED, message: undefined, timestamp: undefined },
+        metadata: undefined,
       },
     });
 
@@ -397,11 +374,11 @@ describe("auth_required metadata + action API", () => {
 
     expect(transport.sendCalls).toHaveLength(1);
     const params = transport.sendCalls[0];
-    expect(params?.message.taskId).toBe("task-1");
-    expect(params?.message.contextId).toBe("ctx-1");
-    expect(params?.message.metadata).toBeDefined();
+    expect(params?.message?.taskId).toBe("task-1");
+    expect(params?.message?.contextId).toBe("ctx-1");
+    expect(params?.message?.metadata).toBeDefined();
     // Metadata must carry the auth-required response with the chosen method id.
-    const authResponse = params?.message.metadata?.[ACP_A2A_AUTH_REQUIRED_METADATA_KEY] as
+    const authResponse = params?.message?.metadata?.[ACP_A2A_AUTH_REQUIRED_METADATA_KEY] as
       | { kind?: string; methodId?: string }
       | undefined;
     expect(authResponse?.kind).toBe("acp.auth-required");
@@ -428,51 +405,39 @@ describe("auth_required metadata + action API", () => {
     const transport = new AuthRequiredTransport();
     transport.supportsStreaming = true;
 
-    transport.getTaskImpl = async (params) => ({
-      kind: "task",
-      id: params.id,
-      contextId: "ctx-1",
-      status: {
-        state: "auth-required",
-        message: {
-          kind: "message",
+    const authMetadata = {
+      [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
+        kind: "acp.auth-required",
+        message: "Authenticate to continue",
+        authMethods: [{ id: "oauth", name: "OAuth", link: "https://example.com/oauth" }],
+      },
+    };
+
+    transport.getTaskImpl = async (params) =>
+      makeTask({
+        id: params.id,
+        contextId: "ctx-1",
+        state: TaskState.TASK_STATE_AUTH_REQUIRED,
+        message: makeMessage({
           messageId: "agent-auth",
-          role: "agent",
-          parts: [{ kind: "text", text: "Authenticate to continue" }],
-        },
-      },
-      metadata: {
-        [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
-          kind: "acp.auth-required",
-          message: "Authenticate to continue",
-          authMethods: [{ id: "oauth", name: "OAuth", link: "https://example.com/oauth" }],
-        },
-      },
-    });
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("Authenticate to continue")],
+        }),
+        metadata: authMetadata,
+      });
 
     transport.streamImpl = async function* () {
-      yield {
-        kind: "status-update",
+      yield statusEvent({
         taskId: "task-1",
         contextId: "ctx-1",
-        final: false,
-        status: {
-          state: "auth-required",
-          message: {
-            kind: "message",
-            messageId: "agent-auth",
-            role: "agent",
-            parts: [{ kind: "text", text: "Authenticate to continue" }],
-          },
-        },
-        metadata: {
-          [ACP_A2A_AUTH_REQUIRED_METADATA_KEY]: {
-            kind: "acp.auth-required",
-            message: "Authenticate to continue",
-            authMethods: [{ id: "oauth", name: "OAuth", link: "https://example.com/oauth" }],
-          },
-        },
-      } satisfies TaskStatusUpdateEvent;
+        state: TaskState.TASK_STATE_AUTH_REQUIRED,
+        message: makeMessage({
+          messageId: "agent-auth",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("Authenticate to continue")],
+        }),
+        metadata: authMetadata,
+      });
     };
 
     const controller = new A2AClientController({
@@ -497,7 +462,7 @@ describe("auth_required metadata + action API", () => {
     await controller.respondToAuthRequired("oauth");
 
     expect(transport.streamCalls).toHaveLength(2);
-    expect(transport.streamCalls[1]?.message.taskId).toBe("task-1");
-    expect(transport.streamCalls[1]?.message.contextId).toBe("ctx-1");
+    expect(transport.streamCalls[1]?.message?.taskId).toBe("task-1");
+    expect(transport.streamCalls[1]?.message?.contextId).toBe("ctx-1");
   });
 });

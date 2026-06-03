@@ -299,7 +299,8 @@ function isResolvedAgentTarget(
 }
 
 export function extractA2AResponseText(result: A2ASendResult): string {
-  if (result.kind === "message") {
+  // A2ASendResult = Message | Task; Tasks carry `id`, Messages carry `messageId`.
+  if ("messageId" in result) {
     return extractMessageText(result);
   }
   return extractLatestAgentText(result);

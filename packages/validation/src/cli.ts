@@ -6,8 +6,6 @@ import {
   isValidationMode,
   ValidationError,
   type ValidationMode,
-  validateA2ARequest,
-  validateA2AResponse,
   validateACPEnvelope,
   validateACPRequest,
   validateACPResponse,
@@ -20,8 +18,6 @@ import { type JsonSource, loadJsonFromSource } from "./loader.ts";
 type ValidationTarget =
   | "jsonrpc-request"
   | "jsonrpc-response"
-  | "a2a-request"
-  | "a2a-response"
   | "acp-envelope"
   | "acp-request"
   | "acp-response"
@@ -31,8 +27,6 @@ type ValidationTarget =
 const VALID_TARGETS: ReadonlySet<ValidationTarget> = new Set([
   "jsonrpc-request",
   "jsonrpc-response",
-  "a2a-request",
-  "a2a-response",
   "acp-envelope",
   "acp-request",
   "acp-response",
@@ -111,7 +105,7 @@ function parseArgs(argv: string[]): CliOptions {
 
 function usage(): string {
   return [
-    "agents-validate --source <url|path> --target <jsonrpc-request|jsonrpc-response|a2a-request|a2a-response|acp-envelope|acp-request|acp-response|agent-card|runtime-manifest>",
+    "agents-validate --source <url|path> --target <jsonrpc-request|jsonrpc-response|acp-envelope|acp-request|acp-response|agent-card|runtime-manifest>",
     "Optional:",
     "  --mode <strict|loose|filter>  Validation mode (default: strict)",
     "  --method <acp-method>         Required when --target acp-response",
@@ -153,12 +147,6 @@ function runTargetValidation(payload: unknown, options: CliOptions): unknown {
     }
     case "jsonrpc-response": {
       return validateJsonRpcEnvelope(payload, "response", { mode: options.mode });
-    }
-    case "a2a-request": {
-      return validateA2ARequest(payload, { mode: options.mode });
-    }
-    case "a2a-response": {
-      return validateA2AResponse(payload, { mode: options.mode });
     }
     case "acp-envelope": {
       return validateACPEnvelope(payload, { mode: options.mode });

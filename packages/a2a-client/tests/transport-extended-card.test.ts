@@ -4,41 +4,31 @@ import {
   DefaultRequestHandler,
   InMemoryTaskStore,
   JsonRpcTransportHandler,
+  ServerCallContext,
 } from "@a2a-js/sdk/server";
 import { CURRENT_A2A_PROTOCOL_VERSION } from "../../a2a/src/index.ts";
 import { SdkA2ATransport } from "../src/transport.ts";
 import type { ResolvedAgentTarget } from "../src/types.ts";
+import { makeAgentCard } from "./mock-a2a-transport.ts";
 
 function createBaseCard(url: string): AgentCard {
-  return {
+  return makeAgentCard({
     name: "BaseAgent",
     description: "Basic agent card",
     url,
-    version: "1.0.0",
     protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    skills: [],
-    defaultInputModes: ["text"],
-    defaultOutputModes: ["text"],
-    capabilities: {},
-    supportsAuthenticatedExtendedCard: true,
-  };
+    capabilities: { extendedAgentCard: true },
+  });
 }
 
 function createExtendedCard(url: string): AgentCard {
-  return {
+  return makeAgentCard({
     name: "ExtendedAgent",
     description: "Extended agent card with extra capabilities",
     url,
-    version: "1.0.0",
     protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-    skills: [],
-    defaultInputModes: ["text"],
-    defaultOutputModes: ["text"],
-    capabilities: {
-      pushNotifications: true,
-      streaming: true,
-    },
-  };
+    capabilities: { pushNotifications: true, streaming: true },
+  });
 }
 
 function startTestServer() {
@@ -64,7 +54,7 @@ function startTestServer() {
       const url = new URL(req.url);
 
       if (url.pathname === "/.well-known/agent-card.json") {
-        return new Response(JSON.stringify({ ...baseCard, url: cardUrl }), {
+        return new Response(JSON.stringify(createBaseCard(cardUrl)), {
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
@@ -73,8 +63,8 @@ function startTestServer() {
       }
 
       if (req.method === "POST") {
-        const body = await req.json();
-        const result = await transportHandler.handle(body);
+        const body = (await req.json()) as Record<string, unknown>;
+        const result = await transportHandler.handle(body, new ServerCallContext({}));
         return new Response(JSON.stringify(result), {
           headers: {
             "Content-Type": "application/json",

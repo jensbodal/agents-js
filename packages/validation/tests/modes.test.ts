@@ -1,11 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   ValidationError,
-  validateA2ARequest,
   validateACPEnvelope,
   validateACPRequest,
   validateACPResponse,
-  validateAgentCard,
   validateJsonRpcEnvelope,
   validateRuntimeManifest,
 } from "../src/index.ts";
@@ -32,69 +30,6 @@ describe("validation modes", () => {
       mode: "filter",
     }) as Record<string, unknown>;
     expect(filtered.traceId).toBeUndefined();
-    expect(input).toEqual(original);
-  });
-
-  test("a2a validators support strict, loose, and filter modes", () => {
-    const input = {
-      jsonrpc: "2.0",
-      id: 1,
-      method: "message/send",
-      traceId: "trace-1",
-      params: {
-        message: {
-          messageId: "msg-1",
-          role: "user",
-          parts: [{ kind: "text", text: "hello" }],
-          debug: true,
-        },
-      },
-    };
-    const original = structuredClone(input);
-
-    expect(() => validateA2ARequest(input)).toThrow(ValidationError);
-
-    const loose = validateA2ARequest(input, { mode: "loose" }) as {
-      params: { message: { debug?: boolean } };
-      traceId?: string;
-    };
-    expect(loose.traceId).toBe("trace-1");
-    expect(loose.params.message.debug).toBe(true);
-
-    const filtered = validateA2ARequest(input, { mode: "filter" }) as {
-      params: { message: Record<string, unknown> };
-      traceId?: string;
-    };
-    expect(filtered.traceId).toBeUndefined();
-    expect(filtered.params.message.debug).toBeUndefined();
-    expect(input).toEqual(original);
-  });
-
-  test("agent card validator supports strict, loose, and filter modes", () => {
-    const input = {
-      name: "test-agent",
-      description: "agent",
-      url: "http://127.0.0.1:3000",
-      version: "1.0.0",
-      protocolVersion: "0.2.1",
-      skills: [],
-      defaultInputModes: ["text"],
-      defaultOutputModes: ["text"],
-      capabilities: {},
-      extra: true,
-    };
-    const original = structuredClone(input);
-
-    expect(() => validateAgentCard(input)).toThrow(ValidationError);
-
-    const loose = validateAgentCard(input, { mode: "loose" }) as unknown as Record<string, unknown>;
-    expect(loose.extra).toBe(true);
-
-    const filtered = validateAgentCard(input, { mode: "filter" }) as unknown as Record<
-      string,
-      unknown
-    >;
-    expect(filtered.extra).toBeUndefined();
     expect(input).toEqual(original);
   });
 

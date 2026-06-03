@@ -249,7 +249,7 @@ export function buildSmokeConsumerPackageJson(
     private: true,
     type: "module",
     dependencies: {
-      "@a2a-js/sdk": "^0.3.13",
+      "@a2a-js/sdk": "1.0.0-alpha.0",
       "@agents-js/a2a-client": `file:${a2aClientTarball}`,
       "@agents-js/policy": `file:${policyTarball}`,
       "@agents-js/validation": `file:${validationTarball}`,
@@ -261,6 +261,7 @@ export function buildSmokeConsumerPackageJson(
 }
 
 const defaultSmokeSource = `
+import { TaskState } from "@a2a-js/sdk";
 import { A2AClientController, createInitialSessionState, isTerminalTaskState } from "@agents-js/a2a-client";
 
 // Verify A2AClientController is a constructor
@@ -274,12 +275,13 @@ if (state.status !== "idle") {
   throw new Error(\`Expected initial session status "idle", got "\${state.status}".\`);
 }
 
-// Verify isTerminalTaskState works
-if (isTerminalTaskState("completed") !== true) {
-  throw new Error("Expected isTerminalTaskState('completed') to return true.");
+// Verify isTerminalTaskState works. A2A 1.0 takes the protobuf TaskState enum
+// (not the legacy "completed"/"working" string literals).
+if (isTerminalTaskState(TaskState.TASK_STATE_COMPLETED) !== true) {
+  throw new Error("Expected isTerminalTaskState(TASK_STATE_COMPLETED) to return true.");
 }
-if (isTerminalTaskState("working") !== false) {
-  throw new Error("Expected isTerminalTaskState('working') to return false.");
+if (isTerminalTaskState(TaskState.TASK_STATE_WORKING) !== false) {
+  throw new Error("Expected isTerminalTaskState(TASK_STATE_WORKING) to return false.");
 }
 
 console.log("external consumer smoke passed");

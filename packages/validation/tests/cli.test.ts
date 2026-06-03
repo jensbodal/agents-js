@@ -29,23 +29,16 @@ async function withTempJsonFile(payload: unknown, fn: (path: string) => void | P
 }
 
 describe("agents-validate CLI", () => {
-  test("returns 0 for valid A2A request and emits validated payload", async () => {
+  test("returns 0 for valid JSON-RPC request and emits validated payload", async () => {
     await withTempJsonFile(
       {
         jsonrpc: "2.0",
         id: 1,
         method: "message/send",
-        params: {
-          message: {
-            kind: "message",
-            messageId: "msg-1",
-            role: "user",
-            parts: [{ kind: "text", text: "hello" }],
-          },
-        },
+        params: { message: "hello" },
       },
       (sourcePath) => {
-        const result = runCli(["--source", sourcePath, "--target", "a2a-request"]);
+        const result = runCli(["--source", sourcePath, "--target", "jsonrpc-request"]);
         const payload = JSON.parse(result.stdout.toString()) as {
           mode: string;
           ok: boolean;
@@ -61,8 +54,8 @@ describe("agents-validate CLI", () => {
   });
 
   test("returns non-zero for invalid payload", async () => {
-    await withTempJsonFile({ jsonrpc: "2.0", id: 1, method: "message/send" }, (sourcePath) => {
-      const result = runCli(["--source", sourcePath, "--target", "a2a-request"]);
+    await withTempJsonFile({ jsonrpc: "2.0", id: 1 }, (sourcePath) => {
+      const result = runCli(["--source", sourcePath, "--target", "jsonrpc-request"]);
       const payload = JSON.parse(result.stdout.toString()) as { ok: boolean };
 
       expect(result.exitCode).not.toBe(0);

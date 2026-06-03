@@ -38,17 +38,14 @@
  * headless caller gets a deterministic exit code instead of hanging.
  */
 
-import {
-  A2AClientController,
-  type AgentTargetInput,
-  isTerminalTaskState,
-} from "@agents-js/a2a-client";
+import { A2AClientController, type AgentTargetInput } from "@agents-js/a2a-client";
 import {
   type AgentRegistryRecord,
   readAgentRegistryRecords,
   resolveSharedAgentRegistryPath,
 } from "@agents-js/a2a-client/node";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
+import { isTerminalTaskVocabulary } from "./cli-utils.ts";
 import { EXIT_AUTH_REQUIRED, EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
 
@@ -256,7 +253,7 @@ function awaitSendResponse(
         messageCompleted = true;
       }
 
-      if (!state.taskState || !isTerminalTaskState(state.taskState)) {
+      if (!isTerminalTaskVocabulary(state.taskState)) {
         return;
       }
 

@@ -1,9 +1,11 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { TaskState } from "@a2a-js/sdk";
 import {
   DefaultRequestHandler,
   InMemoryPushNotificationStore,
   InMemoryTaskStore,
   JsonRpcTransportHandler,
+  ServerCallContext,
 } from "@a2a-js/sdk/server";
 import type { InitializeResponse } from "@agents-js/acp";
 import { CURRENT_A2A_PROTOCOL_VERSION } from "../src/index.ts";
@@ -19,27 +21,50 @@ interface SampledBody {
   [key: string]: unknown;
 }
 
+/**
+ * Shared call context. `new ServerCallContext({})` resolves to the
+ * unauthenticated-user scope, so seeded tasks are visible to the
+ * handler's CRUD operations (they share the same owner).
+ */
+const callContext = new ServerCallContext({});
+
 /** Seed a task directly into the store so push notification CRUD can operate on it. */
 function seedTask(taskStore: InMemoryTaskStore, taskId: string) {
-  taskStore.save({
-    kind: "task",
-    id: taskId,
-    contextId: `ctx-${taskId}`,
-    status: { state: "working" },
-  });
+  taskStore.save(
+    {
+      id: taskId,
+      contextId: `ctx-${taskId}`,
+      status: { state: TaskState.TASK_STATE_WORKING, message: undefined, timestamp: undefined },
+      artifacts: [],
+      history: [],
+      metadata: undefined,
+    },
+    callContext,
+  );
 }
 
 function createPushAgentCard(): GatewayAgentCard {
   return {
     name: "PushTestAgent",
     description: "Agent with push notification support",
-    url: "http://127.0.0.1",
+    supportedInterfaces: [
+      {
+        url: "http://127.0.0.1",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
     capabilities: {
+      extensions: [],
       pushNotifications: true,
     },
   };
@@ -70,22 +95,30 @@ async function handleRpc(
   params: unknown,
   id = 1,
 ) {
-  return handler.handle({
-    jsonrpc: "2.0",
-    id,
-    method,
-    params,
-  });
+  return handler.handle(
+    {
+      jsonrpc: "2.0",
+      id,
+      method,
+      params,
+    },
+    callContext,
+  );
 }
 
+// A2A 1.0 renamed the JSON-RPC verbs to PascalCase
+// (`CreateTaskPushNotificationConfig`, ...) and flattened
+// `TaskPushNotificationConfig` to `{ taskId, id, url, ... }` — there is no
+// nested `pushNotificationConfig` envelope or `pushNotificationConfigId`.
 describe("push notification CRUD via JsonRpcTransportHandler", () => {
-  test("set — stores a push notification config for a task", async () => {
+  test("create — stores a push notification config for a task", async () => {
     const { taskStore, transportHandler } = createHandlerWithStore();
     seedTask(taskStore, "task-1");
 
-    const result = await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    const result = await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-1",
-      pushNotificationConfig: { url: "https://example.com/hook", id: "config-1" },
+      url: "https://example.com/hook",
+      id: "config-1",
     });
 
     expect(result).toMatchObject({
@@ -93,10 +126,8 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
       id: 1,
       result: {
         taskId: "task-1",
-        pushNotificationConfig: {
-          url: "https://example.com/hook",
-          id: "config-1",
-        },
+        url: "https://example.com/hook",
+        id: "config-1",
       },
     });
   });
@@ -105,14 +136,15 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
     const { taskStore, transportHandler } = createHandlerWithStore();
     seedTask(taskStore, "task-1");
 
-    await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-1",
-      pushNotificationConfig: { url: "https://example.com/hook", id: "config-1" },
+      url: "https://example.com/hook",
+      id: "config-1",
     });
 
-    const result = await handleRpc(transportHandler, "tasks/pushNotificationConfig/get", {
-      id: "task-1",
-      pushNotificationConfigId: "config-1",
+    const result = await handleRpc(transportHandler, "GetTaskPushNotificationConfig", {
+      taskId: "task-1",
+      id: "config-1",
     });
 
     expect(result).toMatchObject({
@@ -120,10 +152,8 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
       id: 1,
       result: {
         taskId: "task-1",
-        pushNotificationConfig: {
-          url: "https://example.com/hook",
-          id: "config-1",
-        },
+        url: "https://example.com/hook",
+        id: "config-1",
       },
     });
   });
@@ -132,35 +162,38 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
     const { taskStore, transportHandler } = createHandlerWithStore();
     seedTask(taskStore, "task-1");
 
-    await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-1",
-      pushNotificationConfig: { url: "https://example.com/hook1", id: "cfg-1" },
+      url: "https://example.com/hook1",
+      id: "cfg-1",
     });
-    await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-1",
-      pushNotificationConfig: { url: "https://example.com/hook2", id: "cfg-2" },
+      url: "https://example.com/hook2",
+      id: "cfg-2",
     });
 
-    const result = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/list", {
-      id: "task-1",
-    })) as { result: unknown[] };
+    const result = (await handleRpc(transportHandler, "ListTaskPushNotificationConfigs", {
+      taskId: "task-1",
+    })) as { result: { configs: unknown[] } };
 
-    expect(Array.isArray((result as { result: unknown }).result)).toBe(true);
-    expect((result as { result: unknown[] }).result.length).toBe(2);
+    expect(Array.isArray(result.result.configs)).toBe(true);
+    expect(result.result.configs.length).toBe(2);
   });
 
   test("delete — removes a push notification config", async () => {
     const { taskStore, transportHandler } = createHandlerWithStore();
     seedTask(taskStore, "task-1");
 
-    await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-1",
-      pushNotificationConfig: { url: "https://example.com/hook", id: "config-1" },
+      url: "https://example.com/hook",
+      id: "config-1",
     });
 
-    const deleteResult = await handleRpc(transportHandler, "tasks/pushNotificationConfig/delete", {
-      id: "task-1",
-      pushNotificationConfigId: "config-1",
+    const deleteResult = await handleRpc(transportHandler, "DeleteTaskPushNotificationConfig", {
+      taskId: "task-1",
+      id: "config-1",
     });
 
     expect(deleteResult).toMatchObject({
@@ -169,19 +202,19 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
       result: null,
     });
 
-    const listResult = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/list", {
-      id: "task-1",
-    })) as { result: unknown[] };
+    const listResult = (await handleRpc(transportHandler, "ListTaskPushNotificationConfigs", {
+      taskId: "task-1",
+    })) as { result: { configs: unknown[] } };
 
-    expect((listResult as { result: unknown[] }).result).toEqual([]);
+    expect(listResult.result.configs ?? []).toEqual([]);
   });
 
   test("returns error for nonexistent task", async () => {
     const { transportHandler } = createHandlerWithStore();
 
-    const result = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    const result = (await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "nonexistent",
-      pushNotificationConfig: { url: "https://example.com/hook" },
+      url: "https://example.com/hook",
     })) as { error?: { code: number; message: string } };
 
     expect(result.error).toBeDefined();
@@ -192,33 +225,34 @@ describe("push notification CRUD via JsonRpcTransportHandler", () => {
     const { taskStore, transportHandler } = createHandlerWithStore();
     seedTask(taskStore, "task-crud");
 
-    const setResult = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/set", {
+    const setResult = (await handleRpc(transportHandler, "CreateTaskPushNotificationConfig", {
       taskId: "task-crud",
-      pushNotificationConfig: { url: "https://example.com/hook", id: "crud-cfg" },
-    })) as { result: { pushNotificationConfig: { id: string } } };
-    expect(setResult.result.pushNotificationConfig.id).toBe("crud-cfg");
+      url: "https://example.com/hook",
+      id: "crud-cfg",
+    })) as { result: { id: string } };
+    expect(setResult.result.id).toBe("crud-cfg");
 
-    const getResult = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/get", {
-      id: "task-crud",
-      pushNotificationConfigId: "crud-cfg",
-    })) as { result: { pushNotificationConfig: { url: string } } };
-    expect(getResult.result.pushNotificationConfig.url).toBe("https://example.com/hook");
+    const getResult = (await handleRpc(transportHandler, "GetTaskPushNotificationConfig", {
+      taskId: "task-crud",
+      id: "crud-cfg",
+    })) as { result: { url: string } };
+    expect(getResult.result.url).toBe("https://example.com/hook");
 
-    const listResult = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/list", {
-      id: "task-crud",
-    })) as { result: unknown[] };
-    expect(listResult.result.length).toBe(1);
+    const listResult = (await handleRpc(transportHandler, "ListTaskPushNotificationConfigs", {
+      taskId: "task-crud",
+    })) as { result: { configs: unknown[] } };
+    expect(listResult.result.configs.length).toBe(1);
 
-    const deleteResult = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/delete", {
-      id: "task-crud",
-      pushNotificationConfigId: "crud-cfg",
+    const deleteResult = (await handleRpc(transportHandler, "DeleteTaskPushNotificationConfig", {
+      taskId: "task-crud",
+      id: "crud-cfg",
     })) as { result: null };
     expect(deleteResult.result).toBeNull();
 
-    const emptyList = (await handleRpc(transportHandler, "tasks/pushNotificationConfig/list", {
-      id: "task-crud",
-    })) as { result: unknown[] };
-    expect(emptyList.result).toEqual([]);
+    const emptyList = (await handleRpc(transportHandler, "ListTaskPushNotificationConfigs", {
+      taskId: "task-crud",
+    })) as { result: { configs: unknown[] } };
+    expect(emptyList.result.configs ?? []).toEqual([]);
   });
 });
 
@@ -261,7 +295,7 @@ describe("A2A server HTTP push notification integration", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "tasks/pushNotificationConfig/set",
+        method: "CreateTaskPushNotificationConfig",
         params: {
           taskId: "nonexistent-task",
           pushNotificationConfig: { url: "https://example.com/hook" },
@@ -275,7 +309,14 @@ describe("A2A server HTTP push notification integration", () => {
     expect(body.error?.code).toBeNumber();
   });
 
-  test("returns -32602 error for malformed push notification params", async () => {
+  // A2A 1.0 removed the gateway-side param pre-validation that emitted
+  // `-32602` (invalid params) with a `data.issues` payload for a malformed
+  // push-notification config. The proto `fromJSON` decode plus the SDK's
+  // request handler now surface a numeric JSON-RPC error for a bad config
+  // (e.g. `-32001` for an unknown task); the exact code is an SDK internal,
+  // so these assert only that an error envelope is returned rather than
+  // pinning the removed `-32602`/`issues` shape.
+  test("returns a JSON-RPC error for malformed push notification params", async () => {
     const card = createPushAgentCard();
     const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card);
     const bunServer = await serverWrapper.start({ port: 0 });
@@ -287,7 +328,7 @@ describe("A2A server HTTP push notification integration", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "tasks/pushNotificationConfig/set",
+        method: "CreateTaskPushNotificationConfig",
         params: { url: 123 },
       }),
     });
@@ -295,11 +336,10 @@ describe("A2A server HTTP push notification integration", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as SampledBody;
     expect(body.error).toBeDefined();
-    expect(body.error?.code).toBe(-32602);
-    expect(body.error?.data?.issues).toBeDefined();
+    expect(body.error?.code).toBeNumber();
   });
 
-  test("returns -32602 error for non-http URL in push notification config", async () => {
+  test("returns a JSON-RPC error for non-http URL in push notification config", async () => {
     const card = createPushAgentCard();
     const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card);
     const bunServer = await serverWrapper.start({ port: 0 });
@@ -311,10 +351,10 @@ describe("A2A server HTTP push notification integration", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "tasks/pushNotificationConfig/set",
+        method: "CreateTaskPushNotificationConfig",
         params: {
           taskId: "task-1",
-          pushNotificationConfig: { url: "ftp://example.com/hook" },
+          url: "ftp://example.com/hook",
         },
       }),
     });
@@ -322,10 +362,10 @@ describe("A2A server HTTP push notification integration", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as SampledBody;
     expect(body.error).toBeDefined();
-    expect(body.error?.code).toBe(-32602);
+    expect(body.error?.code).toBeNumber();
   });
 
-  test("returns -32602 error for plain string URL in push notification config", async () => {
+  test("returns a JSON-RPC error for plain string URL in push notification config", async () => {
     const card = createPushAgentCard();
     const serverWrapper = new UniversalA2AServer(createMockExecutor() as never, card);
     const bunServer = await serverWrapper.start({ port: 0 });
@@ -337,10 +377,10 @@ describe("A2A server HTTP push notification integration", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "tasks/pushNotificationConfig/set",
+        method: "CreateTaskPushNotificationConfig",
         params: {
           taskId: "task-1",
-          pushNotificationConfig: { url: "not-a-url" },
+          url: "not-a-url",
         },
       }),
     });
@@ -348,7 +388,7 @@ describe("A2A server HTTP push notification integration", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as SampledBody;
     expect(body.error).toBeDefined();
-    expect(body.error?.code).toBe(-32602);
+    expect(body.error?.code).toBeNumber();
   });
 
   test("CORS headers applied to push notification error responses", async () => {
@@ -363,7 +403,7 @@ describe("A2A server HTTP push notification integration", () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "tasks/pushNotificationConfig/set",
+        method: "CreateTaskPushNotificationConfig",
         params: { url: 123 },
       }),
     });

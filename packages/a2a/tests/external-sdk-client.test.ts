@@ -1,12 +1,30 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AgentCard, Message, Task, TaskStatusUpdateEvent } from "@a2a-js/sdk";
-import { A2AClient } from "@a2a-js/sdk/client";
-import type { AgentExecutor, ExecutionEventBus, RequestContext } from "@a2a-js/sdk/server";
+import {
+  type AgentCard,
+  type Message,
+  type Part,
+  Role,
+  type StreamResponse,
+  type Task,
+  TaskState,
+} from "@a2a-js/sdk";
+import { ClientFactory } from "@a2a-js/sdk/client";
+import {
+  AgentEvent,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type RequestContext,
+} from "@a2a-js/sdk/server";
 import type { InitializeResponse } from "@agents-js/acp";
-import { buildStatusUpdate, buildTerminalTask, nowIso } from "../src/executor-events.ts";
+import { buildStatusUpdate, nowIso } from "../src/executor-events.ts";
 import { CURRENT_A2A_PROTOCOL_VERSION } from "../src/index.ts";
 import { UniversalA2AServer } from "../src/server.ts";
 import type { GatewayAgentCard } from "../src/types.ts";
+
+/** Read text out of a proto text part. */
+function partText(part: Part): string {
+  return part.content?.$case === "text" ? part.content.value : "";
+}
 
 /**
  * Verifies wire-level A2A interop with the canonical upstream consumer
@@ -21,9 +39,14 @@ import type { GatewayAgentCard } from "../src/types.ts";
  */
 
 /**
- * Minimal `AgentExecutor` that publishes the lifecycle a real
- * `ACPtoA2AExecutor` produces (`submitted` → `working` → terminal +
- * `eventBus.finished()`) without spinning up an actual ACP child.
+ * Minimal `AgentExecutor` driving a valid A2A 1.0 task-lifecycle stream:
+ * an initial `task` (submitted) followed by `statusUpdate` events only
+ * (`working` → terminal `completed`), then `eventBus.finished()`. A2A 1.0's
+ * server `ResultManager` rejects a second full `task` event mid-lifecycle
+ * ("stream ordering violation"), so termination rides a terminal
+ * `TaskStatusUpdateEvent` carrying the agent reply in `status.message`.
+ * (This intentionally diverges from `ACPtoA2AExecutor`, which still emits a
+ * terminal `task` — see the streaming caveat noted with that executor.)
  */
 function createEchoExecutor(): AgentExecutor & { initialize: () => Promise<InitializeResponse> } {
   return {
@@ -41,37 +64,33 @@ function createEchoExecutor(): AgentExecutor & { initialize: () => Promise<Initi
 
     async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
       const userMessage = context.userMessage as Message;
-      const userText = userMessage.parts
-        .filter((part): part is Extract<typeof part, { kind: "text" }> => part.kind === "text")
-        .map((p) => p.text)
-        .join("");
+      const userText = userMessage.parts.map(partText).join("");
 
       const submittedTask: Task = {
-        kind: "task",
         id: context.taskId,
         contextId: context.contextId,
-        status: { state: "submitted", timestamp: nowIso() },
-        history: [{ ...userMessage, kind: "message" }],
+        status: { state: TaskState.TASK_STATE_SUBMITTED, timestamp: nowIso(), message: undefined },
+        artifacts: [],
+        history: [userMessage],
+        metadata: undefined,
       };
-      eventBus.publish(submittedTask);
+      eventBus.publish(AgentEvent.task(submittedTask));
 
       eventBus.publish(
-        buildStatusUpdate(context.taskId, context.contextId, {
-          state: "working",
-          final: false,
-        }),
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(context.taskId, context.contextId, {
+            state: TaskState.TASK_STATE_WORKING,
+          }),
+        ),
       );
 
       const replyText = `echo: ${userText}`;
       eventBus.publish(
-        buildTerminalTask(
-          context.taskId,
-          context.contextId,
-          { ...userMessage, kind: "message" },
-          {
-            state: "completed",
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(context.taskId, context.contextId, {
+            state: TaskState.TASK_STATE_COMPLETED,
             text: replyText,
-          },
+          }),
         ),
       );
       eventBus.finished();
@@ -87,33 +106,55 @@ function buildSeedAgentCard(): GatewayAgentCard {
   return {
     name: "EchoAgent",
     description: "Echo executor used to verify upstream @a2a-js/sdk interop",
-    url: "http://127.0.0.1",
+    supportedInterfaces: [
+      {
+        url: "http://127.0.0.1",
+        protocolBinding: "JSONRPC",
+        tenant: "",
+        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+      },
+    ],
+    provider: undefined,
     version: "1.0.0",
-    protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+    securitySchemes: {},
+    securityRequirements: [],
     skills: [],
+    signatures: [],
     defaultInputModes: ["text"],
     defaultOutputModes: ["text"],
-    capabilities: {},
+    capabilities: { extensions: [] },
   };
 }
 
-function isTaskStatusUpdate(event: unknown): event is TaskStatusUpdateEvent {
-  return (
-    typeof event === "object" &&
-    event !== null &&
-    (event as { kind?: string }).kind === "status-update"
-  );
-}
-
-function isTaskSnapshot(event: unknown): event is Task {
-  return (
-    typeof event === "object" && event !== null && (event as { kind?: string }).kind === "task"
-  );
+/** A `SendMessageResult` (`Message | Task`) is a Task when it carries a `status`. */
+function isTaskResult(result: Message | Task): result is Task {
+  return "status" in result && "id" in result;
 }
 
 describe("third-party @a2a-js/sdk client wire-level interop", () => {
   let server: { stop: (force?: boolean) => void; port: number | undefined } | null = null;
   let baseUrl: string;
+
+  /** A2A 1.0 `SendMessageRequest` builder (tenant + required arrays). */
+  function buildMessage(text: string): Message {
+    return {
+      messageId: crypto.randomUUID(),
+      role: Role.ROLE_USER,
+      parts: [
+        {
+          content: { $case: "text", value: text },
+          metadata: undefined,
+          filename: "",
+          mediaType: "text/plain",
+        },
+      ],
+      taskId: "",
+      contextId: "",
+      metadata: undefined,
+      extensions: [],
+      referenceTaskIds: [],
+    };
+  }
 
   beforeAll(async () => {
     const wrapper = new UniversalA2AServer(createEchoExecutor(), buildSeedAgentCard());
@@ -128,80 +169,73 @@ describe("third-party @a2a-js/sdk client wire-level interop", () => {
     server?.stop(true);
   });
 
-  test("upstream A2AClient.fromCardUrl resolves the gateway agent card", async () => {
-    const client = await A2AClient.fromCardUrl(`${baseUrl}/.well-known/agent-card.json`);
+  test("upstream ClientFactory resolves the gateway agent card", async () => {
+    const client = await new ClientFactory().createFromUrl(baseUrl);
     const card: AgentCard = await client.getAgentCard();
 
     expect(card.name).toBe("EchoAgent");
-    expect(card.protocolVersion).toBe(CURRENT_A2A_PROTOCOL_VERSION);
+    expect(card.supportedInterfaces[0]?.protocolVersion).toBe(CURRENT_A2A_PROTOCOL_VERSION);
     // mapCapabilities sets streaming=true after the executor's initialize().
     expect(card.capabilities?.streaming).toBe(true);
   });
 
-  test("upstream A2AClient.sendMessage returns a spec-shaped terminal Task", async () => {
-    const client = await A2AClient.fromCardUrl(`${baseUrl}/.well-known/agent-card.json`);
-    const response = await client.sendMessage({
-      message: {
-        kind: "message",
-        role: "user",
-        messageId: crypto.randomUUID(),
-        parts: [{ kind: "text", text: "hello upstream" }],
-      },
+  test("upstream Client.sendMessage returns a spec-shaped terminal Task", async () => {
+    const client = await new ClientFactory().createFromUrl(baseUrl);
+    const result = await client.sendMessage({
+      tenant: "",
+      message: buildMessage("hello upstream"),
+      configuration: undefined,
+      metadata: undefined,
     });
 
-    // The legacy `A2AClient.sendMessage` returns the JSON-RPC envelope
-    // (`{ jsonrpc, id, result }` on success). The task or message lives
-    // under `.result`. Newer `Client.sendMessage` unwraps automatically,
-    // but the legacy surface is the canonical interop check.
-    if ("error" in response) {
-      throw new Error(`Expected success response, got error: ${JSON.stringify(response.error)}`);
+    if (!isTaskResult(result)) {
+      throw new Error(`Expected Task snapshot, got: ${JSON.stringify(result)}`);
     }
-    const task = (response as { result: unknown }).result;
-    if (!isTaskSnapshot(task)) {
-      throw new Error(`Expected Task snapshot, got: ${JSON.stringify(task)}`);
-    }
-    expect(task.status.state).toBe("completed");
-    const agentMsg = task.history?.find((m) => m.role === "agent");
+    expect(result.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+    // The terminal agent reply rides the terminal status-update's message;
+    // the ResultManager folds it into the Task's `status.message` (and may
+    // also append it to history).
+    const agentMsg =
+      result.history?.find((m) => m.role === Role.ROLE_AGENT) ?? result.status?.message;
     expect(agentMsg).toBeDefined();
-    const text = agentMsg?.parts
-      .filter((p): p is Extract<typeof p, { kind: "text" }> => p.kind === "text")
-      .map((p) => p.text)
-      .join("");
+    const text = (agentMsg?.parts ?? []).map(partText).join("");
     expect(text).toBe("echo: hello upstream");
   });
 
-  test("upstream A2AClient.sendMessageStream yields submitted → working → final SSE events", async () => {
-    const client = await A2AClient.fromCardUrl(`${baseUrl}/.well-known/agent-card.json`);
-    const events: unknown[] = [];
+  test("upstream Client.sendMessageStream yields submitted → working → final SSE events", async () => {
+    const client = await new ClientFactory().createFromUrl(baseUrl);
+    const events: StreamResponse["payload"][] = [];
 
     for await (const event of client.sendMessageStream({
-      message: {
-        kind: "message",
-        role: "user",
-        messageId: crypto.randomUUID(),
-        parts: [{ kind: "text", text: "stream me" }],
-      },
+      tenant: "",
+      message: buildMessage("stream me"),
+      configuration: undefined,
+      metadata: undefined,
     })) {
-      events.push(event);
+      events.push(event.payload);
     }
 
     expect(events.length).toBeGreaterThanOrEqual(2);
 
     // First event must be a Task snapshot in 'submitted' state.
     const first = events[0];
-    expect(isTaskSnapshot(first)).toBe(true);
-    if (isTaskSnapshot(first)) {
-      expect(first.status.state).toBe("submitted");
+    expect(first?.$case).toBe("task");
+    if (first?.$case === "task") {
+      expect(first.value.status?.state).toBe(TaskState.TASK_STATE_SUBMITTED);
     }
 
     // A 'working' status-update must appear between submitted and the final terminal.
-    const working = events.find((e) => isTaskStatusUpdate(e) && e.status.state === "working");
+    const working = events.find(
+      (p) => p?.$case === "statusUpdate" && p.value.status?.state === TaskState.TASK_STATE_WORKING,
+    );
     expect(working).toBeDefined();
 
-    // The last event must be terminal (final: true status-update OR completed Task snapshot).
+    // The last event must be terminal. A2A 1.0 drops the `final`
+    // discriminator and forbids a second `task` event mid-lifecycle, so
+    // termination is a terminal-state status-update.
     const last = events[events.length - 1];
-    const lastIsTerminalStatus = isTaskStatusUpdate(last) && last.final === true;
-    const lastIsCompletedTask = isTaskSnapshot(last) && last.status.state === "completed";
-    expect(lastIsTerminalStatus || lastIsCompletedTask).toBe(true);
+    const lastIsCompleted =
+      last?.$case === "statusUpdate" && last.value.status?.state === TaskState.TASK_STATE_COMPLETED;
+    expect(lastIsCompleted).toBe(true);
   });
 });

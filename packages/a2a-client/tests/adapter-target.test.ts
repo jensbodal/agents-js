@@ -2,18 +2,14 @@ import { describe, expect, test } from "bun:test";
 import type { AgentCard } from "@a2a-js/sdk";
 import type { AdaptTargetContext, RawAgentCard, TargetAdapter } from "../src/adapters/target.ts";
 import { adaptTarget } from "../src/adapters/target.ts";
+import { makeAgentCard } from "./mock-a2a-transport.ts";
 
-const MOCK_CARD: AgentCard = {
+const MOCK_CARD: AgentCard = makeAgentCard({
   name: "mock-agent",
   description: "A mock agent",
   url: "https://external.example.com",
-  version: "1.0.0",
   protocolVersion: "0.3.0",
-  skills: [],
-  defaultInputModes: ["text"],
-  defaultOutputModes: ["text"],
-  capabilities: {},
-};
+});
 
 function makeMockFetch(
   responseCard: RawAgentCard,
@@ -144,24 +140,22 @@ describe("adaptTarget", () => {
     const adapter: TargetAdapter = {
       probePath: "/.well-known/agent.json",
       authHeader: () => "Bearer smoke-token",
-      transformCard: (raw, ctx) => ({
-        name: raw.name as string,
-        description: raw.description as string,
-        url: ctx.externalUrl,
-        version: raw.version as string,
-        protocolVersion: raw.protocolVersion as string,
-        skills: [],
-        defaultInputModes: ["text"],
-        defaultOutputModes: ["text"],
-        capabilities: raw.capabilities as AgentCard["capabilities"],
-      }),
+      transformCard: (raw, ctx) =>
+        makeAgentCard({
+          name: raw.name as string,
+          description: raw.description as string,
+          url: ctx.externalUrl,
+          version: raw.version as string,
+          protocolVersion: raw.protocolVersion as string,
+          capabilities: raw.capabilities as Record<string, unknown>,
+        }),
     };
 
     const result = await adaptTarget(adapter, "https://az.example.com", {
       fetch: makeMockFetch(rawCard),
     });
 
-    expect(result.card.url).toBe("https://az.example.com");
+    expect(result.card.supportedInterfaces[0]?.url).toBe("https://az.example.com");
     expect(result.card.name).toBe("agent-zero");
     expect(result.authHeader).toBe("Bearer smoke-token");
     expect(result.probeUrl).toBe("https://az.example.com/.well-known/agent.json");

@@ -92,7 +92,7 @@ describe("A2A client external consumer smoke helpers", () => {
       "/tmp/a2ui-types.tgz",
     );
 
-    expect(manifest.dependencies["@a2a-js/sdk"]).toBe("^0.3.13");
+    expect(manifest.dependencies["@a2a-js/sdk"]).toBe("1.0.0-alpha.0");
     expect(manifest.dependencies["@agents-js/a2a-client"]).toBe("file:/tmp/a2a-client.tgz");
     expect(manifest.dependencies["@agents-js/policy"]).toBe("file:/tmp/policy.tgz");
     expect(manifest.dependencies["@agents-js/validation"]).toBe("file:/tmp/validation.tgz");

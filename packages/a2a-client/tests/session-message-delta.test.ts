@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import type { Task, TaskStatusUpdateEvent } from "@a2a-js/sdk";
+import { Role, TaskState } from "@a2a-js/sdk";
 import { A2AClientProvider } from "../src/index.ts";
 import { createInitialSessionState, reduceA2ASessionState } from "../src/session.ts";
 import type { A2AEvent, A2AMessageDeltaEvent } from "../src/types.ts";
-import { createStreamingMockTransport, type StreamItem } from "./mock-a2a-transport.ts";
+import {
+  createStreamingMockTransport,
+  makeMessage,
+  makeTextPart,
+  messageEvent,
+  type StreamItem,
+  statusEvent,
+  taskEvent,
+} from "./mock-a2a-transport.ts";
 
 /**
  * `message.delta` carries an incremental chunk via the `delta` field, while
@@ -19,39 +27,28 @@ function buildStatusUpdate(
   messageId: string,
   text: string,
   final = false,
-): TaskStatusUpdateEvent {
-  return {
-    kind: "status-update",
+): StreamItem {
+  return statusEvent({
     taskId,
     contextId,
-    final,
-    status: {
-      state: final ? "completed" : "working",
-      message: {
-        kind: "message",
-        role: "agent",
-        messageId,
-        parts: [{ kind: "text", text }],
-      },
-    },
-  };
+    state: final ? TaskState.TASK_STATE_COMPLETED : TaskState.TASK_STATE_WORKING,
+    message: makeMessage({ role: Role.ROLE_AGENT, messageId, parts: [makeTextPart(text)] }),
+  });
 }
 
-function buildTerminalTask(taskId: string, contextId: string, finalText: string): Task {
-  return {
-    kind: "task",
+function buildTerminalTask(taskId: string, contextId: string, finalText: string): StreamItem {
+  return taskEvent({
     id: taskId,
     contextId,
-    status: { state: "completed" },
+    state: TaskState.TASK_STATE_COMPLETED,
     history: [
-      {
-        kind: "message",
+      makeMessage({
         messageId: `msg-${taskId}-final`,
-        role: "agent",
-        parts: [{ kind: "text", text: finalText }],
-      },
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart(finalText)],
+      }),
     ],
-  };
+  });
 }
 
 async function runStream(streamResults: StreamItem[]): Promise<A2AEvent[]> {
@@ -204,14 +201,13 @@ describe("message.delta — incremental delta semantics", () => {
     // provider treats it as a delta for that messageId.
     const events = await runStream([
       buildStatusUpdate("task-1", "ctx-1", "msg-1", "partial"),
-      {
-        kind: "message",
+      messageEvent({
         messageId: "msg-1",
-        role: "agent",
+        role: Role.ROLE_AGENT,
+        parts: [makeTextPart("partial and done")],
         contextId: "ctx-1",
         taskId: "task-1",
-        parts: [{ kind: "text", text: "partial and done" }],
-      },
+      }),
       buildTerminalTask("task-1", "ctx-1", "partial and done"),
     ]);
 
@@ -221,5 +217,39 @@ describe("message.delta — incremental delta semantics", () => {
     expect(d[0]?.delta).toBe("partial");
     expect(d[1]?.text).toBe("partial and done");
     expect(d[1]?.delta).toBe(" and done");
+  });
+
+  test("terminal status-update (no terminal Task) commits the final agent transcript entry", async () => {
+    // A2A 1.0 terminates a turn with a TERMINAL TaskStatusUpdateEvent carrying
+    // the final reply in status.message — there is NO terminal Task event. The
+    // provider must commit the agent transcript entry on that terminal update;
+    // relying on a terminal Task leaves the turn uncommitted (the original
+    // `agentEntries.length === 0` regression).
+    const events = await runStream([
+      taskEvent({ id: "task-1", contextId: "ctx-1", state: TaskState.TASK_STATE_SUBMITTED }),
+      buildStatusUpdate("task-1", "ctx-1", "msg-1", "hel"),
+      buildStatusUpdate("task-1", "ctx-1", "msg-1", "hello world"),
+      // Terminal status-update with the final agent reply — no terminal Task.
+      statusEvent({
+        taskId: "task-1",
+        contextId: "ctx-1",
+        state: TaskState.TASK_STATE_COMPLETED,
+        message: makeMessage({
+          messageId: "msg-1",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("hello world")],
+        }),
+      }),
+    ]);
+
+    const completed = events.filter((e) => e.type === "message.completed");
+    expect(completed).toHaveLength(1);
+    expect(completed[0]).toMatchObject({ type: "message.completed", text: "hello world" });
+
+    const state = events.reduce(reduceA2ASessionState, createInitialSessionState());
+    const agentEntries = state.transcript.filter((entry) => entry.role === "agent");
+    expect(agentEntries.length).toBeGreaterThanOrEqual(1);
+    expect(agentEntries[agentEntries.length - 1]?.text).toBe("hello world");
+    expect(state.taskState).toBe("completed");
   });
 });

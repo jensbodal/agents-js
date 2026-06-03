@@ -46,6 +46,7 @@ function makeRuntimeAgentCard(
     description: `Standardized A2A interface for ${definition.displayName}`,
     capabilities: {
       "text-to-text": {},
+      extensions: [],
     },
   };
 }
