@@ -8,6 +8,7 @@ import type {
 } from "@agents-js/ui-components";
 import { AcpChatApp } from "@agents-js/ui-components";
 import { wrapControllerForAgUiRuns } from "./agui-run-client.ts";
+import { routeHostBridgeView } from "./host-view.ts";
 import "@agents-js/ui-components";
 import {
   createPermissionResolution,
@@ -213,23 +214,17 @@ function applyHostState(): void {
     ? deriveDisplayedSessionStatus(controllerState.status ?? "idle", latestHostState.sessionStatus)
     : (controllerState.status ?? "idle");
 
-  // In host-bridge (AG-UI) mode the prompt is issued via `POST /agent`, so
-  // the A2A client controller never observes the turn and its derived
-  // `transcript`/`pendingText` stay empty. The host-bridge carries the agent
-  // text (assembled by `mapSnapshot` into `transcript`/`pendingAgentText`),
-  // so route it into the view here; otherwise the chat is stuck on
-  // "Waiting for messages..." regardless of runtime (DOT-532). In A2A mode
-  // (`showHostState` false) the controller-derived transcript is preserved.
-  hostView._view = {
-    ...hostView._view,
-    status: displayedStatus,
-    ...(showHostState
-      ? {
-          transcript: latestHostState.transcript ?? [],
-          pendingText: latestHostState.pendingAgentText ?? "",
-        }
-      : {}),
-  };
+  // Route the host-bridge transcript into the view. In host-bridge (AG-UI)
+  // mode the prompt is issued via `POST /agent`, so the A2A client controller
+  // never observes the turn and its derived transcript/pendingText stay empty;
+  // the bridge becomes the source of truth. In A2A mode the controller-derived
+  // transcript is preserved. See `host-view.ts` (unit-tested) — DOT-532.
+  hostView._view = routeHostBridgeView(hostView._view, {
+    showHostState,
+    displayedStatus,
+    transcript: latestHostState.transcript,
+    pendingAgentText: latestHostState.pendingAgentText,
+  });
 
   hostView._pendingPermission = (
     showHostState ? latestHostState.pendingPermission : null
