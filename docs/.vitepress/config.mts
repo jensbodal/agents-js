@@ -132,6 +132,7 @@ export default withMermaid(
               { text: "Protocols", link: "/protocols" },
               { text: "Streaming, Events, and Concurrency", link: "/streaming-and-events" },
               { text: "Observability", link: "/observability" },
+              { text: "Migrating to 0.6.0", link: "/migration-0.6.0" },
               { text: "API Reference", link: "/api/" },
             ],
           },
