@@ -213,9 +213,22 @@ function applyHostState(): void {
     ? deriveDisplayedSessionStatus(controllerState.status ?? "idle", latestHostState.sessionStatus)
     : (controllerState.status ?? "idle");
 
+  // In host-bridge (AG-UI) mode the prompt is issued via `POST /agent`, so
+  // the A2A client controller never observes the turn and its derived
+  // `transcript`/`pendingText` stay empty. The host-bridge carries the agent
+  // text (assembled by `mapSnapshot` into `transcript`/`pendingAgentText`),
+  // so route it into the view here; otherwise the chat is stuck on
+  // "Waiting for messages..." regardless of runtime (DOT-532). In A2A mode
+  // (`showHostState` false) the controller-derived transcript is preserved.
   hostView._view = {
     ...hostView._view,
     status: displayedStatus,
+    ...(showHostState
+      ? {
+          transcript: latestHostState.transcript ?? [],
+          pendingText: latestHostState.pendingAgentText ?? "",
+        }
+      : {}),
   };
 
   hostView._pendingPermission = (

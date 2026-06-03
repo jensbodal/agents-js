@@ -154,6 +154,15 @@ export interface HostState {
   lastError?: string | null;
   runtimeSwitchState?: RuntimeSwitchState | null;
   workflowSurface?: WorkflowSurfaceRenderState | null;
+  /**
+   * Rendered chat transcript assembled from the gateway's `completedTurns`
+   * (user prompt + agent reply per turn). This is the host-bridge source of
+   * truth for the chat in AG-UI mode, where the prompt is issued via
+   * `POST /agent` and the A2A client controller never observes the turn.
+   */
+  transcript?: Array<{ id: string; role: string; text: string }> | null;
+  /** Streaming agent text for the in-flight turn (`currentTurn.textChunks`). */
+  pendingAgentText?: string | null;
 }
 
 // ---------------------------------------------------------------------------

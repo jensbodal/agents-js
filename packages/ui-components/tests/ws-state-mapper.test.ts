@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mapPermissionRequest } from "../src/ws-state-mapper.ts";
+import { mapPermissionRequest, mapSnapshot } from "../src/ws-state-mapper.ts";
 
 describe("mapPermissionRequest", () => {
   test("forwards title + rawInput (existing behavior)", () => {
@@ -157,5 +157,83 @@ describe("mapPermissionRequest", () => {
 
   test("returns empty result when raw has nothing useful", () => {
     expect(mapPermissionRequest({})).toEqual({});
+  });
+});
+
+describe("mapSnapshot transcript (DOT-532 regression)", () => {
+  test("assembles transcript from completedTurns (user prompt + agent reply)", () => {
+    const state = mapSnapshot({
+      status: "ready",
+      completedTurns: [
+        {
+          requestId: "req-1",
+          promptContent: [{ type: "text", text: "hello pi" }],
+          userMessageId: "u-1",
+          agentMessageId: "a-1",
+          textChunks: ["hi ", "there"],
+          turnItems: [],
+          toolCalls: [],
+        },
+      ],
+      currentTurn: { textChunks: [], toolCalls: {}, turnItems: [] },
+    });
+
+    // Pre-fix the host-bridge dropped agent text entirely (mapSnapshot only
+    // produced a textChunkCount), so the chat rendered "Waiting for
+    // messages..." in AG-UI mode regardless of what the runtime produced.
+    expect(state.transcript).toEqual([
+      { id: "u-1", role: "user", text: "hello pi" },
+      { id: "a-1", role: "agent", text: "hi there" },
+    ]);
+  });
+
+  test("surfaces the in-flight turn's streaming text as pendingAgentText", () => {
+    const state = mapSnapshot({
+      status: "prompting",
+      completedTurns: [],
+      currentTurn: { textChunks: ["streaming ", "reply"], toolCalls: {}, turnItems: [] },
+    });
+
+    expect(state.pendingAgentText).toBe("streaming reply");
+    expect(state.transcript).toEqual([]);
+  });
+
+  test("falls back to requestId-derived ids when message ids are absent", () => {
+    const state = mapSnapshot({
+      status: "ready",
+      completedTurns: [
+        {
+          requestId: "req-9",
+          promptContent: [{ type: "text", text: "q" }],
+          textChunks: ["a"],
+          turnItems: [],
+          toolCalls: [],
+        },
+      ],
+    });
+
+    expect(state.transcript).toEqual([
+      { id: "req-9:user", role: "user", text: "q" },
+      { id: "req-9:agent", role: "agent", text: "a" },
+    ]);
+  });
+
+  test("omits empty entries (no user text / no agent text)", () => {
+    const state = mapSnapshot({
+      status: "ready",
+      completedTurns: [
+        {
+          requestId: "req-2",
+          promptContent: [{ type: "text", text: "only user" }],
+          userMessageId: "u-2",
+          textChunks: [],
+          turnItems: [],
+          toolCalls: [],
+        },
+      ],
+    });
+
+    expect(state.transcript).toEqual([{ id: "u-2", role: "user", text: "only user" }]);
+    expect(state.pendingAgentText).toBe("");
   });
 });

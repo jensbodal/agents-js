@@ -410,6 +410,73 @@ function extractCurrentTurnSummary(raw: Record<string, unknown>): HostState["cur
   } satisfies HostTurnSummary;
 }
 
+/** Join the `text`-typed blocks of an ACP `ContentBlock[]` into a string. */
+function contentBlocksToText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(
+      (block): block is { type: "text"; text: string } =>
+        !!block &&
+        typeof block === "object" &&
+        (block as { type?: unknown }).type === "text" &&
+        typeof (block as { text?: unknown }).text === "string",
+    )
+    .map((block) => block.text)
+    .join("");
+}
+
+/** Join the string entries of a `textChunks` array; ignore non-strings. */
+function joinTextChunks(value: unknown): string {
+  return Array.isArray(value)
+    ? value.filter((chunk): chunk is string => typeof chunk === "string").join("")
+    : "";
+}
+
+/**
+ * Build the rendered transcript from the gateway's `completedTurns`.
+ *
+ * Each `CompletedTurnSnapshot` carries both the user prompt
+ * (`promptContent`) and the agent reply (`textChunks`), so a turn maps to
+ * a user entry followed by an agent entry. This is the host-bridge source
+ * of truth for the chat transcript: in AG-UI mode the prompt is issued via
+ * `POST /agent`, so the A2A client controller — the only *other* producer
+ * of `transcript`/`pendingAgentText` — never sees the turn. Without this
+ * mapping the chat stays on "Waiting for messages..." regardless of what
+ * the runtime produced (DOT-532).
+ */
+function deriveHostTranscript(raw: Record<string, unknown>): HostState["transcript"] {
+  const completed = Array.isArray(raw.completedTurns) ? raw.completedTurns : [];
+  const transcript: NonNullable<HostState["transcript"]> = [];
+  completed.forEach((entry, index) => {
+    if (!entry || typeof entry !== "object") return;
+    const turn = entry as Record<string, unknown>;
+    const requestId = typeof turn.requestId === "string" ? turn.requestId : String(index);
+    const userText = contentBlocksToText(turn.promptContent);
+    if (userText) {
+      transcript.push({
+        id: typeof turn.userMessageId === "string" ? turn.userMessageId : `${requestId}:user`,
+        role: "user",
+        text: userText,
+      });
+    }
+    const agentText = joinTextChunks(turn.textChunks);
+    if (agentText) {
+      transcript.push({
+        id: typeof turn.agentMessageId === "string" ? turn.agentMessageId : `${requestId}:agent`,
+        role: "agent",
+        text: agentText,
+      });
+    }
+  });
+  return transcript;
+}
+
+/** Streaming agent text for the in-flight turn (`currentTurn.textChunks`). */
+function derivePendingAgentText(raw: Record<string, unknown>): string {
+  const currentTurn = raw.currentTurn as Record<string, unknown> | null | undefined;
+  return currentTurn ? joinTextChunks(currentTurn.textChunks) : "";
+}
+
 /**
  * Extract host-relevant fields from a full ACPSessionState snapshot.
  *
@@ -462,6 +529,8 @@ export function mapSnapshot(raw: Record<string, unknown>): HostState {
   next.queueCount = Array.isArray(raw.promptQueue) ? raw.promptQueue.length : 0;
   next.currentTurn = extractCurrentTurnSummary(raw);
   next.workflowSurface = deriveWorkflowSurfaceState(raw);
+  next.transcript = deriveHostTranscript(raw);
+  next.pendingAgentText = derivePendingAgentText(raw);
 
   return next;
 }
