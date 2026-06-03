@@ -9,6 +9,7 @@ import {
   parseServeCommandArgs,
   runServeCommand,
   serveArgsToRuntimeEnvOverrides,
+  wrapControllerWithBeforePrompt,
 } from "../src/serve.ts";
 import { resolvePackagedSkillPath, runSkillCommand } from "../src/skill.ts";
 
@@ -211,10 +212,15 @@ describe("agents-js CLI", () => {
       {
         output,
         serveGateway: async (options) => {
-          expect(path.basename(options.acp?.command ?? "")).toBe("node");
-          expect(options.acp?.args).toEqual(["tests/mock-acp-agent.cjs"]);
+          expect(path.basename(options.runtime.acp.command ?? "")).toBe("node");
+          expect(options.runtime.acp.args).toEqual(["tests/mock-acp-agent.cjs"]);
           expect(options.host).toBe("127.0.0.1");
           expect(options.port).toBe(0);
+          // Security-posture pin: `serve` reproduces the old raw-facade's
+          // ungated behavior via the host session's `bypassPermissions`. This
+          // is a deliberate, load-bearing default — lock it so a future change
+          // to the served permission posture is a visible, intentional edit.
+          expect(options.permissionMode).toBe("bypassPermissions");
           return {
             port: 40123,
             server: {} as never,
@@ -249,10 +255,10 @@ describe("agents-js CLI", () => {
           },
         },
         serveGateway: async (options) => {
-          expect(options.acp?.command).toBe("/usr/local/bin/opencode");
-          expect(options.acp?.args).toEqual(["acp", "--print-logs", "--log-level", "INFO"]);
+          expect(options.runtime.acp.command).toBe("/usr/local/bin/opencode");
+          expect(options.runtime.acp.args).toEqual(["acp", "--print-logs", "--log-level", "INFO"]);
           // opencode now seeds telemetry opt-outs via GatewayRuntimeDefinition.defaultEnv.
-          expect(options.acp?.env).toEqual({
+          expect(options.runtime.acp.env).toEqual({
             OMO_SEND_ANONYMOUS_TELEMETRY: "0",
             OMO_DISABLE_POSTHOG: "1",
           });
@@ -297,9 +303,14 @@ describe("agents-js CLI", () => {
             },
           },
           serveGateway: async (options) => {
-            expect(options.acp?.command).toBe("/usr/local/bin/opencode");
-            expect(options.acp?.args).toEqual(["acp", "--print-logs", "--log-level", "INFO"]);
-            expect(options.acp?.env).toEqual({
+            expect(options.runtime.acp.command).toBe("/usr/local/bin/opencode");
+            expect(options.runtime.acp.args).toEqual([
+              "acp",
+              "--print-logs",
+              "--log-level",
+              "INFO",
+            ]);
+            expect(options.runtime.acp.env).toEqual({
               // defaultEnv seeds telemetry opt-outs; profile XDG roots merge on top.
               OMO_SEND_ANONYMOUS_TELEMETRY: "0",
               OMO_DISABLE_POSTHOG: "1",
@@ -505,7 +516,7 @@ describe("agents-js CLI", () => {
           },
         },
         serveGateway: async (options) => {
-          expect(options.acp?.args).toEqual([
+          expect(options.runtime.acp.args).toEqual([
             "acp",
             "--print-logs",
             "--log-level",
@@ -611,14 +622,14 @@ describe("agents-js CLI", () => {
             },
           },
           serveGateway: async (options) => {
-            expect(options.acp?.args).toEqual([
+            expect(options.runtime.acp.args).toEqual([
               "acp",
               "--print-logs",
               "--log-level",
               "INFO",
               "--isolated",
             ]);
-            expect(options.acp?.env?.OPENCODE_PROFILE).toBe("clean-room");
+            expect(options.runtime.acp.env?.OPENCODE_PROFILE).toBe("clean-room");
             return {
               port: 0,
               server: {} as never,
@@ -675,7 +686,7 @@ describe("agents-js CLI", () => {
     });
   });
 
-  test("serve passes a non-empty inheritedEnvKeys whitelist to spawnACPAgent", async () => {
+  test("serve hands the resolved runtime to the host gateway (env-whitelist source)", async () => {
     await withTempWorkspace(async ({ cwd, homeDir, xdgConfigHome }) => {
       const output = makeOutputBuffer();
 
@@ -700,18 +711,22 @@ describe("agents-js CLI", () => {
           },
           output,
           serveGateway: async (options) => {
-            // Regression guard: ACP children must not inherit
-            // unrelated runtime credentials. Without
-            // inheritedEnvKeys, spawnACPAgent inherits the full
-            // process.env into the ACP child, leaking credentials
-            // for unrelated runtimes.
-            expect(Array.isArray(options.acp?.inheritedEnvKeys)).toBe(true);
-            const keys = options.acp?.inheritedEnvKeys ?? [];
-            expect(keys.length).toBeGreaterThan(0);
-            // PATH is always part of the standard inherited defaults
-            // (acp-host's DEFAULT_INHERITED_ENV_KEYS); a missing PATH
-            // means the whitelist composition was bypassed.
-            expect(keys).toContain("PATH");
+            // The ACP child env-whitelist (DEFAULT_INHERITED_ENV_KEYS +
+            // runtime.definition.authEnvKeys) is now composed inside the
+            // host session (`buildHostRuntimeEnvPolicy`), not at the serve
+            // boundary. The serve command's only obligation is to hand the
+            // RESOLVED runtime through so the host can derive that policy —
+            // assert that here. The whitelist composition itself is gated
+            // by packages/acp-host/tests/env-policy.test.ts.
+            expect(options.runtime).toBeDefined();
+            expect(options.runtime.definition).toBeDefined();
+            // authEnvKeys is the harness-declared secret list folded into
+            // the policy; an array (possibly empty) confirms the field the
+            // host reads is present on the runtime we forwarded.
+            expect(
+              options.runtime.definition.authEnvKeys === undefined ||
+                Array.isArray(options.runtime.definition.authEnvKeys),
+            ).toBe(true);
             return {
               port: 40127,
               server: {} as never,
@@ -896,6 +911,110 @@ describe("agents-js CLI", () => {
         ),
       ).rejects.toThrow(
         '[agents-js] Runtime profile "clean-room" targets "claude" but the selected harness is "opencode".',
+      );
+    });
+  });
+
+  describe("wrapControllerWithBeforePrompt", () => {
+    // Build a minimal stand-in for the host controller surface the wrapper
+    // touches: `sendPrompt`, `getState`, and a live `permissionMode` getter.
+    // The real `StableHostSessionController` exposes methods on the prototype
+    // and `permissionMode` as a getter — the wrapper must forward both. This
+    // is the only direct gate on the @mention `beforePrompt` preserve item;
+    // the serve integration test runs with an empty registry, so no
+    // end-to-end path exercises the wrapper.
+    function makeFakeController(initialMode: string) {
+      const calls: unknown[][] = [];
+      let mode = initialMode;
+      const controller = {
+        _mode() {
+          return mode;
+        },
+        setMode(next: string) {
+          mode = next;
+        },
+        get permissionMode() {
+          return mode;
+        },
+        getState() {
+          return { sessionId: "sess-1" };
+        },
+        async sendPrompt(content: unknown[]) {
+          calls.push(content);
+        },
+      };
+      return { controller, calls };
+    }
+
+    test("applies the beforePrompt transform to sendPrompt content", async () => {
+      const { controller, calls } = makeFakeController("default");
+      const beforePrompt = async (content: unknown[]) => [
+        ...content,
+        { type: "text", text: "INJECTED" },
+      ];
+      const wrapped = wrapControllerWithBeforePrompt(
+        controller as never,
+        beforePrompt as never,
+        makeOutputBuffer(),
+      );
+
+      await wrapped.sendPrompt([{ type: "text", text: "hello" }] as never);
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toEqual([
+        { type: "text", text: "hello" },
+        { type: "text", text: "INJECTED" },
+      ]);
+    });
+
+    test("leaves content unchanged when beforePrompt returns undefined", async () => {
+      const { controller, calls } = makeFakeController("default");
+      const beforePrompt = async () => undefined;
+      const wrapped = wrapControllerWithBeforePrompt(
+        controller as never,
+        beforePrompt as never,
+        makeOutputBuffer(),
+      );
+
+      const original = [{ type: "text", text: "hi" }];
+      await wrapped.sendPrompt(original as never);
+
+      expect(calls[0]).toEqual(original);
+    });
+
+    test("falls through to the original prompt when beforePrompt throws", async () => {
+      const { controller, calls } = makeFakeController("default");
+      const beforePrompt = async () => {
+        throw new Error("boom");
+      };
+      const output = makeOutputBuffer();
+      const wrapped = wrapControllerWithBeforePrompt(
+        controller as never,
+        beforePrompt as never,
+        output,
+      );
+
+      const original = [{ type: "text", text: "hi" }];
+      await wrapped.sendPrompt(original as never);
+
+      expect(calls[0]).toEqual(original);
+      expect(output.value).toContain("beforePrompt hook threw");
+    });
+
+    test("forwards the live permissionMode getter (not a snapshot)", () => {
+      const { controller } = makeFakeController("default");
+      const wrapped = wrapControllerWithBeforePrompt(
+        controller as never,
+        (async () => undefined) as never,
+        makeOutputBuffer(),
+      );
+
+      expect((wrapped as unknown as { permissionMode: string }).permissionMode).toBe("default");
+      controller.setMode("bypassPermissions");
+      // A spread-based wrapper would have snapshotted "default"; the Proxy
+      // must reflect the underlying getter's current value.
+      expect((wrapped as unknown as { permissionMode: string }).permissionMode).toBe(
+        "bypassPermissions",
       );
     });
   });

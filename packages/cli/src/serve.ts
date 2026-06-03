@@ -1,10 +1,10 @@
 import {
+  buildAgentCard,
   buildAgentCardBaseUrl,
   type ExecutorHooks,
   formatBindAddress,
-  type ServeACPOverA2AHandle,
-  type ServeACPOverA2AOptions,
-  serveACPOverA2A,
+  type GatewayCardInput,
+  UniversalA2AServer,
 } from "@agents-js/a2a";
 import { createAuditEmitter } from "@agents-js/a2a/audit";
 import { createA2AMentionMiddleware } from "@agents-js/a2a-client";
@@ -15,7 +15,7 @@ import {
   startAutoRegisterHeartbeat,
   startRegistrySync,
 } from "@agents-js/a2a-client/node";
-import { DEFAULT_INHERITED_ENV_KEYS } from "@agents-js/acp-host";
+import type { PermissionMode } from "@agents-js/acp-host";
 import {
   type AgentsJsConfigPaths,
   createRuntimeSelectionsFromArgs,
@@ -34,7 +34,15 @@ import {
   validateGatewayRuntimeProfileName,
   writeAgentsJsConfig,
 } from "@agents-js/gateway-runtime";
-import { createGatewayBus, wrapAuditEmitterAsBusPublisher } from "@agents-js/host";
+import {
+  AguiRunCoordinator,
+  createAguiFetchHandler,
+  createGatewayBus,
+  createHostSession,
+  type GatewayHostController,
+  HostA2AExecutor,
+  wrapAuditEmitterAsBusPublisher,
+} from "@agents-js/host";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
 import { normalizeHost, parsePort } from "./cli-utils.ts";
 import { EXIT_OK } from "./exit-codes.ts";
@@ -157,13 +165,46 @@ export function resolveHeartbeatOptions(
     : { heartbeatEnabled, heartbeatIntervalMs };
 }
 
+/**
+ * Handle returned by the `serveGateway` seam. Mirrors the lifecycle
+ * surface the old raw-facade handle exposed (`server`, `port`, `stop`)
+ * so downstream consumers (registry-sync stop wrapping, the command
+ * result, graceful shutdown) stay byte-compatible.
+ */
+export interface ServeGatewayHandle {
+  server: { port?: number; stop(closeActiveConnections?: boolean): void };
+  port: number;
+  stop: () => void;
+}
+
+/**
+ * Options consumed by the `serveGateway` seam. `runtime` carries the
+ * resolved spawn config (command/args/env); the host session derives the
+ * ACP child env-whitelist internally (`buildHostRuntimeEnvPolicy`:
+ * `DEFAULT_INHERITED_ENV_KEYS` + `runtime.definition.authEnvKeys`), so no
+ * explicit `inheritedEnvKeys` is plumbed here. `hooks.beforePrompt`, when
+ * present, is applied at the host controller via a `sendPrompt`-
+ * intercepting wrapper.
+ */
+export interface ServeGatewayOptions {
+  runtime: ResolvedGatewayRuntime;
+  agentCard: GatewayCardInput;
+  hooks?: ExecutorHooks;
+  host?: string;
+  port?: number;
+  workspacePath: string;
+  permissionMode: PermissionMode;
+  additionalFetch?: (req: Request) => Promise<Response | null>;
+  audit: ReturnType<typeof createAuditEmitter>;
+}
+
 export interface ServeCommandResult {
   configPaths: AgentsJsConfigPaths;
   host: string;
   persistedConfigPath?: string;
   port: number;
   runtime: ResolvedGatewayRuntime;
-  server: ServeACPOverA2AHandle;
+  server: ServeGatewayHandle;
 }
 
 export interface ServeCommandDependencies {
@@ -172,7 +213,132 @@ export interface ServeCommandDependencies {
   env?: NodeJS.ProcessEnv;
   output?: Pick<NodeJS.WriteStream, "write">;
   runtimeResolver?: RuntimeCommandResolver;
-  serveGateway?: (options: ServeACPOverA2AOptions) => Promise<ServeACPOverA2AHandle>;
+  serveGateway?: (options: ServeGatewayOptions) => Promise<ServeGatewayHandle>;
+}
+
+/**
+ * Content type accepted by the host controller's `sendPrompt`. Derived
+ * structurally from the controller surface so this module does not need
+ * a direct `@agentclientprotocol/sdk` dependency just to name the block
+ * array.
+ */
+type PromptContent = Parameters<GatewayHostController["sendPrompt"]>[0];
+
+/**
+ * Wrap a host controller so the `@mention` `beforePrompt` hook runs at
+ * the controller boundary — the forward way (controller hook, not a
+ * raw-executor wrapper). Every `sendPrompt` is offered to `beforePrompt`
+ * first; a returned block array replaces the prompt, `undefined` leaves
+ * it unchanged. A throwing hook falls through to the original content.
+ *
+ * Implemented as a `Proxy` rather than an object spread: the underlying
+ * `StableHostSessionController` exposes its methods on the prototype and
+ * `permissionMode` as a live getter (read by `HostA2AExecutor` for
+ * `@@dispatch` permission-mode inheritance). A spread would snapshot the
+ * getter and drop prototype methods.
+ */
+export function wrapControllerWithBeforePrompt(
+  controller: GatewayHostController,
+  beforePrompt: NonNullable<ExecutorHooks["beforePrompt"]>,
+  output: Pick<NodeJS.WriteStream, "write">,
+): GatewayHostController {
+  return new Proxy(controller, {
+    get(target, prop, receiver) {
+      if (prop === "sendPrompt") {
+        return async (content: PromptContent): Promise<void> => {
+          const sessionId = target.getState().sessionId ?? null;
+          let next = content;
+          try {
+            const transformed = await beforePrompt(content as never, sessionId);
+            if (transformed !== undefined) {
+              next = transformed as PromptContent;
+            }
+          } catch (error) {
+            output.write(
+              `[agents-js] beforePrompt hook threw; sending original prompt: ${
+                error instanceof Error ? error.message : String(error)
+              }\n`,
+            );
+          }
+          return target.sendPrompt(next);
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+/**
+ * Build the AG-UI-capable host-session gateway. Replaces the raw
+ * ACP-over-A2A facade so `agents-js serve` mounts the native AG-UI
+ * `/agent` endpoint (the browser run surface) alongside the A2A
+ * JSON-RPC routing and the optional registry-sync endpoint.
+ *
+ * Wiring (mirrors `apps/internal-gateway/main.ts`, minus the
+ * app-only concerns — bus HTTP endpoints, registry-sync mounting toggle
+ * lives in the caller, the multi-harness lane manager, the WS bridge):
+ *   createHostSession → (optional beforePrompt wrap) → HostA2AExecutor
+ *   + createAguiFetchHandler → composed `additionalFetch` →
+ *   UniversalA2AServer.
+ *
+ * Single-controller by design: no `controllerFactory`, so both the A2A
+ * executor and the AG-UI handler drive the one host-session controller.
+ *
+ * This is the default implementation behind the pre-existing
+ * `ServeCommandDependencies.serveGateway` injection seam — not a new
+ * shared abstraction. It is intentionally module-private; tests inject
+ * their own mock through that same seam.
+ */
+async function defaultServeGateway(options: ServeGatewayOptions): Promise<ServeGatewayHandle> {
+  const output = process.stdout;
+  const session = await createHostSession({
+    runtime: options.runtime,
+    workspacePath: options.workspacePath,
+    permissionMode: options.permissionMode,
+  });
+
+  const beforePrompt = options.hooks?.beforePrompt;
+  const controller = beforePrompt
+    ? wrapControllerWithBeforePrompt(session.controller, beforePrompt, output)
+    : session.controller;
+
+  const executor = new HostA2AExecutor(controller, { audit: options.audit });
+  const aguiCoordinator = new AguiRunCoordinator();
+  const aguiHandler = createAguiFetchHandler({
+    controller,
+    audit: options.audit,
+    coordinator: aguiCoordinator,
+  });
+
+  // Compose the additionalFetch chain. AG-UI's `/agent` route runs
+  // before the (optional) registry-sync endpoint so the sync handler
+  // never shadows it. When sync is disabled the chain is just AG-UI.
+  const syncHandler = options.additionalFetch;
+  const additionalFetch = async (req: Request): Promise<Response | null> => {
+    const aguiResponse = await aguiHandler(req);
+    if (aguiResponse !== null) return aguiResponse;
+    if (syncHandler) return syncHandler(req);
+    return null;
+  };
+
+  const a2aServer = new UniversalA2AServer(executor, buildAgentCard(options.agentCard), undefined, {
+    additionalFetch,
+  });
+  const server = await a2aServer.start({
+    hostname: options.host,
+    port: options.port ?? 0,
+    cors: true,
+  });
+  const port = server.port ?? options.port ?? 0;
+
+  const stop = () => {
+    server.stop(true);
+    executor.destroy();
+    session.destroy();
+  };
+
+  return { server, port, stop };
 }
 
 const setHelp = (a: ServeCommandArgs): void => {
@@ -531,7 +697,7 @@ export async function runServeCommand(
     }),
   });
   const hooks = await detectA2AMentionHooks(output, registryPath, audit);
-  const serveGateway = dependencies.serveGateway ?? serveACPOverA2A;
+  const serveGateway = dependencies.serveGateway ?? defaultServeGateway;
   const registrySyncEnabled = shouldEnableRegistrySync(args, env);
 
   // Default-off: no inbound sync endpoint, no outbound peer pull.
@@ -541,22 +707,27 @@ export async function runServeCommand(
     ? createSyncEndpointHandler({ configPath: registryPath, audit })
     : undefined;
 
-  // Compose the spawn-env whitelist: standard inherited keys (PATH,
-  // HOME, LANG, etc.) plus the resolved runtime's declared
-  // `authEnvKeys`. Without this list, `spawnACPAgent` falls back to
-  // inheriting the full `process.env` and credentials for unrelated
-  // runtimes leak into the spawned ACP child. Deduplicate via a Set
-  // because a runtime is allowed to redeclare a key already present
-  // in the inherited defaults.
-  const runtimeAuthKeys = runtime.definition.authEnvKeys ?? [];
-  const inheritedEnvKeys = [...new Set([...DEFAULT_INHERITED_ENV_KEYS, ...runtimeAuthKeys])];
-
+  // The ACP child env-whitelist is composed inside the host session
+  // (`buildHostRuntimeEnvPolicy`: `DEFAULT_INHERITED_ENV_KEYS` +
+  // `runtime.definition.authEnvKeys`), so it is no longer assembled
+  // here. The same guarantee — the ACP child never inherits the full
+  // `process.env` — is preserved; it just lives at the host boundary.
+  //
+  // `bypassPermissions` reproduces the old raw-facade posture: the
+  // previous `serveACPOverA2A` path spawned the ACP child with no
+  // `PermissionEngine`, so it ran ungated. The host session always has
+  // an engine, so the equivalent "no interactive gate on the served
+  // agent" behavior is `permissionMode: "bypassPermissions"`. (Load-
+  // bearing assumption — not pinned by a test.)
   const server = await serveGateway({
-    acp: { ...runtime.acp, inheritedEnvKeys },
+    runtime,
     agentCard: runtime.agentCard,
     hooks,
     host: resolvedInputs.host,
     port: resolvedInputs.port,
+    workspacePath: dependencies.cwd ?? process.cwd(),
+    permissionMode: "bypassPermissions",
+    audit,
     ...(syncEndpointHandler ? { additionalFetch: syncEndpointHandler } : {}),
   });
 
