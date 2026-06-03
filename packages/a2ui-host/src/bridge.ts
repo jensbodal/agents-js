@@ -32,7 +32,7 @@
  *
  * ## Back-channel gap
  *
- * A2UI v0.9 does not standardize the surface-event back-channel. The sink
+ * A2UI does not standardize the surface-event back-channel. The sink
  * is intentionally opaque so consumers can wire any transport (HTTP POST,
  * ACP `surface_event`, in-memory log-and-drop) without the bridge
  * carrying knowledge of the wire shape.
@@ -53,7 +53,7 @@ export interface SurfaceEventSink<P = Record<string, unknown>> {
   /**
    * Called when a rendered primitive emits a user action. Implementations
    * typically route this over the wire (HTTP POST, ACP `surface_event`,
-   * etc.). The payload shape is intentionally opaque (A2UI v0.9 does not
+   * etc.). The payload shape is intentionally opaque (A2UI does not
    * standardize a back-channel schema).
    */
   sendSurfaceEvent(surfaceId: string, actionName: string, payload: P): void;

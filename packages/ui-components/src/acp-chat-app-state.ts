@@ -65,7 +65,7 @@ export function deriveSessionState(state: SessionStateLike): ChatAppDerivedState
 
   const pendingPermission = state.pendingPermission ?? null;
   const pendingWriteGate = state.pendingWriteGate ?? null;
-  const permissionMode = state.permissionMode ?? "ask";
+  const permissionMode = state.permissionMode ?? "default";
 
   const isConnected =
     state.status !== "idle" && state.status !== "connecting" && state.status !== "error";

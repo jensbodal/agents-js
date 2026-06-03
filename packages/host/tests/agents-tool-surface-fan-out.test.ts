@@ -269,35 +269,32 @@ describe("packages/host/tests/agents-tool-surface-fan-out.test.ts — AJS-63 con
   });
 
   /**
-   * Case 6 — scope violation on one of N.
+   * Case 6 — unroutable target among N.
    *
-   * Caller has inbox.deliver scope, all three targets have inbox routes.
-   * But one target (`c`) is a matrix-only entry; caller lacks
-   * matrix.send_message scope. The call delivers to `a` + `b` (inbox path,
-   * scope present) and fails for `c` with scope-not-granted + the
-   * offending scope set.
+   * Caller has inbox.deliver scope; `a` + `b` have inbox routes and
+   * deliver, but `c` is not in the directory. The call delivers to
+   * `a` + `b` and fails for `c` with unknown-target.
    */
-  test("scope violation on one of N → that target fails, others succeed", async () => {
+  test("unroutable target among N → that target fails, others succeed", async () => {
     const inbox = makeInboxTool();
     const dispatcher = makeDispatcher({
       agentInboxTool: inbox,
       targetDirectory: makeDirectory({
         a: { inbox: { session: "a" } },
         b: { inbox: { session: "b" } },
-        c: { matrix: { room: "!c:matrix.example" } }, // matrix-only entry
+        // `c` deliberately absent from the directory.
       }),
     });
     const result = await dispatcher.sendMessage(
       { targets: ["a", "b", "c"], body: "hi" },
-      identity({ scopes: ["inbox.deliver"] }), // no matrix.send_message
+      identity({ scopes: ["inbox.deliver"] }),
     );
     assertFanOut(result);
     expect(result.delivered).toBe(2);
     expect(result.failed).toBe(1);
     const cResult = result.results.find((r) => r.target === "c");
     expect(cResult?.status).toBe("failed");
-    expect(cResult?.error).toBe("scope-not-granted");
-    expect(cResult?.offending_scopes).toEqual(["matrix.send_message"]);
+    expect(cResult?.error).toBe("unknown-target");
   });
 
   /**

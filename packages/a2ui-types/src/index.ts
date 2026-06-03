@@ -1,7 +1,7 @@
 /**
- * `@agents-js/a2ui-types` — thin wrapper over `@a2ui/web_core` v0.9.
+ * `@agents-js/a2ui-types` — thin wrapper over `@a2ui/web_core`.
  *
- * Re-exports the v0.9 protocol surface (message schemas, `MessageProcessor`, `Catalog`,
+ * Re-exports the protocol surface (message schemas, `MessageProcessor`, `Catalog`,
  * `SurfaceGroupModel`, `DataContext`, signal helpers, etc.), the basic catalog APIs,
  * and the ACP custom catalog (`AcpCatalog`, `ACP_CATALOG_ID`, per-component APIs).
  *

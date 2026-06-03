@@ -17,14 +17,6 @@ export const VALID_PERMISSION_MODES: PermissionMode[] = [
  */
 const KEBAB_PERMISSION_MODE_ALIASES = ["unattended-gateway"] as const;
 
-/**
- * Legacy CLI strings (`ask`/`yolo`/`hub`) accepted for one release cycle.
- * Operators get a `normalizePermissionMode` deprecation warning if they
- * pass a legacy string; the value is mapped to canonical before reaching
- * the controller.
- */
-const LEGACY_PERMISSION_MODES = ["ask", "yolo", "hub"] as const;
-
 export interface GatewayCliArgs {
   /**
    * Explicit agent-card name override. Wins over the per-runtime
@@ -194,10 +186,9 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
       }
       const isCanonical = VALID_PERMISSION_MODES.includes(next as PermissionMode);
       const isKebab = (KEBAB_PERMISSION_MODE_ALIASES as readonly string[]).includes(next);
-      const isLegacy = (LEGACY_PERMISSION_MODES as readonly string[]).includes(next);
-      if (!isCanonical && !isKebab && !isLegacy) {
+      if (!isCanonical && !isKebab) {
         throw new Error(
-          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")} (kebab aliases ${KEBAB_PERMISSION_MODE_ALIASES.join("/")} also accepted; legacy aliases ${LEGACY_PERMISSION_MODES.join("/")} accepted with deprecation warning).`,
+          `[Gateway] Invalid permission mode "${next}". Valid modes: ${VALID_PERMISSION_MODES.join(", ")} (kebab alias ${KEBAB_PERMISSION_MODE_ALIASES.join("/")} also accepted).`,
         );
       }
       permissionMode = normalizePermissionMode(next);

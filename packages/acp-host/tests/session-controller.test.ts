@@ -1559,7 +1559,7 @@ describe("agent defaults (defaultMode)", () => {
     await controller.newSession();
 
     // The configured defaultMode "plan" is not available, so it should NOT be applied.
-    // However, permission-gating mode sync will set "default" mode when permissionMode is "ask".
+    // However, permission-gating mode sync will set "default" mode when permissionMode is "default".
     expect(setModeSpy).not.toHaveBeenCalledWith("plan");
     expect(setModeSpy).toHaveBeenCalledWith("default");
     setModeSpy.mockRestore();

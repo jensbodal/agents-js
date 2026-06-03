@@ -20,11 +20,9 @@ import type {
  *
  * Canonical vocabulary aligned with ACP / Claude Code semantics:
  * - `default` — prompt user for every gated action (read-auto, write-prompt).
- *   Aliased from legacy `"ask"` via {@link normalizePermissionMode}.
  * - `acceptEdits` — auto-approve edit operations without prompting.
  * - `plan` — agent enters plan mode (reads auto-approve, agent emits plan blocks).
  * - `bypassPermissions` — skip permission gating entirely (auto-approve all).
- *   Aliased from legacy `"yolo"` via {@link normalizePermissionMode}.
  * - `unattendedGateway` — auto-approve every operation whose tool-call
  *   classifies to a KNOWN {@link import("@agents-js/policy").OperationClass}
  *   member, and fail-closed (cancel) on any unknown / `tool.<name>` fallback.
@@ -35,12 +33,10 @@ import type {
  *   is a follow-up PR. Accepts both kebab CLI form `"unattended-gateway"` and
  *   canonical camelCase `"unattendedGateway"`.
  *
- * Folder-scoped auto-approve (the legacy `"hub"` mode's documented intent) is
- * driven separately by {@link ACPSessionState.hubPath} and the
+ * Folder-scoped auto-approve is driven separately by
+ * {@link ACPSessionState.hubPath} and the
  * {@link session-file-adapters.requestWriteGateApproval} write-gate path
- * check — it is independent of the mode flag, so the legacy `"hub"` mode
- * normalizes to `"default"` (ask-via-hub semantics; the folder auto-approve
- * survives via `hubPath`).
+ * check — it is independent of the mode flag.
  */
 export type PermissionMode =
   | "default"
@@ -50,31 +46,12 @@ export type PermissionMode =
   | "unattendedGateway";
 
 /**
- * Legacy permission-mode strings retained for one release cycle for
- * back-compat. Inputs at public boundaries (ws-bridge JSON messages,
- * embedder API calls) are run through {@link normalizePermissionMode}
- * before reaching the internal pipeline.
- *
- * @deprecated Use the canonical {@link PermissionMode} vocabulary instead.
+ * Normalize a permission-mode string to the canonical {@link PermissionMode}.
+ * Accepts the kebab CLI form `"unattended-gateway"` and maps it to
+ * `"unattendedGateway"`; canonical strings pass through unchanged. Unknown
+ * strings fall back to `"default"` with a `console.warn`.
  */
-export type LegacyPermissionMode = "yolo" | "plan" | "ask" | "hub";
-
-/**
- * Normalize a permission-mode string from any vintage to the canonical
- * {@link PermissionMode}. Maps legacy strings:
- * - `"ask"` → `"default"`
- * - `"yolo"` → `"bypassPermissions"`
- * - `"hub"` → `"default"` (ask-via-hub; folder auto-approve flows via
- *   {@link ACPSessionState.hubPath}, not the mode flag)
- * - `"plan"` → `"plan"` (unchanged)
- *
- * Canonical strings pass through unchanged. Unknown strings fall back
- * to `"default"` with a one-time `console.warn`.
- */
-let _legacyWarned = false;
-export function normalizePermissionMode(
-  mode: PermissionMode | LegacyPermissionMode | string,
-): PermissionMode {
+export function normalizePermissionMode(mode: PermissionMode | string): PermissionMode {
   switch (mode) {
     case "default":
     case "acceptEdits":
@@ -84,34 +61,6 @@ export function normalizePermissionMode(
       return mode;
     case "unattended-gateway":
       return "unattendedGateway";
-    case "ask":
-      if (!_legacyWarned) {
-        _legacyWarned = true;
-        console.warn(
-          '[agents-js] PermissionMode "ask" is deprecated; use "default". ' +
-            "Legacy aliases will be removed in the next breaking release.",
-        );
-      }
-      return "default";
-    case "yolo":
-      if (!_legacyWarned) {
-        _legacyWarned = true;
-        console.warn(
-          '[agents-js] PermissionMode "yolo" is deprecated; use "bypassPermissions". ' +
-            "Legacy aliases will be removed in the next breaking release.",
-        );
-      }
-      return "bypassPermissions";
-    case "hub":
-      if (!_legacyWarned) {
-        _legacyWarned = true;
-        console.warn(
-          '[agents-js] PermissionMode "hub" is deprecated; use "default" ' +
-            "(folder-scoped auto-approve flows via hubPath, not the mode flag). " +
-            "Legacy aliases will be removed in the next breaking release.",
-        );
-      }
-      return "default";
     default:
       console.warn(`[agents-js] Unknown PermissionMode "${mode}"; falling back to "default".`);
       return "default";

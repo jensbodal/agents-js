@@ -46,14 +46,6 @@ describe("parseCliArgs — workspace trust gate", () => {
     expect(args.trustWorkspace).toBe(true);
   });
 
-  test("legacy permission mode strings are accepted and normalized", () => {
-    expect(parseCliArgs(["--permission-mode", "yolo"], {}).permissionMode).toBe(
-      "bypassPermissions",
-    );
-    expect(parseCliArgs(["--permission-mode", "ask"], {}).permissionMode).toBe("default");
-    expect(parseCliArgs(["--permission-mode", "hub"], {}).permissionMode).toBe("default");
-  });
-
   test("`--permission-mode unattended-gateway` (kebab CLI form) is accepted", () => {
     expect(parseCliArgs(["--permission-mode", "unattended-gateway"], {}).permissionMode).toBe(
       "unattendedGateway",

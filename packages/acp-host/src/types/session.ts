@@ -255,7 +255,7 @@ export type ACPSessionEvent =
   | {
       /**
        * User-driven event originating from an A2UI surface (click, form
-       * submit, etc.). A2UI v0.9 does not standardize the back-channel
+       * submit, etc.). A2UI does not standardize the back-channel
        * payload shape, so `event` is intentionally opaque — hosts and
        * agents negotiate the shape out-of-band.
        */

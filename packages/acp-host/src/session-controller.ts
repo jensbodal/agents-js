@@ -1377,7 +1377,7 @@ export class ACPSessionController {
    * Emit a user-driven surface event (click, submit, etc.) onto the
    * session event stream. Hosts call this from their renderer when the
    * user interacts with an A2UI surface; agents receive the payload
-   * out-of-band (A2UI v0.9 has no standard back-channel shape).
+   * out-of-band (A2UI has no standard back-channel shape).
    */
   sendSurfaceEvent(surfaceId: string, event: unknown): void {
     this.emit({ type: "surface_event", surfaceId, event });

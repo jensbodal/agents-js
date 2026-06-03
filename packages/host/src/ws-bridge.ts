@@ -64,12 +64,11 @@ export type WSClientMessage =
   | { type: "load_session"; sessionId: string }
   | { type: "set_runtime"; runtimeId: string; origin: RuntimeSwitchOrigin }
   /**
-   * Accepts either canonical ({@link PermissionMode}) or legacy
-   * (`"yolo" | "ask" | "hub" | "plan"`) strings — the bridge normalises
-   * at the boundary via {@link normalizePermissionMode}. Legacy strings
-   * will be removed in the next breaking release.
+   * Accepts a canonical {@link PermissionMode} string. The bridge runs it
+   * through {@link normalizePermissionMode} at the boundary (which also
+   * resolves the kebab `"unattended-gateway"` CLI alias).
    */
-  | { type: "set_permission_mode"; mode: PermissionMode | "yolo" | "ask" | "hub" }
+  | { type: "set_permission_mode"; mode: PermissionMode }
   | { type: "request_state" }
   | { type: "cancel" }
   /**
@@ -395,9 +394,8 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
               broadcastSnapshot();
               break;
             case "set_permission_mode":
-              // Normalize legacy strings (`yolo`/`ask`/`hub`) → canonical at
-              // the wire boundary so older WS clients keep working through the
-              // deprecation window. See `normalizePermissionMode` JSDoc.
+              // Normalize at the wire boundary (resolves the kebab
+              // `unattended-gateway` CLI alias). See `normalizePermissionMode`.
               await controller.setPermissionMode(normalizePermissionMode(msg.mode));
               broadcastSnapshot();
               break;

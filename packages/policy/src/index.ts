@@ -47,7 +47,6 @@ export {
   isKnownOperationClass,
   KNOWN_DISPATCH_FAILURE_KINDS,
   KNOWN_OPERATION_CLASSES,
-  type KnownOperationClass,
   type OperationClass,
   READ_ONLY_SHELL_COMMANDS,
   READ_OPERATIONS,

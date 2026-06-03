@@ -267,31 +267,17 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * its own correlationId when the flag is omitted.
  */
 /**
- * AJS-88 / DOT-502 v0.2 — agent-msg CLI flag names for the new contract
- * fields. Centralised so the graceful-skip retry path can strip the
- * post-contract flags by name when the deployed CLI predates v0.2.
- *
- * The agent-msg CLI side (cognee-codex lane) is being wired in parallel
- * via a companion ticket; flag names here are the agreed-on shapes for
- * the v0.2 surface. If the deployed CLI rejects them (pre-v0.2 binary),
- * the structured exit-code 2 path triggers a retry without these flags
- * so the inbox.deliver call still succeeds — the matrix-origin metadata
- * is lost on the row, but durable delivery is preserved.
- */
-const AGENT_MSG_V02_FLAGS = ["--idempotency-key", "--matrix-origin-json", "--kind"] as const;
-
-/**
  * Build the argv array passed to `agent-msg send`. Extracted as a
  * pure function so the UUID-gate logic for `--correlation` and the
- * AJS-88 contract-flag forwarding are unit-testable without spawning a
+ * contract-flag forwarding are unit-testable without spawning a
  * subprocess.
  *
- * AJS-88 / DOT-502 v0.2: when `args` carries the new contract fields
- * (`idempotencyKey` / `matrixOrigin` / `kind`), each is forwarded as a
- * dedicated flag. The `matrixOrigin` envelope is JSON-stringified so a
- * single CLI arg carries the whole structured payload (avoids spreading
- * five sub-flags across argv). Absent fields produce zero argv entries
- * (no `--idempotency-key undefined` accidents).
+ * When `args` carries the contract fields (`idempotencyKey` /
+ * `matrixOrigin` / `kind`), each is forwarded as a dedicated flag. The
+ * `matrixOrigin` envelope is JSON-stringified so a single CLI arg carries
+ * the whole structured payload (avoids spreading five sub-flags across
+ * argv). Absent fields produce zero argv entries (no `--idempotency-key
+ * undefined` accidents).
  *
  * Exported for testing.
  */
@@ -313,43 +299,16 @@ export function buildAgentMsgDeliverArgv(args: InboxDeliverArgs): string[] {
   if (args.matrixOrigin !== undefined) {
     cliArgs.push("--matrix-origin-json", JSON.stringify(args.matrixOrigin));
   }
-  if (args.kind !== undefined) {
-    cliArgs.push("--kind", args.kind);
-  }
+  // `kind` is a required field on the inbox-deliver contract.
+  cliArgs.push("--kind", args.kind);
   return cliArgs;
-}
-
-/**
- * AJS-88 / DOT-502 v0.2 — strip the post-contract flags + their values
- * from an argv array. Used by the graceful-skip retry path after a
- * structured exit-code 2 (CLI flag-rejection) signal from the agent-msg
- * subprocess. Returns a new array; does not mutate input.
- *
- * Detection is structural: walk argv, skip any `--<known-v0.2-flag>`
- * entry plus its single value slot. NO stderr regex (banked rule
- * `feedback_no_regex_pattern_matching_for_detection`); CLI rejection is
- * detected via {@link SubprocessFailureError.exitCode === 2} upstream,
- * not by inspecting stderr text.
- */
-function stripV02Flags(argv: readonly string[]): string[] {
-  const v02Set = new Set<string>(AGENT_MSG_V02_FLAGS);
-  const out: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (typeof arg === "string" && v02Set.has(arg)) {
-      i += 1; // skip the value slot too
-      continue;
-    }
-    if (typeof arg === "string") out.push(arg);
-  }
-  return out;
 }
 
 /**
  * Structured error thrown by {@link runSubprocess} when the spawned
  * binary exits non-zero. Carries the exit code + captured stderr as
- * typed fields so callers can branch on `err.exitCode === 2` (CLI
- * unknown-flag convention) without stderr text-matching.
+ * typed fields so callers branch on structured signals rather than
+ * stderr text-matching.
  *
  * Banked rule: detection happens at the translator layer that already
  * sits between raw output and typed wire shapes; this is that layer for
@@ -381,31 +340,7 @@ export function createSubprocessAgentInboxTool(binPath: string): AgentInboxTool 
   return {
     async deliver(args: InboxDeliverArgs): Promise<InboxDeliverResult> {
       const cliArgs = buildAgentMsgDeliverArgv(args);
-      let stdout: string;
-      try {
-        stdout = await runSubprocess(binPath, cliArgs);
-      } catch (err) {
-        // AJS-88 / DOT-502 v0.2 graceful-skip: a pre-v0.2 agent-msg
-        // binary exits with code 2 on an unknown flag (POSIX/Commander
-        // convention). When we detect that AND we forwarded any v0.2
-        // flag, retry without them so the inbox.deliver still succeeds.
-        // The matrix-origin metadata is lost on the row but durable
-        // delivery is preserved — which matters more during a staged
-        // rollout where the gateway and CLI may deploy on different
-        // ticks (spec §5 sequencing).
-        //
-        // Detection is structural (exitCode === 2), NOT stderr regex
-        // (banked rule). The strip-and-retry runs at most once per call.
-        const carriedV02Flags = cliArgs.some((a) =>
-          (AGENT_MSG_V02_FLAGS as readonly string[]).includes(a),
-        );
-        if (err instanceof SubprocessFailureError && err.exitCode === 2 && carriedV02Flags) {
-          const fallbackArgs = stripV02Flags(cliArgs);
-          stdout = await runSubprocess(binPath, fallbackArgs);
-        } else {
-          throw err;
-        }
-      }
+      const stdout = await runSubprocess(binPath, cliArgs);
       const parsed = JSON.parse(stdout) as {
         messageId?: unknown;
         createdAt?: unknown;

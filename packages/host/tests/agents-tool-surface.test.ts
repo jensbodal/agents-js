@@ -65,7 +65,7 @@ function expectSingleTargetSuccess(
 function identity(opts: Partial<AuthenticatedIdentity> = {}): AuthenticatedIdentity {
   return {
     agentName: opts.agentName ?? "codex-hostname-null",
-    scopes: opts.scopes ?? ["matrix.send_message", "matrix.read"],
+    scopes: opts.scopes ?? ["matrix.send_message", "matrix.read", "inbox.deliver", "inbox.read"],
     correlationId: opts.correlationId ?? "cid-test-001",
     issuer: opts.issuer ?? "proxmox-gw",
     expiresAt: opts.expiresAt ?? Math.floor(Date.now() / 1000) + 900,
@@ -103,6 +103,24 @@ function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
   };
 }
 
+/**
+ * Recording AgentInboxTool stub. Inbox is the mandatory durable substrate,
+ * so the default dispatcher always wires one. Returns a stable message id
+ * so single-target success assertions can pin it.
+ */
+function makeRecordingInboxTool(): AgentInboxTool {
+  let n = 0;
+  return {
+    async deliver() {
+      n += 1;
+      return { message_id: `inbox-msg-${n}`, created_at: "2026-05-22T02:00:00Z" };
+    },
+    async read() {
+      return [];
+    },
+  };
+}
+
 function makeDispatcher(opts?: {
   matrixTool?: MatrixTool;
   agentInboxTool?: AgentInboxTool;
@@ -110,12 +128,15 @@ function makeDispatcher(opts?: {
 }): AgentsDispatcher {
   return createAgentsDispatcher({
     matrixTool: opts?.matrixTool ?? makeRecordingMatrixTool(),
-    ...(opts?.agentInboxTool ? { agentInboxTool: opts.agentInboxTool } : {}),
+    agentInboxTool: opts?.agentInboxTool ?? makeRecordingInboxTool(),
     targetDirectory:
       opts?.targetDirectory ??
       makeTargetDirectory({
-        "ajs-claude": { matrix: { room: "!ajs:matrix.example" } },
-        "cognee-codex": { matrix: { room: "!cog:matrix.example" } },
+        "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+        "cognee-codex": {
+          matrix: { room: "!cog:matrix.example" },
+          inbox: { session: "cognee-codex" },
+        },
       }),
   });
 }
@@ -130,17 +151,18 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *
    * Maps to cognee-codex review criterion #1.
    */
-  test("send_message with valid identity/scope/target → ok with event_id (matrix-only target back-compat)", async () => {
+  test("send_message with valid identity/scope/target → ok with inbox_message_id + event_id", async () => {
     const matrix = makeRecordingMatrixTool();
     const dispatcher = makeDispatcher({ matrixTool: matrix });
     const result = await dispatcher.sendMessage({ target: "ajs-claude", body: "hi" }, identity());
     expectSingleTargetSuccess(result);
+    // Inbox is the durable substrate, so a durable id is always present.
+    expect(result.inbox_message_id).toBe("inbox-msg-1");
     expect(result.event_id).toBe("$evt-1");
-    // Matrix-only target has no inbox.session, so no inbox_message_id:
-    expect(result.inbox_message_id).toBeUndefined();
     expect(matrix.calls).toHaveLength(1);
     expect(matrix.calls[0]?.room).toBe("!ajs:matrix.example");
-    expect(matrix.calls[0]?.body).toBe("hi");
+    // Matrix overlay carries a pointer to the durable inbox row, not the body.
+    expect(matrix.calls[0]?.body).toBe("see inbox: inbox-msg-1");
   });
 
   /**
@@ -230,17 +252,16 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
   });
 
   /**
-   * WHAT: If `MatrixTool.send` throws, the dispatcher returns
-   *       `{ ok: false, error: "send-failed", target, correlation_id, message }`
-   *       and does NOT propagate the exception to the MCP transport.
-   * WHY: Failure containment. The MCP transport must always be able
-   *      to return a structured response to the caller — an
-   *      uncaught exception would leak Node stack frames or 500
-   *      generic errors. Per AJS-59's pattern (consumer's
-   *      try/catch around the subprocess call), a single bad send
-   *      MUST NOT take down the dispatcher.
+   * WHAT: If `MatrixTool.send` (the notification overlay) throws on a
+   *       dual-route target, the durable inbox write still took, so the
+   *       call returns a DEGRADED success: `ok: true` with
+   *       `inbox_message_id` set + `matrix_notification_error` carrying
+   *       the failure. The exception never propagates to the transport.
+   * WHY: Failure containment + AJS-65 route-model. Inbox is the durable
+   *      substrate; a matrix-notify failure must not lose a delivery that
+   *      already landed durably, and must not leak an uncaught exception.
    */
-  test("MatrixTool.send throws → send-failed error, never propagates exception", async () => {
+  test("MatrixTool.send throws on dual-route target → degraded success, never propagates exception", async () => {
     const dispatcher = makeDispatcher({
       matrixTool: {
         async send() {
@@ -249,10 +270,10 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
       },
     });
     const result = await dispatcher.sendMessage({ target: "ajs-claude", body: "hi" }, identity());
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toBe("send-failed");
-    expect(result.message).toContain("matrix subprocess crashed");
+    expectSingleTargetSuccess(result);
+    expect(result.inbox_message_id).toBe("inbox-msg-1");
+    expect(result.event_id).toBeUndefined();
+    expect(result.matrix_notification_error).toContain("matrix subprocess crashed");
   });
 
   /**
@@ -813,7 +834,14 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
    *      "no messages" empty array, surface the misconfig explicitly.
    */
   test("getMessages with no agentInboxTool configured → read-failed (not configured)", async () => {
-    const dispatcher = makeDispatcher({}); // no agentInboxTool override
+    // Construct directly without an agentInboxTool to exercise the
+    // unconfigured-inbox dev guard (the default makeDispatcher always wires one).
+    const dispatcher = createAgentsDispatcher({
+      matrixTool: makeRecordingMatrixTool(),
+      targetDirectory: makeTargetDirectory({
+        "ajs-claude": { inbox: { session: "ajs-claude" } },
+      }),
+    });
     const result = await dispatcher.getMessages({}, identity({ scopes: ["inbox.read"] }));
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");

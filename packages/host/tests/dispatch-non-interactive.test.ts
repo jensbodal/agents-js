@@ -6,7 +6,7 @@ import { subscribeDispatchController } from "../src/host-executor.ts";
 /**
  * @@dispatch is non-interactive — it has no UI to prompt the operator
  * for permission/write-gate/elicitation responses. Under inherited
- * permission modes ("ask", "plan", "hub") an agent that emits one of
+ * permission modes ("default", "plan") an agent that emits one of
  * these events would otherwise hang the dispatch indefinitely
  * waiting for a `resolvePermission` call that nobody will make.
  *

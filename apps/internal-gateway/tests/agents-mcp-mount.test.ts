@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -51,8 +51,11 @@ function baseConfig(overrides: Partial<AgentsMcpEnvConfig> = {}): AgentsMcpEnvCo
     audience: AUDIENCE,
     sendScript: "/unused-in-tests",
     targets: {
-      "ajs-claude": { matrix: { room: "!ajs:matrix.example" } },
-      "cognee-codex": { matrix: { room: "!cog:matrix.example" } },
+      "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
+      "cognee-codex": {
+        matrix: { room: "!cog:matrix.example" },
+        inbox: { session: "cognee-codex" },
+      },
     },
     jwtTtlSeconds: 900,
     ...overrides,
@@ -177,12 +180,16 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("end-to-end happy path: JWT → verify → dispatch → recording Matrix; ignores caller `as_agent`", async () => {
     const matrix = makeRecordingMatrixTool();
+    const inbox = makeRecordingInboxTool();
     const wireup = await setupAgentsMcpMount({
-      overrides: { config: baseConfig(), matrixTool: matrix },
+      overrides: { config: baseConfig(), matrixTool: matrix, agentInboxTool: inbox },
     });
     if (wireup === null) throw new Error("unreachable");
 
-    const jwt = await mintTestJwt({ sub: "codex-hostname-null" });
+    const jwt = await mintTestJwt({
+      sub: "codex-hostname-null",
+      scopes: ["matrix.send_message", "inbox.deliver"],
+    });
     const res = await wireup.fetchHandler(
       new Request("http://gw.local/api/agents/send_message", {
         method: "POST",
@@ -199,8 +206,13 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       }),
     );
     expect(res?.status).toBe(200);
-    const json = (await res?.json()) as { ok: boolean; event_id: string };
+    const json = (await res?.json()) as {
+      ok: boolean;
+      inbox_message_id: string;
+      event_id: string;
+    };
     expect(json.ok).toBe(true);
+    expect(json.inbox_message_id).toMatch(/^msg-/);
     expect(json.event_id).toMatch(/^\$evt-/);
     expect(matrix.calls).toHaveLength(1);
     expect(matrix.calls[0]?.identity.agentName).toBe("codex-hostname-null");
@@ -305,13 +317,14 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
   });
 
   /**
-   * WHAT: Valid JWT without the `matrix.send_message` scope → 403
-   *       with `error: "scope-not-granted"`. MatrixTool not called.
+   * WHAT: Valid JWT without the `inbox.deliver` scope → 403 with
+   *       `error: "scope-not-granted"`. MatrixTool not called. Inbox is
+   *       the mandatory durable substrate, so its scope is always required.
    * WHY: Pins the scope ACL → HTTP-status mapping. Returning 401 here
    *      (auth failed) would confuse callers — the token IS valid;
    *      the call is just unauthorized.
    */
-  test("JWT without matrix.send_message scope → 403 scope-not-granted", async () => {
+  test("JWT without inbox.deliver scope → 403 scope-not-granted", async () => {
     const matrix = makeRecordingMatrixTool();
     const wireup = await setupAgentsMcpMount({
       overrides: { config: baseConfig(), matrixTool: matrix },
@@ -410,8 +423,13 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
    */
   test("admin mint → returns JWT that the same gateway verifies", async () => {
     const matrix = makeRecordingMatrixTool();
+    const inbox = makeRecordingInboxTool();
     const wireup = await setupAgentsMcpMount({
-      overrides: { config: baseConfig({ adminToken: ADMIN_TOKEN }), matrixTool: matrix },
+      overrides: {
+        config: baseConfig({ adminToken: ADMIN_TOKEN }),
+        matrixTool: matrix,
+        agentInboxTool: inbox,
+      },
     });
     if (wireup === null) throw new Error("unreachable");
     const mintRes = await wireup.fetchHandler(
@@ -420,7 +438,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
         headers: { "Content-Type": "application/json", Authorization: `Admin ${ADMIN_TOKEN}` },
         body: JSON.stringify({
           sub: "ajs-claude",
-          scopes: ["matrix.send_message"],
+          scopes: ["matrix.send_message", "inbox.deliver"],
           cid: "cid-roundtrip-1",
         }),
       }),
@@ -437,8 +455,8 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       }),
     );
     expect(sendRes?.status).toBe(200);
-    expect(matrix.calls).toHaveLength(1);
-    expect(matrix.calls[0]?.identity.agentName).toBe("ajs-claude");
+    expect(inbox.delivers).toHaveLength(1);
+    expect(inbox.delivers[0]?.identity.agentName).toBe("ajs-claude");
   });
 
   /**
@@ -692,6 +710,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       },
       toSession: "ajs-claude",
       body: "hi",
+      kind: "agents_message" as const,
     } satisfies Omit<Parameters<typeof buildAgentMsgDeliverArgv>[0], "correlationId">;
 
     const withUuid = buildAgentMsgDeliverArgv({
@@ -730,6 +749,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       },
       toSession: "ajs-claude",
       body: "hello",
+      kind: "agents_message",
       // No correlationId — to ensure --from/--no-notify don't accidentally
       // get gated on it.
     });
@@ -801,15 +821,15 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
   });
 
   /**
-   * WHAT: When the new contract fields are omitted, none of the v0.2
-   *       flags appear in argv — no `--idempotency-key undefined`,
-   *       no `--matrix-origin-json null`, no `--kind ""` accidents.
-   * WHY:  Native `agents.send_message` callers (the default path) MUST
-   *       continue producing the exact pre-contract argv. A regression
-   *       that emits `--kind undefined` would break the CLI invocation
-   *       for every non-bridge sender.
+   * WHAT: Native `agents.send_message` callers carry `--kind
+   *       agents_message` (the mandatory origin discriminator) but omit
+   *       the bridge-only `--idempotency-key` / `--matrix-origin-json`
+   *       flags. No stray `undefined` / `null` argv slots.
+   * WHY:  `kind` is a required field on the inbox-deliver contract; the
+   *       dispatcher always passes `"agents_message"` for native sends.
+   *       The bridge-only flags stay absent for non-bridge senders.
    */
-  test("buildAgentMsgDeliverArgv: omits v0.2 flags entirely when contract fields are absent", () => {
+  test("buildAgentMsgDeliverArgv: native send carries --kind, omits bridge-only flags", () => {
     const argv = buildAgentMsgDeliverArgv({
       identity: {
         agentName: "codex-hostname-null",
@@ -820,95 +840,15 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       },
       toSession: "ajs-claude",
       body: "native send",
+      kind: "agents_message",
     });
+    expect(argv).toContain("--kind");
+    expect(argv).toContain("agents_message");
     expect(argv).not.toContain("--idempotency-key");
     expect(argv).not.toContain("--matrix-origin-json");
-    expect(argv).not.toContain("--kind");
     // Sanity check: no stray "undefined" / "null" string slots either.
     expect(argv).not.toContain("undefined");
     expect(argv).not.toContain("null");
-  });
-
-  /**
-   * WHAT: When the deployed `agent-msg` CLI predates v0.2 and rejects
-   *       a v0.2 flag with exit code 2 (POSIX/Commander unknown-flag
-   *       convention), `createSubprocessAgentInboxTool().deliver()`
-   *       retries WITHOUT the v0.2 flags and returns success.
-   * WHY:  Spec §5 sequencing: agents-js + agent-msg CLI deploy on
-   *       different ticks during the rollout window. Hard-failing every
-   *       inbox.deliver because the CLI lacks `--idempotency-key` would
-   *       break durable delivery for ALL callers (native + bridge).
-   *       Graceful-skip preserves delivery; the matrix-origin metadata
-   *       is lost on the row but the row itself lands.
-   *
-   * Test fixture: a bash script that exits 2 with a stderr message on
-   *               first call, then exits 0 with valid JSON on second
-   *               call. Detection is structural (`exitCode === 2`); we
-   *               do NOT pattern-match the stderr text (banked rule).
-   */
-  test("createSubprocessAgentInboxTool: graceful-skip when CLI exit code 2 → retry without v0.2 flags succeeds", async () => {
-    const tmp = mkdtempSync(join(tmpdir(), "ajs-88-cli-fixture-"));
-    const stateFile = join(tmp, "call-count");
-    const binPath = join(tmp, "agent-msg-stub");
-    const script = [
-      "#!/bin/sh",
-      `state="${stateFile}"`,
-      'if [ -f "$state" ]; then count=$(cat "$state"); else count=0; fi',
-      "count=$((count + 1))",
-      'echo "$count" > "$state"',
-      // Echo argv to a parallel log so the test can assert what the
-      // retry call actually invoked the CLI with.
-      `argv_log="${join(tmp, "argv-log")}"`,
-      'echo "$@" >> "$argv_log"',
-      'if [ "$count" -eq 1 ]; then',
-      '  echo "error: unknown flag --idempotency-key" >&2',
-      "  exit 2",
-      "fi",
-      'echo "{\\"messageId\\":\\"msg-retry-ok\\",\\"createdAt\\":\\"2026-05-26T00:00:00Z\\"}"',
-      "exit 0",
-    ].join("\n");
-    writeFileSync(binPath, `${script}\n`);
-    chmodSync(binPath, 0o755);
-    try {
-      const tool = createSubprocessAgentInboxTool(binPath);
-      const result = await tool.deliver({
-        identity: {
-          agentName: "matrix-bridge-fanout",
-          scopes: ["inbox.deliver"] as const,
-          correlationId: "x",
-          issuer: "test-gateway",
-          expiresAt: 0,
-        },
-        toSession: "hostname-null-codex-app",
-        body: "@hostname-null-codex-app please ack",
-        idempotencyKey: "$evt-abc:hostname-null-codex-app",
-        matrixOrigin: {
-          event_id: "$evt-abc:matrix.example",
-          room_id: "!room:matrix.example",
-          sender: "@user:matrix.example",
-          origin_server_ts: 1748263200000,
-        },
-        kind: "matrix_room_mention",
-      });
-      expect(result.message_id).toBe("msg-retry-ok");
-      expect(result.created_at).toBe("2026-05-26T00:00:00Z");
-      // already_delivered absent from CLI output → field absent on result.
-      expect(result.already_delivered).toBeUndefined();
-      // Assert the retry argv stripped the v0.2 flags but kept the rest.
-      const argvLog = readFileSync(join(tmp, "argv-log"), "utf8");
-      const lines = argvLog.trim().split("\n");
-      expect(lines.length).toBe(2); // first call (failed) + retry
-      const retryLine = lines[1] ?? "";
-      expect(retryLine).not.toContain("--idempotency-key");
-      expect(retryLine).not.toContain("--matrix-origin-json");
-      expect(retryLine).not.toContain("--kind");
-      // Preserved args still present.
-      expect(retryLine).toContain("--from");
-      expect(retryLine).toContain("matrix-bridge-fanout");
-      expect(retryLine).toContain("--no-notify");
-    } finally {
-      rmSync(tmp, { recursive: true, force: true });
-    }
   });
 
   /**
@@ -945,6 +885,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
         toSession: "hostname-null-codex-app",
         body: "duplicate fanout",
         idempotencyKey: "$evt-abc:hostname-null-codex-app",
+        kind: "matrix_room_mention",
       });
       expect(result.message_id).toBe("msg-existing-1");
       expect(result.already_delivered).toBe(true);
@@ -1227,15 +1168,22 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
   test("AJS-55: challenge → sign → redeem → JWT bearer happy path", async () => {
     const fixture = await makeMintFixture({
       entity: "test-peer",
-      capabilities: { scopes: ["matrix.send_message"] },
+      capabilities: { scopes: ["matrix.send_message", "inbox.deliver"] },
     });
     const matrix = makeRecordingMatrixTool();
+    const inbox = makeRecordingInboxTool();
     const wireup = await setupAgentsMcpMount({
       overrides: {
         config: baseConfig({
-          targets: { "ajs-claude": { matrix: { room: "!ajs:matrix.example" } } },
+          targets: {
+            "ajs-claude": {
+              matrix: { room: "!ajs:matrix.example" },
+              inbox: { session: "ajs-claude" },
+            },
+          },
         }),
         matrixTool: matrix,
+        agentInboxTool: inbox,
         peerKeyDirectory: fixture.peerKeyDirectory,
       },
     });
@@ -1247,7 +1195,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
     expect(challengeRes?.status).toBe(200);
     const { challenge } = (await challengeRes?.json()) as { challenge: string };
     // 2. Sign + redeem.
-    const sig = fixture.signChallenge(challenge, ["matrix.send_message"]);
+    const sig = fixture.signChallenge(challenge, ["matrix.send_message", "inbox.deliver"]);
     const redeemRes = await wireup.fetchHandler(
       new Request("http://gw.local/api/agents/mint/redeem", {
         method: "POST",
@@ -1255,7 +1203,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
         body: JSON.stringify({
           challenge,
           entity: "test-peer",
-          requested_scopes: ["matrix.send_message"],
+          requested_scopes: ["matrix.send_message", "inbox.deliver"],
           sig,
         }),
       }),
@@ -1267,7 +1215,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       scopes: string[];
     };
     expect(sub).toBe("test-peer");
-    expect(scopes).toEqual(["matrix.send_message"]);
+    expect(scopes).toEqual(["matrix.send_message", "inbox.deliver"]);
     // 3. Use the minted JWT to call send_message.
     const sendRes = await wireup.fetchHandler(
       new Request("http://gw.local/api/agents/send_message", {
@@ -1277,7 +1225,7 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
       }),
     );
     expect(sendRes?.status).toBe(200);
-    expect(matrix.calls).toHaveLength(1);
+    expect(inbox.delivers).toHaveLength(1);
   });
 
   /**

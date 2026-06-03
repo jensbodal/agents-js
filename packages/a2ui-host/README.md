@@ -1,6 +1,6 @@
 # @agents-js/a2ui-host
 
-> Browser-side A2UI v0.9 host and bridge for agents-js.
+> Browser-side A2UI host and bridge for agents-js.
 
 ## Installation
 

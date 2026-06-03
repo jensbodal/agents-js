@@ -8,13 +8,13 @@ import { safeCustomElement } from "./safe-custom-element.ts";
  * `labels` property; missing keys fall back to these values.
  */
 export const DEFAULT_PERMISSION_MODE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  ask: "Ask first",
+  default: "Ask first",
   plan: "Plan first",
-  hub: "Workspace hub",
-  yolo: "Auto-approve writes",
+  acceptEdits: "Auto-approve edits",
+  bypassPermissions: "Auto-approve all",
 });
 
-const PERMISSION_MODE_ORDER = ["ask", "plan", "hub", "yolo"] as const;
+const PERMISSION_MODE_ORDER = ["default", "plan", "acceptEdits", "bypassPermissions"] as const;
 
 /**
  * Compact dropdown for switching permission modes.
@@ -22,10 +22,10 @@ const PERMISSION_MODE_ORDER = ["ask", "plan", "hub", "yolo"] as const;
  * Dispatches `acp-permission-mode-change` CustomEvent with `{ mode: string }`.
  *
  * Option copy is customizable via the `labels` property. Pass a partial record
- * keyed by mode value to override any subset of the defaults; unspecified keys
- * fall back to {@link DEFAULT_PERMISSION_MODE_LABELS}. The fixed four-mode
- * option list is intentional — downstream consumers should not reorder or
- * extend the mode set via this component.
+ * keyed by canonical {@link PermissionMode} value to override any subset of the
+ * defaults; unspecified keys fall back to {@link DEFAULT_PERMISSION_MODE_LABELS}.
+ * The fixed four-mode option list is intentional — downstream consumers should
+ * not reorder or extend the mode set via this component.
  *
  * ## Theming
  *
@@ -51,7 +51,7 @@ const PERMISSION_MODE_ORDER = ["ask", "plan", "hub", "yolo"] as const;
  *
  * Example (host CSS):
  * ```css
- * acp-permission-mode-selector[mode="ask"]::part(select) {
+ * acp-permission-mode-selector[mode="default"]::part(select) {
  *   border-color: var(--color-green);
  * }
  * ```
@@ -59,7 +59,7 @@ const PERMISSION_MODE_ORDER = ["ask", "plan", "hub", "yolo"] as const;
 @safeCustomElement("acp-permission-mode-selector")
 export class AcpPermissionModeSelector extends LitElement {
   @property({ type: String })
-  accessor mode = "ask";
+  accessor mode = "default";
 
   /**
    * Optional label overrides keyed by mode value. Triggers a re-render when
@@ -88,15 +88,6 @@ export class AcpPermissionModeSelector extends LitElement {
   @property({ type: String, reflect: true })
   accessor variant: "default" | "embedded" = "default";
 
-  /**
-   * @deprecated Use `variant="embedded"` instead. Kept for one release as a
-   * backwards-compatible alias — when `compact === true` the component
-   * behaves as if `variant === "embedded"`. Will be removed in a future
-   * release.
-   */
-  @property({ type: Boolean })
-  accessor compact = false;
-
   static override styles = [
     acpTheme,
     css`
@@ -123,11 +114,8 @@ export class AcpPermissionModeSelector extends LitElement {
       }
 
       /* Embedded variant strips the standalone-toolbar chrome so the
-       * component sits flush in a host-owned container. Both the new
-       * variant="embedded" attribute and the deprecated compact boolean
-       * select this ruleset. */
-      :host([variant="embedded"]),
-      :host([compact]) {
+       * component sits flush in a host-owned container. */
+      :host([variant="embedded"]) {
         padding: 0;
         background: transparent;
         border-bottom: none;
@@ -160,16 +148,6 @@ export class AcpPermissionModeSelector extends LitElement {
       }
     `,
   ];
-
-  override willUpdate(changed: Map<string, unknown>): void {
-    // Back-compat: when deprecated `compact=true` is set, treat as
-    // `variant="embedded"`. We only project compact→variant, never the
-    // reverse, so consumers migrating to variant don't get surprised by
-    // stale compact reads.
-    if (changed.has("compact") && this.compact && this.variant !== "embedded") {
-      this.variant = "embedded";
-    }
-  }
 
   private _onChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;

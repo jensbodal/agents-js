@@ -88,7 +88,7 @@ detailed responsibilities of each layer follow below.
 | **Core** | `@agents-js/acp-host` | Session orchestrator — permissions, terminals, hooks |
 | **Core** | `@agents-js/a2ui-host/acp-host` | A2UI `HostSurfaceAdapter` + `SurfaceSession` wiring for the acp-host tool-call meta path |
 | **Core** | `@agents-js/agui-types` | Canonical AG-UI types — re-exports `@ag-ui/core` (pinned pre-1.0) plus agents-js adapter helpers |
-| **Core** | `@agents-js/a2ui-types` | Thin wrapper over `@a2ui/web_core` v0.9 — protocol surface, basic catalog, and the ACP custom catalog |
+| **Core** | `@agents-js/a2ui-types` | Thin wrapper over `@a2ui/web_core` — protocol surface, basic catalog, and the ACP custom catalog |
 | **Core** | `@agents-js/droid-acp` | Factory.ai Droid CLI ACP runtime adapter |
 | **Core** | `@agents-js/pi-acp` | Pi ACP runtime adapter |
 | **Protocol** | `@agents-js/a2a` | A2A server — HTTP JSON-RPC + SSE streaming endpoint |

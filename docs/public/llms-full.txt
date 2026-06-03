@@ -26,9 +26,9 @@
 
 - [@agents-js/a2a](https://agents-js.bodal.dev/per-package/agents-js-a2a-llms.txt): A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
 - [@agents-js/a2a-client](https://agents-js.bodal.dev/per-package/agents-js-a2a-client-llms.txt): A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.
-- [@agents-js/a2ui-host](https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt): Browser-side A2UI v0.9 host and bridge for agents-js.
+- [@agents-js/a2ui-host](https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt): Browser-side A2UI host and bridge for agents-js.
 - [@agents-js/a2ui-renderer](https://agents-js.bodal.dev/per-package/agents-js-a2ui-renderer-llms.txt): Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.
-- [@agents-js/a2ui-types](https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt): Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+- [@agents-js/a2ui-types](https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt): Thin re-export layer over @a2ui/web_core plus a custom catalog for agents-js.
 - [@agents-js/acp](https://agents-js.bodal.dev/per-package/agents-js-acp-llms.txt): Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.
 - [@agents-js/acp-host](https://agents-js.bodal.dev/per-package/agents-js-acp-host-llms.txt): Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.
 - [@agents-js/agent-launch](https://agents-js.bodal.dev/per-package/agents-js-agent-launch-llms.txt): Typed launcher for agents-js-managed tmux/harness sessions. Phase-1 slice (AJS-141): config loader, claude-code fresh-mode plan builder, git+MATRIX_AGENT identity env composition, tmux execFile wrapper. Replaces the dot-cognee `scripts/agent-launch.sh` bash original in phased increments; bridge preflight stays in dot-cognee per non-goal.
@@ -1647,7 +1647,7 @@ detailed responsibilities of each layer follow below.
 | **Core** | `@agents-js/acp-host` | Session orchestrator — permissions, terminals, hooks |
 | **Core** | `@agents-js/a2ui-host/acp-host` | A2UI `HostSurfaceAdapter` + `SurfaceSession` wiring for the acp-host tool-call meta path |
 | **Core** | `@agents-js/agui-types` | Canonical AG-UI types — re-exports `@ag-ui/core` (pinned pre-1.0) plus agents-js adapter helpers |
-| **Core** | `@agents-js/a2ui-types` | Thin wrapper over `@a2ui/web_core` v0.9 — protocol surface, basic catalog, and the ACP custom catalog |
+| **Core** | `@agents-js/a2ui-types` | Thin wrapper over `@a2ui/web_core` — protocol surface, basic catalog, and the ACP custom catalog |
 | **Core** | `@agents-js/droid-acp` | Factory.ai Droid CLI ACP runtime adapter |
 | **Core** | `@agents-js/pi-acp` | Pi ACP runtime adapter |
 | **Protocol** | `@agents-js/a2a` | A2A server — HTTP JSON-RPC + SSE streaming endpoint |
@@ -2650,7 +2650,7 @@ Reasoning:
   `REASONING_MESSAGE_END`, `REASONING_MESSAGE_CHUNK`, `REASONING_END`,
   `REASONING_ENCRYPTED_VALUE`
 
-Deprecated thinking aliases retained for back-compat with older AG-UI consumers:
+Thinking:
 
 - `THINKING_START`, `THINKING_END`, `THINKING_TEXT_MESSAGE_START`,
   `THINKING_TEXT_MESSAGE_CONTENT`, `THINKING_TEXT_MESSAGE_END`
@@ -2988,7 +2988,7 @@ Obsidian plugin integration is not part of the `agents-js` package surface.
 This is a compliant implementation of the A2UI surface lifecycle. These
 capabilities are outside the current release scope:
 
-- **Opaque back-channel.** A2UI v0.9 does not standardize a user → agent event format.
+- **Opaque back-channel.** A2UI does not standardize a user → agent event format.
   agents-js carries events through the `agents-js.a2ui.surface_event` namespace without
   claiming cross-vendor interop on the return path. Treat the back-channel as
   implementation-defined until the upstream spec lands a contract.
@@ -4838,14 +4838,14 @@ MIT
 
 # @agents-js/a2ui-host
 
-> Browser-side A2UI v0.9 host and bridge for agents-js.
+> Browser-side A2UI host and bridge for agents-js.
 
 Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt
 
 ---
 # @agents-js/a2ui-host
 
-> Browser-side A2UI v0.9 host and bridge for agents-js.
+> Browser-side A2UI host and bridge for agents-js.
 
 ## Installation
 
@@ -5000,14 +5000,14 @@ MIT
 
 # @agents-js/a2ui-types
 
-> Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+> Thin re-export layer over @a2ui/web_core plus a custom catalog for agents-js.
 
 Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt
 
 ---
 # @agents-js/a2ui-types
 
-> Thin re-export layer over [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) v0.9 plus a curated ACP component catalog for agents-js.
+> Thin re-export layer over [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) plus a curated ACP component catalog for agents-js.
 
 `@agents-js/a2ui-types` gives consumers a single, version-aligned import for
 A2UI lifecycle types (`A2uiMessage`, `Catalog`, `BASIC_COMPONENTS`) and adds
@@ -5060,7 +5060,7 @@ for (const api of ACP_COMPONENT_APIS) {
 
 The `/catalog` subpath exposes `AcpCatalog`, `ACP_COMPONENT_APIS`, and the
 per-component `*Api` zod schemas; the bare entry point re-exports the
-A2UI-host-relevant `@a2ui/web_core` v0.9 surface (catalog, component,
+A2UI-host-relevant `@a2ui/web_core` surface (catalog, component,
 message-processor types) so consumers do not have to depend on
 `@a2ui/web_core` directly.
 
@@ -5272,7 +5272,7 @@ bun add @agents-js/acp-host
 - **`mapToolCallContent`**
 - **`mapToolCallStatus`**
 - **`normalizeAgentName`**
-- **`normalizePermissionMode`**
+- **`normalizePermissionMode`** — Normalize a permission-mode string to the canonical {PermissionMode}. Accepts the kebab CLI form `"unattended-gateway"` and maps it to `"unattendedGateway"`; canonical strings pass through unchange...
 - **`normalizeSessionModes`**
 - **`parseMentions`** — Extracts mention tokens from text. Only matches tokens like `.md` at word boundaries (after whitespace, start of line, or after newline).
 - **`requestWriteGateApproval`** — Determine whether a write should be auto-approved or requires a UI modal. Returns a resolved `Promise<boolean>` for auto-approved writes, or creates a pending write gate on `state` and emits the re...
@@ -5389,7 +5389,6 @@ bun add @agents-js/acp-host
 - **`AgentScenario`**
 - **`ElicitationScenario`**
 - **`FrontmatterWriteTarget`** — Browser-safe entry point for -js/acp-host/editor. The mention-parser helpers and the frontmatter-only-write detector are pure framework-agnostic TypeScript functions with no Node-specific runtime d...
-- **`LegacyPermissionMode`** — Legacy permission-mode strings retained for one release cycle for back-compat. Inputs at public boundaries (ws-bridge JSON messages, embedder API calls) are run through {normalizePermissionMode} be...
 - **`Listener`**
 - **`LogCategory`**
 - **`LogLevel`**
@@ -5429,7 +5428,6 @@ bun add @agents-js/acp-host
 ### Exports
 
 - **`type BuildMinimalEnvInput`**
-- **`type LegacyPermissionMode`**
 - **`type NormalizedAgentName`**
 
 
@@ -6286,7 +6284,6 @@ bun add @agents-js/host
 - **`formatAguiSseFrame`**
 - **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
 - **`getEnvRuntimeProfileName`**
-- **`isDurableSendResult`** — Narrow a {SendMessageResult} to the durable-storage shape. Returns true iff the call succeeded AND a durable inbox message was written (the canonical AJS-65 path). Returns false for matrix-only bac...
 - **`isFanOutSendResult`** — Type guard: narrow a {SendMessageResult} to the multi-target success shape. Useful for consumers that need to enumerate per-target outcomes without a runtime field-presence check.
 - **`loadRegistryFromDisk`** — Load the agent registry from disk. Reads from `AGENTS_JS_REGISTRY` env var or `~/.agents-js/registry.json`. Returns an empty map on any read/parse error (this silent fallback is intentional: a miss...
 - **`normalizeInboxKind`** — Normalise a raw `kind` value (possibly absent, possibly an unrecognised future variant) to a known {InboxKind}. Per spec §7 back-compat: absent / unknown → `"agents_message"`. Use at every consumer...
@@ -6362,7 +6359,7 @@ bun add @agents-js/host
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
-- **`SendMessageArgs`** — Arguments for `agents.send_message`. Two call shapes, mutually exclusive: - **Single-target** (`target: string`): legacy back-compat call shape. Returns a success result with top-level `inbox_messa...
+- **`SendMessageArgs`** — Arguments for `agents.send_message`. Two call shapes, mutually exclusive: - **Single-target** (`target: string`): single-recipient call shape. Returns a success result with top-level `inbox_message...
 - **`StartGiteaBusConsumerOptions`** — Options for {startGiteaBusConsumer}.
 - **`StartMatrixBusConsumerOptions`** — Optional construction-time hooks.
 - **`TargetDirectory`** — Target directory — the AJS-55 trust manifest's read surface. V1 implementation is an in-memory Map populated from env. The AJS-55 loader will swap in a signed-peer-record-backed implementation with...
@@ -6390,7 +6387,7 @@ bun add @agents-js/host
 - **`GetMessagesError`** — Structured error reasons for {AgentsDispatcher.getMessages}.
 - **`GetMessagesResult`** — Result of a {AgentsDispatcher.getMessages} call.
 - **`GiteaSendFunction`** — Send-callback contract. Implementations: - **v1 (AJS-59 PR 3/3)**: subprocess wrapper around `send-matrix.py` that calls the script with the body + identity, surfacing non-zero exit codes as thrown...
-- **`InboxKind`** — AJS-88 / DOT-502 v0.2 — discriminator on durable inbox rows. Distinguishes bridge-fanout-origin rows from native-`agents.send_message`-origin rows. **Open extension:** consumers that case-switch on...
+- **`InboxKind`** — AJS-88 / DOT-502 v0.2 — discriminator on durable inbox rows. Distinguishes bridge-fanout-origin rows from native-`agents.send_message`-origin rows. **Open extension:** when deserializing rows from ...
 - **`IssueChallengeResult`** — Result of {ChallengeMintStore.issueChallenge}.
 - **`MintRedeemResult`** — Result of {redeemMintChallenge}.
 - **`RateLimitCheckResult`** — Result of {IpRateLimiter.check}.
@@ -6885,7 +6882,6 @@ bun add @agents-js/policy
 
 - **`DispatchFailureKind`** — Discriminated union covering every reason a dispatch can fail. Two source layers, one shape — single source of truth so the permission layer ({import("-js/acp-host").evaluatePermission}) and the fu...
 - **`DispatchFailureReason`** — Discriminated union shape carried on `MatrixBusReplyPayload.failureReason` and any other dispatch-result carrier. Permission kinds carry `operationClass`; transport kinds carry an optional `message...
-- **`KnownOperationClass`** — Use {OperationClass}. Retained as a type alias for one release cycle to keep external imports compiling unchanged.
 - **`OperationClass`** — Canonical, typed union of every operation class that {import("./permission-engine.ts").classifyOperation} can emit, excluding the open-ended `tool.<name>` fallback. Single source of truth for downs...
 - **`RememberedLifetime`** — Lifetime of a remembered permission rule.
 - **`ScopeLevel`** — Granularity level for a permission scope candidate.
@@ -6904,7 +6900,7 @@ bun add @agents-js/policy
 
 ### Exports
 
-- **`type KnownOperationClass`**
+- **`type OperationClass`**
 - **`type PolicyErrorInfo`**
 
 

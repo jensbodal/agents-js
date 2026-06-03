@@ -26,9 +26,9 @@
 
 - [@agents-js/a2a](https://agents-js.bodal.dev/per-package/agents-js-a2a-llms.txt): A2A server — wraps an ACP agent as an HTTP JSON-RPC + SSE streaming endpoint with CORS support.
 - [@agents-js/a2a-client](https://agents-js.bodal.dev/per-package/agents-js-a2a-client-llms.txt): A2A client transport, AG-UI adapter, target registry, session view-model, and discovery helpers for agents-js consumers.
-- [@agents-js/a2ui-host](https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt): Browser-side A2UI v0.9 host and bridge for agents-js.
+- [@agents-js/a2ui-host](https://agents-js.bodal.dev/per-package/agents-js-a2ui-host-llms.txt): Browser-side A2UI host and bridge for agents-js.
 - [@agents-js/a2ui-renderer](https://agents-js.bodal.dev/per-package/agents-js-a2ui-renderer-llms.txt): Maps A2UI component trees onto the acp-* Lit primitives shipped by agents-js.
-- [@agents-js/a2ui-types](https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt): Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+- [@agents-js/a2ui-types](https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt): Thin re-export layer over @a2ui/web_core plus a custom catalog for agents-js.
 - [@agents-js/acp](https://agents-js.bodal.dev/per-package/agents-js-acp-llms.txt): Low-level ACP client — spawns an agent process, communicates over stdio/NDJSON, and manages the ACP protocol lifecycle.
 - [@agents-js/acp-host](https://agents-js.bodal.dev/per-package/agents-js-acp-host-llms.txt): Stateful ACP host embedding surface. Manages agent sessions, terminal processes, permissions, and file I/O for host applications.
 - [@agents-js/agent-launch](https://agents-js.bodal.dev/per-package/agents-js-agent-launch-llms.txt): Typed launcher for agents-js-managed tmux/harness sessions. Phase-1 slice (AJS-141): config loader, claude-code fresh-mode plan builder, git+MATRIX_AGENT identity env composition, tmux execFile wrapper. Replaces the dot-cognee `scripts/agent-launch.sh` bash original in phased increments; bridge preflight stays in dot-cognee per non-goal.

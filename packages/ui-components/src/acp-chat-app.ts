@@ -118,7 +118,7 @@ export class AcpChatApp extends LitElement {
     inputDisabled: true,
     pendingPermission: null,
     pendingWriteGate: null,
-    permissionMode: "ask",
+    permissionMode: "default",
     sessionState: {},
     connected: false,
     agentCard: null,

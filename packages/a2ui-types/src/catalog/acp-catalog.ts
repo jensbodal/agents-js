@@ -1,5 +1,5 @@
 /**
- * ACP custom catalog for A2UI v0.9.
+ * ACP custom catalog for A2UI.
  *
  * Registers agents-js-specific host components (ACP chat, transcript, permission modal, etc.)
  * as an A2UI custom catalog layered on top of `@a2ui/web_core`'s basic catalog.

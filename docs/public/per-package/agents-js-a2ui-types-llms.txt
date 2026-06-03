@@ -1,13 +1,13 @@
 # @agents-js/a2ui-types
 
-> Thin re-export layer over @a2ui/web_core v0.9 plus a custom catalog for agents-js.
+> Thin re-export layer over @a2ui/web_core plus a custom catalog for agents-js.
 
 Canonical: https://agents-js.bodal.dev/per-package/agents-js-a2ui-types-llms.txt
 
 ---
 # @agents-js/a2ui-types
 
-> Thin re-export layer over [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) v0.9 plus a curated ACP component catalog for agents-js.
+> Thin re-export layer over [`@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core) plus a curated ACP component catalog for agents-js.
 
 `@agents-js/a2ui-types` gives consumers a single, version-aligned import for
 A2UI lifecycle types (`A2uiMessage`, `Catalog`, `BASIC_COMPONENTS`) and adds
@@ -60,7 +60,7 @@ for (const api of ACP_COMPONENT_APIS) {
 
 The `/catalog` subpath exposes `AcpCatalog`, `ACP_COMPONENT_APIS`, and the
 per-component `*Api` zod schemas; the bare entry point re-exports the
-A2UI-host-relevant `@a2ui/web_core` v0.9 surface (catalog, component,
+A2UI-host-relevant `@a2ui/web_core` surface (catalog, component,
 message-processor types) so consumers do not have to depend on
 `@a2ui/web_core` directly.
 

@@ -169,7 +169,7 @@ See [Primitives](docs/primitives.md) for the full layer diagram.
 | `@agents-js/acp-host` | Core | public | Stateful ACP host: sessions, terminals, permissions, file I/O. |
 | `@agents-js/host` | Core | public | ACP host orchestration: sessions, executor, AGUI endpoint, WS bridge — extracted from internal-gateway. |
 | `@agents-js/agui-types` | Core | public | AG-UI core re-exports plus first-party message/run helpers. |
-| `@agents-js/a2ui-types` | Core | public | Thin wrapper over `@a2ui/web_core` v0.9 with the ACP custom catalog. |
+| `@agents-js/a2ui-types` | Core | public | Thin wrapper over `@a2ui/web_core` with the ACP custom catalog. |
 | `@agents-js/schema-utils` | Core | public | Shared schema property parsing for ACP elicitation forms. |
 | `@agents-js/skills` | Core | public | TypeScript-native skill loading, validation, and registry. |
 | `@agents-js/memory` | Core | public | Write-side memory provider primitive — actor/scope/record types, conformance harness for backend implementations. |
@@ -180,7 +180,7 @@ See [Primitives](docs/primitives.md) for the full layer diagram.
 | `@agents-js/gateway-runtime` | Protocol | public | Runtime registry, env parsing, install descriptors, sub-session spawn helpers. |
 | `@agents-js/cli` | Surface | public | The `agents-js` binary: `serve`, `bridge`, `acp`, `mcp`, `client`, `send`, `registry`. |
 | `@agents-js/ui-components` | Surface | public | Lit web components for ACP-aware chat with streaming, permissions, elicitation. |
-| `@agents-js/a2ui-host` | Surface | public | Browser-side A2UI v0.9 host and bridge. |
+| `@agents-js/a2ui-host` | Surface | public | Browser-side A2UI host and bridge. |
 | `@agents-js/a2ui-renderer` | Surface | public | Maps A2UI component trees onto the `acp-*` Lit primitives. |
 | `@agents-js/canvas-model` | Utility | public | Dependency-free canvas handoff helpers for inert A2UI payloads, OCIF-style preservation, and JSON Canvas previews. |
 | `@agents-js/tools` | Utility | public | Unified `fetchContext` coordinator and `findTools` discovery surface. |

@@ -63,7 +63,6 @@ bun add @agents-js/policy
 
 - **`DispatchFailureKind`** — Discriminated union covering every reason a dispatch can fail. Two source layers, one shape — single source of truth so the permission layer ({import("-js/acp-host").evaluatePermission}) and the fu...
 - **`DispatchFailureReason`** — Discriminated union shape carried on `MatrixBusReplyPayload.failureReason` and any other dispatch-result carrier. Permission kinds carry `operationClass`; transport kinds carry an optional `message...
-- **`KnownOperationClass`** — Use {OperationClass}. Retained as a type alias for one release cycle to keep external imports compiling unchanged.
 - **`OperationClass`** — Canonical, typed union of every operation class that {import("./permission-engine.ts").classifyOperation} can emit, excluding the open-ended `tool.<name>` fallback. Single source of truth for downs...
 - **`RememberedLifetime`** — Lifetime of a remembered permission rule.
 - **`ScopeLevel`** — Granularity level for a permission scope candidate.
@@ -82,7 +81,7 @@ bun add @agents-js/policy
 
 ### Exports
 
-- **`type KnownOperationClass`**
+- **`type OperationClass`**
 - **`type PolicyErrorInfo`**
 
 

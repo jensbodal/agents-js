@@ -2,7 +2,7 @@
   "name": "@agents-js/a2ui-host",
   "version": "0.5.1",
   "type": "module",
-  "description": "Browser-side A2UI v0.9 host and bridge for agents-js.",
+  "description": "Browser-side A2UI host and bridge for agents-js.",
   "author": "Jens Bodal",
   "license": "MIT",
   "repository": {

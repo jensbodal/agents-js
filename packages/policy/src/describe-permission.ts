@@ -4,14 +4,13 @@ import {
   assertNever,
   isKnownOperationClass,
   KNOWN_OPERATION_CLASSES,
-  type KnownOperationClass,
   type OperationClass,
 } from "./permission-types.ts";
 
 // Re-export the canonical union from the single source of truth so existing
 // consumers importing from `./describe-permission.ts` keep working without
 // chasing the symbol to a new module.
-export { KNOWN_OPERATION_CLASSES, type KnownOperationClass };
+export { KNOWN_OPERATION_CLASSES, type OperationClass };
 
 function quote(value: string): string {
   return `\u201C${value}\u201D`;

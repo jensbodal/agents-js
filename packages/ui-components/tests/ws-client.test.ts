@@ -60,7 +60,7 @@ describe("mapSnapshot", () => {
   test("maps active turn summary and workflow surface from state snapshots", () => {
     const state = mapSnapshot({
       status: "prompting",
-      permissionMode: "hub",
+      permissionMode: "default",
       sessionId: "session-1",
       sessionTitle: "Review runtime",
       promptQueue: [[{ type: "text", text: "queued" }], [{ type: "text", text: "queued-2" }]],

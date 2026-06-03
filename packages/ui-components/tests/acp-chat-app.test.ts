@@ -105,7 +105,7 @@ describe("AcpChatApp internal state", () => {
     expect(app._view.inputDisabled).toBe(true);
     expect(app._view.sessionId).toBe("");
     expect(app._view.agentName).toBe("");
-    expect(app._view.permissionMode).toBe("ask");
+    expect(app._view.permissionMode).toBe("default");
     expect(app._view.transcript).toEqual([]);
     expect(app._view.plan).toEqual([]);
     expect(app._view.lastError).toBe("");

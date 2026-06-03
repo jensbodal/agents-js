@@ -1,6 +1,6 @@
 /**
  * A2UI validators — thin wrappers around the Zod schemas published by
- * `@a2ui/web_core` v0.9 (re-exported through `@agents-js/a2ui-types`).
+ * `@a2ui/web_core` (re-exported through `@agents-js/a2ui-types`).
  *
  * Three entrypoints:
  * - {@link validateA2uiMessage} / {@link isA2uiMessage} — validate

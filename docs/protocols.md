@@ -774,7 +774,7 @@ Reasoning:
   `REASONING_MESSAGE_END`, `REASONING_MESSAGE_CHUNK`, `REASONING_END`,
   `REASONING_ENCRYPTED_VALUE`
 
-Deprecated thinking aliases retained for back-compat with older AG-UI consumers:
+Thinking:
 
 - `THINKING_START`, `THINKING_END`, `THINKING_TEXT_MESSAGE_START`,
   `THINKING_TEXT_MESSAGE_CONTENT`, `THINKING_TEXT_MESSAGE_END`
@@ -1112,7 +1112,7 @@ Obsidian plugin integration is not part of the `agents-js` package surface.
 This is a compliant implementation of the A2UI surface lifecycle. These
 capabilities are outside the current release scope:
 
-- **Opaque back-channel.** A2UI v0.9 does not standardize a user → agent event format.
+- **Opaque back-channel.** A2UI does not standardize a user → agent event format.
   agents-js carries events through the `agents-js.a2ui.surface_event` namespace without
   claiming cross-vendor interop on the return path. Treat the back-channel as
   implementation-defined until the upstream spec lands a contract.

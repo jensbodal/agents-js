@@ -196,12 +196,6 @@ export const KNOWN_OPERATION_CLASSES: ReadonlySet<OperationClass> = new Set(
   Object.keys(KNOWN_OPERATION_CLASSES_RECORD) as OperationClass[],
 );
 
-/**
- * @deprecated Use {@link OperationClass}. Retained as a type alias for one
- * release cycle to keep external imports compiling unchanged.
- */
-export type KnownOperationClass = OperationClass;
-
 /** Narrow an arbitrary string to {@link OperationClass} via set membership. */
 export function isKnownOperationClass(value: string): value is OperationClass {
   return KNOWN_OPERATION_CLASSES.has(value as OperationClass);
