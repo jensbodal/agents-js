@@ -40,7 +40,7 @@ describe("validateACPMethod", () => {
 
   test("whitelist contains latest published ACP methods", () => {
     expect(ACP_METHOD_WHITELIST).toContain("session/close");
-    expect(ACP_METHOD_WHITELIST).toContain("session/set_model");
+    expect(ACP_METHOD_WHITELIST).toContain("session/set_mode");
     expect(ACP_METHOD_WHITELIST).toContain("terminal/create");
   });
 });

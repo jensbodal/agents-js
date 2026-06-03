@@ -23,7 +23,6 @@ export interface LaneControllerFactoryDeps {
   session: HostSession;
   workspacePath: string;
   permissionMode: PermissionMode;
-  defaultModel?: string;
   surfaceAdapter?: HostSurfaceAdapter;
   /**
    * Host-controller constructor; defaults to `createStandaloneHostController`.
@@ -42,7 +41,6 @@ export function buildLaneControllerFactory(
       runtime: entry.runtime,
       workspacePath: deps.workspacePath,
       permissionMode: deps.permissionMode,
-      defaultModel: deps.defaultModel,
       permissionEngine: deps.session.permissionEngine,
       permissionStore: deps.session.permissionStore,
       fileAdapters: createNodeFileAdapters(deps.workspacePath),

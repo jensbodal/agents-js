@@ -10,29 +10,21 @@
  */
 
 import { A2UI_WS_FRAME_TYPE } from "@agents-js/a2ui-types";
-import {
-  mapModels,
-  mapPendingElicitation,
-  mapPermissionRequest,
-  mapSnapshot,
-} from "./ws-state-mapper.ts";
+import { mapPendingElicitation, mapPermissionRequest, mapSnapshot } from "./ws-state-mapper.ts";
 
 // Re-export all types so existing consumer imports (`from "./ws-client.ts"`) keep working.
 export type {
   ElicitationResolution,
   HostState,
   HostStateListener,
-  ModelInfo,
   PendingElicitationInfo,
   PendingPermissionInfo,
   PendingWriteGateInfo,
   PermissionOptionInfo,
   PermissionResolution,
   RuntimeInfo,
-  RuntimeModelInfo,
   RuntimeSwitchOrigin,
   RuntimeSwitchState,
-  SessionModelsInfo,
   WriteGateResolution,
 } from "./ws-types.ts";
 
@@ -167,10 +159,6 @@ export class HostWSClient {
 
   cancel(): void {
     this._send({ type: "cancel" });
-  }
-
-  setModel(modelId: string): void {
-    this._send({ type: "set_model", modelId });
   }
 
   /**
@@ -353,11 +341,6 @@ export class HostWSClient {
           update.sessionStatus = event.status;
         }
         this._setState(update);
-        break;
-      }
-      case "model_changed": {
-        const nextModels = mapModels(event.models);
-        this._setState({ ...this.state, models: nextModels });
         break;
       }
       case "session_created":

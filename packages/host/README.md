@@ -45,7 +45,6 @@ bun add @agents-js/host
 - **`createWSBridge`**
 - **`enqueueAguiEvent`** — Validate an AG-UI event and enqueue it as an SSE frame. Invalid events are logged and dropped — the always-on validation gate is a core contract, so silently skipping a bad frame is safer than emit...
 - **`extractBearerToken`** — Extract a bearer token from an `Authorization` header value. Returns the token string for `"Bearer <token>"` (scheme name is case-insensitive per RFC 6750 section 2.1). Returns `null` for missing, ...
-- **`fetchRuntimeModels`**
 - **`formatAguiSseFrame`**
 - **`formatGiteaMatrixBody`** — Format a Gitea bus event payload into a human-readable Matrix message body. Shape: `[gitea/<repo>] <subject> by <actor>[: <title>][ — <target_url>]` Where `<subject>` is event-type-specific: - `pul...
 - **`getEnvRuntimeProfileName`**
@@ -122,7 +121,6 @@ bun add @agents-js/host
 - **`RunSessionOptions`**
 - **`RunSessionResult`** — Result of running an AG-UI run session to completion.
 - **`RuntimeBridgeSnapshot`**
-- **`RuntimeModelInfo`** — Fetches and caches the list of available models from a runtime CLI command. Runs `<command> models` and parses the output into structured model info. Results are cached in memory so repeated calls ...
 - **`RuntimeSnapshotInfo`**
 - **`RuntimeSwapResult`**
 - **`RuntimeSwitchState`**
@@ -197,7 +195,6 @@ bun add @agents-js/host
 - **`type AgentRegistryMap`**
 - **`type AguiEndpointOptions`**
 - **`type HostA2AExecutorOptions`**
-- **`type RuntimeModelInfo`**
 - **`type ScopeCheckResult`**
 
 

@@ -33,7 +33,7 @@
   "catalog": {
     "@a2a-js/sdk": "0.3.13",
     "@ag-ui/core": "0.0.55",
-    "@agentclientprotocol/sdk": "0.21.0",
+    "@agentclientprotocol/sdk": "0.24.0",
     "@biomejs/biome": "2.4.13",
     "@braintree/sanitize-url": "7.1.2",
     "@mlc-ai/web-llm": "0.2.82",

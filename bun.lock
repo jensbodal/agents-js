@@ -505,7 +505,7 @@
       },
       "peerDependencies": {
         "@a2a-js/sdk": "^0.3.13",
-        "@agentclientprotocol/sdk": "^0.21.0",
+        "@agentclientprotocol/sdk": "^0.24.0",
         "zod": "^3",
       },
     },
@@ -559,7 +559,7 @@
   "catalog": {
     "@a2a-js/sdk": "0.3.13",
     "@ag-ui/core": "0.0.55",
-    "@agentclientprotocol/sdk": "0.21.0",
+    "@agentclientprotocol/sdk": "0.24.0",
     "@biomejs/biome": "2.4.13",
     "@braintree/sanitize-url": "7.1.2",
     "@histoire/plugin-vue": "1.0.0-beta.1",
@@ -604,7 +604,7 @@
 
     "@agentclientprotocol/claude-agent-acp": ["@agentclientprotocol/claude-agent-acp@0.33.1", "", { "dependencies": { "@agentclientprotocol/sdk": "0.21.0", "@anthropic-ai/claude-agent-sdk": "0.2.132", "zod": "^3.25.0 || ^4.0.0" }, "bin": { "claude-agent-acp": "dist/index.js" } }, "sha512-k4wCNTqrjk/d9RRafWa/51Y08heeONYLpJB/7k7WgxueoKwwHzCBl9kBYQgu2SzllamyUUEbSQ/cVa1MC7jQEg=="],
 
-    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@0.21.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-ONj+Q8qOdNQp5XbH5jnMwzT9IKZJsSN0p0lkceS4GtUtNOPVLpNzSS8gqQdGMKfBvA0ESbkL8BTaSN1Rc9miEw=="],
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@0.24.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-vvu9appvGvfYstBj19C6NCepV6SvUhY5VRv60KUZ4XzhTah/olOYul5Zo4C+x2enyshMSvgB2mm/OEmrsHaSmA=="],
 
     "@agents-js/a2a": ["@agents-js/a2a@workspace:packages/a2a"],
 
@@ -2281,6 +2281,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
+
+    "@agentclientprotocol/claude-agent-acp/@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@0.21.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-ONj+Q8qOdNQp5XbH5jnMwzT9IKZJsSN0p0lkceS4GtUtNOPVLpNzSS8gqQdGMKfBvA0ESbkL8BTaSN1Rc9miEw=="],
 
     "@gerrit0/mini-shiki/@shikijs/types": ["@shikijs/types@3.23.0", "", { "dependencies": { "@shikijs/vscode-textmate": "^10.0.2", "@types/hast": "^3.0.4" } }, "sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ=="],
 

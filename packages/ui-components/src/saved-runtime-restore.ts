@@ -3,11 +3,6 @@ import {
   loadConnectProfiles,
   saveConnectPreferences,
 } from "./connect-preferences-store.ts";
-import {
-  deriveFallbackModelId,
-  isKnownModelId,
-  reconcileModelSelection,
-} from "./model-selection.ts";
 import type { HostState } from "./ws-types.ts";
 
 export function shouldRepairSavedRuntimeRestore(
@@ -25,32 +20,9 @@ export function shouldRepairSavedRuntimeRestore(
   );
 }
 
-function resolveCompatibleModelId(params: {
-  hostState: HostState;
-  pendingModelSelection: string | null;
-  selectedModelId: string;
-  savedModelId: string;
-}): string {
-  const { hostState, pendingModelSelection, selectedModelId, savedModelId } = params;
-
-  if (isKnownModelId(hostState, savedModelId)) {
-    return savedModelId;
-  }
-
-  const selection = reconcileModelSelection({
-    hostState,
-    pendingModelSelection: pendingModelSelection ?? savedModelId,
-    selectedModelId: selectedModelId || savedModelId,
-  });
-
-  return selection.selectedModelId || deriveFallbackModelId(hostState) || savedModelId;
-}
-
 export function repairActiveSavedRuntimePreference(params: {
   hostState: HostState;
   fallbackUrl: string;
-  pendingModelSelection: string | null;
-  selectedModelId: string;
 }): {
   repaired: boolean;
   savedPreferences: ConnectPreferences | null;
@@ -71,12 +43,6 @@ export function repairActiveSavedRuntimePreference(params: {
   const nextPreferences: ConnectPreferences = {
     url: activeProfile.url || params.fallbackUrl,
     runtimeId: activeRuntimeId,
-    modelId: resolveCompatibleModelId({
-      hostState: params.hostState,
-      pendingModelSelection: params.pendingModelSelection,
-      selectedModelId: params.selectedModelId,
-      savedModelId: activeProfile.modelId,
-    }),
   };
 
   saveConnectPreferences(nextPreferences, {

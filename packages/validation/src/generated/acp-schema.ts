@@ -66,6 +66,13 @@ export const acpGeneratedSchemaArtifacts = {
       method: "elicitation/complete",
       side: "client",
     },
+    "mcp/connect": {
+      allowsEmptyObject: false,
+      definitionName: "ConnectMcpRequest",
+      kind: "request",
+      method: "mcp/connect",
+      side: "client",
+    },
     "elicitation/create": {
       allowsEmptyObject: false,
       definitionName: "CreateElicitationRequest",
@@ -79,6 +86,13 @@ export const acpGeneratedSchemaArtifacts = {
       kind: "request",
       method: "terminal/create",
       side: "client",
+    },
+    "session/delete": {
+      allowsEmptyObject: false,
+      definitionName: "DeleteSessionRequest",
+      kind: "request",
+      method: "session/delete",
+      side: "agent",
     },
     "document/didChange": {
       allowsEmptyObject: false,
@@ -117,10 +131,17 @@ export const acpGeneratedSchemaArtifacts = {
     },
     "providers/disable": {
       allowsEmptyObject: false,
-      definitionName: "DisableProvidersRequest",
+      definitionName: "DisableProviderRequest",
       kind: "request",
       method: "providers/disable",
       side: "agent",
+    },
+    "mcp/disconnect": {
+      allowsEmptyObject: false,
+      definitionName: "DisconnectMcpRequest",
+      kind: "request",
+      method: "mcp/disconnect",
+      side: "client",
     },
     "session/fork": {
       allowsEmptyObject: false,
@@ -229,7 +250,7 @@ export const acpGeneratedSchemaArtifacts = {
     },
     "providers/set": {
       allowsEmptyObject: false,
-      definitionName: "SetProvidersRequest",
+      definitionName: "SetProviderRequest",
       kind: "request",
       method: "providers/set",
       side: "agent",
@@ -246,13 +267,6 @@ export const acpGeneratedSchemaArtifacts = {
       definitionName: "SetSessionModeRequest",
       kind: "request",
       method: "session/set_mode",
-      side: "agent",
-    },
-    "session/set_model": {
-      allowsEmptyObject: false,
-      definitionName: "SetSessionModelRequest",
-      kind: "request",
-      method: "session/set_model",
       side: "agent",
     },
     "nes/start": {
@@ -313,6 +327,13 @@ export const acpGeneratedSchemaArtifacts = {
       method: "session/close",
       side: "agent",
     },
+    "mcp/connect": {
+      allowsEmptyObject: false,
+      definitionName: "ConnectMcpResponse",
+      kind: "response",
+      method: "mcp/connect",
+      side: "client",
+    },
     "elicitation/create": {
       allowsEmptyObject: true,
       definitionName: "CreateElicitationResponse",
@@ -327,12 +348,26 @@ export const acpGeneratedSchemaArtifacts = {
       method: "terminal/create",
       side: "client",
     },
+    "session/delete": {
+      allowsEmptyObject: true,
+      definitionName: "DeleteSessionResponse",
+      kind: "response",
+      method: "session/delete",
+      side: "agent",
+    },
     "providers/disable": {
       allowsEmptyObject: true,
-      definitionName: "DisableProvidersResponse",
+      definitionName: "DisableProviderResponse",
       kind: "response",
       method: "providers/disable",
       side: "agent",
+    },
+    "mcp/disconnect": {
+      allowsEmptyObject: true,
+      definitionName: "DisconnectMcpResponse",
+      kind: "response",
+      method: "mcp/disconnect",
+      side: "client",
     },
     "session/fork": {
       allowsEmptyObject: false,
@@ -427,7 +462,7 @@ export const acpGeneratedSchemaArtifacts = {
     },
     "providers/set": {
       allowsEmptyObject: true,
-      definitionName: "SetProvidersResponse",
+      definitionName: "SetProviderResponse",
       kind: "response",
       method: "providers/set",
       side: "agent",
@@ -444,13 +479,6 @@ export const acpGeneratedSchemaArtifacts = {
       definitionName: "SetSessionModeResponse",
       kind: "response",
       method: "session/set_mode",
-      side: "agent",
-    },
-    "session/set_model": {
-      allowsEmptyObject: true,
-      definitionName: "SetSessionModelResponse",
-      kind: "response",
-      method: "session/set_model",
       side: "agent",
     },
     "nes/start": {
@@ -489,7 +517,7 @@ export const acpGeneratedSchemaArtifacts = {
       side: "client",
     },
   },
-  schemaVersion: "0.21.0",
+  schemaVersion: "0.24.0",
   strictDocument: {
     $defs: {
       AcceptNesNotification: {
@@ -517,8 +545,7 @@ export const acpGeneratedSchemaArtifacts = {
         additionalProperties: false,
       },
       AgentAuthCapabilities: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+        description: "Authentication-related capabilities supported by the agent.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -537,6 +564,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -553,8 +581,7 @@ export const acpGeneratedSchemaArtifacts = {
             type: ["object", "null"],
           },
           auth: {
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+            description: "Authentication-related capabilities supported by the agent.",
             type: "object",
             additionalProperties: false,
             default: {},
@@ -576,6 +603,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                "x-deserialize-default-on-error": true,
               },
             },
           },
@@ -589,6 +617,7 @@ export const acpGeneratedSchemaArtifacts = {
             type: "object",
             additionalProperties: false,
             default: {
+              acp: false,
               http: false,
               sse: false,
             },
@@ -598,6 +627,12 @@ export const acpGeneratedSchemaArtifacts = {
                 description:
                   "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                 type: ["object", "null"],
+              },
+              acp: {
+                default: false,
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                type: "boolean",
               },
               http: {
                 default: false,
@@ -622,6 +657,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+            "x-deserialize-default-on-error": true,
           },
           positionEncoding: {
             anyOf: [
@@ -634,6 +670,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+            "x-deserialize-default-on-error": true,
           },
           promptCapabilities: {
             description: "Prompt capabilities supported by the agent.",
@@ -680,6 +717,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+            "x-deserialize-default-on-error": true,
           },
           sessionCapabilities: {
             description:
@@ -704,7 +742,8 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description:
-                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                  "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                "x-deserialize-default-on-error": true,
               },
               close: {
                 anyOf: [
@@ -716,6 +755,20 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/close`.",
+                "x-deserialize-default-on-error": true,
+              },
+              delete: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/SessionDeleteCapabilities",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                "x-deserialize-default-on-error": true,
               },
               fork: {
                 anyOf: [
@@ -728,6 +781,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                "x-deserialize-default-on-error": true,
               },
               list: {
                 anyOf: [
@@ -739,6 +793,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/list`.",
+                "x-deserialize-default-on-error": true,
               },
               resume: {
                 anyOf: [
@@ -750,6 +805,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/resume`.",
+                "x-deserialize-default-on-error": true,
               },
             },
           },
@@ -829,6 +885,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -861,6 +918,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -899,6 +957,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -934,6 +993,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -982,6 +1042,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -1045,6 +1106,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -1077,6 +1139,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -1115,6 +1178,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -1150,6 +1214,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -1198,6 +1263,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -1262,6 +1328,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -1294,6 +1361,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -1332,6 +1400,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -1367,6 +1436,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -1415,6 +1485,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -1457,6 +1528,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallContent",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               kind: {
                                 description:
@@ -1521,6 +1594,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallLocation",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               rawInput: {
                                 description: "Raw input parameters sent to the tool.",
@@ -1588,6 +1663,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallContent",
                                 },
                                 type: ["array", "null"],
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               kind: {
                                 anyOf: [
@@ -1599,6 +1676,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Update the tool kind.",
+                                "x-deserialize-default-on-error": true,
                               },
                               locations: {
                                 description: "Replace the locations collection.",
@@ -1606,6 +1684,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallLocation",
                                 },
                                 type: ["array", "null"],
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               rawInput: {
                                 description: "Update the raw input.",
@@ -1623,6 +1703,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Update the execution status.",
+                                "x-deserialize-default-on-error": true,
                               },
                               title: {
                                 description: "Update the human-readable title.",
@@ -1658,6 +1739,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/PlanEntry",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "plan",
@@ -1665,6 +1748,140 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             },
                             required: ["entries", "sessionUpdate"],
+                          },
+                          {
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+                            type: "object",
+                            additionalProperties: false,
+                            properties: {
+                              _meta: {
+                                additionalProperties: true,
+                                description:
+                                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                type: ["object", "null"],
+                              },
+                              plan: {
+                                description: "The updated plan content.",
+                                discriminator: {
+                                  propertyName: "type",
+                                },
+                                oneOf: [
+                                  {
+                                    description: "Structured plan entries.",
+                                    type: "object",
+                                    additionalProperties: false,
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      entries: {
+                                        description:
+                                          "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                                        items: {
+                                          $ref: "#/$defs/PlanEntry",
+                                        },
+                                        type: "array",
+                                        "x-deserialize-default-on-error": true,
+                                        "x-deserialize-skip-invalid-items": true,
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "items",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "entries", "type"],
+                                  },
+                                  {
+                                    description: "A URI pointing to a file containing the plan.",
+                                    type: "object",
+                                    additionalProperties: false,
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      uri: {
+                                        description: "The URI of the file containing the plan.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "file",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "uri", "type"],
+                                  },
+                                  {
+                                    description: "Raw markdown content for the plan.",
+                                    type: "object",
+                                    additionalProperties: false,
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      content: {
+                                        description: "Markdown content for the plan.",
+                                        type: "string",
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "markdown",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "content", "type"],
+                                  },
+                                ],
+                              },
+                              sessionUpdate: {
+                                const: "plan_update",
+                                type: "string",
+                              },
+                            },
+                            required: ["plan", "sessionUpdate"],
+                          },
+                          {
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+                            type: "object",
+                            additionalProperties: false,
+                            properties: {
+                              _meta: {
+                                additionalProperties: true,
+                                description:
+                                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                type: ["object", "null"],
+                              },
+                              id: {
+                                description: "The plan ID to remove.",
+                                type: "string",
+                              },
+                              sessionUpdate: {
+                                const: "plan_removed",
+                                type: "string",
+                              },
+                            },
+                            required: ["id", "sessionUpdate"],
                           },
                           {
                             description: "Available commands are ready or have changed",
@@ -1683,6 +1900,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/AvailableCommand",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "available_commands_update",
@@ -1732,6 +1951,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/SessionConfigOption",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "config_option_update",
@@ -1791,6 +2012,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Cumulative session cost (optional).",
+                                "x-deserialize-default-on-error": true,
                               },
                               size: {
                                 description: "Total context window size in tokens.",
@@ -1840,12 +2062,44 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nReceives an MCP-over-ACP notification.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    additionalProperties: false,
+                    title: "MessageMcpNotification",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension notifications from the agent.\n\nAllows the Agent to send an arbitrary notification that is not part of the ACP spec.\nExtension notifications provide a way to send one-way messages for custom functionality\nwhile maintaining protocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtNotification",
                   },
                 ],
                 description:
-                  "All possible notifications that an agent can send to a client.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly - use the notification methods on the [`Client`] trait instead.\n\nNotifications do not expect a response.",
+                  "All possible notifications that an agent can send to a client.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly.\n\nNotifications do not expect a response.",
               },
               {
                 type: "null",
@@ -1981,6 +2235,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/ToolCallContent",
                             },
                             type: ["array", "null"],
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           kind: {
                             anyOf: [
@@ -1992,6 +2248,7 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             ],
                             description: "Update the tool kind.",
+                            "x-deserialize-default-on-error": true,
                           },
                           locations: {
                             description: "Replace the locations collection.",
@@ -1999,6 +2256,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/ToolCallLocation",
                             },
                             type: ["array", "null"],
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           rawInput: {
                             description: "Update the raw input.",
@@ -2016,6 +2275,7 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             ],
                             description: "Update the execution status.",
+                            "x-deserialize-default-on-error": true,
                           },
                           title: {
                             description: "Update the human-readable title.",
@@ -2470,12 +2730,89 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nOpens an MCP-over-ACP connection.",
+                    type: "object",
+                    "x-method": "mcp/connect",
+                    "x-side": "client",
+                    additionalProperties: false,
+                    title: "ConnectMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      acpId: {
+                        description:
+                          "The ACP MCP server ID that was provided by the component declaring the MCP server.",
+                        type: "string",
+                      },
+                    },
+                    required: ["acpId"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nExchanges an MCP-over-ACP message.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    additionalProperties: false,
+                    title: "MessageMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCloses an MCP-over-ACP connection.",
+                    type: "object",
+                    "x-method": "mcp/disconnect",
+                    "x-side": "client",
+                    additionalProperties: false,
+                    title: "DisconnectMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection to close.",
+                        type: "string",
+                      },
+                    },
+                    required: ["connectionId"],
+                  },
+                  {
+                    description:
                       "Handles extension method requests from the agent.\n\nAllows the Agent to send an arbitrary request that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodRequest",
                   },
                 ],
                 description:
-                  "All possible requests that an agent can send to a client.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly - instead, use the methods on the [`Client`] trait.\n\nThis enum encompasses all method calls from agent to client.",
+                  "All possible requests that an agent can send to a client.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly.\n\nThis enum encompasses all method calls from agent to client.",
               },
               {
                 type: "null",
@@ -2520,6 +2857,7 @@ export const acpGeneratedSchemaArtifacts = {
                           auth: {},
                           loadSession: false,
                           mcpCapabilities: {
+                            acp: false,
                             http: false,
                             sse: false,
                           },
@@ -2539,7 +2877,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                           auth: {
                             description:
-                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+                              "Authentication-related capabilities supported by the agent.",
                             type: "object",
                             additionalProperties: false,
                             default: {},
@@ -2561,6 +2899,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 ],
                                 description:
                                   "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                                "x-deserialize-default-on-error": true,
                               },
                             },
                           },
@@ -2574,6 +2913,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "object",
                             additionalProperties: false,
                             default: {
+                              acp: false,
                               http: false,
                               sse: false,
                             },
@@ -2583,6 +2923,12 @@ export const acpGeneratedSchemaArtifacts = {
                                 description:
                                   "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                                 type: ["object", "null"],
+                              },
+                              acp: {
+                                default: false,
+                                description:
+                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                                type: "boolean",
                               },
                               http: {
                                 default: false,
@@ -2607,6 +2953,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+                            "x-deserialize-default-on-error": true,
                           },
                           positionEncoding: {
                             anyOf: [
@@ -2619,6 +2966,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+                            "x-deserialize-default-on-error": true,
                           },
                           promptCapabilities: {
                             description: "Prompt capabilities supported by the agent.",
@@ -2665,6 +3013,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+                            "x-deserialize-default-on-error": true,
                           },
                           sessionCapabilities: {
                             description:
@@ -2689,7 +3038,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description:
-                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                                  "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                                "x-deserialize-default-on-error": true,
                               },
                               close: {
                                 anyOf: [
@@ -2701,6 +3051,20 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/close`.",
+                                "x-deserialize-default-on-error": true,
+                              },
+                              delete: {
+                                anyOf: [
+                                  {
+                                    $ref: "#/$defs/SessionDeleteCapabilities",
+                                  },
+                                  {
+                                    type: "null",
+                                  },
+                                ],
+                                description:
+                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               fork: {
                                 anyOf: [
@@ -2713,6 +3077,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 ],
                                 description:
                                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               list: {
                                 anyOf: [
@@ -2724,6 +3089,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/list`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               resume: {
                                 anyOf: [
@@ -2735,6 +3101,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/resume`.",
+                                "x-deserialize-default-on-error": true,
                               },
                             },
                           },
@@ -2751,6 +3118,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Information about the Agent name and version sent to the Client.\n\nNote: in future versions of the protocol, this will be required.",
+                        "x-deserialize-default-on-error": true,
                       },
                       authMethods: {
                         default: [],
@@ -2759,6 +3127,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/AuthMethod",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       protocolVersion: {
                         description:
@@ -2809,6 +3179,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/ProviderInfo",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["providers"],
@@ -2820,7 +3192,7 @@ export const acpGeneratedSchemaArtifacts = {
                     "x-method": "providers/set",
                     "x-side": "agent",
                     additionalProperties: false,
-                    title: "SetProvidersResponse",
+                    title: "SetProviderResponse",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -2837,7 +3209,7 @@ export const acpGeneratedSchemaArtifacts = {
                     "x-method": "providers/disable",
                     "x-side": "agent",
                     additionalProperties: false,
-                    title: "DisableProvidersResponse",
+                    title: "DisableProviderResponse",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -2848,8 +3220,7 @@ export const acpGeneratedSchemaArtifacts = {
                     },
                   },
                   {
-                    description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to the `logout` method.",
+                    description: "Response to the `logout` method.",
                     type: "object",
                     "x-method": "logout",
                     "x-side": "agent",
@@ -2886,18 +3257,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -2910,6 +3271,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description:
@@ -2940,18 +3302,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -2964,6 +3316,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                     },
                   },
@@ -2992,9 +3345,28 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionInfo",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["sessions"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from deleting a session.",
+                    type: "object",
+                    "x-method": "session/delete",
+                    "x-side": "agent",
+                    additionalProperties: false,
+                    title: "DeleteSessionResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                    },
                   },
                   {
                     description:
@@ -3018,18 +3390,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -3042,6 +3404,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "Unique identifier for the newly created forked session.",
@@ -3071,18 +3434,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -3095,6 +3448,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                     },
                   },
@@ -3151,6 +3505,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["configOptions"],
@@ -3215,6 +3571,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nToken usage for this turn (optional).",
+                        "x-deserialize-default-on-error": true,
                       },
                       userMessageId: {
                         description:
@@ -3223,23 +3580,6 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     },
                     required: ["stopReason"],
-                  },
-                  {
-                    description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `session/set_model` method.",
-                    type: "object",
-                    "x-method": "session/set_model",
-                    "x-side": "agent",
-                    additionalProperties: false,
-                    title: "SetSessionModelResponse",
-                    properties: {
-                      _meta: {
-                        additionalProperties: true,
-                        description:
-                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-                        type: ["object", "null"],
-                      },
-                    },
                   },
                   {
                     description: "Response to `nes/start`.",
@@ -3282,6 +3622,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/NesSuggestion",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["suggestions"],
@@ -3306,6 +3648,13 @@ export const acpGeneratedSchemaArtifacts = {
                     description:
                       "Allows for sending an arbitrary response to an [`ExtRequest`] that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodResponse",
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpResponse",
                   },
                 ],
                 description:
@@ -3349,6 +3698,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/Role",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           lastModified: {
             type: ["string", "null"],
@@ -3379,6 +3730,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           data: {
             type: "string",
@@ -3742,6 +4094,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Input for the command if required",
+            "x-deserialize-default-on-error": true,
           },
           name: {
             description: "Command name (e.g., `create_plan`, `research_codebase`).",
@@ -3791,6 +4144,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/AvailableCommand",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["availableCommands"],
@@ -3939,6 +4294,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+            "x-deserialize-default-on-error": true,
           },
           fs: {
             description:
@@ -3979,6 +4335,20 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+            "x-deserialize-default-on-error": true,
+          },
+          planCapabilities: {
+            anyOf: [
+              {
+                $ref: "#/$defs/PlanCapabilities",
+              },
+              {
+                type: "null",
+              },
+            ],
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+            "x-deserialize-default-on-error": true,
           },
           positionEncodings: {
             description:
@@ -3987,6 +4357,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/PositionEncodingKind",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           terminal: {
             default: false,
@@ -4016,6 +4388,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `jump` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
           rename: {
             anyOf: [
@@ -4027,6 +4400,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `rename` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
           searchAndReplace: {
             anyOf: [
@@ -4038,6 +4412,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `searchAndReplace` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -4354,6 +4729,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "The reason for rejection.",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "The session ID for this notification.",
@@ -4364,12 +4740,44 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nSends an MCP-over-ACP notification.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    additionalProperties: false,
+                    title: "MessageMcpNotification",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension notifications from the client.\n\nExtension notifications provide a way to send one-way messages for custom functionality\nwhile maintaining protocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtNotification",
                   },
                 ],
                 description:
-                  "All possible notifications that a client can send to an agent.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly - use the notification methods on the [`Agent`] trait instead.\n\nNotifications do not expect a response.",
+                  "All possible notifications that a client can send to an agent.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly.\n\nNotifications do not expect a response.",
               },
               {
                 type: "null",
@@ -4464,6 +4872,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+                            "x-deserialize-default-on-error": true,
                           },
                           fs: {
                             description:
@@ -4506,6 +4915,20 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+                            "x-deserialize-default-on-error": true,
+                          },
+                          planCapabilities: {
+                            anyOf: [
+                              {
+                                $ref: "#/$defs/PlanCapabilities",
+                              },
+                              {
+                                type: "null",
+                              },
+                            ],
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+                            "x-deserialize-default-on-error": true,
                           },
                           positionEncodings: {
                             description:
@@ -4514,6 +4937,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/PositionEncodingKind",
                             },
                             type: "array",
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           terminal: {
                             default: false,
@@ -4533,6 +4958,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Information about the Client name and version sent to the Agent.\n\nNote: in future versions of the protocol, this will be required.",
+                        "x-deserialize-default-on-error": true,
                       },
                       protocolVersion: {
                         description: "The latest protocol version supported by the client.",
@@ -4591,7 +5017,7 @@ export const acpGeneratedSchemaArtifacts = {
                     "x-method": "providers/set",
                     "x-side": "agent",
                     additionalProperties: false,
-                    title: "SetProvidersRequest",
+                    title: "SetProviderRequest",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -4660,7 +5086,7 @@ export const acpGeneratedSchemaArtifacts = {
                     "x-method": "providers/disable",
                     "x-side": "agent",
                     additionalProperties: false,
-                    title: "DisableProvidersRequest",
+                    title: "DisableProviderRequest",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -4677,7 +5103,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nLogs out of the current authenticated state.\n\nAfter a successful logout, all new sessions will require authentication.\nThere is no guarantee about the behavior of already running sessions.",
+                      "Logs out of the current authenticated state.\n\nAfter a successful logout, all new sessions will require authentication.\nThere is no guarantee about the behavior of already running sessions.",
                     type: "object",
                     "x-method": "logout",
                     "x-side": "agent",
@@ -4709,7 +5135,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
+                          "Additional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
                         items: {
                           type: "string",
                         },
@@ -4748,7 +5174,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
                         items: {
                           type: "string",
                         },
@@ -4787,14 +5213,6 @@ export const acpGeneratedSchemaArtifacts = {
                           "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                         type: ["object", "null"],
                       },
-                      additionalDirectories: {
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nFilter sessions by the exact ordered additional workspace roots. Each path must be absolute.\n\nThis filter applies only when the field is present and non-empty. When\nomitted or empty, no additional-root filter is applied.",
-                        items: {
-                          type: "string",
-                        },
-                        type: "array",
-                      },
                       cursor: {
                         description:
                           "Opaque cursor token from a previous response's nextCursor field for cursor-based pagination",
@@ -4806,6 +5224,28 @@ export const acpGeneratedSchemaArtifacts = {
                         type: ["string", "null"],
                       },
                     },
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nDeletes an existing session from `session/list`.\n\nThis method is only available if the agent advertises the `sessionCapabilities.delete` capability.",
+                    type: "object",
+                    "x-method": "session/delete",
+                    "x-side": "agent",
+                    additionalProperties: false,
+                    title: "DeleteSessionRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      sessionId: {
+                        description: "The ID of the session to delete.",
+                        type: "string",
+                      },
+                    },
+                    required: ["sessionId"],
                   },
                   {
                     description:
@@ -4824,7 +5264,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
                         items: {
                           type: "string",
                         },
@@ -4865,7 +5305,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
                         items: {
                           type: "string",
                         },
@@ -5042,32 +5482,6 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nSelect a model for a given session.",
-                    type: "object",
-                    "x-method": "session/set_model",
-                    "x-side": "agent",
-                    additionalProperties: false,
-                    title: "SetSessionModelRequest",
-                    properties: {
-                      _meta: {
-                        additionalProperties: true,
-                        description:
-                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-                        type: ["object", "null"],
-                      },
-                      modelId: {
-                        description: "The ID of the model to set.",
-                        type: "string",
-                      },
-                      sessionId: {
-                        description: "The ID of the session to set the model for.",
-                        type: "string",
-                      },
-                    },
-                    required: ["sessionId", "modelId"],
-                  },
-                  {
-                    description:
                       "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nStarts an NES session.",
                     type: "object",
                     "x-method": "nes/start",
@@ -5091,6 +5505,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "Repository metadata, if the workspace is a git repository.",
+                        "x-deserialize-default-on-error": true,
                       },
                       workspaceFolders: {
                         description: "The workspace folders.",
@@ -5098,6 +5513,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/WorkspaceFolder",
                         },
                         type: ["array", "null"],
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       workspaceUri: {
                         description: "The root URI of the workspace.",
@@ -5131,6 +5548,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Context for the suggestion, included based on agent capabilities.",
+                        "x-deserialize-default-on-error": true,
                       },
                       position: {
                         description: "The current cursor position.",
@@ -5162,6 +5580,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "The current text selection range, if any.",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "The session ID for this request.",
@@ -5225,12 +5644,44 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nExchanges an MCP-over-ACP message.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    additionalProperties: false,
+                    title: "MessageMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension method requests from the client.\n\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodRequest",
                   },
                 ],
                 description:
-                  "All possible requests that a client can send to an agent.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly - instead, use the methods on the [`Agent`] trait.\n\nThis enum encompasses all method calls from client to agent.",
+                  "All possible requests that a client can send to an agent.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly.\n\nThis enum encompasses all method calls from client to agent.",
               },
               {
                 type: "null",
@@ -5540,8 +5991,54 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/connect`.",
+                    type: "object",
+                    "x-method": "mcp/connect",
+                    "x-side": "client",
+                    additionalProperties: false,
+                    title: "ConnectMcpResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The unique identifier for this MCP-over-ACP connection.",
+                        type: "string",
+                      },
+                    },
+                    required: ["connectionId"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/disconnect`.",
+                    type: "object",
+                    "x-method": "mcp/disconnect",
+                    "x-side": "client",
+                    additionalProperties: false,
+                    title: "DisconnectMcpResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                    },
+                  },
+                  {
+                    description:
                       "Allows for sending an arbitrary response to an [`ExtRequest`] that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodResponse",
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpResponse",
                   },
                 ],
                 description:
@@ -5678,10 +6175,55 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["configOptions"],
         type: "object",
+        additionalProperties: false,
+      },
+      ConnectMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/connect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          acpId: {
+            description:
+              "The ACP MCP server ID that was provided by the component declaring the MCP server.",
+            type: "string",
+          },
+        },
+        required: ["acpId"],
+        type: "object",
+        "x-method": "mcp/connect",
+        "x-side": "client",
+        additionalProperties: false,
+      },
+      ConnectMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/connect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The unique identifier for this MCP-over-ACP connection.",
+            type: "string",
+          },
+        },
+        required: ["connectionId"],
+        type: "object",
+        "x-method": "mcp/connect",
+        "x-side": "client",
         additionalProperties: false,
       },
       Content: {
@@ -5720,6 +6262,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   text: {
                     type: "string",
@@ -5752,6 +6295,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -5790,6 +6334,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -5825,6 +6370,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   description: {
                     type: ["string", "null"],
@@ -5873,6 +6419,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   resource: {
                     $ref: "#/$defs/EmbeddedResourceResource",
@@ -5919,6 +6466,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               text: {
                 type: "string",
@@ -5951,6 +6499,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               data: {
                 type: "string",
@@ -5989,6 +6538,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               data: {
                 type: "string",
@@ -6024,6 +6574,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 type: ["string", "null"],
@@ -6072,6 +6623,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               resource: {
                 $ref: "#/$defs/EmbeddedResourceResource",
@@ -6121,6 +6673,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   text: {
                     type: "string",
@@ -6153,6 +6706,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -6191,6 +6745,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -6226,6 +6781,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   description: {
                     type: ["string", "null"],
@@ -6274,6 +6830,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   resource: {
                     $ref: "#/$defs/EmbeddedResourceResource",
@@ -6750,6 +7307,43 @@ export const acpGeneratedSchemaArtifacts = {
         type: "object",
         additionalProperties: false,
       },
+      DeleteSessionRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for deleting an existing session from `session/list`.\n\nOnly available if the Agent supports the `sessionCapabilities.delete` capability.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          sessionId: {
+            description: "The ID of the session to delete.",
+            type: "string",
+          },
+        },
+        required: ["sessionId"],
+        type: "object",
+        "x-method": "session/delete",
+        "x-side": "agent",
+        additionalProperties: false,
+      },
+      DeleteSessionResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from deleting a session.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+        "x-method": "session/delete",
+        "x-side": "agent",
+        additionalProperties: false,
+      },
       DidChangeDocumentNotification: {
         description: "Notification sent when a file is edited.",
         properties: {
@@ -6995,7 +7589,7 @@ export const acpGeneratedSchemaArtifacts = {
         type: "object",
         additionalProperties: false,
       },
-      DisableProvidersRequest: {
+      DisableProviderRequest: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `providers/disable`.",
         properties: {
@@ -7016,7 +7610,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-side": "agent",
         additionalProperties: false,
       },
-      DisableProvidersResponse: {
+      DisableProviderResponse: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `providers/disable`.",
         properties: {
@@ -7030,6 +7624,43 @@ export const acpGeneratedSchemaArtifacts = {
         type: "object",
         "x-method": "providers/disable",
         "x-side": "agent",
+        additionalProperties: false,
+      },
+      DisconnectMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The MCP-over-ACP connection to close.",
+            type: "string",
+          },
+        },
+        required: ["connectionId"],
+        type: "object",
+        "x-method": "mcp/disconnect",
+        "x-side": "client",
+        additionalProperties: false,
+      },
+      DisconnectMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+        "x-method": "mcp/disconnect",
+        "x-side": "client",
         additionalProperties: false,
       },
       ElicitationAcceptAction: {
@@ -7068,6 +7699,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports form-based elicitation.",
+            "x-deserialize-default-on-error": true,
           },
           url: {
             anyOf: [
@@ -7079,6 +7711,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports URL-based elicitation.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -7752,6 +8385,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           resource: {
             $ref: "#/$defs/EmbeddedResourceResource",
@@ -8079,7 +8713,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
             items: {
               type: "string",
             },
@@ -8123,18 +8757,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -8147,6 +8771,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "Unique identifier for the newly created forked session.",
@@ -8199,6 +8824,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           data: {
             type: "string",
@@ -8309,6 +8935,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+                "x-deserialize-default-on-error": true,
               },
               fs: {
                 description:
@@ -8349,6 +8976,20 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+                "x-deserialize-default-on-error": true,
+              },
+              planCapabilities: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/PlanCapabilities",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+                "x-deserialize-default-on-error": true,
               },
               positionEncodings: {
                 description:
@@ -8357,6 +8998,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/PositionEncodingKind",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               terminal: {
                 default: false,
@@ -8376,6 +9019,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Information about the Client name and version sent to the Agent.\n\nNote: in future versions of the protocol, this will be required.",
+            "x-deserialize-default-on-error": true,
           },
           protocolVersion: {
             description: "The latest protocol version supported by the client.",
@@ -8409,6 +9053,7 @@ export const acpGeneratedSchemaArtifacts = {
               auth: {},
               loadSession: false,
               mcpCapabilities: {
+                acp: false,
                 http: false,
                 sse: false,
               },
@@ -8427,8 +9072,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: ["object", "null"],
               },
               auth: {
-                description:
-                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+                description: "Authentication-related capabilities supported by the agent.",
                 type: "object",
                 additionalProperties: false,
                 default: {},
@@ -8450,6 +9094,7 @@ export const acpGeneratedSchemaArtifacts = {
                     ],
                     description:
                       "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                    "x-deserialize-default-on-error": true,
                   },
                 },
               },
@@ -8463,6 +9108,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "object",
                 additionalProperties: false,
                 default: {
+                  acp: false,
                   http: false,
                   sse: false,
                 },
@@ -8472,6 +9118,12 @@ export const acpGeneratedSchemaArtifacts = {
                     description:
                       "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     type: ["object", "null"],
+                  },
+                  acp: {
+                    default: false,
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                    type: "boolean",
                   },
                   http: {
                     default: false,
@@ -8496,6 +9148,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+                "x-deserialize-default-on-error": true,
               },
               positionEncoding: {
                 anyOf: [
@@ -8508,6 +9161,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+                "x-deserialize-default-on-error": true,
               },
               promptCapabilities: {
                 description: "Prompt capabilities supported by the agent.",
@@ -8554,6 +9208,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+                "x-deserialize-default-on-error": true,
               },
               sessionCapabilities: {
                 description:
@@ -8578,7 +9233,8 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                      "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                    "x-deserialize-default-on-error": true,
                   },
                   close: {
                     anyOf: [
@@ -8590,6 +9246,20 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/close`.",
+                    "x-deserialize-default-on-error": true,
+                  },
+                  delete: {
+                    anyOf: [
+                      {
+                        $ref: "#/$defs/SessionDeleteCapabilities",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   fork: {
                     anyOf: [
@@ -8602,6 +9272,7 @@ export const acpGeneratedSchemaArtifacts = {
                     ],
                     description:
                       "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   list: {
                     anyOf: [
@@ -8613,6 +9284,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/list`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   resume: {
                     anyOf: [
@@ -8624,6 +9296,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/resume`.",
+                    "x-deserialize-default-on-error": true,
                   },
                 },
               },
@@ -8640,6 +9313,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Information about the Agent name and version sent to the Client.\n\nNote: in future versions of the protocol, this will be required.",
+            "x-deserialize-default-on-error": true,
           },
           authMethods: {
             default: [],
@@ -8648,6 +9322,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/AuthMethod",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           protocolVersion: {
             description:
@@ -8766,6 +9442,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ProviderInfo",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["providers"],
@@ -8783,14 +9461,6 @@ export const acpGeneratedSchemaArtifacts = {
             description:
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
-          },
-          additionalDirectories: {
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nFilter sessions by the exact ordered additional workspace roots. Each path must be absolute.\n\nThis filter applies only when the field is present and non-empty. When\nomitted or empty, no additional-root filter is applied.",
-            items: {
-              type: "string",
-            },
-            type: "array",
           },
           cursor: {
             description:
@@ -8827,6 +9497,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionInfo",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["sessions"],
@@ -8883,7 +9555,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
             items: {
               type: "string",
             },
@@ -8926,18 +9598,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -8950,6 +9612,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -8959,7 +9622,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       LogoutCapabilities: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nLogout capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+          "Logout capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports the logout method.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -8973,7 +9636,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       LogoutRequest: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for the logout method.\n\nTerminates the current authenticated session.",
+          "Request parameters for the logout method.\n\nTerminates the current authenticated session.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -8988,8 +9651,7 @@ export const acpGeneratedSchemaArtifacts = {
         additionalProperties: false,
       },
       LogoutResponse: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to the `logout` method.",
+        description: "Response to the `logout` method.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -9012,6 +9674,12 @@ export const acpGeneratedSchemaArtifacts = {
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
           },
+          acp: {
+            default: false,
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+            type: "boolean",
+          },
           http: {
             default: false,
             description: "Agent supports [`McpServer::Http`].",
@@ -9025,6 +9693,11 @@ export const acpGeneratedSchemaArtifacts = {
         },
         type: "object",
         additionalProperties: false,
+      },
+      McpConnectionId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA unique identifier for an active MCP-over-ACP connection.",
+        type: "string",
       },
       McpServer: {
         anyOf: [
@@ -9097,6 +9770,34 @@ export const acpGeneratedSchemaArtifacts = {
             required: ["name", "url", "headers", "type"],
           },
           {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nACP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.acp` is `true`.\nThe MCP server is provided by an ACP component and communicates over the ACP channel.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description:
+                  "Unique identifier for this MCP server, generated by the component providing it.\n\nProviders MUST NOT reuse an ID for multiple ACP-transport MCP servers that are visible\non the same ACP connection.",
+                type: "string",
+              },
+              name: {
+                description: "Human-readable name identifying this MCP server.",
+                type: "string",
+              },
+              type: {
+                const: "acp",
+                type: "string",
+              },
+            },
+            required: ["name", "id", "type"],
+          },
+          {
             description: "Stdio transport configuration\n\nAll Agents MUST support this transport.",
             type: "object",
             additionalProperties: false,
@@ -9136,6 +9837,35 @@ export const acpGeneratedSchemaArtifacts = {
         ],
         description:
           "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)",
+      },
+      McpServerAcp: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nACP transport configuration for MCP.\n\nThe MCP server is provided by an ACP component and communicates over the ACP channel\nusing `mcp/connect`, `mcp/message`, and `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description:
+              "Unique identifier for this MCP server, generated by the component providing it.\n\nProviders MUST NOT reuse an ID for multiple ACP-transport MCP servers that are visible\non the same ACP connection.",
+            type: "string",
+          },
+          name: {
+            description: "Human-readable name identifying this MCP server.",
+            type: "string",
+          },
+        },
+        required: ["name", "id"],
+        type: "object",
+        additionalProperties: false,
+      },
+      McpServerAcpId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUnique identifier for an MCP server using the ACP transport.\n\nThe value is opaque and generated by the ACP component providing the MCP server. It is\nused by `mcp/connect` to route connection requests back to the component that declared the\nserver.",
+        type: "string",
       },
       McpServerHttp: {
         description: "HTTP transport configuration for MCP.",
@@ -9231,14 +9961,9 @@ export const acpGeneratedSchemaArtifacts = {
         type: "object",
         additionalProperties: false,
       },
-      ModelId: {
+      MessageMcpNotification: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA unique identifier for a model.",
-        type: "string",
-      },
-      ModelInfo: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInformation about a selectable model.",
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNotification parameters for `mcp/message`.\n\nThis is used when the wrapped MCP message is a notification and the outer JSON-RPC\nenvelope has no `id`.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -9246,22 +9971,63 @@ export const acpGeneratedSchemaArtifacts = {
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
           },
-          description: {
-            description: "Optional description of the model.",
-            type: ["string", "null"],
-          },
-          modelId: {
-            description: "Unique identifier for the model.",
+          connectionId: {
+            description: "The MCP-over-ACP connection this message is sent on.",
             type: "string",
           },
-          name: {
-            description: "Human-readable name of the model.",
+          method: {
+            description: "The inner MCP method name.",
             type: "string",
+          },
+          params: {
+            additionalProperties: true,
+            description:
+              "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+            type: ["object", "null"],
           },
         },
-        required: ["modelId", "name"],
+        required: ["connectionId", "method"],
         type: "object",
+        "x-method": "mcp/message",
+        "x-side": "both",
         additionalProperties: false,
+      },
+      MessageMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/message`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The MCP-over-ACP connection this message is sent on.",
+            type: "string",
+          },
+          method: {
+            description: "The inner MCP method name.",
+            type: "string",
+          },
+          params: {
+            additionalProperties: true,
+            description:
+              "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+            type: ["object", "null"],
+          },
+        },
+        required: ["connectionId", "method"],
+        type: "object",
+        "x-method": "mcp/message",
+        "x-side": "both",
+        additionalProperties: false,
+      },
+      MessageMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+        "x-method": "mcp/message",
+        "x-side": "both",
       },
       MultiSelectItems: {
         anyOf: [
@@ -9411,6 +10177,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Context the agent wants attached to each suggestion request.",
+            "x-deserialize-default-on-error": true,
           },
           events: {
             anyOf: [
@@ -9422,6 +10189,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Events the agent wants to receive.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -9446,6 +10214,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants diagnostics context.",
+            "x-deserialize-default-on-error": true,
           },
           editHistory: {
             anyOf: [
@@ -9457,6 +10226,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants edit history context.",
+            "x-deserialize-default-on-error": true,
           },
           openFiles: {
             anyOf: [
@@ -9468,6 +10238,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants open files context.",
+            "x-deserialize-default-on-error": true,
           },
           recentFiles: {
             anyOf: [
@@ -9479,6 +10250,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants recent files context.",
+            "x-deserialize-default-on-error": true,
           },
           relatedSnippets: {
             anyOf: [
@@ -9490,6 +10262,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants related snippets context.",
+            "x-deserialize-default-on-error": true,
           },
           userActions: {
             anyOf: [
@@ -9501,6 +10274,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants user actions context.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -9733,6 +10507,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didChange` events, and the sync kind.",
+            "x-deserialize-default-on-error": true,
           },
           didClose: {
             anyOf: [
@@ -9744,6 +10519,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didClose` events.",
+            "x-deserialize-default-on-error": true,
           },
           didFocus: {
             anyOf: [
@@ -9755,6 +10531,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didFocus` events.",
+            "x-deserialize-default-on-error": true,
           },
           didOpen: {
             anyOf: [
@@ -9766,6 +10543,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didOpen` events.",
+            "x-deserialize-default-on-error": true,
           },
           didSave: {
             anyOf: [
@@ -9777,6 +10555,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didSave` events.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -9830,6 +10609,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Optional suggested cursor position after applying edits.",
+            "x-deserialize-default-on-error": true,
           },
           edits: {
             description: "The text edits to apply.",
@@ -9870,6 +10650,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Document event capabilities.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -9960,6 +10741,7 @@ export const acpGeneratedSchemaArtifacts = {
             format: "uint64",
             minimum: 0,
             type: ["integer", "null"],
+            "x-deserialize-default-on-error": true,
           },
           uri: {
             description: "The URI of the file.",
@@ -9975,6 +10757,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The visible range in the editor, if any.",
+            "x-deserialize-default-on-error": true,
           },
         },
         required: ["uri", "languageId"],
@@ -10220,6 +11003,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesDiagnostic",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           editHistory: {
             description: "Recent edit history.",
@@ -10227,6 +11012,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesEditHistoryEntry",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           openFiles: {
             description: "Currently open files in the editor.",
@@ -10234,6 +11021,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesOpenFile",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           recentFiles: {
             description: "Recently accessed files.",
@@ -10241,6 +11030,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesRecentFile",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           relatedSnippets: {
             description: "Related code snippets.",
@@ -10248,6 +11039,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesRelatedSnippet",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           userActions: {
             description: "Recent user actions (typing, navigation, etc.).",
@@ -10255,6 +11048,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesUserAction",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         type: "object",
@@ -10281,6 +11076,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional suggested cursor position after applying edits.",
+                "x-deserialize-default-on-error": true,
               },
               edits: {
                 description: "The text edits to apply.",
@@ -10575,7 +11371,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
+              "Additional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
             items: {
               type: "string",
             },
@@ -10616,18 +11412,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -10640,6 +11426,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description:
@@ -10777,9 +11564,25 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/PlanEntry",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["entries"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanCapabilities: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for receiving `plan_update` and `plan_removed` session updates.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
         type: "object",
         additionalProperties: false,
       },
@@ -10882,6 +11685,305 @@ export const acpGeneratedSchemaArtifacts = {
             const: "completed",
             description: "The task has been successfully completed.",
             type: "string",
+          },
+        ],
+      },
+      PlanFile: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented by a file URI.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+          uri: {
+            description: "The URI of the file containing the plan.",
+            type: "string",
+          },
+        },
+        required: ["id", "uri"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUnique identifier for a plan within a session.",
+        type: "string",
+      },
+      PlanItems: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented as structured entries.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          entries: {
+            description:
+              "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+            items: {
+              $ref: "#/$defs/PlanEntry",
+            },
+            type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+        },
+        required: ["id", "entries"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanMarkdown: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented as raw markdown content.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          content: {
+            description: "Markdown content for the plan.",
+            type: "string",
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+        },
+        required: ["id", "content"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanRemoved: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description: "The plan ID to remove.",
+            type: "string",
+          },
+        },
+        required: ["id"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanUpdate: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          plan: {
+            description: "The updated plan content.",
+            discriminator: {
+              propertyName: "type",
+            },
+            oneOf: [
+              {
+                description: "Structured plan entries.",
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  entries: {
+                    description:
+                      "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                    items: {
+                      $ref: "#/$defs/PlanEntry",
+                    },
+                    type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "items",
+                    type: "string",
+                  },
+                },
+                required: ["id", "entries", "type"],
+              },
+              {
+                description: "A URI pointing to a file containing the plan.",
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  uri: {
+                    description: "The URI of the file containing the plan.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "file",
+                    type: "string",
+                  },
+                },
+                required: ["id", "uri", "type"],
+              },
+              {
+                description: "Raw markdown content for the plan.",
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  content: {
+                    description: "Markdown content for the plan.",
+                    type: "string",
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "markdown",
+                    type: "string",
+                  },
+                },
+                required: ["id", "content", "type"],
+              },
+            ],
+          },
+        },
+        required: ["plan"],
+        type: "object",
+        additionalProperties: false,
+      },
+      PlanUpdateContent: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUpdated content for a plan.",
+        discriminator: {
+          propertyName: "type",
+        },
+        oneOf: [
+          {
+            description: "Structured plan entries.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              entries: {
+                description:
+                  "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                items: {
+                  $ref: "#/$defs/PlanEntry",
+                },
+                type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              type: {
+                const: "items",
+                type: "string",
+              },
+            },
+            required: ["id", "entries", "type"],
+          },
+          {
+            description: "A URI pointing to a file containing the plan.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              uri: {
+                description: "The URI of the file containing the plan.",
+                type: "string",
+              },
+              type: {
+                const: "file",
+                type: "string",
+              },
+            },
+            required: ["id", "uri", "type"],
+          },
+          {
+            description: "Raw markdown content for the plan.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              content: {
+                description: "Markdown content for the plan.",
+                type: "string",
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              type: {
+                const: "markdown",
+                type: "string",
+              },
+            },
+            required: ["id", "content", "type"],
           },
         ],
       },
@@ -11046,6 +12148,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nToken usage for this turn (optional).",
+            "x-deserialize-default-on-error": true,
           },
           userMessageId: {
             description:
@@ -11152,6 +12255,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/LlmProtocol",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["id", "supported", "required"],
@@ -11299,6 +12404,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The reason for rejection.",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "The session ID for this notification.",
@@ -11367,7 +12473,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
         ],
         description:
-          "JSON RPC Request Id\n\nAn identifier established by the Client that MUST contain a String, Number, or NULL value if included. If it is not included it is assumed to be a notification. The value SHOULD normally not be Null [1] and Numbers SHOULD NOT contain fractional parts [2]\n\nThe Server MUST reply with the same value in the Response object if included. This member is used to correlate the context between the two objects.\n\n[1] The use of Null as a value for the id member in a Request object is discouraged, because this specification uses a value of Null for Responses with an unknown id. Also, because JSON-RPC 1.0 uses an id value of Null for Notifications this could cause confusion in handling.\n\n[2] Fractional parts may be problematic, since many decimal fractions cannot be represented exactly as binary fractions.",
+          "JSON RPC Request Id\n\nAn identifier established by the Client that MUST contain a String, Number, or NULL value if included. If it is not included it is assumed to be a notification. The value SHOULD normally not be Null \\[1\\] and Numbers SHOULD NOT contain fractional parts \\[2\\]\n\nThe Server MUST reply with the same value in the Response object if included. This member is used to correlate the context between the two objects.\n\n\\[1\\] The use of Null as a value for the id member in a Request object is discouraged, because this specification uses a value of Null for Responses with an unknown id. Also, because JSON-RPC 1.0 uses an id value of Null for Notifications this could cause confusion in handling.\n\n\\[2\\] Fractional parts may be problematic, since many decimal fractions cannot be represented exactly as binary fractions.",
       },
       RequestPermissionOutcome: {
         description: "The outcome of a permission request.",
@@ -11450,6 +12556,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 anyOf: [
@@ -11461,6 +12569,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the tool kind.",
+                "x-deserialize-default-on-error": true,
               },
               locations: {
                 description: "Replace the locations collection.",
@@ -11468,6 +12577,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Update the raw input.",
@@ -11485,6 +12596,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the execution status.",
+                "x-deserialize-default-on-error": true,
               },
               title: {
                 description: "Update the human-readable title.",
@@ -11582,6 +12694,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           description: {
             type: ["string", "null"],
@@ -11619,7 +12732,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
             items: {
               type: "string",
             },
@@ -11662,18 +12775,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -11686,6 +12789,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -11718,7 +12822,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       SessionAdditionalDirectoriesCapabilities: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for additional session directories support.\n\nBy supplying `{}` it means that the agent supports the `additionalDirectories` field on\nsupported session lifecycle requests and `session/list`.",
+          "Capabilities for additional session directories support.\n\nBy supplying `{}` it means that the agent supports the `additionalDirectories`\nfield on supported session lifecycle requests. Agents that also support\n`session/list` may return `SessionInfo.additionalDirectories` to report the\ncomplete ordered additional-root list associated with a listed session.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -11750,7 +12854,8 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+              "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+            "x-deserialize-default-on-error": true,
           },
           close: {
             anyOf: [
@@ -11762,6 +12867,20 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/close`.",
+            "x-deserialize-default-on-error": true,
+          },
+          delete: {
+            anyOf: [
+              {
+                $ref: "#/$defs/SessionDeleteCapabilities",
+              },
+              {
+                type: "null",
+              },
+            ],
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+            "x-deserialize-default-on-error": true,
           },
           fork: {
             anyOf: [
@@ -11774,6 +12893,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+            "x-deserialize-default-on-error": true,
           },
           list: {
             anyOf: [
@@ -11785,6 +12905,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/list`.",
+            "x-deserialize-default-on-error": true,
           },
           resume: {
             anyOf: [
@@ -11796,6 +12917,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/resume`.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -11863,6 +12985,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional semantic category for this option (UX only).",
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 description: "Optional description for the Client to display to the user.",
@@ -11930,6 +13053,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional semantic category for this option (UX only).",
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 description: "Optional description for the Client to display to the user.",
@@ -12095,6 +13219,20 @@ export const acpGeneratedSchemaArtifacts = {
         description: "Unique identifier for a session configuration option value.",
         type: "string",
       },
+      SessionDeleteCapabilities: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for the `session/delete` method.\n\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+        additionalProperties: false,
+      },
       SessionForkCapabilities: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for the `session/fork` method.\n\nBy supplying `{}` it means that the agent supports forking of sessions.",
@@ -12125,7 +13263,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthoritative ordered additional workspace roots for this session. Each path must be absolute.\n\nWhen omitted or empty, there are no additional roots for the session.",
+              "Additional workspace roots reported for this session. Each path must be absolute.\n\nWhen present, this is the complete ordered additional-root list reported\nby the Agent. Omitted and empty values are equivalent: the response\nreports no additional roots.",
             items: {
               type: "string",
             },
@@ -12142,10 +13280,12 @@ export const acpGeneratedSchemaArtifacts = {
           title: {
             description: "Human-readable title for the session",
             type: ["string", "null"],
+            "x-deserialize-default-on-error": true,
           },
           updatedAt: {
             description: "ISO 8601 timestamp of last activity",
             type: ["string", "null"],
+            "x-deserialize-default-on-error": true,
           },
         },
         required: ["sessionId", "cwd"],
@@ -12231,6 +13371,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionMode",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           currentModeId: {
             description: "The current mode the Agent is in.",
@@ -12238,32 +13380,6 @@ export const acpGeneratedSchemaArtifacts = {
           },
         },
         required: ["currentModeId", "availableModes"],
-        type: "object",
-        additionalProperties: false,
-      },
-      SessionModelState: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe set of models and the one currently active.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-          availableModels: {
-            description: "The set of models that the Agent can use",
-            items: {
-              $ref: "#/$defs/ModelInfo",
-            },
-            type: "array",
-          },
-          currentModelId: {
-            description: "The current model the Agent is in.",
-            type: "string",
-          },
-        },
-        required: ["currentModelId", "availableModels"],
         type: "object",
         additionalProperties: false,
       },
@@ -12325,6 +13441,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -12357,6 +13474,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12395,6 +13513,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12430,6 +13549,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -12478,6 +13598,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -12541,6 +13662,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -12573,6 +13695,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12611,6 +13734,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12646,6 +13770,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -12694,6 +13819,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -12757,6 +13883,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -12789,6 +13916,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12827,6 +13955,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -12862,6 +13991,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -12910,6 +14040,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -12952,6 +14083,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallContent",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   kind: {
                     description:
@@ -13016,6 +14149,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallLocation",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   rawInput: {
                     description: "Raw input parameters sent to the tool.",
@@ -13081,6 +14216,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallContent",
                     },
                     type: ["array", "null"],
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   kind: {
                     anyOf: [
@@ -13092,6 +14229,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Update the tool kind.",
+                    "x-deserialize-default-on-error": true,
                   },
                   locations: {
                     description: "Replace the locations collection.",
@@ -13099,6 +14237,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallLocation",
                     },
                     type: ["array", "null"],
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   rawInput: {
                     description: "Update the raw input.",
@@ -13116,6 +14256,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Update the execution status.",
+                    "x-deserialize-default-on-error": true,
                   },
                   title: {
                     description: "Update the human-readable title.",
@@ -13151,6 +14292,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/PlanEntry",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "plan",
@@ -13158,6 +14301,140 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 },
                 required: ["entries", "sessionUpdate"],
+              },
+              {
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  plan: {
+                    description: "The updated plan content.",
+                    discriminator: {
+                      propertyName: "type",
+                    },
+                    oneOf: [
+                      {
+                        description: "Structured plan entries.",
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          entries: {
+                            description:
+                              "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                            items: {
+                              $ref: "#/$defs/PlanEntry",
+                            },
+                            type: "array",
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "items",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "entries", "type"],
+                      },
+                      {
+                        description: "A URI pointing to a file containing the plan.",
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          uri: {
+                            description: "The URI of the file containing the plan.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "file",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "uri", "type"],
+                      },
+                      {
+                        description: "Raw markdown content for the plan.",
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          content: {
+                            description: "Markdown content for the plan.",
+                            type: "string",
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "markdown",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "content", "type"],
+                      },
+                    ],
+                  },
+                  sessionUpdate: {
+                    const: "plan_update",
+                    type: "string",
+                  },
+                },
+                required: ["plan", "sessionUpdate"],
+              },
+              {
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  id: {
+                    description: "The plan ID to remove.",
+                    type: "string",
+                  },
+                  sessionUpdate: {
+                    const: "plan_removed",
+                    type: "string",
+                  },
+                },
+                required: ["id", "sessionUpdate"],
               },
               {
                 description: "Available commands are ready or have changed",
@@ -13176,6 +14453,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/AvailableCommand",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "available_commands_update",
@@ -13224,6 +14503,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/SessionConfigOption",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "config_option_update",
@@ -13281,6 +14562,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Cumulative session cost (optional).",
+                    "x-deserialize-default-on-error": true,
                   },
                   size: {
                     description: "Total context window size in tokens.",
@@ -13369,6 +14651,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -13401,6 +14684,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13439,6 +14723,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13474,6 +14759,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -13522,6 +14808,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -13585,6 +14872,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -13617,6 +14905,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13655,6 +14944,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13690,6 +14980,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -13738,6 +15029,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -13801,6 +15093,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -13833,6 +15126,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13871,6 +15165,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -13906,6 +15201,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -13954,6 +15250,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -13996,6 +15293,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 description:
@@ -14060,6 +15359,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Raw input parameters sent to the tool.",
@@ -14125,6 +15426,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 anyOf: [
@@ -14136,6 +15439,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the tool kind.",
+                "x-deserialize-default-on-error": true,
               },
               locations: {
                 description: "Replace the locations collection.",
@@ -14143,6 +15447,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Update the raw input.",
@@ -14160,6 +15466,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the execution status.",
+                "x-deserialize-default-on-error": true,
               },
               title: {
                 description: "Update the human-readable title.",
@@ -14195,6 +15502,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/PlanEntry",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "plan",
@@ -14202,6 +15511,140 @@ export const acpGeneratedSchemaArtifacts = {
               },
             },
             required: ["entries", "sessionUpdate"],
+          },
+          {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              plan: {
+                description: "The updated plan content.",
+                discriminator: {
+                  propertyName: "type",
+                },
+                oneOf: [
+                  {
+                    description: "Structured plan entries.",
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      entries: {
+                        description:
+                          "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                        items: {
+                          $ref: "#/$defs/PlanEntry",
+                        },
+                        type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "items",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "entries", "type"],
+                  },
+                  {
+                    description: "A URI pointing to a file containing the plan.",
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      uri: {
+                        description: "The URI of the file containing the plan.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "file",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "uri", "type"],
+                  },
+                  {
+                    description: "Raw markdown content for the plan.",
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      content: {
+                        description: "Markdown content for the plan.",
+                        type: "string",
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "markdown",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "content", "type"],
+                  },
+                ],
+              },
+              sessionUpdate: {
+                const: "plan_update",
+                type: "string",
+              },
+            },
+            required: ["plan", "sessionUpdate"],
+          },
+          {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description: "The plan ID to remove.",
+                type: "string",
+              },
+              sessionUpdate: {
+                const: "plan_removed",
+                type: "string",
+              },
+            },
+            required: ["id", "sessionUpdate"],
           },
           {
             description: "Available commands are ready or have changed",
@@ -14220,6 +15663,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/AvailableCommand",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "available_commands_update",
@@ -14268,6 +15713,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/SessionConfigOption",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "config_option_update",
@@ -14324,6 +15771,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Cumulative session cost (optional).",
+                "x-deserialize-default-on-error": true,
               },
               size: {
                 description: "Total context window size in tokens.",
@@ -14346,7 +15794,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
         ],
       },
-      SetProvidersRequest: {
+      SetProviderRequest: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `providers/set`.\n\nReplaces the full configuration for one provider id.",
         properties: {
@@ -14414,7 +15862,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-side": "agent",
         additionalProperties: false,
       },
-      SetProvidersResponse: {
+      SetProviderResponse: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `providers/set`.",
         properties: {
@@ -14510,6 +15958,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["configOptions"],
@@ -14557,47 +16007,6 @@ export const acpGeneratedSchemaArtifacts = {
         "x-side": "agent",
         additionalProperties: false,
       },
-      SetSessionModelRequest: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for setting a session model.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-          modelId: {
-            description: "The ID of the model to set.",
-            type: "string",
-          },
-          sessionId: {
-            description: "The ID of the session to set the model for.",
-            type: "string",
-          },
-        },
-        required: ["sessionId", "modelId"],
-        type: "object",
-        "x-method": "session/set_model",
-        "x-side": "agent",
-        additionalProperties: false,
-      },
-      SetSessionModelResponse: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `session/set_model` method.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-        },
-        type: "object",
-        "x-method": "session/set_model",
-        "x-side": "agent",
-        additionalProperties: false,
-      },
       StartNesRequest: {
         description: "Request to start an NES session.",
         properties: {
@@ -14617,6 +16026,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Repository metadata, if the workspace is a git repository.",
+            "x-deserialize-default-on-error": true,
           },
           workspaceFolders: {
             description: "The workspace folders.",
@@ -14624,6 +16034,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/WorkspaceFolder",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           workspaceUri: {
             description: "The root URI of the workspace.",
@@ -14794,6 +16206,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Context for the suggestion, included based on agent capabilities.",
+            "x-deserialize-default-on-error": true,
           },
           position: {
             description: "The current cursor position.",
@@ -14825,6 +16238,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The current text selection range, if any.",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "The session ID for this request.",
@@ -14881,6 +16295,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesSuggestion",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["suggestions"],
@@ -15007,6 +16423,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           text: {
             type: "string",
@@ -15111,6 +16528,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallContent",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           kind: {
             description:
@@ -15175,6 +16594,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallLocation",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           rawInput: {
             description: "Raw input parameters sent to the tool.",
@@ -15266,6 +16687,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -15298,6 +16720,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -15336,6 +16759,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -15371,6 +16795,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -15419,6 +16844,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -15565,6 +16991,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallContent",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           kind: {
             anyOf: [
@@ -15576,6 +17004,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Update the tool kind.",
+            "x-deserialize-default-on-error": true,
           },
           locations: {
             description: "Replace the locations collection.",
@@ -15583,6 +17012,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallLocation",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           rawInput: {
             description: "Update the raw input.",
@@ -15600,6 +17031,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Update the execution status.",
+            "x-deserialize-default-on-error": true,
           },
           title: {
             description: "Update the human-readable title.",
@@ -15778,6 +17210,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Cumulative session cost (optional).",
+            "x-deserialize-default-on-error": true,
           },
           size: {
             description: "Total context window size in tokens.",
@@ -16032,8 +17465,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-side": "agent",
       },
       AgentAuthCapabilities: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+        description: "Authentication-related capabilities supported by the agent.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -16052,6 +17484,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -16067,8 +17500,7 @@ export const acpGeneratedSchemaArtifacts = {
             type: ["object", "null"],
           },
           auth: {
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+            description: "Authentication-related capabilities supported by the agent.",
             type: "object",
             default: {},
             properties: {
@@ -16089,6 +17521,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                "x-deserialize-default-on-error": true,
               },
             },
           },
@@ -16101,6 +17534,7 @@ export const acpGeneratedSchemaArtifacts = {
             description: "MCP capabilities supported by the agent.",
             type: "object",
             default: {
+              acp: false,
               http: false,
               sse: false,
             },
@@ -16110,6 +17544,12 @@ export const acpGeneratedSchemaArtifacts = {
                 description:
                   "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                 type: ["object", "null"],
+              },
+              acp: {
+                default: false,
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                type: "boolean",
               },
               http: {
                 default: false,
@@ -16134,6 +17574,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+            "x-deserialize-default-on-error": true,
           },
           positionEncoding: {
             anyOf: [
@@ -16146,6 +17587,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+            "x-deserialize-default-on-error": true,
           },
           promptCapabilities: {
             description: "Prompt capabilities supported by the agent.",
@@ -16191,6 +17633,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+            "x-deserialize-default-on-error": true,
           },
           sessionCapabilities: {
             description:
@@ -16214,7 +17657,8 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description:
-                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                  "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                "x-deserialize-default-on-error": true,
               },
               close: {
                 anyOf: [
@@ -16226,6 +17670,20 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/close`.",
+                "x-deserialize-default-on-error": true,
+              },
+              delete: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/SessionDeleteCapabilities",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                "x-deserialize-default-on-error": true,
               },
               fork: {
                 anyOf: [
@@ -16238,6 +17696,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                "x-deserialize-default-on-error": true,
               },
               list: {
                 anyOf: [
@@ -16249,6 +17708,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/list`.",
+                "x-deserialize-default-on-error": true,
               },
               resume: {
                 anyOf: [
@@ -16260,6 +17720,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Whether the agent supports `session/resume`.",
+                "x-deserialize-default-on-error": true,
               },
             },
           },
@@ -16335,6 +17796,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -16366,6 +17828,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16403,6 +17866,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16437,6 +17901,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -16484,6 +17949,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -16545,6 +18011,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -16576,6 +18043,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16613,6 +18081,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16647,6 +18116,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -16694,6 +18164,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -16756,6 +18227,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       text: {
                                         type: "string",
@@ -16787,6 +18259,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16824,6 +18297,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       data: {
                                         type: "string",
@@ -16858,6 +18332,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       description: {
                                         type: ["string", "null"],
@@ -16905,6 +18380,7 @@ export const acpGeneratedSchemaArtifacts = {
                                             type: "null",
                                           },
                                         ],
+                                        "x-deserialize-default-on-error": true,
                                       },
                                       resource: {
                                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -16946,6 +18422,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallContent",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               kind: {
                                 description:
@@ -17010,6 +18488,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallLocation",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               rawInput: {
                                 description: "Raw input parameters sent to the tool.",
@@ -17076,6 +18556,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallContent",
                                 },
                                 type: ["array", "null"],
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               kind: {
                                 anyOf: [
@@ -17087,6 +18569,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Update the tool kind.",
+                                "x-deserialize-default-on-error": true,
                               },
                               locations: {
                                 description: "Replace the locations collection.",
@@ -17094,6 +18577,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/ToolCallLocation",
                                 },
                                 type: ["array", "null"],
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               rawInput: {
                                 description: "Update the raw input.",
@@ -17111,6 +18596,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Update the execution status.",
+                                "x-deserialize-default-on-error": true,
                               },
                               title: {
                                 description: "Update the human-readable title.",
@@ -17145,6 +18631,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/PlanEntry",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "plan",
@@ -17152,6 +18640,135 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             },
                             required: ["entries", "sessionUpdate"],
+                          },
+                          {
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+                            type: "object",
+                            properties: {
+                              _meta: {
+                                additionalProperties: true,
+                                description:
+                                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                type: ["object", "null"],
+                              },
+                              plan: {
+                                description: "The updated plan content.",
+                                discriminator: {
+                                  propertyName: "type",
+                                },
+                                oneOf: [
+                                  {
+                                    description: "Structured plan entries.",
+                                    type: "object",
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      entries: {
+                                        description:
+                                          "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                                        items: {
+                                          $ref: "#/$defs/PlanEntry",
+                                        },
+                                        type: "array",
+                                        "x-deserialize-default-on-error": true,
+                                        "x-deserialize-skip-invalid-items": true,
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "items",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "entries", "type"],
+                                  },
+                                  {
+                                    description: "A URI pointing to a file containing the plan.",
+                                    type: "object",
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      uri: {
+                                        description: "The URI of the file containing the plan.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "file",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "uri", "type"],
+                                  },
+                                  {
+                                    description: "Raw markdown content for the plan.",
+                                    type: "object",
+                                    properties: {
+                                      _meta: {
+                                        additionalProperties: true,
+                                        description:
+                                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                        type: ["object", "null"],
+                                      },
+                                      content: {
+                                        description: "Markdown content for the plan.",
+                                        type: "string",
+                                      },
+                                      id: {
+                                        description: "The plan ID to update.",
+                                        type: "string",
+                                      },
+                                      type: {
+                                        const: "markdown",
+                                        type: "string",
+                                      },
+                                    },
+                                    required: ["id", "content", "type"],
+                                  },
+                                ],
+                              },
+                              sessionUpdate: {
+                                const: "plan_update",
+                                type: "string",
+                              },
+                            },
+                            required: ["plan", "sessionUpdate"],
+                          },
+                          {
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+                            type: "object",
+                            properties: {
+                              _meta: {
+                                additionalProperties: true,
+                                description:
+                                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                                type: ["object", "null"],
+                              },
+                              id: {
+                                description: "The plan ID to remove.",
+                                type: "string",
+                              },
+                              sessionUpdate: {
+                                const: "plan_removed",
+                                type: "string",
+                              },
+                            },
+                            required: ["id", "sessionUpdate"],
                           },
                           {
                             description: "Available commands are ready or have changed",
@@ -17169,6 +18786,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/AvailableCommand",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "available_commands_update",
@@ -17216,6 +18835,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   $ref: "#/$defs/SessionConfigOption",
                                 },
                                 type: "array",
+                                "x-deserialize-default-on-error": true,
+                                "x-deserialize-skip-invalid-items": true,
                               },
                               sessionUpdate: {
                                 const: "config_option_update",
@@ -17273,6 +18894,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Cumulative session cost (optional).",
+                                "x-deserialize-default-on-error": true,
                               },
                               size: {
                                 description: "Total context window size in tokens.",
@@ -17321,12 +18943,43 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nReceives an MCP-over-ACP notification.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpNotification",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension notifications from the agent.\n\nAllows the Agent to send an arbitrary notification that is not part of the ACP spec.\nExtension notifications provide a way to send one-way messages for custom functionality\nwhile maintaining protocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtNotification",
                   },
                 ],
                 description:
-                  "All possible notifications that an agent can send to a client.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly - use the notification methods on the [`Client`] trait instead.\n\nNotifications do not expect a response.",
+                  "All possible notifications that an agent can send to a client.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly.\n\nNotifications do not expect a response.",
               },
               {
                 type: "null",
@@ -17457,6 +19110,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/ToolCallContent",
                             },
                             type: ["array", "null"],
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           kind: {
                             anyOf: [
@@ -17468,6 +19123,7 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             ],
                             description: "Update the tool kind.",
+                            "x-deserialize-default-on-error": true,
                           },
                           locations: {
                             description: "Replace the locations collection.",
@@ -17475,6 +19131,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/ToolCallLocation",
                             },
                             type: ["array", "null"],
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           rawInput: {
                             description: "Update the raw input.",
@@ -17492,6 +19150,7 @@ export const acpGeneratedSchemaArtifacts = {
                               },
                             ],
                             description: "Update the execution status.",
+                            "x-deserialize-default-on-error": true,
                           },
                           title: {
                             description: "Update the human-readable title.",
@@ -17933,12 +19592,86 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nOpens an MCP-over-ACP connection.",
+                    type: "object",
+                    "x-method": "mcp/connect",
+                    "x-side": "client",
+                    title: "ConnectMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      acpId: {
+                        description:
+                          "The ACP MCP server ID that was provided by the component declaring the MCP server.",
+                        type: "string",
+                      },
+                    },
+                    required: ["acpId"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nExchanges an MCP-over-ACP message.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCloses an MCP-over-ACP connection.",
+                    type: "object",
+                    "x-method": "mcp/disconnect",
+                    "x-side": "client",
+                    title: "DisconnectMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection to close.",
+                        type: "string",
+                      },
+                    },
+                    required: ["connectionId"],
+                  },
+                  {
+                    description:
                       "Handles extension method requests from the agent.\n\nAllows the Agent to send an arbitrary request that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodRequest",
                   },
                 ],
                 description:
-                  "All possible requests that an agent can send to a client.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly - instead, use the methods on the [`Client`] trait.\n\nThis enum encompasses all method calls from agent to client.",
+                  "All possible requests that an agent can send to a client.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly.\n\nThis enum encompasses all method calls from agent to client.",
               },
               {
                 type: "null",
@@ -17980,6 +19713,7 @@ export const acpGeneratedSchemaArtifacts = {
                           auth: {},
                           loadSession: false,
                           mcpCapabilities: {
+                            acp: false,
                             http: false,
                             sse: false,
                           },
@@ -17999,7 +19733,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                           auth: {
                             description:
-                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+                              "Authentication-related capabilities supported by the agent.",
                             type: "object",
                             default: {},
                             properties: {
@@ -18020,6 +19754,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 ],
                                 description:
                                   "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                                "x-deserialize-default-on-error": true,
                               },
                             },
                           },
@@ -18032,6 +19767,7 @@ export const acpGeneratedSchemaArtifacts = {
                             description: "MCP capabilities supported by the agent.",
                             type: "object",
                             default: {
+                              acp: false,
                               http: false,
                               sse: false,
                             },
@@ -18041,6 +19777,12 @@ export const acpGeneratedSchemaArtifacts = {
                                 description:
                                   "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                                 type: ["object", "null"],
+                              },
+                              acp: {
+                                default: false,
+                                description:
+                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                                type: "boolean",
                               },
                               http: {
                                 default: false,
@@ -18065,6 +19807,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+                            "x-deserialize-default-on-error": true,
                           },
                           positionEncoding: {
                             anyOf: [
@@ -18077,6 +19820,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+                            "x-deserialize-default-on-error": true,
                           },
                           promptCapabilities: {
                             description: "Prompt capabilities supported by the agent.",
@@ -18122,6 +19866,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+                            "x-deserialize-default-on-error": true,
                           },
                           sessionCapabilities: {
                             description:
@@ -18145,7 +19890,8 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description:
-                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                                  "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                                "x-deserialize-default-on-error": true,
                               },
                               close: {
                                 anyOf: [
@@ -18157,6 +19903,20 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/close`.",
+                                "x-deserialize-default-on-error": true,
+                              },
+                              delete: {
+                                anyOf: [
+                                  {
+                                    $ref: "#/$defs/SessionDeleteCapabilities",
+                                  },
+                                  {
+                                    type: "null",
+                                  },
+                                ],
+                                description:
+                                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               fork: {
                                 anyOf: [
@@ -18169,6 +19929,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 ],
                                 description:
                                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               list: {
                                 anyOf: [
@@ -18180,6 +19941,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/list`.",
+                                "x-deserialize-default-on-error": true,
                               },
                               resume: {
                                 anyOf: [
@@ -18191,6 +19953,7 @@ export const acpGeneratedSchemaArtifacts = {
                                   },
                                 ],
                                 description: "Whether the agent supports `session/resume`.",
+                                "x-deserialize-default-on-error": true,
                               },
                             },
                           },
@@ -18207,6 +19970,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Information about the Agent name and version sent to the Client.\n\nNote: in future versions of the protocol, this will be required.",
+                        "x-deserialize-default-on-error": true,
                       },
                       authMethods: {
                         default: [],
@@ -18215,6 +19979,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/AuthMethod",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       protocolVersion: {
                         description:
@@ -18263,6 +20029,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/ProviderInfo",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["providers"],
@@ -18273,7 +20041,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "object",
                     "x-method": "providers/set",
                     "x-side": "agent",
-                    title: "SetProvidersResponse",
+                    title: "SetProviderResponse",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -18289,7 +20057,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "object",
                     "x-method": "providers/disable",
                     "x-side": "agent",
-                    title: "DisableProvidersResponse",
+                    title: "DisableProviderResponse",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -18300,8 +20068,7 @@ export const acpGeneratedSchemaArtifacts = {
                     },
                   },
                   {
-                    description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to the `logout` method.",
+                    description: "Response to the `logout` method.",
                     type: "object",
                     "x-method": "logout",
                     "x-side": "agent",
@@ -18336,18 +20103,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -18360,6 +20117,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description:
@@ -18389,18 +20147,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -18413,6 +20161,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                     },
                   },
@@ -18440,9 +20189,27 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionInfo",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["sessions"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from deleting a session.",
+                    type: "object",
+                    "x-method": "session/delete",
+                    "x-side": "agent",
+                    title: "DeleteSessionResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                    },
                   },
                   {
                     description:
@@ -18465,18 +20232,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -18489,6 +20246,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "Unique identifier for the newly created forked session.",
@@ -18517,18 +20275,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: ["array", "null"],
-                      },
-                      models: {
-                        anyOf: [
-                          {
-                            $ref: "#/$defs/SessionModelState",
-                          },
-                          {
-                            type: "null",
-                          },
-                        ],
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       modes: {
                         anyOf: [
@@ -18541,6 +20289,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+                        "x-deserialize-default-on-error": true,
                       },
                     },
                   },
@@ -18594,6 +20343,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/SessionConfigOption",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["configOptions"],
@@ -18657,6 +20408,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nToken usage for this turn (optional).",
+                        "x-deserialize-default-on-error": true,
                       },
                       userMessageId: {
                         description:
@@ -18665,22 +20417,6 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     },
                     required: ["stopReason"],
-                  },
-                  {
-                    description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `session/set_model` method.",
-                    type: "object",
-                    "x-method": "session/set_model",
-                    "x-side": "agent",
-                    title: "SetSessionModelResponse",
-                    properties: {
-                      _meta: {
-                        additionalProperties: true,
-                        description:
-                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-                        type: ["object", "null"],
-                      },
-                    },
                   },
                   {
                     description: "Response to `nes/start`.",
@@ -18721,6 +20457,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/NesSuggestion",
                         },
                         type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                     },
                     required: ["suggestions"],
@@ -18744,6 +20482,13 @@ export const acpGeneratedSchemaArtifacts = {
                     description:
                       "Allows for sending an arbitrary response to an [`ExtRequest`] that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodResponse",
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpResponse",
                   },
                 ],
                 description:
@@ -18785,6 +20530,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/Role",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           lastModified: {
             type: ["string", "null"],
@@ -18814,6 +20561,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           data: {
             type: "string",
@@ -19166,6 +20914,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Input for the command if required",
+            "x-deserialize-default-on-error": true,
           },
           name: {
             description: "Command name (e.g., `create_plan`, `research_codebase`).",
@@ -19213,6 +20962,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/AvailableCommand",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["availableCommands"],
@@ -19355,6 +21106,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+            "x-deserialize-default-on-error": true,
           },
           fs: {
             description:
@@ -19394,6 +21146,20 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+            "x-deserialize-default-on-error": true,
+          },
+          planCapabilities: {
+            anyOf: [
+              {
+                $ref: "#/$defs/PlanCapabilities",
+              },
+              {
+                type: "null",
+              },
+            ],
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+            "x-deserialize-default-on-error": true,
           },
           positionEncodings: {
             description:
@@ -19402,6 +21168,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/PositionEncodingKind",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           terminal: {
             default: false,
@@ -19430,6 +21198,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `jump` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
           rename: {
             anyOf: [
@@ -19441,6 +21210,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `rename` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
           searchAndReplace: {
             anyOf: [
@@ -19452,6 +21222,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports the `searchAndReplace` suggestion kind.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -19755,6 +21526,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "The reason for rejection.",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "The session ID for this notification.",
@@ -19765,12 +21537,43 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nSends an MCP-over-ACP notification.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpNotification",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension notifications from the client.\n\nExtension notifications provide a way to send one-way messages for custom functionality\nwhile maintaining protocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtNotification",
                   },
                 ],
                 description:
-                  "All possible notifications that a client can send to an agent.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly - use the notification methods on the [`Agent`] trait instead.\n\nNotifications do not expect a response.",
+                  "All possible notifications that a client can send to an agent.\n\nThis enum is used internally for routing RPC notifications. You typically won't need\nto use this directly.\n\nNotifications do not expect a response.",
               },
               {
                 type: "null",
@@ -19861,6 +21664,7 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+                            "x-deserialize-default-on-error": true,
                           },
                           fs: {
                             description:
@@ -19902,6 +21706,20 @@ export const acpGeneratedSchemaArtifacts = {
                             ],
                             description:
                               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+                            "x-deserialize-default-on-error": true,
+                          },
+                          planCapabilities: {
+                            anyOf: [
+                              {
+                                $ref: "#/$defs/PlanCapabilities",
+                              },
+                              {
+                                type: "null",
+                              },
+                            ],
+                            description:
+                              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+                            "x-deserialize-default-on-error": true,
                           },
                           positionEncodings: {
                             description:
@@ -19910,6 +21728,8 @@ export const acpGeneratedSchemaArtifacts = {
                               $ref: "#/$defs/PositionEncodingKind",
                             },
                             type: "array",
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
                           },
                           terminal: {
                             default: false,
@@ -19929,6 +21749,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Information about the Client name and version sent to the Agent.\n\nNote: in future versions of the protocol, this will be required.",
+                        "x-deserialize-default-on-error": true,
                       },
                       protocolVersion: {
                         description: "The latest protocol version supported by the client.",
@@ -19984,7 +21805,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "object",
                     "x-method": "providers/set",
                     "x-side": "agent",
-                    title: "SetProvidersRequest",
+                    title: "SetProviderRequest",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -20052,7 +21873,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "object",
                     "x-method": "providers/disable",
                     "x-side": "agent",
-                    title: "DisableProvidersRequest",
+                    title: "DisableProviderRequest",
                     properties: {
                       _meta: {
                         additionalProperties: true,
@@ -20069,7 +21890,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nLogs out of the current authenticated state.\n\nAfter a successful logout, all new sessions will require authentication.\nThere is no guarantee about the behavior of already running sessions.",
+                      "Logs out of the current authenticated state.\n\nAfter a successful logout, all new sessions will require authentication.\nThere is no guarantee about the behavior of already running sessions.",
                     type: "object",
                     "x-method": "logout",
                     "x-side": "agent",
@@ -20099,7 +21920,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
+                          "Additional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
                         items: {
                           type: "string",
                         },
@@ -20137,7 +21958,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
                         items: {
                           type: "string",
                         },
@@ -20175,14 +21996,6 @@ export const acpGeneratedSchemaArtifacts = {
                           "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                         type: ["object", "null"],
                       },
-                      additionalDirectories: {
-                        description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nFilter sessions by the exact ordered additional workspace roots. Each path must be absolute.\n\nThis filter applies only when the field is present and non-empty. When\nomitted or empty, no additional-root filter is applied.",
-                        items: {
-                          type: "string",
-                        },
-                        type: "array",
-                      },
                       cursor: {
                         description:
                           "Opaque cursor token from a previous response's nextCursor field for cursor-based pagination",
@@ -20194,6 +22007,27 @@ export const acpGeneratedSchemaArtifacts = {
                         type: ["string", "null"],
                       },
                     },
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nDeletes an existing session from `session/list`.\n\nThis method is only available if the agent advertises the `sessionCapabilities.delete` capability.",
+                    type: "object",
+                    "x-method": "session/delete",
+                    "x-side": "agent",
+                    title: "DeleteSessionRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      sessionId: {
+                        description: "The ID of the session to delete.",
+                        type: "string",
+                      },
+                    },
+                    required: ["sessionId"],
                   },
                   {
                     description:
@@ -20211,7 +22045,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
                         items: {
                           type: "string",
                         },
@@ -20251,7 +22085,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                       additionalDirectories: {
                         description:
-                          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession.",
+                          "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
                         items: {
                           type: "string",
                         },
@@ -20423,31 +22257,6 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nSelect a model for a given session.",
-                    type: "object",
-                    "x-method": "session/set_model",
-                    "x-side": "agent",
-                    title: "SetSessionModelRequest",
-                    properties: {
-                      _meta: {
-                        additionalProperties: true,
-                        description:
-                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-                        type: ["object", "null"],
-                      },
-                      modelId: {
-                        description: "The ID of the model to set.",
-                        type: "string",
-                      },
-                      sessionId: {
-                        description: "The ID of the session to set the model for.",
-                        type: "string",
-                      },
-                    },
-                    required: ["sessionId", "modelId"],
-                  },
-                  {
-                    description:
                       "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nStarts an NES session.",
                     type: "object",
                     "x-method": "nes/start",
@@ -20470,6 +22279,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "Repository metadata, if the workspace is a git repository.",
+                        "x-deserialize-default-on-error": true,
                       },
                       workspaceFolders: {
                         description: "The workspace folders.",
@@ -20477,6 +22287,8 @@ export const acpGeneratedSchemaArtifacts = {
                           $ref: "#/$defs/WorkspaceFolder",
                         },
                         type: ["array", "null"],
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
                       },
                       workspaceUri: {
                         description: "The root URI of the workspace.",
@@ -20509,6 +22321,7 @@ export const acpGeneratedSchemaArtifacts = {
                         ],
                         description:
                           "Context for the suggestion, included based on agent capabilities.",
+                        "x-deserialize-default-on-error": true,
                       },
                       position: {
                         description: "The current cursor position.",
@@ -20539,6 +22352,7 @@ export const acpGeneratedSchemaArtifacts = {
                           },
                         ],
                         description: "The current text selection range, if any.",
+                        "x-deserialize-default-on-error": true,
                       },
                       sessionId: {
                         description: "The session ID for this request.",
@@ -20601,12 +22415,43 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nExchanges an MCP-over-ACP message.",
+                    type: "object",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpRequest",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The MCP-over-ACP connection this message is sent on.",
+                        type: "string",
+                      },
+                      method: {
+                        description: "The inner MCP method name.",
+                        type: "string",
+                      },
+                      params: {
+                        additionalProperties: true,
+                        description:
+                          "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+                        type: ["object", "null"],
+                      },
+                    },
+                    required: ["connectionId", "method"],
+                  },
+                  {
+                    description:
                       "Handles extension method requests from the client.\n\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodRequest",
                   },
                 ],
                 description:
-                  "All possible requests that a client can send to an agent.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly - instead, use the methods on the [`Agent`] trait.\n\nThis enum encompasses all method calls from client to agent.",
+                  "All possible requests that a client can send to an agent.\n\nThis enum is used internally for routing RPC requests. You typically won't need\nto use this directly.\n\nThis enum encompasses all method calls from client to agent.",
               },
               {
                 type: "null",
@@ -20902,8 +22747,52 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                   {
                     description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/connect`.",
+                    type: "object",
+                    "x-method": "mcp/connect",
+                    "x-side": "client",
+                    title: "ConnectMcpResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      connectionId: {
+                        description: "The unique identifier for this MCP-over-ACP connection.",
+                        type: "string",
+                      },
+                    },
+                    required: ["connectionId"],
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/disconnect`.",
+                    type: "object",
+                    "x-method": "mcp/disconnect",
+                    "x-side": "client",
+                    title: "DisconnectMcpResponse",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                    },
+                  },
+                  {
+                    description:
                       "Allows for sending an arbitrary response to an [`ExtRequest`] that is not part of the ACP spec.\nExtension methods provide a way to add custom functionality while maintaining\nprotocol compatibility.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     title: "ExtMethodResponse",
+                  },
+                  {
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+                    "x-method": "mcp/message",
+                    "x-side": "both",
+                    title: "MessageMcpResponse",
                   },
                 ],
                 description:
@@ -21033,10 +22922,53 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["configOptions"],
         type: "object",
+      },
+      ConnectMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/connect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          acpId: {
+            description:
+              "The ACP MCP server ID that was provided by the component declaring the MCP server.",
+            type: "string",
+          },
+        },
+        required: ["acpId"],
+        type: "object",
+        "x-method": "mcp/connect",
+        "x-side": "client",
+      },
+      ConnectMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/connect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The unique identifier for this MCP-over-ACP connection.",
+            type: "string",
+          },
+        },
+        required: ["connectionId"],
+        type: "object",
+        "x-method": "mcp/connect",
+        "x-side": "client",
       },
       Content: {
         description: "Standard content block (text, images, resources).",
@@ -21073,6 +23005,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   text: {
                     type: "string",
@@ -21104,6 +23037,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -21141,6 +23075,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -21175,6 +23110,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   description: {
                     type: ["string", "null"],
@@ -21222,6 +23158,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   resource: {
                     $ref: "#/$defs/EmbeddedResourceResource",
@@ -21266,6 +23203,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               text: {
                 type: "string",
@@ -21297,6 +23235,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               data: {
                 type: "string",
@@ -21334,6 +23273,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               data: {
                 type: "string",
@@ -21368,6 +23308,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 type: ["string", "null"],
@@ -21415,6 +23356,7 @@ export const acpGeneratedSchemaArtifacts = {
                     type: "null",
                   },
                 ],
+                "x-deserialize-default-on-error": true,
               },
               resource: {
                 $ref: "#/$defs/EmbeddedResourceResource",
@@ -21463,6 +23405,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   text: {
                     type: "string",
@@ -21494,6 +23437,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -21531,6 +23475,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   data: {
                     type: "string",
@@ -21565,6 +23510,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   description: {
                     type: ["string", "null"],
@@ -21612,6 +23558,7 @@ export const acpGeneratedSchemaArtifacts = {
                         type: "null",
                       },
                     ],
+                    "x-deserialize-default-on-error": true,
                   },
                   resource: {
                     $ref: "#/$defs/EmbeddedResourceResource",
@@ -22072,6 +24019,41 @@ export const acpGeneratedSchemaArtifacts = {
         required: ["currentModeId"],
         type: "object",
       },
+      DeleteSessionRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for deleting an existing session from `session/list`.\n\nOnly available if the Agent supports the `sessionCapabilities.delete` capability.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          sessionId: {
+            description: "The ID of the session to delete.",
+            type: "string",
+          },
+        },
+        required: ["sessionId"],
+        type: "object",
+        "x-method": "session/delete",
+        "x-side": "agent",
+      },
+      DeleteSessionResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from deleting a session.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+        "x-method": "session/delete",
+        "x-side": "agent",
+      },
       DidChangeDocumentNotification: {
         description: "Notification sent when a file is edited.",
         properties: {
@@ -22307,7 +24289,7 @@ export const acpGeneratedSchemaArtifacts = {
         required: ["path", "newText"],
         type: "object",
       },
-      DisableProvidersRequest: {
+      DisableProviderRequest: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `providers/disable`.",
         properties: {
@@ -22327,7 +24309,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-method": "providers/disable",
         "x-side": "agent",
       },
-      DisableProvidersResponse: {
+      DisableProviderResponse: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `providers/disable`.",
         properties: {
@@ -22341,6 +24323,41 @@ export const acpGeneratedSchemaArtifacts = {
         type: "object",
         "x-method": "providers/disable",
         "x-side": "agent",
+      },
+      DisconnectMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The MCP-over-ACP connection to close.",
+            type: "string",
+          },
+        },
+        required: ["connectionId"],
+        type: "object",
+        "x-method": "mcp/disconnect",
+        "x-side": "client",
+      },
+      DisconnectMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+        "x-method": "mcp/disconnect",
+        "x-side": "client",
       },
       ElicitationAcceptAction: {
         description:
@@ -22377,6 +24394,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports form-based elicitation.",
+            "x-deserialize-default-on-error": true,
           },
           url: {
             anyOf: [
@@ -22388,6 +24406,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the client supports URL-based elicitation.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -23039,6 +25058,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           resource: {
             $ref: "#/$defs/EmbeddedResourceResource",
@@ -23359,7 +25379,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the forked\nsession.",
             items: {
               type: "string",
             },
@@ -23402,18 +25422,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -23426,6 +25436,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "Unique identifier for the newly created forked session.",
@@ -23476,6 +25487,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           data: {
             type: "string",
@@ -23582,6 +25594,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nElicitation capabilities supported by the client.\nDetermines which elicitation modes the agent may use.",
+                "x-deserialize-default-on-error": true,
               },
               fs: {
                 description:
@@ -23621,6 +25634,20 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the client.",
+                "x-deserialize-default-on-error": true,
+              },
+              planCapabilities: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/PlanCapabilities",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the client supports `plan_update` and `plan_removed` session updates.\n\nOptional. Omitted means the client does not advertise support.\nSupplying `{}` means the client can receive both update types.",
+                "x-deserialize-default-on-error": true,
               },
               positionEncodings: {
                 description:
@@ -23629,6 +25656,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/PositionEncodingKind",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               terminal: {
                 default: false,
@@ -23648,6 +25677,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Information about the Client name and version sent to the Agent.\n\nNote: in future versions of the protocol, this will be required.",
+            "x-deserialize-default-on-error": true,
           },
           protocolVersion: {
             description: "The latest protocol version supported by the client.",
@@ -23679,6 +25709,7 @@ export const acpGeneratedSchemaArtifacts = {
               auth: {},
               loadSession: false,
               mcpCapabilities: {
+                acp: false,
                 http: false,
                 sse: false,
               },
@@ -23697,8 +25728,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: ["object", "null"],
               },
               auth: {
-                description:
-                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthentication-related capabilities supported by the agent.",
+                description: "Authentication-related capabilities supported by the agent.",
                 type: "object",
                 default: {},
                 properties: {
@@ -23719,6 +25749,7 @@ export const acpGeneratedSchemaArtifacts = {
                     ],
                     description:
                       "Whether the agent supports the logout method.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+                    "x-deserialize-default-on-error": true,
                   },
                 },
               },
@@ -23731,6 +25762,7 @@ export const acpGeneratedSchemaArtifacts = {
                 description: "MCP capabilities supported by the agent.",
                 type: "object",
                 default: {
+                  acp: false,
                   http: false,
                   sse: false,
                 },
@@ -23740,6 +25772,12 @@ export const acpGeneratedSchemaArtifacts = {
                     description:
                       "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
                     type: ["object", "null"],
+                  },
+                  acp: {
+                    default: false,
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+                    type: "boolean",
                   },
                   http: {
                     default: false,
@@ -23764,6 +25802,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNES (Next Edit Suggestions) capabilities supported by the agent.",
+                "x-deserialize-default-on-error": true,
               },
               positionEncoding: {
                 anyOf: [
@@ -23776,6 +25815,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe position encoding selected by the agent from the client's supported encodings.",
+                "x-deserialize-default-on-error": true,
               },
               promptCapabilities: {
                 description: "Prompt capabilities supported by the agent.",
@@ -23821,6 +25861,7 @@ export const acpGeneratedSchemaArtifacts = {
                 ],
                 description:
                   "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nProvider configuration capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports provider configuration methods.",
+                "x-deserialize-default-on-error": true,
               },
               sessionCapabilities: {
                 description:
@@ -23844,7 +25885,8 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description:
-                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+                      "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+                    "x-deserialize-default-on-error": true,
                   },
                   close: {
                     anyOf: [
@@ -23856,6 +25898,20 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/close`.",
+                    "x-deserialize-default-on-error": true,
+                  },
+                  delete: {
+                    anyOf: [
+                      {
+                        $ref: "#/$defs/SessionDeleteCapabilities",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    description:
+                      "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   fork: {
                     anyOf: [
@@ -23868,6 +25924,7 @@ export const acpGeneratedSchemaArtifacts = {
                     ],
                     description:
                       "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   list: {
                     anyOf: [
@@ -23879,6 +25936,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/list`.",
+                    "x-deserialize-default-on-error": true,
                   },
                   resume: {
                     anyOf: [
@@ -23890,6 +25948,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Whether the agent supports `session/resume`.",
+                    "x-deserialize-default-on-error": true,
                   },
                 },
               },
@@ -23906,6 +25965,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Information about the Agent name and version sent to the Client.\n\nNote: in future versions of the protocol, this will be required.",
+            "x-deserialize-default-on-error": true,
           },
           authMethods: {
             default: [],
@@ -23914,6 +25974,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/AuthMethod",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           protocolVersion: {
             description:
@@ -24027,6 +26089,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ProviderInfo",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["providers"],
@@ -24043,14 +26107,6 @@ export const acpGeneratedSchemaArtifacts = {
             description:
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
-          },
-          additionalDirectories: {
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nFilter sessions by the exact ordered additional workspace roots. Each path must be absolute.\n\nThis filter applies only when the field is present and non-empty. When\nomitted or empty, no additional-root filter is applied.",
-            items: {
-              type: "string",
-            },
-            type: "array",
           },
           cursor: {
             description:
@@ -24086,6 +26142,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionInfo",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["sessions"],
@@ -24141,7 +26199,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the loaded\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
             items: {
               type: "string",
             },
@@ -24183,18 +26241,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -24207,6 +26255,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -24215,7 +26264,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       LogoutCapabilities: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nLogout capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports the logout method.",
+          "Logout capabilities supported by the agent.\n\nBy supplying `{}` it means that the agent supports the logout method.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -24228,7 +26277,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       LogoutRequest: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for the logout method.\n\nTerminates the current authenticated session.",
+          "Request parameters for the logout method.\n\nTerminates the current authenticated session.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -24242,8 +26291,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-side": "agent",
       },
       LogoutResponse: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to the `logout` method.",
+        description: "Response to the `logout` method.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -24265,6 +26313,12 @@ export const acpGeneratedSchemaArtifacts = {
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
           },
+          acp: {
+            default: false,
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAgent supports [`McpServer::Acp`].",
+            type: "boolean",
+          },
           http: {
             default: false,
             description: "Agent supports [`McpServer::Http`].",
@@ -24277,6 +26331,11 @@ export const acpGeneratedSchemaArtifacts = {
           },
         },
         type: "object",
+      },
+      McpConnectionId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA unique identifier for an active MCP-over-ACP connection.",
+        type: "string",
       },
       McpServer: {
         anyOf: [
@@ -24347,6 +26406,33 @@ export const acpGeneratedSchemaArtifacts = {
             required: ["name", "url", "headers", "type"],
           },
           {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nACP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.acp` is `true`.\nThe MCP server is provided by an ACP component and communicates over the ACP channel.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description:
+                  "Unique identifier for this MCP server, generated by the component providing it.\n\nProviders MUST NOT reuse an ID for multiple ACP-transport MCP servers that are visible\non the same ACP connection.",
+                type: "string",
+              },
+              name: {
+                description: "Human-readable name identifying this MCP server.",
+                type: "string",
+              },
+              type: {
+                const: "acp",
+                type: "string",
+              },
+            },
+            required: ["name", "id", "type"],
+          },
+          {
             description: "Stdio transport configuration\n\nAll Agents MUST support this transport.",
             type: "object",
             title: "stdio",
@@ -24385,6 +26471,34 @@ export const acpGeneratedSchemaArtifacts = {
         ],
         description:
           "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)",
+      },
+      McpServerAcp: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nACP transport configuration for MCP.\n\nThe MCP server is provided by an ACP component and communicates over the ACP channel\nusing `mcp/connect`, `mcp/message`, and `mcp/disconnect`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description:
+              "Unique identifier for this MCP server, generated by the component providing it.\n\nProviders MUST NOT reuse an ID for multiple ACP-transport MCP servers that are visible\non the same ACP connection.",
+            type: "string",
+          },
+          name: {
+            description: "Human-readable name identifying this MCP server.",
+            type: "string",
+          },
+        },
+        required: ["name", "id"],
+        type: "object",
+      },
+      McpServerAcpId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUnique identifier for an MCP server using the ACP transport.\n\nThe value is opaque and generated by the ACP component providing the MCP server. It is\nused by `mcp/connect` to route connection requests back to the component that declared the\nserver.",
+        type: "string",
       },
       McpServerHttp: {
         description: "HTTP transport configuration for MCP.",
@@ -24477,14 +26591,9 @@ export const acpGeneratedSchemaArtifacts = {
         required: ["name", "command", "args", "env"],
         type: "object",
       },
-      ModelId: {
+      MessageMcpNotification: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA unique identifier for a model.",
-        type: "string",
-      },
-      ModelInfo: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInformation about a selectable model.",
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nNotification parameters for `mcp/message`.\n\nThis is used when the wrapped MCP message is a notification and the outer JSON-RPC\nenvelope has no `id`.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -24492,21 +26601,61 @@ export const acpGeneratedSchemaArtifacts = {
               "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
             type: ["object", "null"],
           },
-          description: {
-            description: "Optional description of the model.",
-            type: ["string", "null"],
-          },
-          modelId: {
-            description: "Unique identifier for the model.",
+          connectionId: {
+            description: "The MCP-over-ACP connection this message is sent on.",
             type: "string",
           },
-          name: {
-            description: "Human-readable name of the model.",
+          method: {
+            description: "The inner MCP method name.",
             type: "string",
+          },
+          params: {
+            additionalProperties: true,
+            description:
+              "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+            type: ["object", "null"],
           },
         },
-        required: ["modelId", "name"],
+        required: ["connectionId", "method"],
         type: "object",
+        "x-method": "mcp/message",
+        "x-side": "both",
+      },
+      MessageMcpRequest: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `mcp/message`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          connectionId: {
+            description: "The MCP-over-ACP connection this message is sent on.",
+            type: "string",
+          },
+          method: {
+            description: "The inner MCP method name.",
+            type: "string",
+          },
+          params: {
+            additionalProperties: true,
+            description:
+              "Optional inner MCP params.\n\nIf omitted or set to `null`, the inner MCP message has no params.",
+            type: ["object", "null"],
+          },
+        },
+        required: ["connectionId", "method"],
+        type: "object",
+        "x-method": "mcp/message",
+        "x-side": "both",
+      },
+      MessageMcpResponse: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `mcp/message`.\n\nThis is the inner MCP response result payload. Any JSON value is valid.",
+        "x-method": "mcp/message",
+        "x-side": "both",
       },
       MultiSelectItems: {
         anyOf: [
@@ -24651,6 +26800,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Context the agent wants attached to each suggestion request.",
+            "x-deserialize-default-on-error": true,
           },
           events: {
             anyOf: [
@@ -24662,6 +26812,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Events the agent wants to receive.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -24685,6 +26836,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants diagnostics context.",
+            "x-deserialize-default-on-error": true,
           },
           editHistory: {
             anyOf: [
@@ -24696,6 +26848,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants edit history context.",
+            "x-deserialize-default-on-error": true,
           },
           openFiles: {
             anyOf: [
@@ -24707,6 +26860,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants open files context.",
+            "x-deserialize-default-on-error": true,
           },
           recentFiles: {
             anyOf: [
@@ -24718,6 +26872,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants recent files context.",
+            "x-deserialize-default-on-error": true,
           },
           relatedSnippets: {
             anyOf: [
@@ -24729,6 +26884,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants related snippets context.",
+            "x-deserialize-default-on-error": true,
           },
           userActions: {
             anyOf: [
@@ -24740,6 +26896,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants user actions context.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -24961,6 +27118,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didChange` events, and the sync kind.",
+            "x-deserialize-default-on-error": true,
           },
           didClose: {
             anyOf: [
@@ -24972,6 +27130,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didClose` events.",
+            "x-deserialize-default-on-error": true,
           },
           didFocus: {
             anyOf: [
@@ -24983,6 +27142,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didFocus` events.",
+            "x-deserialize-default-on-error": true,
           },
           didOpen: {
             anyOf: [
@@ -24994,6 +27154,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didOpen` events.",
+            "x-deserialize-default-on-error": true,
           },
           didSave: {
             anyOf: [
@@ -25005,6 +27166,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent wants `document/didSave` events.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -25055,6 +27217,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Optional suggested cursor position after applying edits.",
+            "x-deserialize-default-on-error": true,
           },
           edits: {
             description: "The text edits to apply.",
@@ -25094,6 +27257,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Document event capabilities.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -25179,6 +27343,7 @@ export const acpGeneratedSchemaArtifacts = {
             format: "uint64",
             minimum: 0,
             type: ["integer", "null"],
+            "x-deserialize-default-on-error": true,
           },
           uri: {
             description: "The URI of the file.",
@@ -25194,6 +27359,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The visible range in the editor, if any.",
+            "x-deserialize-default-on-error": true,
           },
         },
         required: ["uri", "languageId"],
@@ -25427,6 +27593,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesDiagnostic",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           editHistory: {
             description: "Recent edit history.",
@@ -25434,6 +27602,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesEditHistoryEntry",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           openFiles: {
             description: "Currently open files in the editor.",
@@ -25441,6 +27611,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesOpenFile",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           recentFiles: {
             description: "Recently accessed files.",
@@ -25448,6 +27620,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesRecentFile",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           relatedSnippets: {
             description: "Related code snippets.",
@@ -25455,6 +27629,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesRelatedSnippet",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           userActions: {
             description: "Recent user actions (typing, navigation, etc.).",
@@ -25462,6 +27638,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesUserAction",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         type: "object",
@@ -25486,6 +27664,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional suggested cursor position after applying edits.",
+                "x-deserialize-default-on-error": true,
               },
               edits: {
                 description: "The text edits to apply.",
@@ -25768,7 +27947,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
+              "Additional workspace roots for this session. Each path must be absolute.\n\nThese expand the session's filesystem scope without changing `cwd`, which\nremains the base for relative paths. When omitted or empty, no\nadditional roots are activated for the new session.",
             items: {
               type: "string",
             },
@@ -25808,18 +27987,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -25832,6 +28001,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description:
@@ -25966,9 +28136,24 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/PlanEntry",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["entries"],
+        type: "object",
+      },
+      PlanCapabilities: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for receiving `plan_update` and `plan_removed` session updates.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
         type: "object",
       },
       PlanEntry: {
@@ -26069,6 +28254,294 @@ export const acpGeneratedSchemaArtifacts = {
             const: "completed",
             description: "The task has been successfully completed.",
             type: "string",
+          },
+        ],
+      },
+      PlanFile: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented by a file URI.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+          uri: {
+            description: "The URI of the file containing the plan.",
+            type: "string",
+          },
+        },
+        required: ["id", "uri"],
+        type: "object",
+      },
+      PlanId: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUnique identifier for a plan within a session.",
+        type: "string",
+      },
+      PlanItems: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented as structured entries.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          entries: {
+            description:
+              "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+            items: {
+              $ref: "#/$defs/PlanEntry",
+            },
+            type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+        },
+        required: ["id", "entries"],
+        type: "object",
+      },
+      PlanMarkdown: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA plan represented as raw markdown content.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          content: {
+            description: "Markdown content for the plan.",
+            type: "string",
+          },
+          id: {
+            description: "The plan ID to update.",
+            type: "string",
+          },
+        },
+        required: ["id", "content"],
+        type: "object",
+      },
+      PlanRemoved: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          id: {
+            description: "The plan ID to remove.",
+            type: "string",
+          },
+        },
+        required: ["id"],
+        type: "object",
+      },
+      PlanUpdate: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+          plan: {
+            description: "The updated plan content.",
+            discriminator: {
+              propertyName: "type",
+            },
+            oneOf: [
+              {
+                description: "Structured plan entries.",
+                type: "object",
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  entries: {
+                    description:
+                      "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                    items: {
+                      $ref: "#/$defs/PlanEntry",
+                    },
+                    type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "items",
+                    type: "string",
+                  },
+                },
+                required: ["id", "entries", "type"],
+              },
+              {
+                description: "A URI pointing to a file containing the plan.",
+                type: "object",
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  uri: {
+                    description: "The URI of the file containing the plan.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "file",
+                    type: "string",
+                  },
+                },
+                required: ["id", "uri", "type"],
+              },
+              {
+                description: "Raw markdown content for the plan.",
+                type: "object",
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  content: {
+                    description: "Markdown content for the plan.",
+                    type: "string",
+                  },
+                  id: {
+                    description: "The plan ID to update.",
+                    type: "string",
+                  },
+                  type: {
+                    const: "markdown",
+                    type: "string",
+                  },
+                },
+                required: ["id", "content", "type"],
+              },
+            ],
+          },
+        },
+        required: ["plan"],
+        type: "object",
+      },
+      PlanUpdateContent: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nUpdated content for a plan.",
+        discriminator: {
+          propertyName: "type",
+        },
+        oneOf: [
+          {
+            description: "Structured plan entries.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              entries: {
+                description:
+                  "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                items: {
+                  $ref: "#/$defs/PlanEntry",
+                },
+                type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              type: {
+                const: "items",
+                type: "string",
+              },
+            },
+            required: ["id", "entries", "type"],
+          },
+          {
+            description: "A URI pointing to a file containing the plan.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              uri: {
+                description: "The URI of the file containing the plan.",
+                type: "string",
+              },
+              type: {
+                const: "file",
+                type: "string",
+              },
+            },
+            required: ["id", "uri", "type"],
+          },
+          {
+            description: "Raw markdown content for the plan.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              content: {
+                description: "Markdown content for the plan.",
+                type: "string",
+              },
+              id: {
+                description: "The plan ID to update.",
+                type: "string",
+              },
+              type: {
+                const: "markdown",
+                type: "string",
+              },
+            },
+            required: ["id", "content", "type"],
           },
         ],
       },
@@ -26230,6 +28703,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nToken usage for this turn (optional).",
+            "x-deserialize-default-on-error": true,
           },
           userMessageId: {
             description:
@@ -26334,6 +28808,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/LlmProtocol",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["id", "supported", "required"],
@@ -26474,6 +28950,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The reason for rejection.",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "The session ID for this notification.",
@@ -26539,7 +29016,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
         ],
         description:
-          "JSON RPC Request Id\n\nAn identifier established by the Client that MUST contain a String, Number, or NULL value if included. If it is not included it is assumed to be a notification. The value SHOULD normally not be Null [1] and Numbers SHOULD NOT contain fractional parts [2]\n\nThe Server MUST reply with the same value in the Response object if included. This member is used to correlate the context between the two objects.\n\n[1] The use of Null as a value for the id member in a Request object is discouraged, because this specification uses a value of Null for Responses with an unknown id. Also, because JSON-RPC 1.0 uses an id value of Null for Notifications this could cause confusion in handling.\n\n[2] Fractional parts may be problematic, since many decimal fractions cannot be represented exactly as binary fractions.",
+          "JSON RPC Request Id\n\nAn identifier established by the Client that MUST contain a String, Number, or NULL value if included. If it is not included it is assumed to be a notification. The value SHOULD normally not be Null \\[1\\] and Numbers SHOULD NOT contain fractional parts \\[2\\]\n\nThe Server MUST reply with the same value in the Response object if included. This member is used to correlate the context between the two objects.\n\n\\[1\\] The use of Null as a value for the id member in a Request object is discouraged, because this specification uses a value of Null for Responses with an unknown id. Also, because JSON-RPC 1.0 uses an id value of Null for Notifications this could cause confusion in handling.\n\n\\[2\\] Fractional parts may be problematic, since many decimal fractions cannot be represented exactly as binary fractions.",
       },
       RequestPermissionOutcome: {
         description: "The outcome of a permission request.",
@@ -26619,6 +29096,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 anyOf: [
@@ -26630,6 +29109,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the tool kind.",
+                "x-deserialize-default-on-error": true,
               },
               locations: {
                 description: "Replace the locations collection.",
@@ -26637,6 +29117,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Update the raw input.",
@@ -26654,6 +29136,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the execution status.",
+                "x-deserialize-default-on-error": true,
               },
               title: {
                 description: "Update the human-readable title.",
@@ -26747,6 +29230,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           description: {
             type: ["string", "null"],
@@ -26783,7 +29267,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAdditional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession.",
+              "Additional workspace roots to activate for this session. Each path must be absolute.\n\nWhen omitted or empty, no additional roots are activated. When non-empty,\nthis is the complete resulting additional-root list for the resumed\nsession. It may differ from any previously used or reported list as long as\nthe request `cwd` matches the session's `cwd`.",
             items: {
               type: "string",
             },
@@ -26825,18 +29309,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: ["array", "null"],
-          },
-          models: {
-            anyOf: [
-              {
-                $ref: "#/$defs/SessionModelState",
-              },
-              {
-                type: "null",
-              },
-            ],
-            description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInitial model state if supported by the Agent",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           modes: {
             anyOf: [
@@ -26849,6 +29323,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "Initial mode state if supported by the Agent\n\nSee protocol docs: [Session Modes](https://agentclientprotocol.com/protocol/session-modes)",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -26879,7 +29354,7 @@ export const acpGeneratedSchemaArtifacts = {
       },
       SessionAdditionalDirectoriesCapabilities: {
         description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for additional session directories support.\n\nBy supplying `{}` it means that the agent supports the `additionalDirectories` field on\nsupported session lifecycle requests and `session/list`.",
+          "Capabilities for additional session directories support.\n\nBy supplying `{}` it means that the agent supports the `additionalDirectories`\nfield on supported session lifecycle requests. Agents that also support\n`session/list` may return `SessionInfo.additionalDirectories` to report the\ncomplete ordered additional-root list associated with a listed session.",
         properties: {
           _meta: {
             additionalProperties: true,
@@ -26910,7 +29385,8 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `additionalDirectories` on supported session lifecycle requests and `session/list`.",
+              "Whether the agent supports `additionalDirectories` on supported session lifecycle requests.\n\nAgents that also support `session/list` may return\n`SessionInfo.additionalDirectories` to report the complete ordered\nadditional-root list associated with a listed session.",
+            "x-deserialize-default-on-error": true,
           },
           close: {
             anyOf: [
@@ -26922,6 +29398,20 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/close`.",
+            "x-deserialize-default-on-error": true,
+          },
+          delete: {
+            anyOf: [
+              {
+                $ref: "#/$defs/SessionDeleteCapabilities",
+              },
+              {
+                type: "null",
+              },
+            ],
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/delete`.\n\nOptional. Omitted or `null` both mean the agent does not advertise support.\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+            "x-deserialize-default-on-error": true,
           },
           fork: {
             anyOf: [
@@ -26934,6 +29424,7 @@ export const acpGeneratedSchemaArtifacts = {
             ],
             description:
               "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nWhether the agent supports `session/fork`.",
+            "x-deserialize-default-on-error": true,
           },
           list: {
             anyOf: [
@@ -26945,6 +29436,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/list`.",
+            "x-deserialize-default-on-error": true,
           },
           resume: {
             anyOf: [
@@ -26956,6 +29448,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Whether the agent supports `session/resume`.",
+            "x-deserialize-default-on-error": true,
           },
         },
         type: "object",
@@ -27019,6 +29512,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional semantic category for this option (UX only).",
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 description: "Optional description for the Client to display to the user.",
@@ -27085,6 +29579,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Optional semantic category for this option (UX only).",
+                "x-deserialize-default-on-error": true,
               },
               description: {
                 description: "Optional description for the Client to display to the user.",
@@ -27247,6 +29742,19 @@ export const acpGeneratedSchemaArtifacts = {
         description: "Unique identifier for a session configuration option value.",
         type: "string",
       },
+      SessionDeleteCapabilities: {
+        description:
+          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for the `session/delete` method.\n\nSupplying `{}` means the agent supports deleting sessions from `session/list`.",
+        properties: {
+          _meta: {
+            additionalProperties: true,
+            description:
+              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+            type: ["object", "null"],
+          },
+        },
+        type: "object",
+      },
       SessionForkCapabilities: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nCapabilities for the `session/fork` method.\n\nBy supplying `{}` it means that the agent supports forking of sessions.",
@@ -27276,7 +29784,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
           additionalDirectories: {
             description:
-              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthoritative ordered additional workspace roots for this session. Each path must be absolute.\n\nWhen omitted or empty, there are no additional roots for the session.",
+              "Additional workspace roots reported for this session. Each path must be absolute.\n\nWhen present, this is the complete ordered additional-root list reported\nby the Agent. Omitted and empty values are equivalent: the response\nreports no additional roots.",
             items: {
               type: "string",
             },
@@ -27293,10 +29801,12 @@ export const acpGeneratedSchemaArtifacts = {
           title: {
             description: "Human-readable title for the session",
             type: ["string", "null"],
+            "x-deserialize-default-on-error": true,
           },
           updatedAt: {
             description: "ISO 8601 timestamp of last activity",
             type: ["string", "null"],
+            "x-deserialize-default-on-error": true,
           },
         },
         required: ["sessionId", "cwd"],
@@ -27378,6 +29888,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionMode",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           currentModeId: {
             description: "The current mode the Agent is in.",
@@ -27385,31 +29897,6 @@ export const acpGeneratedSchemaArtifacts = {
           },
         },
         required: ["currentModeId", "availableModes"],
-        type: "object",
-      },
-      SessionModelState: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nThe set of models and the one currently active.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-          availableModels: {
-            description: "The set of models that the Agent can use",
-            items: {
-              $ref: "#/$defs/ModelInfo",
-            },
-            type: "array",
-          },
-          currentModelId: {
-            description: "The current model the Agent is in.",
-            type: "string",
-          },
-        },
-        required: ["currentModelId", "availableModels"],
         type: "object",
       },
       SessionNotification: {
@@ -27468,6 +29955,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -27499,6 +29987,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27536,6 +30025,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27570,6 +30060,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -27617,6 +30108,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -27678,6 +30170,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -27709,6 +30202,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27746,6 +30240,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27780,6 +30275,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -27827,6 +30323,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -27888,6 +30385,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           text: {
                             type: "string",
@@ -27919,6 +30417,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27956,6 +30455,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           data: {
                             type: "string",
@@ -27990,6 +30490,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           description: {
                             type: ["string", "null"],
@@ -28037,6 +30538,7 @@ export const acpGeneratedSchemaArtifacts = {
                                 type: "null",
                               },
                             ],
+                            "x-deserialize-default-on-error": true,
                           },
                           resource: {
                             $ref: "#/$defs/EmbeddedResourceResource",
@@ -28078,6 +30580,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallContent",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   kind: {
                     description:
@@ -28142,6 +30646,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallLocation",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   rawInput: {
                     description: "Raw input parameters sent to the tool.",
@@ -28206,6 +30712,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallContent",
                     },
                     type: ["array", "null"],
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   kind: {
                     anyOf: [
@@ -28217,6 +30725,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Update the tool kind.",
+                    "x-deserialize-default-on-error": true,
                   },
                   locations: {
                     description: "Replace the locations collection.",
@@ -28224,6 +30733,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/ToolCallLocation",
                     },
                     type: ["array", "null"],
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   rawInput: {
                     description: "Update the raw input.",
@@ -28241,6 +30752,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Update the execution status.",
+                    "x-deserialize-default-on-error": true,
                   },
                   title: {
                     description: "Update the human-readable title.",
@@ -28275,6 +30787,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/PlanEntry",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "plan",
@@ -28282,6 +30796,135 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 },
                 required: ["entries", "sessionUpdate"],
+              },
+              {
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+                type: "object",
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  plan: {
+                    description: "The updated plan content.",
+                    discriminator: {
+                      propertyName: "type",
+                    },
+                    oneOf: [
+                      {
+                        description: "Structured plan entries.",
+                        type: "object",
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          entries: {
+                            description:
+                              "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                            items: {
+                              $ref: "#/$defs/PlanEntry",
+                            },
+                            type: "array",
+                            "x-deserialize-default-on-error": true,
+                            "x-deserialize-skip-invalid-items": true,
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "items",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "entries", "type"],
+                      },
+                      {
+                        description: "A URI pointing to a file containing the plan.",
+                        type: "object",
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          uri: {
+                            description: "The URI of the file containing the plan.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "file",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "uri", "type"],
+                      },
+                      {
+                        description: "Raw markdown content for the plan.",
+                        type: "object",
+                        properties: {
+                          _meta: {
+                            additionalProperties: true,
+                            description:
+                              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                            type: ["object", "null"],
+                          },
+                          content: {
+                            description: "Markdown content for the plan.",
+                            type: "string",
+                          },
+                          id: {
+                            description: "The plan ID to update.",
+                            type: "string",
+                          },
+                          type: {
+                            const: "markdown",
+                            type: "string",
+                          },
+                        },
+                        required: ["id", "content", "type"],
+                      },
+                    ],
+                  },
+                  sessionUpdate: {
+                    const: "plan_update",
+                    type: "string",
+                  },
+                },
+                required: ["plan", "sessionUpdate"],
+              },
+              {
+                description:
+                  "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+                type: "object",
+                properties: {
+                  _meta: {
+                    additionalProperties: true,
+                    description:
+                      "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                    type: ["object", "null"],
+                  },
+                  id: {
+                    description: "The plan ID to remove.",
+                    type: "string",
+                  },
+                  sessionUpdate: {
+                    const: "plan_removed",
+                    type: "string",
+                  },
+                },
+                required: ["id", "sessionUpdate"],
               },
               {
                 description: "Available commands are ready or have changed",
@@ -28299,6 +30942,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/AvailableCommand",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "available_commands_update",
@@ -28345,6 +30990,8 @@ export const acpGeneratedSchemaArtifacts = {
                       $ref: "#/$defs/SessionConfigOption",
                     },
                     type: "array",
+                    "x-deserialize-default-on-error": true,
+                    "x-deserialize-skip-invalid-items": true,
                   },
                   sessionUpdate: {
                     const: "config_option_update",
@@ -28400,6 +31047,7 @@ export const acpGeneratedSchemaArtifacts = {
                       },
                     ],
                     description: "Cumulative session cost (optional).",
+                    "x-deserialize-default-on-error": true,
                   },
                   size: {
                     description: "Total context window size in tokens.",
@@ -28484,6 +31132,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -28515,6 +31164,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -28552,6 +31202,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -28586,6 +31237,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -28633,6 +31285,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -28694,6 +31347,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -28725,6 +31379,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -28762,6 +31417,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -28796,6 +31452,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -28843,6 +31500,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -28904,6 +31562,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -28935,6 +31594,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -28972,6 +31632,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -29006,6 +31667,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -29053,6 +31715,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -29094,6 +31757,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 description:
@@ -29158,6 +31823,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Raw input parameters sent to the tool.",
@@ -29222,6 +31889,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallContent",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               kind: {
                 anyOf: [
@@ -29233,6 +31902,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the tool kind.",
+                "x-deserialize-default-on-error": true,
               },
               locations: {
                 description: "Replace the locations collection.",
@@ -29240,6 +31910,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/ToolCallLocation",
                 },
                 type: ["array", "null"],
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               rawInput: {
                 description: "Update the raw input.",
@@ -29257,6 +31929,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Update the execution status.",
+                "x-deserialize-default-on-error": true,
               },
               title: {
                 description: "Update the human-readable title.",
@@ -29291,6 +31964,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/PlanEntry",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "plan",
@@ -29298,6 +31973,135 @@ export const acpGeneratedSchemaArtifacts = {
               },
             },
             required: ["entries", "sessionUpdate"],
+          },
+          {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nA content update for a plan identified by ID.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              plan: {
+                description: "The updated plan content.",
+                discriminator: {
+                  propertyName: "type",
+                },
+                oneOf: [
+                  {
+                    description: "Structured plan entries.",
+                    type: "object",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      entries: {
+                        description:
+                          "The list of tasks to be accomplished.\n\nWhen updating an item-based plan, the agent must send a complete list of all entries\nwith their current status. The client replaces that plan with each update.",
+                        items: {
+                          $ref: "#/$defs/PlanEntry",
+                        },
+                        type: "array",
+                        "x-deserialize-default-on-error": true,
+                        "x-deserialize-skip-invalid-items": true,
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "items",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "entries", "type"],
+                  },
+                  {
+                    description: "A URI pointing to a file containing the plan.",
+                    type: "object",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      uri: {
+                        description: "The URI of the file containing the plan.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "file",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "uri", "type"],
+                  },
+                  {
+                    description: "Raw markdown content for the plan.",
+                    type: "object",
+                    properties: {
+                      _meta: {
+                        additionalProperties: true,
+                        description:
+                          "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                        type: ["object", "null"],
+                      },
+                      content: {
+                        description: "Markdown content for the plan.",
+                        type: "string",
+                      },
+                      id: {
+                        description: "The plan ID to update.",
+                        type: "string",
+                      },
+                      type: {
+                        const: "markdown",
+                        type: "string",
+                      },
+                    },
+                    required: ["id", "content", "type"],
+                  },
+                ],
+              },
+              sessionUpdate: {
+                const: "plan_update",
+                type: "string",
+              },
+            },
+            required: ["plan", "sessionUpdate"],
+          },
+          {
+            description:
+              "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRemoval notice for a plan identified by ID.",
+            type: "object",
+            properties: {
+              _meta: {
+                additionalProperties: true,
+                description:
+                  "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
+                type: ["object", "null"],
+              },
+              id: {
+                description: "The plan ID to remove.",
+                type: "string",
+              },
+              sessionUpdate: {
+                const: "plan_removed",
+                type: "string",
+              },
+            },
+            required: ["id", "sessionUpdate"],
           },
           {
             description: "Available commands are ready or have changed",
@@ -29315,6 +32119,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/AvailableCommand",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "available_commands_update",
@@ -29361,6 +32167,8 @@ export const acpGeneratedSchemaArtifacts = {
                   $ref: "#/$defs/SessionConfigOption",
                 },
                 type: "array",
+                "x-deserialize-default-on-error": true,
+                "x-deserialize-skip-invalid-items": true,
               },
               sessionUpdate: {
                 const: "config_option_update",
@@ -29415,6 +32223,7 @@ export const acpGeneratedSchemaArtifacts = {
                   },
                 ],
                 description: "Cumulative session cost (optional).",
+                "x-deserialize-default-on-error": true,
               },
               size: {
                 description: "Total context window size in tokens.",
@@ -29437,7 +32246,7 @@ export const acpGeneratedSchemaArtifacts = {
           },
         ],
       },
-      SetProvidersRequest: {
+      SetProviderRequest: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for `providers/set`.\n\nReplaces the full configuration for one provider id.",
         properties: {
@@ -29504,7 +32313,7 @@ export const acpGeneratedSchemaArtifacts = {
         "x-method": "providers/set",
         "x-side": "agent",
       },
-      SetProvidersResponse: {
+      SetProviderResponse: {
         description:
           "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `providers/set`.",
         properties: {
@@ -29597,6 +32406,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/SessionConfigOption",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["configOptions"],
@@ -29641,45 +32452,6 @@ export const acpGeneratedSchemaArtifacts = {
         "x-method": "session/set_mode",
         "x-side": "agent",
       },
-      SetSessionModelRequest: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nRequest parameters for setting a session model.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-          modelId: {
-            description: "The ID of the model to set.",
-            type: "string",
-          },
-          sessionId: {
-            description: "The ID of the session to set the model for.",
-            type: "string",
-          },
-        },
-        required: ["sessionId", "modelId"],
-        type: "object",
-        "x-method": "session/set_model",
-        "x-side": "agent",
-      },
-      SetSessionModelResponse: {
-        description:
-          "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse to `session/set_model` method.",
-        properties: {
-          _meta: {
-            additionalProperties: true,
-            description:
-              "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)",
-            type: ["object", "null"],
-          },
-        },
-        type: "object",
-        "x-method": "session/set_model",
-        "x-side": "agent",
-      },
       StartNesRequest: {
         description: "Request to start an NES session.",
         properties: {
@@ -29699,6 +32471,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Repository metadata, if the workspace is a git repository.",
+            "x-deserialize-default-on-error": true,
           },
           workspaceFolders: {
             description: "The workspace folders.",
@@ -29706,6 +32479,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/WorkspaceFolder",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           workspaceUri: {
             description: "The root URI of the workspace.",
@@ -29873,6 +32648,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Context for the suggestion, included based on agent capabilities.",
+            "x-deserialize-default-on-error": true,
           },
           position: {
             description: "The current cursor position.",
@@ -29903,6 +32679,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "The current text selection range, if any.",
+            "x-deserialize-default-on-error": true,
           },
           sessionId: {
             description: "The session ID for this request.",
@@ -29958,6 +32735,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/NesSuggestion",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
         },
         required: ["suggestions"],
@@ -30079,6 +32858,7 @@ export const acpGeneratedSchemaArtifacts = {
                 type: "null",
               },
             ],
+            "x-deserialize-default-on-error": true,
           },
           text: {
             type: "string",
@@ -30179,6 +32959,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallContent",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           kind: {
             description:
@@ -30243,6 +33025,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallLocation",
             },
             type: "array",
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           rawInput: {
             description: "Raw input parameters sent to the tool.",
@@ -30331,6 +33115,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       text: {
                         type: "string",
@@ -30362,6 +33147,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -30399,6 +33185,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       data: {
                         type: "string",
@@ -30433,6 +33220,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       description: {
                         type: ["string", "null"],
@@ -30480,6 +33268,7 @@ export const acpGeneratedSchemaArtifacts = {
                             type: "null",
                           },
                         ],
+                        "x-deserialize-default-on-error": true,
                       },
                       resource: {
                         $ref: "#/$defs/EmbeddedResourceResource",
@@ -30623,6 +33412,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallContent",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           kind: {
             anyOf: [
@@ -30634,6 +33425,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Update the tool kind.",
+            "x-deserialize-default-on-error": true,
           },
           locations: {
             description: "Replace the locations collection.",
@@ -30641,6 +33433,8 @@ export const acpGeneratedSchemaArtifacts = {
               $ref: "#/$defs/ToolCallLocation",
             },
             type: ["array", "null"],
+            "x-deserialize-default-on-error": true,
+            "x-deserialize-skip-invalid-items": true,
           },
           rawInput: {
             description: "Update the raw input.",
@@ -30658,6 +33452,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Update the execution status.",
+            "x-deserialize-default-on-error": true,
           },
           title: {
             description: "Update the human-readable title.",
@@ -30832,6 +33627,7 @@ export const acpGeneratedSchemaArtifacts = {
               },
             ],
             description: "Cumulative session cost (optional).",
+            "x-deserialize-default-on-error": true,
           },
           size: {
             description: "Total context window size in tokens.",

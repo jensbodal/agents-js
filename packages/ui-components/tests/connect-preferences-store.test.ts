@@ -43,7 +43,6 @@ describe("connect-preferences-store", () => {
     const prefs = {
       url: "http://localhost:9999",
       runtimeId: "opencode",
-      modelId: "glm-5-turbo",
     };
     saveConnectPreferences(prefs);
     expect(loadConnectPreferences()).toEqual(prefs);
@@ -53,7 +52,6 @@ describe("connect-preferences-store", () => {
     store["acp-connect-preferences"] = JSON.stringify({
       url: "http://localhost:9000",
       runtimeId: "opencode",
-      modelId: "glm-5-turbo",
     });
 
     expect(loadConnectProfiles()).toEqual({
@@ -66,7 +64,6 @@ describe("connect-preferences-store", () => {
           harnessId: "opencode",
           url: "http://localhost:9000",
           runtimeId: "opencode",
-          modelId: "glm-5-turbo",
         },
       ],
     });
@@ -77,7 +74,6 @@ describe("connect-preferences-store", () => {
       {
         url: "http://localhost:1111",
         runtimeId: "opencode",
-        modelId: "glm",
       },
       { profileName: "OpenCode local" },
     );
@@ -86,7 +82,6 @@ describe("connect-preferences-store", () => {
       {
         url: "http://localhost:2222",
         runtimeId: "claude",
-        modelId: "haiku",
       },
       { profileName: "Claude local" },
     );
@@ -100,17 +95,16 @@ describe("connect-preferences-store", () => {
     expect(loadConnectPreferences()).toEqual({
       url: "http://localhost:2222",
       runtimeId: "claude",
-      modelId: "haiku",
     });
   });
 
   test("setActiveConnectProfile switches the active profile", () => {
     saveConnectPreferences(
-      { url: "http://localhost:1111", runtimeId: "opencode", modelId: "glm" },
+      { url: "http://localhost:1111", runtimeId: "opencode" },
       { profileName: "One" },
     );
     saveConnectPreferences(
-      { url: "http://localhost:2222", runtimeId: "claude", modelId: "haiku" },
+      { url: "http://localhost:2222", runtimeId: "claude" },
       { profileName: "Two" },
     );
 
@@ -119,17 +113,16 @@ describe("connect-preferences-store", () => {
     expect(loadConnectPreferences()).toEqual({
       url: "http://localhost:1111",
       runtimeId: "opencode",
-      modelId: "glm",
     });
   });
 
   test("deleteConnectProfile removes a profile and falls back to another active profile", () => {
     const first = saveConnectPreferences(
-      { url: "http://localhost:1111", runtimeId: "opencode", modelId: "glm" },
+      { url: "http://localhost:1111", runtimeId: "opencode" },
       { profileName: "One" },
     );
     const second = saveConnectPreferences(
-      { url: "http://localhost:2222", runtimeId: "claude", modelId: "haiku" },
+      { url: "http://localhost:2222", runtimeId: "claude" },
       { profileName: "Two" },
     );
 
@@ -146,7 +139,6 @@ describe("connect-preferences-store", () => {
     saveConnectPreferences({
       url: "http://localhost:9999",
       runtimeId: "claude",
-      modelId: "haiku",
     });
     clearConnectPreferences();
     expect(loadConnectPreferences()).toBeNull();
@@ -165,7 +157,6 @@ describe("connect-preferences-store", () => {
   test("loadConnectPreferences returns null when url is missing", () => {
     store["acp-connect-preferences"] = JSON.stringify({
       runtimeId: "foo",
-      modelId: "bar",
     });
     expect(loadConnectPreferences()).toBeNull();
   });
@@ -189,7 +180,6 @@ describe("connect-preferences-store", () => {
       saveConnectPreferences({
         url: "http://localhost:1234",
         runtimeId: "test",
-        modelId: "test",
       });
     }).not.toThrow();
   });

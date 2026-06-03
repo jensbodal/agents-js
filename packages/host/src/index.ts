@@ -163,7 +163,6 @@ export {
   type MintRedeemResult,
   redeemMintChallenge,
 } from "./mint-redeem-flow.ts";
-export { fetchRuntimeModels, type RuntimeModelInfo } from "./model-cache.ts";
 export {
   PEER_RECORD_DOMAIN_SEPARATOR,
   type PeerRecordRejectionReason,

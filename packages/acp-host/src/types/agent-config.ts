@@ -17,8 +17,6 @@ export interface AgentConfig {
   builtIn?: boolean;
   /** Default mode to activate when starting a session (e.g. "plan", "default"). Applied if the agent advertises this mode. */
   defaultMode?: string;
-  /** Default model to use when starting a session. Applied if the agent advertises this model. @experimental */
-  defaultModel?: string;
   /**
    * @deprecated Use `StartConfig.directoryPolicy.autoApprovedWriteFolders`
    * (or the inline `StartConfig.autoApprovedWriteFolders` field) instead.

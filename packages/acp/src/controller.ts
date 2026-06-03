@@ -660,7 +660,7 @@ export class ACPClientController {
     this.assertNotDisposed();
 
     try {
-      const response = await this.connection.unstable_logout(request);
+      const response = await this.connection.logout(request);
       this.setState({
         ...this.state,
         authMethods: undefined,
@@ -771,13 +771,6 @@ export class ACPClientController {
     this.assertInitialized();
     const sessionId = this.requireSessionId();
     await this.connection.setSessionMode({ sessionId, modeId });
-  }
-
-  /** @experimental -- models API is not part of the stable ACP spec */
-  async setModel(modelId: string): Promise<void> {
-    this.assertInitialized();
-    const sessionId = this.requireSessionId();
-    await this.connection.unstable_setSessionModel({ sessionId, modelId });
   }
 
   /**

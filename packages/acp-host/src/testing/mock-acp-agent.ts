@@ -221,7 +221,7 @@ export function createMockAgent(
           };
         },
 
-        async unstable_logout(_params) {
+        async logout(_params) {
           if (scenario.logout instanceof Error) {
             throw scenario.logout;
           }

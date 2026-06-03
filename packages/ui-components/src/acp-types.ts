@@ -93,16 +93,6 @@ export interface RuntimeInfoLike {
   displayName: string;
 }
 
-export interface ModelInfoLike {
-  modelId: string;
-  name?: string;
-}
-
-export interface SessionModelsLike {
-  currentModelId: string;
-  availableModels: ModelInfoLike[];
-}
-
 export interface TargetInspectionLike {
   status: "idle" | "probing" | "ready" | "unreachable";
   card?: AgentCardLike;
@@ -152,7 +142,6 @@ export interface SessionStateLike {
   pendingWriteGate?: WriteGateLike | null;
   permissionMode?: string;
   runtime?: RuntimeInfoLike | null;
-  models?: SessionModelsLike | null;
 }
 
 /** Minimal shape for permission requests from acp-host. */
@@ -177,13 +166,6 @@ export interface WriteGateLike {
   path: string;
   diff: string;
   closestParentFolder: string;
-}
-
-/** Model info from the runtime CLI (available before session creation). */
-export interface RuntimeModelLike {
-  id: string; // full model ID like "opencode/big-pickle"
-  name?: string; // display name like "Big Pickle"
-  provider?: string; // provider group like "opencode"
 }
 
 /** Debug record shape — mirrors DebugRecord from a2a-client types. */

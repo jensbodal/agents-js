@@ -44,14 +44,13 @@ export function hostPortArgs<T extends HostPortArgs>(): ArgSpec<T> {
 }
 
 export interface RuntimeLogArgs {
-  defaultModel?: string;
   opencodeDisableExternalPlugins?: boolean;
   runtimeLogLevel?: string;
 }
 
 /**
- * `--runtime-log-level`, `--opencode-disable-external-plugins`,
- * `--default-model` — runtime log/env knobs shared by serve, bridge, acp.
+ * `--runtime-log-level`, `--opencode-disable-external-plugins` — runtime
+ * log/env knobs shared by serve, bridge, acp.
  */
 export function runtimeLogArgs<T extends RuntimeLogArgs>(): ArgSpec<T> {
   return {
@@ -69,14 +68,6 @@ export function runtimeLogArgs<T extends RuntimeLogArgs>(): ArgSpec<T> {
         a.opencodeDisableExternalPlugins = true;
       },
       description: "Append --pure when launching opencode.",
-    },
-    "--default-model": {
-      kind: "value",
-      assign: (a, v) => {
-        a.defaultModel = v;
-      },
-      description: "Default model id (AJS_DEFAULT_MODEL override).",
-      valueExample: "<id>",
     },
   };
 }

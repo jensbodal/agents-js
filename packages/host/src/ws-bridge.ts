@@ -18,13 +18,11 @@ import {
 import { SESSION_RESTORE_FAILURE_MESSAGE } from "@agents-js/acp-host/session-restore";
 import type { ServerWebSocket } from "bun";
 import type { GatewayHostController } from "./host-session.ts";
-import type { RuntimeModelInfo } from "./model-cache.ts";
 import type { SurfaceBroadcastFn } from "./surface-broadcaster.ts";
 
 // Derive types from controller methods to avoid direct @agentclientprotocol/sdk imports
 type PermissionResponse = Parameters<GatewayHostController["resolvePermission"]>[0];
 type ElicitationResponseType = Parameters<GatewayHostController["resolveElicitation"]>[0];
-type ModelId = Parameters<GatewayHostController["setModel"]>[0];
 
 export type RuntimeSwitchOrigin = "manual" | "saved_restore";
 
@@ -46,8 +44,6 @@ export type WSBridgeState = ACPSessionState & {
   permissionMode?: PermissionMode;
   runtime?: RuntimeSnapshotInfo;
   availableRuntimes?: RuntimeSnapshotInfo[];
-  runtimeModels?: RuntimeModelInfo[];
-  defaultModelId?: string;
   runtimeSwitchState?: RuntimeSwitchState | null;
 };
 
@@ -67,7 +63,6 @@ export type WSClientMessage =
   | { type: "ensure_session" }
   | { type: "load_session"; sessionId: string }
   | { type: "set_runtime"; runtimeId: string; origin: RuntimeSwitchOrigin }
-  | { type: "set_model"; modelId: ModelId }
   /**
    * Accepts either canonical ({@link PermissionMode}) or legacy
    * (`"yolo" | "ask" | "hub" | "plan"`) strings — the bridge normalises
@@ -94,8 +89,6 @@ export type WSClientMessage =
 
 export interface RuntimeSwapResult {
   runtime: RuntimeSnapshotInfo;
-  runtimeModels?: RuntimeModelInfo[];
-  defaultModelId?: string;
   preservedSession?: boolean;
   clearedPendingTurn?: boolean;
   message?: string;
@@ -106,8 +99,6 @@ export interface WSBridgeConfig {
   port: number;
   runtime: RuntimeSnapshotInfo;
   availableRuntimes?: RuntimeSnapshotInfo[];
-  runtimeModels?: RuntimeModelInfo[];
-  defaultModelId?: string;
   setRuntime?: (runtimeId: string) => Promise<RuntimeSwapResult>;
   /**
    * Optional surface-broadcaster handle produced by
@@ -174,8 +165,6 @@ function buildBridgeState(
   controller: GatewayHostController,
   runtime: RuntimeSnapshotInfo,
   availableRuntimes: RuntimeSnapshotInfo[] | undefined,
-  runtimeModels: RuntimeModelInfo[] | undefined,
-  defaultModelId: string | undefined,
   runtimeSwitchState: RuntimeSwitchState | null,
   state: Readonly<ACPSessionState> = controller.getState(),
 ): WSBridgeState {
@@ -184,37 +173,27 @@ function buildBridgeState(
     permissionMode: controller.permissionMode,
     runtime,
     availableRuntimes,
-    runtimeModels,
-    defaultModelId,
     runtimeSwitchState,
   };
 }
 
 export interface RuntimeBridgeSnapshot {
   runtime: RuntimeSnapshotInfo;
-  runtimeModels?: RuntimeModelInfo[];
-  defaultModelId?: string;
   runtimeSwitchState: RuntimeSwitchState | null;
 }
 
 export function createRuntimeSwitchCoordinator(config: {
   initialRuntime: RuntimeSnapshotInfo;
-  initialRuntimeModels?: RuntimeModelInfo[];
-  initialDefaultModelId?: string;
   setRuntime?: (runtimeId: string) => Promise<RuntimeSwapResult>;
   onStateChange?: (snapshot: RuntimeBridgeSnapshot) => void;
 }) {
   let runtime = config.initialRuntime;
-  let runtimeModels = config.initialRuntimeModels;
-  let defaultModelId = config.initialDefaultModelId;
   let runtimeSwitchState: RuntimeSwitchState | null = null;
   let inFlight: Promise<void> = Promise.resolve();
 
   function snapshot(): RuntimeBridgeSnapshot {
     return {
       runtime,
-      runtimeModels,
-      defaultModelId,
       runtimeSwitchState,
     };
   }
@@ -262,8 +241,6 @@ export function createRuntimeSwitchCoordinator(config: {
     try {
       const result = await config.setRuntime(runtimeId);
       runtime = result.runtime;
-      runtimeModels = result.runtimeModels;
-      defaultModelId = result.defaultModelId;
       runtimeSwitchState = {
         status: "runtimeApplied",
         requestedRuntimeId: runtimeId,
@@ -299,22 +276,11 @@ export function createRuntimeSwitchCoordinator(config: {
 }
 
 export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
-  const {
-    controller,
-    port,
-    runtime,
-    availableRuntimes,
-    runtimeModels,
-    defaultModelId,
-    setRuntime,
-    surfaceBroadcaster,
-  } = config;
+  const { controller, port, runtime, availableRuntimes, setRuntime, surfaceBroadcaster } = config;
   const clients = new Set<ServerWebSocket<unknown>>();
   const ensureSession = createEnsureSessionCoordinator(controller);
   const runtimeCoordinator = createRuntimeSwitchCoordinator({
     initialRuntime: runtime,
-    initialRuntimeModels: runtimeModels,
-    initialDefaultModelId: defaultModelId,
     setRuntime,
     onStateChange: () => {
       broadcastSnapshot();
@@ -348,8 +314,6 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
           controller,
           runtimeSnapshot.runtime,
           availableRuntimes,
-          runtimeSnapshot.runtimeModels,
-          runtimeSnapshot.defaultModelId,
           runtimeSnapshot.runtimeSwitchState,
         ),
       },
@@ -372,8 +336,6 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
         controller,
         runtimeSnapshot.runtime,
         availableRuntimes,
-        runtimeSnapshot.runtimeModels,
-        runtimeSnapshot.defaultModelId,
         runtimeSnapshot.runtimeSwitchState,
         state,
       ),
@@ -431,9 +393,6 @@ export function createWSBridge(config: WSBridgeConfig): WSBridgeHandle {
             case "set_runtime":
               await runtimeCoordinator.setRuntime(msg.runtimeId, msg.origin);
               broadcastSnapshot();
-              break;
-            case "set_model":
-              await controller.setModel(msg.modelId);
               break;
             case "set_permission_mode":
               // Normalize legacy strings (`yolo`/`ask`/`hub`) → canonical at

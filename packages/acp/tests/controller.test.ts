@@ -1743,7 +1743,7 @@ describe("ACPClientController", () => {
       async prompt() {
         throw new Error("unexpected prompt");
       },
-      async unstable_logout(params: LogoutRequest) {
+      async logout(params: LogoutRequest) {
         logoutRequests.push(params);
         return {};
       },

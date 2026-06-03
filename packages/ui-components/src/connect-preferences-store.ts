@@ -14,7 +14,6 @@ const DEFAULT_PROFILE_NAME = "Default profile";
 export interface ConnectPreferences {
   url: string;
   runtimeId: string;
-  modelId: string;
 }
 
 export interface ConnectProfile extends ConnectPreferences {
@@ -54,7 +53,6 @@ function normalizePreferences(raw: unknown): ConnectPreferences | null {
   return {
     url: trimString(obj.url),
     runtimeId: trimString(obj.runtimeId),
-    modelId: trimString(obj.modelId),
   };
 }
 
@@ -176,7 +174,6 @@ export function loadConnectPreferences(): ConnectPreferences | null {
   return {
     url: activeProfile.url,
     runtimeId: activeProfile.runtimeId,
-    modelId: activeProfile.modelId,
   };
 }
 

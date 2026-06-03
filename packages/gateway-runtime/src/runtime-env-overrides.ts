@@ -3,8 +3,8 @@
  *
  * The gateway runtime helpers (`resolveRuntimeArgs`, `internal-gateway` config
  * loader, etc.) read AJS_* environment variables at resolution time. When a
- * CLI subcommand accepts equivalent flags (e.g. `--runtime-log-level`,
- * `--default-model`), we want the flag value to take precedence over any
+ * CLI subcommand accepts equivalent flags (e.g. `--runtime-log-level`),
+ * we want the flag value to take precedence over any
  * pre-existing env var, which in turn takes precedence over the default.
  *
  * Precedence: CLI flag (overrides.*) > env var (base) > default.
@@ -20,7 +20,6 @@ export interface RuntimeEnvOverrides {
   disableExternalPlugins?: boolean;
   runtimeLogLevel?: string;
   defaultHarness?: string;
-  defaultModel?: string;
 }
 
 export function mergeRuntimeEnvOverrides(
@@ -41,10 +40,6 @@ export function mergeRuntimeEnvOverrides(
     merged.AJS_DEFAULT_HARNESS = overrides.defaultHarness;
   }
 
-  if (overrides.defaultModel !== undefined) {
-    merged.AJS_DEFAULT_MODEL = overrides.defaultModel;
-  }
-
   return merged;
 }
 
@@ -52,7 +47,6 @@ const MANAGED_KEYS = [
   "AJS_OPENCODE_DISABLE_EXTERNAL_PLUGINS",
   "AJS_RUNTIME_LOG_LEVEL",
   "AJS_DEFAULT_HARNESS",
-  "AJS_DEFAULT_MODEL",
 ] as const;
 
 /**

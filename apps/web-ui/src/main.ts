@@ -18,11 +18,8 @@ import {
   isHostBridgeActiveForTarget,
   type PermissionModalDetail,
   type RuntimeInfo,
-  type RuntimeModelInfo,
-  reconcileModelSelection,
   repairActiveSavedRuntimePreference,
   resolveBrowserLaunchConfig,
-  type SessionModelsInfo,
   shouldClearStaleSessionHash,
   shouldRepairSavedRuntimeRestore,
 } from "@agents-js/ui-components/web-ui-glue";
@@ -143,9 +140,6 @@ interface ChatAppHostState {
   _permissionMode: string;
   _runtime: RuntimeInfo | null;
   _availableRuntimes: RuntimeInfo[];
-  _models: SessionModelsInfo | null;
-  _runtimeModels: RuntimeModelInfo[] | null;
-  _selectedModelId: string;
   _runtimeNotice: string;
   _lastError: string;
   _sessionTitle: string;
@@ -187,7 +181,6 @@ const hostClient = launchConfig.hostBridgeUrl
 _hostClient = hostClient;
 
 const hostView = chatApp as unknown as ChatAppHostState;
-let pendingModelSelection: string | null = savedPrefs?.modelId || null;
 let pendingHashRestoreSessionId: string | null = null;
 let pendingSavedRuntimeRestoreId: string | null = null;
 let latestHostState: HostState = {};
@@ -233,8 +226,6 @@ function applyHostState(): void {
   ) as WriteGateLike | null;
   hostView._permissionMode = showHostState ? (latestHostState.permissionMode ?? "ask") : "ask";
   hostView._runtime = showHostState ? (latestHostState.runtime ?? null) : null;
-  hostView._models = showHostState ? (latestHostState.models ?? null) : null;
-  hostView._runtimeModels = showHostState ? (latestHostState.runtimeModels ?? null) : null;
   hostView._availableRuntimes = showHostState ? (latestHostState.availableRuntimes ?? []) : [];
   hostView._lastError = showHostState ? (latestHostState.lastError ?? "") : "";
   hostView._sessionTitle = workflowSurface?.transcript_surface.title ?? "";
@@ -247,16 +238,6 @@ function applyHostState(): void {
   hostView._workflowSurface = workflowSurface;
   hostView._runtimeNotice = deriveRuntimeNotice(showHostState, latestHostState.runtimeSwitchState);
   hostView.suppressProbeErrorDetails = showHostState;
-
-  if (showHostState) {
-    const selection = reconcileModelSelection({
-      hostState: latestHostState,
-      pendingModelSelection,
-      selectedModelId: hostView._selectedModelId,
-    });
-    hostView._selectedModelId = selection.selectedModelId;
-    pendingModelSelection = selection.pendingModelSelection;
-  }
 }
 if (hostClient) {
   hostClient.subscribe((hostState) => {
@@ -280,28 +261,16 @@ if (hostClient) {
       }
     }
 
-    const savedModelId = savedPrefs?.modelId;
-    if (savedModelId && !hostView._selectedModelId && hostState.runtimeModels?.length) {
-      const modelMatch = hostState.runtimeModels.find((m) => m.id === savedModelId);
-      if (modelMatch) {
-        hostView._selectedModelId = savedModelId;
-        pendingModelSelection = savedModelId;
-      }
-    }
-
     applyHostState();
 
     if (shouldRepairSavedRuntimeRestore(hostState, pendingSavedRuntimeRestoreId)) {
       const repair = repairActiveSavedRuntimePreference({
         hostState,
         fallbackUrl: savedPrefs?.url ?? effectiveUrl,
-        pendingModelSelection,
-        selectedModelId: hostView._selectedModelId,
       });
       if (repair.repaired) {
         hostView._loadProfilesFromManager();
         savedPrefs = repair.savedPreferences ?? chatApp.getSavedPreferences();
-        pendingModelSelection = savedPrefs?.modelId ?? pendingModelSelection;
       }
       pendingSavedRuntimeRestoreId = null;
     } else if (
@@ -321,19 +290,6 @@ if (hostClient) {
     if (hostState.sessionId) {
       setSessionIdInHash(hostState.sessionId);
       pendingHashRestoreSessionId = null;
-    }
-
-    const selection = reconcileModelSelection({
-      hostState,
-      pendingModelSelection,
-      selectedModelId: hostView._selectedModelId,
-    });
-    hostView._selectedModelId = selection.selectedModelId;
-    pendingModelSelection = selection.pendingModelSelection;
-
-    if (selection.applyModelId) {
-      hostClient.setModel(selection.applyModelId);
-      pendingModelSelection = null;
     }
   });
 }
@@ -383,16 +339,6 @@ chatApp.addEventListener("acp-permission-mode-changed", (e: Event) => {
   hostClient?.setPermissionMode(detail.mode);
 });
 
-chatApp.addEventListener("acp-model-change", (e: Event) => {
-  const detail = (e as CustomEvent<{ modelId: string }>).detail;
-  hostClient?.setModel(detail.modelId);
-});
-
-chatApp.addEventListener("acp-model-preselect", (e: Event) => {
-  const detail = (e as CustomEvent<{ modelId: string }>).detail;
-  pendingModelSelection = detail.modelId;
-});
-
 chatApp.addEventListener("acp-runtime-change", (e: Event) => {
   const detail = (e as CustomEvent<{ runtimeId: string }>).detail;
   pendingSavedRuntimeRestoreId = null;
@@ -406,7 +352,6 @@ chatApp.addEventListener("acp-cancel", () => {
 chatApp.addEventListener("acp-disconnect", () => {
   console.log("[web-ui] Disconnect: clearing host state");
   clearSessionHash();
-  pendingModelSelection = null;
   pendingHashRestoreSessionId = null;
   pendingSavedRuntimeRestoreId = null;
   latestHostState = {};
@@ -420,15 +365,13 @@ chatApp.addEventListener("acp-save-preferences", (e: Event) => {
     e as CustomEvent<{
       url: string;
       runtimeId: string;
-      modelId: string;
       profileId?: string;
       profileName?: string;
       saveMode?: "update" | "create";
     }>
   ).detail;
   console.log(
-    `[web-ui] Preferences saved: profile=${detail.profileName ?? detail.profileId ?? "default"}, url=${detail.url}, runtime=${detail.runtimeId}, model=${detail.modelId}, mode=${detail.saveMode ?? "update"}`,
+    `[web-ui] Preferences saved: profile=${detail.profileName ?? detail.profileId ?? "default"}, url=${detail.url}, runtime=${detail.runtimeId}, mode=${detail.saveMode ?? "update"}`,
   );
   savedPrefs = chatApp.getSavedPreferences();
-  pendingModelSelection = savedPrefs?.modelId ?? pendingModelSelection;
 });

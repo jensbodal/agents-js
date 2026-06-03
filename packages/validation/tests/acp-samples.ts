@@ -23,11 +23,6 @@ const sessionConfigOption = {
   options: [{ value: "gpt-5", name: "GPT-5" }],
 };
 
-const sessionModelState = {
-  currentModelId: "gpt-5",
-  availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
-};
-
 const mcpServer = {
   name: "filesystem",
   command: "npx",
@@ -187,15 +182,6 @@ export const validACPRequestCases: Array<{ envelope: unknown; method: ACPMethod 
     },
   },
   {
-    method: "session/set_model",
-    envelope: {
-      jsonrpc: "2.0",
-      id: 15,
-      method: "session/set_model",
-      params: { sessionId: "session-1", modelId: "gpt-5" },
-    },
-  },
-  {
     method: "session/update",
     envelope: {
       jsonrpc: "2.0",
@@ -336,7 +322,6 @@ export const validACPResponseCases: Array<{ envelope: unknown; method: ACPMethod
       result: {
         configOptions: [sessionConfigOption],
         modes: sessionModeState,
-        models: sessionModelState,
       },
     },
   },
@@ -380,7 +365,6 @@ export const validACPResponseCases: Array<{ envelope: unknown; method: ACPMethod
       result: {
         configOptions: [sessionConfigOption],
         modes: sessionModeState,
-        models: sessionModelState,
       },
     },
   },
@@ -397,14 +381,6 @@ export const validACPResponseCases: Array<{ envelope: unknown; method: ACPMethod
     envelope: {
       jsonrpc: "2.0",
       id: 14,
-      result: {},
-    },
-  },
-  {
-    method: "session/set_model",
-    envelope: {
-      jsonrpc: "2.0",
-      id: 15,
       result: {},
     },
   },

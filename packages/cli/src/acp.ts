@@ -27,7 +27,6 @@ export const ACP_CONTAMINATION_EXIT_CODE = EXIT_PROTOCOL_CONTAMINATION;
 export interface AcpCommandArgs {
   acpArgsJson?: string;
   acpCommand?: string;
-  defaultModel?: string;
   directory?: string;
   harness?: string;
   help?: boolean;
@@ -90,7 +89,6 @@ export function acpArgsToRuntimeEnvOverrides(args: AcpCommandArgs): RuntimeEnvOv
   return {
     disableExternalPlugins: args.opencodeDisableExternalPlugins,
     runtimeLogLevel: args.runtimeLogLevel,
-    defaultModel: args.defaultModel,
   };
 }
 
@@ -113,7 +111,6 @@ function printAcpUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  --profile <name>                    Optional named profile for curated runtimes (not supported with --harness custom)",
       "  --runtime-log-level <level>         Runtime log level (debug|info|warn|error|silent)",
       "  --opencode-disable-external-plugins Append --pure when launching opencode",
-      "  --default-model <id>                Default model id (AJS_DEFAULT_MODEL override)",
       "  --version, -v                       Print version and exit",
       "  --help, -h                          Show this message",
       "",

@@ -29,7 +29,6 @@ const STUB_STATE: ACPSessionState = {
   localLabel: null,
   promptQueue: [],
   modes: null,
-  models: null,
   modesAdvertisedByAgent: false,
   permissionGatingActive: true,
   hubPath: null,
@@ -77,7 +76,6 @@ describe("createWSBridge — surface_event back-channel", () => {
           return "session-1";
         },
         async setRuntime() {},
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError() {},
@@ -136,7 +134,6 @@ describe("createWSBridge — surface_event back-channel", () => {
           return "session-1";
         },
         async setRuntime() {},
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError() {},

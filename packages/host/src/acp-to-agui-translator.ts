@@ -62,7 +62,6 @@ export function createTranslatorState(): TranslatorState {
 const CUSTOM_FORWARDED_EVENTS = new Set<ACPSessionEvent["type"]>([
   "plan_updated",
   "mode_changed",
-  "model_changed",
   "usage_updated",
   "permission_requested",
   "permission_resolved",

@@ -283,7 +283,6 @@ such as:
 - `session/resume`
 - `session/set_config_option`
 - `session/set_mode`
-- `session/set_model`
 - permission request and response flows
 - elicitation request and response flows
 

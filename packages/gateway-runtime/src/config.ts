@@ -17,7 +17,6 @@ export interface AgentsJsServeConfig {
   host?: string;
   port?: number;
   selectionPolicy?: HarnessSelectionPolicy;
-  defaultModel?: string;
 }
 
 export interface AgentsJsConfig {
@@ -247,23 +246,11 @@ function parseServeConfig(value: unknown, filePath: string): AgentsJsServeConfig
             );
           })();
 
-  const defaultModel =
-    value.defaultModel === undefined
-      ? undefined
-      : typeof value.defaultModel === "string" && value.defaultModel.trim() !== ""
-        ? value.defaultModel
-        : (() => {
-            throw new Error(
-              `[agents-js] Invalid defaultModel in ${filePath}. Expected a non-empty string.`,
-            );
-          })();
-
   return {
     selectionPolicy: parseSelectionPolicy(value.selectionPolicy, filePath),
     harness: parseHarnessConfig(value.harness, filePath),
     host,
     port: parsePort(value.port, filePath),
-    defaultModel,
   };
 }
 
@@ -318,7 +305,6 @@ function mergeServeConfig(
     harness: projectConfig?.harness ?? userConfig?.harness,
     host: projectConfig?.host ?? userConfig?.host,
     port: projectConfig?.port ?? userConfig?.port,
-    defaultModel: projectConfig?.defaultModel ?? userConfig?.defaultModel,
   };
 }
 

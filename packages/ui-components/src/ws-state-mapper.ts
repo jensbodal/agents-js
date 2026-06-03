@@ -17,14 +17,11 @@ import type { TranscriptToolCallEntryPayload } from "./acp-types.ts";
 import type {
   HostState,
   HostTurnSummary,
-  ModelInfo,
   PendingElicitationInfo,
   PendingPermissionInfo,
   RuntimeInfo,
-  RuntimeModelInfo,
   RuntimeSwitchOrigin,
   RuntimeSwitchState,
-  SessionModelsInfo,
 } from "./ws-types.ts";
 
 /**
@@ -142,40 +139,6 @@ export function mapPendingElicitation(raw: unknown): PendingElicitationInfo | nu
   }
 
   return info;
-}
-
-export function mapModels(raw: unknown): SessionModelsInfo | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-
-  const candidate = raw as Record<string, unknown>;
-  if (typeof candidate.currentModelId !== "string") {
-    return null;
-  }
-
-  const availableModels = Array.isArray(candidate.availableModels)
-    ? candidate.availableModels
-        .map((model) => {
-          if (!model || typeof model !== "object") {
-            return null;
-          }
-          const entry = model as Record<string, unknown>;
-          if (typeof entry.modelId !== "string") {
-            return null;
-          }
-          return {
-            modelId: entry.modelId,
-            name: typeof entry.name === "string" ? entry.name : undefined,
-          } satisfies ModelInfo;
-        })
-        .filter((model) => model !== null)
-    : [];
-
-  return {
-    currentModelId: candidate.currentModelId,
-    availableModels,
-  };
 }
 
 export function mapRuntimeSwitchState(raw: unknown): RuntimeSwitchState | null {
@@ -475,11 +438,6 @@ export function mapSnapshot(raw: Record<string, unknown>): HostState {
   }
 
   next.runtime = extractRuntime(raw);
-  next.models = mapModels(raw.models);
-  next.runtimeModels = Array.isArray(raw.runtimeModels)
-    ? (raw.runtimeModels as RuntimeModelInfo[])
-    : null;
-  next.defaultModelId = typeof raw.defaultModelId === "string" ? raw.defaultModelId : null;
   next.availableRuntimes = Array.isArray(raw.availableRuntimes)
     ? (raw.availableRuntimes as RuntimeInfo[])
     : null;

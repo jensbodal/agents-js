@@ -20,7 +20,6 @@ import { harnessArg, hostPortArgs, runtimeLogArgs } from "./shared-arg-specs.ts"
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
 
 export interface BridgeCommandArgs {
-  defaultModel?: string;
   harness?: string;
   help?: boolean;
   host?: string;
@@ -69,7 +68,6 @@ export function bridgeArgsToRuntimeEnvOverrides(args: BridgeCommandArgs): Runtim
   return {
     disableExternalPlugins: args.opencodeDisableExternalPlugins,
     runtimeLogLevel: args.runtimeLogLevel,
-    defaultModel: args.defaultModel,
   };
 }
 
@@ -92,7 +90,6 @@ function printBridgeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  --port <port>                        Bind port (0 = auto-allocate)",
       "  --runtime-log-level <level>          Runtime log level (debug|info|warn|error|silent)",
       "  --opencode-disable-external-plugins  Append --pure when launching opencode",
-      "  --default-model <id>                 Default model id (AJS_DEFAULT_MODEL override)",
       "  --version, -v                        Print version and exit",
       "  --help, -h                           Show this message",
       "",

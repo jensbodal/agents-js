@@ -100,22 +100,6 @@ export interface RuntimeInfo {
   displayName: string;
 }
 
-export interface ModelInfo {
-  modelId: string;
-  name?: string;
-}
-
-export interface SessionModelsInfo {
-  currentModelId: string;
-  availableModels: ModelInfo[];
-}
-
-export interface RuntimeModelInfo {
-  id: string;
-  name: string;
-  provider: string;
-}
-
 export type RuntimeSwitchOrigin = "manual" | "saved_restore";
 
 export interface RuntimeSwitchState {
@@ -159,10 +143,7 @@ export interface HostState {
   pendingWriteGate?: PendingWriteGateInfo | null;
   pendingElicitation?: PendingElicitationInfo | null;
   runtime?: RuntimeInfo | null;
-  models?: SessionModelsInfo | null;
   availableRuntimes?: RuntimeInfo[] | null;
-  runtimeModels?: RuntimeModelInfo[] | null;
-  defaultModelId?: string | null;
   permissionMode?: string;
   sessionStatus?: string;
   sessionId?: string | null;

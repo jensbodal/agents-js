@@ -10,8 +10,6 @@ import { acpTheme } from "./acp-theme.ts";
 import type {
   AgentCardLike,
   RuntimeInfoLike,
-  RuntimeModelLike,
-  SessionModelsLike,
   SessionStateLike,
   TranscriptEntryLike,
   TranscriptToolCallEntryPayload,
@@ -29,7 +27,6 @@ import "./acp-status-bar.ts";
 import "./acp-transcript.ts";
 import "./acp-prompt-input.ts";
 import "./acp-debug-panel.ts";
-import "./acp-model-selector.ts";
 import "./acp-permission-mode-selector.ts";
 import "./acp-plan-panel.ts";
 import "./acp-overlay-stack.ts";
@@ -142,16 +139,7 @@ export class AcpChatApp extends LitElement {
   accessor _runtime: RuntimeInfoLike | null = null;
 
   @state()
-  accessor _models: SessionModelsLike | null = null;
-
-  @state()
-  accessor _runtimeModels: RuntimeModelLike[] | null = null;
-
-  @state()
   accessor _availableRuntimes: RuntimeInfoLike[] = [];
-
-  @state()
-  accessor _selectedModelId = "";
 
   @state()
   accessor _runtimeNotice = "";
@@ -527,23 +515,9 @@ export class AcpChatApp extends LitElement {
 
   private _handleRuntimeChange = this._relayEvent("acp-runtime-change");
 
-  private _handleModelPreselect(e: Event): void {
-    const detail = (e as CustomEvent<{ modelId: string }>).detail;
-    this._selectedModelId = detail.modelId;
-    this.dispatchEvent(
-      new CustomEvent("acp-model-preselect", {
-        bubbles: true,
-        composed: true,
-        detail,
-      }),
-    );
-  }
-
-  private _handleModelChange = this._relayEvent("acp-model-change");
-
   private _loadProfilesFromManager(): void {
     const result = this._profileManager.load();
-    this._applyProfileManagerState(result.state, result.selectedModelId);
+    this._applyProfileManagerState(result.state);
   }
 
   getSavedPreferences(): ConnectPreferences | null {
@@ -555,7 +529,6 @@ export class AcpChatApp extends LitElement {
       e as CustomEvent<{
         url: string;
         runtimeId: string;
-        modelId: string;
         profileId?: string;
         profileName?: string;
         harnessId?: string;
@@ -564,19 +537,19 @@ export class AcpChatApp extends LitElement {
     ).detail;
 
     const result = this._profileManager.handleSave(detail);
-    this._applyProfileManagerState(result.state, result.selectedModelId);
+    this._applyProfileManagerState(result.state);
   }
 
   private _handleProfileSelected(e: Event): void {
     const detail = (e as CustomEvent<{ profileId: string }>).detail;
     const result = this._profileManager.handleSelect(detail.profileId);
-    this._applyProfileManagerState(result.state, result.selectedModelId);
+    this._applyProfileManagerState(result.state);
   }
 
   private _handleProfileDeleted(e: Event): void {
     const detail = (e as CustomEvent<{ profileId: string }>).detail;
     const result = this._profileManager.handleDelete(detail.profileId);
-    this._applyProfileManagerState(result.state, result.selectedModelId);
+    this._applyProfileManagerState(result.state);
   }
 
   private _handleProfileNameChange(e: Event): void {
@@ -585,15 +558,12 @@ export class AcpChatApp extends LitElement {
     this._profileDraftName = detail.name;
   }
 
-  private _applyProfileManagerState(pmState: ProfileManagerState, selectedModelId?: string): void {
+  private _applyProfileManagerState(pmState: ProfileManagerState): void {
     this._profiles = pmState.profiles;
     this._activeProfileId = pmState.activeProfileId;
     this._hasSavedPreferences = pmState.hasSavedPreferences;
     this._savedPreferences = pmState.savedPreferences;
     this._profileDraftName = pmState.profileDraftName;
-    if (selectedModelId !== undefined) {
-      this._selectedModelId = selectedModelId;
-    }
   }
 
   private _promptPlaceholder(): string {
@@ -751,7 +721,6 @@ export class AcpChatApp extends LitElement {
     const debugState: SessionStateLike = {
       ...this._view.sessionState,
       runtime: this._runtime,
-      models: this._models,
     };
 
     return html`
@@ -796,15 +765,6 @@ export class AcpChatApp extends LitElement {
                 <span class="runtime-chip__label">Runtime</span>
                 <span class="runtime-chip__value">${this._runtime.displayName} (${this._runtime.id})</span>
               </div>`
-              : nothing
-          }
-          ${
-            this._models
-              ? html`<acp-model-selector
-                .models=${this._models}
-                ?disabled=${v.inputDisabled}
-                @acp-model-change=${this._handleModelChange}
-              ></acp-model-selector>`
               : nothing
           }
           <button class="settings-btn" @click=${this._handleSettings} title="Connection settings">Settings</button>
@@ -876,8 +836,6 @@ export class AcpChatApp extends LitElement {
           .runtime=${this._runtime}
           .preview=${targetInspection?.card ?? null}
           .availableRuntimes=${this._availableRuntimes}
-          .runtimeModels=${this._runtimeModels}
-          .selectedModelId=${this._selectedModelId}
           .hasSavedPreferences=${this._hasSavedPreferences}
           .profiles=${this._profiles}
           .activeProfileId=${this._activeProfileId}
@@ -886,7 +844,6 @@ export class AcpChatApp extends LitElement {
           @acp-url-change=${this._handleTargetUrlChange}
           @acp-connect=${this._handleConnect}
           @acp-disconnect=${this._handleDisconnect}
-          @acp-model-preselect=${this._handleModelPreselect}
           @acp-runtime-change=${this._handleRuntimeChange}
           @acp-profile-select=${this._handleProfileSelected}
           @acp-profile-delete=${this._handleProfileDeleted}

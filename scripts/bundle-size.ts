@@ -138,7 +138,10 @@ const targets: SizeTarget[] = [
       findLargestFile(path.join(repoRoot, "packages/validation/dist"), (name) =>
         name.endsWith(".mjs"),
       ),
-    budget: { rawBytes: 1_150_000, gzipBytes: 130_000 },
+    // Raw budget accommodates the larger generated ACP schema shipped by the
+    // @agentclientprotocol/sdk 0.24 bump (regenerated acp-schema.ts grows the
+    // chunk to ~1.18 MB raw). Gzip stays well under budget at ~117 KB.
+    budget: { rawBytes: 1_250_000, gzipBytes: 130_000 },
   },
   {
     label: "cli npm bin wrapper",

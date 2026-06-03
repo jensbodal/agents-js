@@ -256,12 +256,8 @@ describe("createRuntimeSwitchCoordinator", () => {
     const states: string[] = [];
     const coordinator = createRuntimeSwitchCoordinator({
       initialRuntime: { id: "opencode", displayName: "OpenCode ACP" },
-      initialRuntimeModels: [{ id: "baseline", name: "Baseline", provider: "opencode" }],
-      initialDefaultModelId: "baseline",
       setRuntime: async () => ({
         runtime: { id: "claude", displayName: "Claude ACP" },
-        runtimeModels: [{ id: "sonnet", name: "Sonnet", provider: "anthropic" }],
-        defaultModelId: "sonnet",
         preservedSession: true,
         clearedPendingTurn: true,
         message: "Switched.",
@@ -276,8 +272,6 @@ describe("createRuntimeSwitchCoordinator", () => {
     expect(states).toEqual(["switching", "runtimeApplied"]);
     expect(coordinator.getSnapshot()).toMatchObject({
       runtime: { id: "claude", displayName: "Claude ACP" },
-      runtimeModels: [{ id: "sonnet", name: "Sonnet", provider: "anthropic" }],
-      defaultModelId: "sonnet",
       runtimeSwitchState: {
         status: "runtimeApplied",
         requestedRuntimeId: "claude",
@@ -493,7 +487,6 @@ describe("createWSBridge", () => {
       localLabel: null,
       promptQueue: [],
       modes: null,
-      models: null,
       modesAdvertisedByAgent: false,
       permissionGatingActive: true,
       hubPath: null,
@@ -525,7 +518,6 @@ describe("createWSBridge", () => {
           return "session-1";
         },
         async setRuntime() {},
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError() {},
@@ -574,7 +566,6 @@ describe("createWSBridge", () => {
       localLabel: null,
       promptQueue: [],
       modes: null,
-      models: null,
       modesAdvertisedByAgent: false,
       permissionGatingActive: true,
       hubPath: null,
@@ -604,7 +595,6 @@ describe("createWSBridge", () => {
         resolveWriteGate() {},
         resolveElicitation() {},
         async setRuntime() {},
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError(error: string | null) {
@@ -662,7 +652,6 @@ describe("createWSBridge", () => {
       localLabel: null,
       promptQueue: [],
       modes: null,
-      models: null,
       modesAdvertisedByAgent: false,
       permissionGatingActive: true,
       hubPath: null,
@@ -690,7 +679,6 @@ describe("createWSBridge", () => {
         async loadSession() {
           return "session-1";
         },
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError() {},
@@ -760,7 +748,6 @@ describe("createWSBridge", () => {
       localLabel: null,
       promptQueue: [],
       modes: null,
-      models: null,
       modesAdvertisedByAgent: false,
       permissionGatingActive: true,
       hubPath: null,
@@ -790,7 +777,6 @@ describe("createWSBridge", () => {
         async loadSession() {
           return "session-1";
         },
-        async setModel() {},
         async setPermissionMode() {},
         async cancel() {},
         setLastError() {},

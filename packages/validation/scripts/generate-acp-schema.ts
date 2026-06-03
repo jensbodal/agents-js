@@ -306,7 +306,26 @@ function buildMethodRegistry(schema: ACPProtocolSchema): ACPGeneratedArtifacts {
     }
   }
 
-  const missingRequestSchemas = methodWhitelist.filter((method) => !requestSchemas[method]);
+  // ACP 0.24+ ships UNSTABLE bidirectional methods (the MCP-over-ACP transport
+  // `mcp/connect` / `mcp/message` / `mcp/disconnect`, marked in the schema as
+  // "not part of the spec yet, may be removed") that carry no agent/client
+  // `x-side` and that agents-js does not implement. Forward-only: we do not
+  // generate validators for unstable capabilities — auto-detect them from the
+  // schema's UNSTABLE marker and exclude them from the coverage requirement.
+  const unstableMethods = new Set<string>();
+  for (const definition of Object.values(schema.$defs)) {
+    const method = definition["x-method"];
+    if (
+      typeof method === "string" &&
+      typeof definition.description === "string" &&
+      definition.description.includes("UNSTABLE")
+    ) {
+      unstableMethods.add(method);
+    }
+  }
+  const coverageWhitelist = methodWhitelist.filter((method) => !unstableMethods.has(method));
+
+  const missingRequestSchemas = coverageWhitelist.filter((method) => !requestSchemas[method]);
   if (missingRequestSchemas.length > 0) {
     throw new Error(
       `ACP schema coverage incomplete for request payloads: ${missingRequestSchemas.join(", ")}`,

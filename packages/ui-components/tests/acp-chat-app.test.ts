@@ -32,8 +32,8 @@ describe("AcpChatApp", () => {
     expect(AcpChatApp.elementProperties.get("defaultUrl")?.type).toBe(String);
   });
 
-  test("has 18 element properties (2 public + 16 state)", () => {
-    expect(AcpChatApp.elementProperties.size).toBe(18);
+  test("has 15 element properties (2 public + 13 state)", () => {
+    expect(AcpChatApp.elementProperties.size).toBe(15);
   });
 
   test("consolidated _view state is registered", () => {
@@ -47,10 +47,7 @@ describe("AcpChatApp", () => {
       "_connectError",
       "_connecting",
       "_runtime",
-      "_models",
-      "_runtimeModels",
       "_availableRuntimes",
-      "_selectedModelId",
       "_runtimeNotice",
       "_workflowSurface",
       "_currentToolCalls",
@@ -98,11 +95,6 @@ describe("AcpChatApp internal state", () => {
 
   test("prototype has _workflowSurface accessor", () => {
     const descriptor = Object.getOwnPropertyDescriptor(AcpChatApp.prototype, "_workflowSurface");
-    expect(descriptor).toBeDefined();
-  });
-
-  test("prototype has _models accessor", () => {
-    const descriptor = Object.getOwnPropertyDescriptor(AcpChatApp.prototype, "_models");
     expect(descriptor).toBeDefined();
   });
 
@@ -249,11 +241,6 @@ describe("AcpChatApp private methods", () => {
     expect(syncCalls).toBe(0);
     await Promise.resolve();
     expect(syncCalls).toBe(1);
-  });
-
-  test("instance has _handleModelChange method", () => {
-    const el = new AcpChatApp();
-    expect(typeof (el as unknown as Record<string, unknown>)._handleModelChange).toBe("function");
   });
 
   test("prototype has _targetStatusMessage method", () => {

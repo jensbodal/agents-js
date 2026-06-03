@@ -22,7 +22,6 @@ type ExitResult = {
 };
 
 export interface DevArgs {
-  defaultModel?: string;
   port?: number;
   runtime: GatewayRuntimeId;
 }
@@ -62,7 +61,6 @@ function handleDiscoveryLine(line: string, handlers: DiscoveryHandlers): void {
 
 export function parseDevArgs(argv: string[]): DevArgs {
   let runtime: GatewayRuntimeId = gatewayConfig.runtime;
-  let defaultModel: string | undefined;
   let port: number | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -73,16 +71,6 @@ export function parseDevArgs(argv: string[]): DevArgs {
         throw new Error('[dev] Missing value for "--runtime".');
       }
       runtime = getGatewayRuntimeDefinition(next).id as GatewayRuntimeId;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--default-model") {
-      const next = argv[index + 1];
-      if (!next) {
-        throw new Error('[dev] Missing value for "--default-model".');
-      }
-      defaultModel = next;
       index += 1;
       continue;
     }
@@ -98,11 +86,11 @@ export function parseDevArgs(argv: string[]): DevArgs {
     }
 
     throw new Error(
-      `[dev] Unknown argument "${arg}". Supported args: --runtime <${listGatewayRuntimeIds().join("|")}>, --default-model <id>, --port <port>.`,
+      `[dev] Unknown argument "${arg}". Supported args: --runtime <${listGatewayRuntimeIds().join("|")}>, --port <port>.`,
     );
   }
 
-  return { runtime, defaultModel, port };
+  return { runtime, port };
 }
 
 export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> {
@@ -128,9 +116,6 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     "--workspace",
     repoRoot,
   ];
-  if (args.defaultModel) {
-    gatewayArgs.push("--default-model", args.defaultModel);
-  }
   if (args.port !== undefined) {
     gatewayArgs.push("--port", String(args.port));
   }

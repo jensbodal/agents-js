@@ -65,7 +65,6 @@ describe("ACPSessionController", () => {
     expect(state.sessionUpdatedAt).toBeNull();
     expect(state.localLabel).toBeNull();
     expect(state.modes).toBeNull();
-    expect(state.models).toBeNull();
   });
 
   test("subscribe returns an unsubscribe function", () => {
@@ -1134,7 +1133,7 @@ describe("session history", () => {
     );
   });
 
-  test("loadSession restores session state (sessionId, modes, models)", async () => {
+  test("loadSession restores session state (sessionId, modes)", async () => {
     const { createProcess } = createMockAgent({
       initialize: {
         agentInfo: { name: "test-agent", version: "1.0.0" },
@@ -1146,10 +1145,6 @@ describe("session history", () => {
         modes: {
           availableModes: [{ id: "code", name: "Code" }],
           currentModeId: "code",
-        },
-        models: {
-          availableModels: [{ modelId: "gpt-4", name: "GPT-4" }],
-          currentModelId: "gpt-4",
         },
       },
       newSession: { sessionId: "session-1" },
@@ -1163,7 +1158,6 @@ describe("session history", () => {
     expect(sessionId).toBe("restored-session-42");
     expect(controller.getState().sessionId).toBe("restored-session-42");
     expect(controller.getState().modes?.currentModeId).toBe("code");
-    expect(controller.getState().models?.currentModelId).toBe("gpt-4");
   });
 
   test("loadSession emits session_loaded event", async () => {
@@ -1222,10 +1216,6 @@ describe("session history", () => {
       localLabel: "Saved review",
       promptQueue: [],
       modes: null,
-      models: {
-        currentModelId: "gpt-5",
-        availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
-      },
       modesAdvertisedByAgent: false,
       permissionGatingActive: true,
       hubPath: "hub/review",
@@ -1259,7 +1249,6 @@ describe("session history", () => {
     expect(controller.getState().sessionUpdatedAt).toBe("2026-04-08T12:00:00.000Z");
     expect(controller.getState().localLabel).toBe("Saved review");
     expect(controller.getState().hubPath).toBe("hub/review");
-    expect(controller.getState().models).toEqual(storedState.models);
     expect(controller.getState().availableCommands).toEqual(storedState.availableCommands);
     expect(controller.getState().usage).toEqual(storedState.usage);
   });
@@ -1489,7 +1478,7 @@ describe("session history", () => {
   });
 });
 
-describe("agent defaults (defaultMode / defaultModel)", () => {
+describe("agent defaults (defaultMode)", () => {
   let controller: ACPSessionController;
 
   beforeEach(() => {
@@ -1576,79 +1565,6 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
     setModeSpy.mockRestore();
   });
 
-  test("newSession applies defaultModel when the agent advertises it", async () => {
-    const { createProcess } = createMockAgent({
-      newSession: {
-        sessionId: "s-1",
-        models: {
-          availableModels: [
-            { modelId: "gpt-4", name: "GPT-4" },
-            { modelId: "opus", name: "Opus" },
-          ],
-          currentModelId: "gpt-4",
-        },
-      },
-      prompts: [],
-    });
-
-    await controller.start(
-      makeStartConfig({
-        createProcess,
-        agentConfig: {
-          name: "Test",
-          command: "unused",
-          args: [],
-          env: {},
-          authHints: [],
-          workspacePolicy: "workspace-root-only",
-          defaultModel: "opus",
-        },
-      }),
-    );
-
-    const setModelSpy = spyOn(controller, "setModel").mockResolvedValue(undefined as never);
-
-    await controller.newSession();
-
-    expect(setModelSpy).toHaveBeenCalledWith("opus");
-    setModelSpy.mockRestore();
-  });
-
-  test("newSession warns when defaultModel is NOT available", async () => {
-    const { createProcess } = createMockAgent({
-      newSession: {
-        sessionId: "s-1",
-        models: {
-          availableModels: [{ modelId: "gpt-4", name: "GPT-4" }],
-          currentModelId: "gpt-4",
-        },
-      },
-      prompts: [],
-    });
-
-    await controller.start(
-      makeStartConfig({
-        createProcess,
-        agentConfig: {
-          name: "Test",
-          command: "unused",
-          args: [],
-          env: {},
-          authHints: [],
-          workspacePolicy: "workspace-root-only",
-          defaultModel: "opus",
-        },
-      }),
-    );
-
-    const setModelSpy = spyOn(controller, "setModel").mockResolvedValue(undefined as never);
-
-    await controller.newSession();
-
-    expect(setModelSpy).not.toHaveBeenCalled();
-    setModelSpy.mockRestore();
-  });
-
   test("newSession synthesizes modes and skips setMode protocol call when agent returns no modes", async () => {
     const { createProcess } = createMockAgent({
       newSession: { sessionId: "s-1" },
@@ -1666,13 +1582,11 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
           authHints: [],
           workspacePolicy: "workspace-root-only",
           defaultMode: "plan",
-          defaultModel: "opus",
         },
       }),
     );
 
     const setModeSpy = spyOn(controller, "setMode").mockResolvedValue(undefined as never);
-    const setModelSpy = spyOn(controller, "setModel").mockResolvedValue(undefined as never);
 
     await controller.newSession();
 
@@ -1684,10 +1598,7 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
     expect(state.modesAdvertisedByAgent).toBe(false);
     // setMode should NOT be called (agent didn't advertise modes)
     expect(setModeSpy).not.toHaveBeenCalled();
-    // setModel should NOT be called (no models returned)
-    expect(setModelSpy).not.toHaveBeenCalled();
     setModeSpy.mockRestore();
-    setModelSpy.mockRestore();
   });
 
   test("synthesizes default modes when agent omits modes from newSession response", async () => {
@@ -1785,49 +1696,7 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
     setModeSpy.mockRestore();
   });
 
-  test("loadSession applies defaultModel when the agent advertises it", async () => {
-    const { createProcess } = createMockAgent({
-      initialize: {
-        agentInfo: { name: "test-agent", version: "1.0.0" },
-        agentCapabilities: { loadSession: true },
-      },
-      loadSession: {
-        models: {
-          availableModels: [
-            { modelId: "gpt-4", name: "GPT-4" },
-            { modelId: "opus", name: "Opus" },
-          ],
-          currentModelId: "gpt-4",
-        },
-      },
-      newSession: { sessionId: "s-1" },
-      prompts: [],
-    });
-
-    await controller.start(
-      makeStartConfig({
-        createProcess,
-        agentConfig: {
-          name: "Test",
-          command: "unused",
-          args: [],
-          env: {},
-          authHints: [],
-          workspacePolicy: "workspace-root-only",
-          defaultModel: "opus",
-        },
-      }),
-    );
-
-    const setModelSpy = spyOn(controller, "setModel").mockResolvedValue(undefined as never);
-
-    await controller.loadSession("existing-session");
-
-    expect(setModelSpy).toHaveBeenCalledWith("opus");
-    setModelSpy.mockRestore();
-  });
-
-  test("loadSession synthesizes modes and skips setMode when modes/models are not available", async () => {
+  test("loadSession synthesizes modes and skips setMode when modes are not available", async () => {
     const { createProcess } = createMockAgent({
       initialize: {
         agentInfo: { name: "test-agent", version: "1.0.0" },
@@ -1849,13 +1718,11 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
           authHints: [],
           workspacePolicy: "workspace-root-only",
           defaultMode: "plan",
-          defaultModel: "opus",
         },
       }),
     );
 
     const setModeSpy = spyOn(controller, "setMode").mockResolvedValue(undefined as never);
-    const setModelSpy = spyOn(controller, "setModel").mockResolvedValue(undefined as never);
 
     await controller.loadSession("existing-session");
 
@@ -1865,10 +1732,7 @@ describe("agent defaults (defaultMode / defaultModel)", () => {
     expect(state.modesAdvertisedByAgent).toBe(false);
     // setMode should NOT be called (agent didn't advertise modes — host-managed)
     expect(setModeSpy).not.toHaveBeenCalled();
-    // setModel should NOT be called (no models returned)
-    expect(setModelSpy).not.toHaveBeenCalled();
     setModeSpy.mockRestore();
-    setModelSpy.mockRestore();
   });
 
   test("loadSession repairs empty modes and keeps host-managed gating active", async () => {
@@ -2352,7 +2216,6 @@ describe("session lifecycle (close, fork, resume)", () => {
     expect(state.completedTurns).toEqual([]);
     expect(state.plan).toBeNull();
     expect(state.modes).toBeNull();
-    expect(state.models).toBeNull();
     expect(state.promptQueue).toEqual([]);
 
     const closedEvent = events.find((e) => e.type === "session_closed");
@@ -2448,10 +2311,6 @@ describe("session lifecycle (close, fork, resume)", () => {
           ],
           currentModeId: "default",
         },
-        models: {
-          availableModels: [{ modelId: "gpt-4", name: "GPT-4" }],
-          currentModelId: "gpt-4",
-        },
       },
       prompts: [],
     });
@@ -2471,7 +2330,6 @@ describe("session lifecycle (close, fork, resume)", () => {
     expect(controller.getState().currentTurn).toBeNull();
     expect(controller.getState().completedTurns).toEqual([]);
     expect(controller.getState().modes?.currentModeId).toBe("default");
-    expect(controller.getState().models?.currentModelId).toBe("gpt-4");
 
     const forkEvent = events.find((e) => e.type === "session_forked");
     expect(forkEvent).toBeDefined();
@@ -2531,10 +2389,6 @@ describe("session lifecycle (close, fork, resume)", () => {
           availableModes: [{ id: "code", name: "Code" }],
           currentModeId: "code",
         },
-        models: {
-          availableModels: [{ modelId: "opus", name: "Opus" }],
-          currentModelId: "opus",
-        },
       },
       prompts: [],
     });
@@ -2550,7 +2404,6 @@ describe("session lifecycle (close, fork, resume)", () => {
     expect(sessionId).toBe("old-session-1");
     expect(controller.getState().sessionId).toBe("old-session-1");
     expect(controller.getState().modes?.currentModeId).toBe("code");
-    expect(controller.getState().models?.currentModelId).toBe("opus");
     expect(controller.getState().status).toBe("ready");
 
     const resumeEvent = events.find((e) => e.type === "session_resumed");
@@ -2879,7 +2732,6 @@ describe("session config and logout", () => {
     expect(controller.getState().completedTurns).toEqual([]);
     expect(controller.getState().plan).toBeNull();
     expect(controller.getState().modes).toBeNull();
-    expect(controller.getState().models).toBeNull();
     expect(controller.getState().promptQueue).toEqual([]);
     expect(controller.getState().availableCommands).toBeNull();
     expect(controller.getState().usage).toBeNull();
@@ -3044,7 +2896,6 @@ describe("session config and logout", () => {
     expect(state.completedTurns).toEqual([]);
     expect(state.plan).toBeNull();
     expect(state.modes).toBeNull();
-    expect(state.models).toBeNull();
     expect(state.promptQueue).toEqual([]);
     expect(state.availableCommands).toBeNull();
     expect(state.usage).toBeNull();

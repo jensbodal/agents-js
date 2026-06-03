@@ -921,26 +921,14 @@ describe("agents-js CLI", () => {
       ).toThrow("--runtime-log-level must be one of");
     });
 
-    test("parses --default-model", () => {
-      const args = parseServeCommandArgs([
-        "--harness",
-        "opencode",
-        "--default-model",
-        "anthropic/claude-3-5-sonnet",
-      ]);
-      expect(args.defaultModel).toBe("anthropic/claude-3-5-sonnet");
-    });
-
     test("serveArgsToRuntimeEnvOverrides extracts the runtime-env fields", () => {
       const overrides = serveArgsToRuntimeEnvOverrides({
         opencodeDisableExternalPlugins: true,
         runtimeLogLevel: "debug",
-        defaultModel: "foo/bar",
       });
       expect(overrides).toEqual({
         disableExternalPlugins: true,
         runtimeLogLevel: "debug",
-        defaultModel: "foo/bar",
       });
     });
   });

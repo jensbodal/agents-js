@@ -31,8 +31,8 @@ describe("AcpConnectDialog", () => {
     expect(props.get("profileName")?.type).toBe(String);
   });
 
-  test("has exactly 20 element properties (19 public + 1 state)", () => {
-    expect(AcpConnectDialog.elementProperties.size).toBe(20);
+  test("has exactly 18 element properties (17 public + 1 state)", () => {
+    expect(AcpConnectDialog.elementProperties.size).toBe(18);
   });
 
   test("preview does not reflect to an attribute", () => {
@@ -100,7 +100,6 @@ describe("AcpConnectDialog", () => {
     };
     dialog.url = "http://127.0.0.1:9000";
     dialog.runtime = { id: "opencode", displayName: "OpenCode" };
-    dialog.selectedModelId = "glm-5-turbo";
     dialog.activeProfileId = "default";
     dialog.profileName = "Default profile";
 
@@ -116,7 +115,6 @@ describe("AcpConnectDialog", () => {
       {
         url: "http://127.0.0.1:9000",
         runtimeId: "opencode",
-        modelId: "glm-5-turbo",
         profileId: "default",
         profileName: "Default profile",
         harnessId: "opencode",
@@ -133,7 +131,6 @@ describe("AcpConnectDialog", () => {
     dialog.url = "http://127.0.0.1:9000";
     dialog.runtime = { id: "opencode", displayName: "OpenCode" };
     dialog._selectedRuntimeId = "different-runtime";
-    dialog.selectedModelId = "model-1";
 
     const events: Array<Record<string, string>> = [];
     dialog.addEventListener("acp-save-preferences", ((
@@ -144,7 +141,6 @@ describe("AcpConnectDialog", () => {
 
     dialog.savePreferences("update");
     expect(events[0].runtimeId).toBe("different-runtime");
-    expect(events[0].modelId).toBe("model-1");
   });
 
   test("has _selectedRuntimeId state property", () => {

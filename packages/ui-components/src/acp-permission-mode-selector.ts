@@ -29,8 +29,8 @@ const PERMISSION_MODE_ORDER = ["ask", "plan", "hub", "yolo"] as const;
  *
  * ## Theming
  *
- * Styleable via the `--acp-select-*` CSS custom property namespace (shared
- * with {@link AcpModelSelector}) and the `label` / `select` shadow parts.
+ * Styleable via the `--acp-select-*` CSS custom property namespace and the
+ * `label` / `select` shadow parts.
  *
  * Tokens (all default to the global `--acp-*` palette for backwards
  * compatibility):

@@ -35,7 +35,6 @@ export interface ProfileManagerState {
   hasSavedPreferences: boolean;
   savedPreferences: ConnectPreferences | null;
   profileDraftName: string;
-  selectedModelId: string;
 }
 
 export class ChatAppProfileManager {
@@ -54,7 +53,6 @@ export class ChatAppProfileManager {
       hasSavedPreferences: this._hasSavedPreferences,
       savedPreferences: this._savedPreferences,
       profileDraftName: this._profileDraftName,
-      selectedModelId: "",
     };
   }
 
@@ -63,31 +61,28 @@ export class ChatAppProfileManager {
   }
 
   /** Load profiles from localStorage and apply active profile preferences. */
-  load(): { state: ProfileManagerState; selectedModelId?: string } {
+  load(): { state: ProfileManagerState } {
     const stored = loadConnectProfiles();
     this._syncState(stored);
-    let selectedModelId: string | undefined;
     if (this._savedPreferences) {
-      selectedModelId = this._applyPreferences(this._savedPreferences);
+      this._applyPreferences(this._savedPreferences);
     }
-    return { state: this.state, selectedModelId };
+    return { state: this.state };
   }
 
   /** Handle the acp-save-preferences event. */
   handleSave(detail: {
     url: string;
     runtimeId: string;
-    modelId: string;
     profileId?: string;
     profileName?: string;
     harnessId?: string;
     saveMode?: "update" | "create";
-  }): { state: ProfileManagerState; selectedModelId?: string } {
+  }): { state: ProfileManagerState } {
     const nextState = saveConnectPreferences(
       {
         url: detail.url,
         runtimeId: detail.runtimeId,
-        modelId: detail.modelId,
       },
       {
         profileId: detail.saveMode === "update" ? detail.profileId : undefined,
@@ -97,34 +92,31 @@ export class ChatAppProfileManager {
     );
 
     this._syncState(nextState);
-    let selectedModelId: string | undefined;
     if (this._savedPreferences) {
-      selectedModelId = this._applyPreferences(this._savedPreferences);
+      this._applyPreferences(this._savedPreferences);
     }
-    return { state: this.state, selectedModelId };
+    return { state: this.state };
   }
 
   /** Handle profile selection. */
-  handleSelect(profileId: string): { state: ProfileManagerState; selectedModelId?: string } {
+  handleSelect(profileId: string): { state: ProfileManagerState } {
     const nextState = setActiveConnectProfile(profileId);
     this._syncState(nextState);
-    let selectedModelId: string | undefined;
     if (this._savedPreferences) {
-      selectedModelId = this._applyPreferences(this._savedPreferences, { notifyHost: true });
+      this._applyPreferences(this._savedPreferences, { notifyHost: true });
     }
-    return { state: this.state, selectedModelId };
+    return { state: this.state };
   }
 
   /** Handle profile deletion. */
-  handleDelete(profileId: string): { state: ProfileManagerState; selectedModelId?: string } {
+  handleDelete(profileId: string): { state: ProfileManagerState } {
     const deletedActiveProfile = profileId === this._activeProfileId;
     const nextState = deleteConnectProfile(profileId);
     this._syncState(nextState);
-    let selectedModelId: string | undefined;
     if (deletedActiveProfile && this._savedPreferences) {
-      selectedModelId = this._applyPreferences(this._savedPreferences, { notifyHost: true });
+      this._applyPreferences(this._savedPreferences, { notifyHost: true });
     }
-    return { state: this.state, selectedModelId };
+    return { state: this.state };
   }
 
   /** Handle draft profile name change. */
@@ -145,16 +137,12 @@ export class ChatAppProfileManager {
       ? {
           url: activeProfile.url,
           runtimeId: activeProfile.runtimeId,
-          modelId: activeProfile.modelId,
         }
       : null;
   }
 
-  /**
-   * Apply preferences to the host component.
-   * Returns the modelId to set as selectedModelId (if present).
-   */
-  private _applyPreferences(prefs: ConnectPreferences, options?: { notifyHost?: boolean }): string {
+  /** Apply preferences to the host component. */
+  private _applyPreferences(prefs: ConnectPreferences, options?: { notifyHost?: boolean }): void {
     if (prefs.url) {
       this.callbacks.setDefaultUrl(prefs.url);
       if (this.callbacks.getController() && !this.callbacks.isConnected()) {
@@ -162,27 +150,14 @@ export class ChatAppProfileManager {
       }
     }
 
-    if (options?.notifyHost) {
-      if (prefs.runtimeId) {
-        this.callbacks.dispatchEvent(
-          new CustomEvent("acp-runtime-change", {
-            bubbles: true,
-            composed: true,
-            detail: { runtimeId: prefs.runtimeId },
-          }),
-        );
-      }
-      if (prefs.modelId) {
-        this.callbacks.dispatchEvent(
-          new CustomEvent("acp-model-preselect", {
-            bubbles: true,
-            composed: true,
-            detail: { modelId: prefs.modelId },
-          }),
-        );
-      }
+    if (options?.notifyHost && prefs.runtimeId) {
+      this.callbacks.dispatchEvent(
+        new CustomEvent("acp-runtime-change", {
+          bubbles: true,
+          composed: true,
+          detail: { runtimeId: prefs.runtimeId },
+        }),
+      );
     }
-
-    return prefs.modelId;
   }
 }

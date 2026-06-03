@@ -295,20 +295,6 @@ export class AcpDebugPanel extends LitElement {
           : nothing
       }
       ${
-        s.models
-          ? html`
-            <div class="row">
-              <span class="row-key">Model</span>
-              <span class="row-value">${s.models.currentModelId}</span>
-            </div>
-            <div class="row">
-              <span class="row-key">Models</span>
-              <span class="row-value">${s.models.availableModels.length}</span>
-            </div>
-          `
-          : nothing
-      }
-      ${
         s.lastError
           ? html`
             <div class="row">

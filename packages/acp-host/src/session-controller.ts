@@ -349,7 +349,7 @@ export class ACPSessionController {
    * {@link destroy} first and reinitializes from the provided `config`. This resets
    * `promptQueue`, `completedTurns`, `lastError`, `currentTurn`, `pendingWriteGate`,
    * `pendingElicitation`, `plan`, `sessionTitle`, `sessionUpdatedAt`, `localLabel`,
-   * `modes`, `modesAdvertisedByAgent`, `permissionGatingActive`, `models`, and the
+   * `modes`, `modesAdvertisedByAgent`, `permissionGatingActive`, and the
    * internal `modeFallbackReason` back to their initial values before spawning a
    * fresh `ACPClientController`.
    *
@@ -385,7 +385,6 @@ export class ACPSessionController {
     this.state.modes = null;
     this.state.modesAdvertisedByAgent = false;
     this.state.permissionGatingActive = true;
-    this.state.models = null;
     this.modeFallbackReason = null;
 
     const workspaceContext = resolveWorkspaceContext({
@@ -736,9 +735,6 @@ export class ACPSessionController {
         if (storedState.hubPath) {
           this.hubDirectoryPath = storedState.hubPath;
           this.state.hubPath = storedState.hubPath;
-        }
-        if (storedState.models && !this.state.models) {
-          this.state.models = storedState.models;
         }
         if (storedState.availableCommands && !this.state.availableCommands) {
           this.state.availableCommands = storedState.availableCommands;
@@ -1156,17 +1152,6 @@ export class ACPSessionController {
     this.log.info("Mode changed", { modeId });
   }
 
-  /** @experimental */
-  async setModel(modelId: string): Promise<void> {
-    if (!this.controller) throw new Error("No active controller");
-    await this.controller.setModel(modelId);
-    if (this.state.models) {
-      this.state.models = { ...this.state.models, currentModelId: modelId };
-      this.emit({ type: "model_changed", modelId, models: this.state.models });
-    }
-    this.log.info("Model changed (experimental)", { modelId });
-  }
-
   /**
    * Return the OS pid of the spawned ACP child, or `undefined` when no
    * child is alive (pre-spawn, post-destroy) or when running against a
@@ -1481,7 +1466,6 @@ export class ACPSessionController {
     if (options?.full) {
       this.state.sessionId = null;
       this.state.modes = null;
-      this.state.models = null;
       this.state.availableCommands = null;
       this.state.usage = null;
     }
@@ -1501,7 +1485,6 @@ export class ACPSessionController {
     sessionId: string,
     response: {
       modes?: SessionModeState | null;
-      models?: import("@agentclientprotocol/sdk").SessionModelState | null;
     },
     sessionSource: "new" | "load",
   ): void {
@@ -1515,7 +1498,6 @@ export class ACPSessionController {
     this.state.modes = normalizedModes.modes;
     this.state.modesAdvertisedByAgent = normalizedModes.agentAdvertisedModes;
     this.modeFallbackReason = normalizedModes.fallbackReason;
-    this.state.models = response.models ?? null;
   }
 
   /**
@@ -1592,9 +1574,7 @@ export class ACPSessionController {
     const agentAdvertisedModes = this.state.modesAdvertisedByAgent;
     const result = await applyAgentDefaults(config, {
       setMode: (id) => this.setMode(id),
-      setModel: (id) => this.setModel(id),
       modes: this.state.modes,
-      models: this.state.models,
       permissionMode: this.permissionMode,
       agentAdvertisedModes,
       modeFallbackReason: this.modeFallbackReason,

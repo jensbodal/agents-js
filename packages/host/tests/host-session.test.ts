@@ -91,7 +91,6 @@ function createRuntimeControllerHarness(state: {
     localLabel: null,
     promptQueue: state.promptQueue ?? [],
     modes: null,
-    models: null,
     modesAdvertisedByAgent: false,
     permissionGatingActive: true,
     hubPath: null,
@@ -160,7 +159,6 @@ describe("switchHostSessionRuntime", () => {
     const created: Array<{
       runtime: ResolvedGatewayRuntime;
       permissionMode: PermissionMode;
-      defaultModel?: string;
     }> = [];
     let replacedController: unknown = null;
 
@@ -174,7 +172,6 @@ describe("switchHostSessionRuntime", () => {
         return candidate.controller;
       },
       runtime,
-      defaultModel: "sonnet",
     });
 
     expect(result).toEqual({
@@ -185,7 +182,6 @@ describe("switchHostSessionRuntime", () => {
       {
         runtime,
         permissionMode: "plan",
-        defaultModel: "sonnet",
       },
     ]);
     expect(active.destroyed).toBe(true);
@@ -209,7 +205,6 @@ describe("switchHostSessionRuntime", () => {
     const created: Array<{
       runtime: ResolvedGatewayRuntime;
       permissionMode: PermissionMode;
-      defaultModel?: string;
     }> = [];
     let replacedController: unknown = null;
 
@@ -223,7 +218,6 @@ describe("switchHostSessionRuntime", () => {
         return candidate.controller;
       },
       runtime,
-      defaultModel: "sonnet",
     });
 
     expect(result).toEqual({
@@ -234,7 +228,6 @@ describe("switchHostSessionRuntime", () => {
       {
         runtime,
         permissionMode: "plan",
-        defaultModel: "sonnet",
       },
     ]);
     expect(candidate.newSessionCalls).toBe(0);
@@ -547,7 +540,6 @@ describe("permission rule persistence helpers", () => {
         localLabel: "Saved session",
         promptQueue: [],
         modes: null,
-        models: null,
         modesAdvertisedByAgent: false,
         permissionGatingActive: true,
         hubPath: null,

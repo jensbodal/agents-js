@@ -25,7 +25,6 @@ bun add @agents-js/a2ui-renderer
 - **`bindDebugPanel`**
 - **`bindElicitationForm`**
 - **`bindMessage`**
-- **`bindModelSelector`**
 - **`bindPermissionModal`**
 - **`bindPermissionModeSelector`**
 - **`bindPromptInput`**

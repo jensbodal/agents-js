@@ -42,10 +42,6 @@ const MINIMAL_PROPS_BY_NAME: Record<string, unknown> = {
     block: { event: { name: "block" } },
   },
   AcpAuthSelector: { methods: ["oauth", "api-key"] },
-  AcpModelSelector: {
-    models: ["sonnet", "opus"],
-    selected: { path: "/model" },
-  },
   AcpDebugPanel: { logs: { path: "/logs" } },
   AcpStatusBar: { status: "connected" },
   AcpCodeBlock: { code: "console.log('hi');" },
@@ -63,7 +59,7 @@ describe("ACP custom catalog", () => {
     expect(catalogNames).toEqual(apiNames);
     // Guardrail: we lose coverage if someone renames a component without
     // updating the ACP_COMPONENT_APIS list.
-    expect(apiNames.length).toBeGreaterThanOrEqual(15);
+    expect(apiNames.length).toBeGreaterThanOrEqual(14);
   });
 
   test.each(

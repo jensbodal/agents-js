@@ -283,10 +283,9 @@ export class HarnessLaneManager {
 
   /**
    * Read-only lookup of the configured runtime for `harnessId`. The WS
-   * bridge uses this to fetch the target's `acp.command` for a
-   * `fetchRuntimeModels` probe BEFORE committing to the switch via
-   * {@link setPrimaryHarnessId} — so an async failure pre-flip doesn't
-   * leave the gateway in a half-switched state.
+   * bridge uses this to fetch the target's `acp.command` before committing
+   * to a runtime switch via {@link setPrimaryHarnessId} — so an async
+   * failure pre-flip doesn't leave the gateway in a half-switched state.
    *
    * Throws on unknown id (use {@link hasHarness} to pre-check).
    */

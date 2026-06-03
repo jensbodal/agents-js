@@ -200,11 +200,6 @@ describe("translateAcpEvent — CUSTOM forwarded events", () => {
       expectedName: "agents-js.mode_changed",
     },
     {
-      label: "model_changed",
-      event: { type: "model_changed", modelId: "m1", models: {} } as never,
-      expectedName: "agents-js.model_changed",
-    },
-    {
       label: "usage_updated",
       event: { type: "usage_updated", size: 100, used: 10 } as ACPSessionEvent,
       expectedName: "agents-js.usage_updated",

@@ -1,12 +1,7 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { acpTheme } from "./acp-theme.ts";
-import type {
-  AgentCardLike,
-  RuntimeInfoLike,
-  RuntimeModelLike,
-  TargetInspectionLike,
-} from "./acp-types.ts";
+import type { AgentCardLike, RuntimeInfoLike, TargetInspectionLike } from "./acp-types.ts";
 import type { ConnectProfile } from "./connect-preferences-store.ts";
 import { safeCustomElement } from "./safe-custom-element.ts";
 
@@ -59,13 +54,7 @@ export class AcpConnectDialog extends LitElement {
   accessor runtime: RuntimeInfoLike | null = null;
 
   @property({ attribute: false })
-  accessor runtimeModels: RuntimeModelLike[] | null = null;
-
-  @property({ attribute: false })
   accessor availableRuntimes: RuntimeInfoLike[] = [];
-
-  @property({ type: String })
-  accessor selectedModelId = "";
 
   @property({ type: Boolean })
   accessor hasSavedPreferences = false;
@@ -237,7 +226,6 @@ export class AcpConnectDialog extends LitElement {
       }
 
       .runtime-box,
-      .model-box,
       .profile-box {
         margin-bottom: 12px;
         padding: 8px 12px;
@@ -252,24 +240,17 @@ export class AcpConnectDialog extends LitElement {
         overflow: hidden;
       }
 
-      .model-label,
       .runtime-label,
       .profile-label {
         color: var(--acp-text-muted);
         flex-shrink: 0;
       }
 
-      .model-loading {
-        color: var(--acp-text-muted);
-        font-style: italic;
-        font-size: 13px;
-      }
       .runtime-value {
         color: var(--acp-text);
         font-weight: 500;
       }
 
-      .model-select,
       .runtime-select,
       .profile-select,
       .profile-name-input {
@@ -285,13 +266,11 @@ export class AcpConnectDialog extends LitElement {
         outline: none;
       }
 
-      .model-select,
       .runtime-select,
       .profile-select {
         cursor: pointer;
       }
 
-      .model-select:focus,
       .runtime-select:focus,
       .profile-select:focus,
       .profile-name-input:focus {
@@ -407,7 +386,6 @@ export class AcpConnectDialog extends LitElement {
     this.emit("acp-save-preferences", {
       url,
       runtimeId,
-      modelId: this.selectedModelId ?? "",
       profileId: this.activeProfileId,
       profileName: this.profileName.trim(),
       harnessId: runtimeId || "default",
@@ -514,7 +492,6 @@ export class AcpConnectDialog extends LitElement {
       }
       ${this.runtime ? this.renderRuntime(this.runtime) : nothing}
       ${this.runtimeNotice ? html`<div class="runtime-notice">${this.runtimeNotice}</div>` : nothing}
-      ${this.renderModelSelector()}
       <div class="profile-actions">
         <button
           class="btn-save ${this.hasSavedPreferences ? "btn-save--active" : ""}"
@@ -530,41 +507,6 @@ export class AcpConnectDialog extends LitElement {
         </button>
       </div>
       ${this.preview ? this.renderPreview(this.preview) : nothing}
-    `;
-  }
-
-  private renderModelSelector() {
-    if (this.runtimeModels === null) {
-      return html`
-        <div class="model-box">
-          <span class="model-label">Model</span>
-          <span class="model-loading">Loading models...</span>
-        </div>
-      `;
-    }
-    if (this.runtimeModels.length === 0) return nothing;
-
-    return html`
-      <div class="model-box">
-        <span class="model-label">Model</span>
-        <select
-          class="model-select"
-          .value=${this.selectedModelId}
-          @change=${(e: Event) => {
-            const select = e.target as HTMLSelectElement;
-            this.emit("acp-model-preselect", { modelId: select.value });
-          }}
-        >
-          ${!this.selectedModelId ? html`<option value="" disabled selected>Select model...</option>` : nothing}
-          ${this.runtimeModels.map(
-            (m) => html`
-              <option value=${m.id} ?selected=${m.id === this.selectedModelId}>
-                ${m.name ?? m.id}${m.provider ? ` (${m.provider})` : ""}
-              </option>
-            `,
-          )}
-        </select>
-      </div>
     `;
   }
 

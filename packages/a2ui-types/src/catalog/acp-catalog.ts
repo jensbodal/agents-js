@@ -226,21 +226,6 @@ export const AuthSelectorApi = {
     .strict(),
 } as const satisfies ComponentApi;
 
-/** Selector for the underlying language model. */
-export const ModelSelectorApi = {
-  name: "AcpModelSelector",
-  schema: z
-    .object({
-      ...AcpCommonProps,
-      models: DynamicStringListSchema.describe("Available model identifiers."),
-      selected: z
-        .object({ path: z.string() })
-        .describe("JSON Pointer binding for the chosen model."),
-      change: ActionSchema.describe("Action dispatched when the selection changes.").optional(),
-    })
-    .strict(),
-} as const satisfies ComponentApi;
-
 /** Debug panel (log transports, span inspector). Host-only diagnostic surface. */
 export const DebugPanelApi = {
   name: "AcpDebugPanel",
@@ -298,7 +283,6 @@ export const ACP_COMPONENT_APIS = [
   PermissionModeSelectorApi,
   WriteGateModalApi,
   AuthSelectorApi,
-  ModelSelectorApi,
   DebugPanelApi,
   StatusBarApi,
   CodeBlockApi,

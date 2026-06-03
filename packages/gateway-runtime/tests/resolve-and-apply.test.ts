@@ -119,14 +119,14 @@ describe("resolveAndApplyGatewayRuntime", () => {
     await expect(
       resolveAndApplyGatewayRuntime({
         selection: { kind: "curated", runtime: "opencode" },
-        envOverrides: { defaultModel: "ephemeral" },
+        envOverrides: { defaultHarness: "ephemeral" },
         env,
         resolver: failingResolver,
       }),
     ).rejects.toThrow();
 
     // Override was applied then restored to undefined.
-    expect(env.AJS_DEFAULT_MODEL).toBeUndefined();
+    expect(env.AJS_DEFAULT_HARNESS).toBeUndefined();
   });
 
   test("applies a configured profile when profileLookup is provided", async () => {
@@ -241,7 +241,7 @@ describe("resolveAndApplyGatewayRuntime", () => {
           runtime: "opencode",
           profile: "mismatched",
         },
-        envOverrides: { defaultModel: "x" },
+        envOverrides: { defaultHarness: "x" },
         env,
         resolver: opencodeResolver,
         profileLookup: {

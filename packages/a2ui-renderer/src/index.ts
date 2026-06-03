@@ -18,7 +18,6 @@ export {
   bindDebugPanel,
   bindElicitationForm,
   bindMessage,
-  bindModelSelector,
   bindPermissionModal,
   bindPermissionModeSelector,
   bindPromptInput,

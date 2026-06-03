@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { A2UI_WS_FRAME_TYPE } from "@agents-js/a2ui-types";
 import { HostWSClient } from "../src/ws-client.ts";
-import { mapModels, mapPendingElicitation, mapSnapshot } from "../src/ws-state-mapper.ts";
+import { mapPendingElicitation, mapSnapshot } from "../src/ws-state-mapper.ts";
 
 type HostWSClientState = ReturnType<HostWSClient["getState"]>;
 
 describe("mapSnapshot", () => {
-  test("maps runtime and models from state snapshots", () => {
+  test("maps runtime from state snapshots", () => {
     const state = mapSnapshot({
       status: "ready",
       permissionMode: "plan",
@@ -14,10 +14,6 @@ describe("mapSnapshot", () => {
       runtime: {
         id: "claude",
         displayName: "Claude ACP",
-      },
-      models: {
-        currentModelId: "gpt-5",
-        availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
       },
     });
 
@@ -27,10 +23,6 @@ describe("mapSnapshot", () => {
       runtime: {
         id: "claude",
         displayName: "Claude ACP",
-      },
-      models: {
-        currentModelId: "gpt-5",
-        availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
       },
       queueCount: 1,
       workflowSurface: {
@@ -307,57 +299,7 @@ describe("mapPendingElicitation", () => {
   });
 });
 
-describe("mapModels", () => {
-  test("returns null for non-object input", () => {
-    expect(mapModels(null)).toBeNull();
-    expect(mapModels(undefined)).toBeNull();
-    expect(mapModels("string")).toBeNull();
-  });
-
-  test("returns null when currentModelId is missing", () => {
-    expect(mapModels({ availableModels: [] })).toBeNull();
-  });
-
-  test("filters out invalid model entries", () => {
-    const result = mapModels({
-      currentModelId: "gpt-5",
-      availableModels: [{ modelId: "gpt-5", name: "GPT-5" }, null, "invalid", { noModelId: true }],
-    });
-
-    expect(result).toEqual({
-      currentModelId: "gpt-5",
-      availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
-    });
-  });
-});
-
 describe("HostWSClient", () => {
-  test("updates model state from model_changed events without an attached snapshot", () => {
-    const client = new HostWSClient("ws://localhost:55364") as unknown as {
-      _applyEvent(event: Record<string, unknown> & { type: string }): void;
-      getState(): HostWSClientState;
-    };
-
-    client._applyEvent({
-      type: "model_changed",
-      models: {
-        currentModelId: "opus",
-        availableModels: [
-          { modelId: "gpt-5", name: "GPT-5" },
-          { modelId: "opus", name: "Opus" },
-        ],
-      },
-    });
-
-    expect(client.getState().models).toEqual({
-      currentModelId: "opus",
-      availableModels: [
-        { modelId: "gpt-5", name: "GPT-5" },
-        { modelId: "opus", name: "Opus" },
-      ],
-    });
-  });
-
   test("changing the websocket URL clears stale host state", () => {
     const client = new HostWSClient("ws://localhost:55364") as unknown as {
       _handleMessage(raw: string): void;
@@ -371,10 +313,6 @@ describe("HostWSClient", () => {
         type: "state_snapshot",
         state: {
           runtime: { id: "opencode", displayName: "OpenCode ACP" },
-          models: {
-            currentModelId: "gpt-5",
-            availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
-          },
         },
       }),
     );

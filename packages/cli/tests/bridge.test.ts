@@ -111,12 +111,6 @@ describe("parseBridgeCommandArgs", () => {
     ).toBe(true);
   });
 
-  test("parses --default-model", () => {
-    expect(
-      parseBridgeCommandArgs(["--default-model", "claude-sonnet-4-5-20250929"]).defaultModel,
-    ).toBe("claude-sonnet-4-5-20250929");
-  });
-
   test("throws on unknown argument", () => {
     expect(() => parseBridgeCommandArgs(["--bogus"])).toThrow("Unknown bridge argument");
   });
@@ -145,14 +139,12 @@ describe("parseBridgeCommandArgs", () => {
 });
 
 describe("bridgeArgsToRuntimeEnvOverrides", () => {
-  test("maps defaultModel / runtimeLogLevel / opencodeDisableExternalPlugins", () => {
+  test("maps runtimeLogLevel / opencodeDisableExternalPlugins", () => {
     const overrides = bridgeArgsToRuntimeEnvOverrides({
-      defaultModel: "sonnet",
       runtimeLogLevel: "debug",
       opencodeDisableExternalPlugins: true,
     });
     expect(overrides).toEqual({
-      defaultModel: "sonnet",
       runtimeLogLevel: "debug",
       disableExternalPlugins: true,
     });
@@ -160,7 +152,6 @@ describe("bridgeArgsToRuntimeEnvOverrides", () => {
 
   test("leaves unset fields undefined", () => {
     const overrides = bridgeArgsToRuntimeEnvOverrides({});
-    expect(overrides.defaultModel).toBeUndefined();
     expect(overrides.runtimeLogLevel).toBeUndefined();
     expect(overrides.disableExternalPlugins).toBeUndefined();
   });
@@ -243,8 +234,6 @@ describe("runBridgeCommand", () => {
         [
           "--harness",
           "opencode",
-          "--default-model",
-          "sonnet",
           "--runtime-log-level",
           "debug",
           "--opencode-disable-external-plugins",
@@ -257,7 +246,6 @@ describe("runBridgeCommand", () => {
         },
       );
 
-      expect(observedDuringResolve?.AJS_DEFAULT_MODEL).toBe("sonnet");
       expect(observedDuringResolve?.AJS_RUNTIME_LOG_LEVEL).toBe("debug");
       expect(observedDuringResolve?.AJS_OPENCODE_DISABLE_EXTERNAL_PLUGINS).toBe("1");
 

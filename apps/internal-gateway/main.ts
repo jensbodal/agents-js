@@ -26,7 +26,6 @@ import {
   createWSBridge,
   type DispatchHandler,
   type DispatchResult,
-  fetchRuntimeModels,
   type GatewayBus,
   type GatewayHostController,
   type GiteaBusConsumerHandle,
@@ -374,9 +373,7 @@ interface SetupWsBridgeOptions {
   cliArgs: GatewayCliArgs;
   loadedConfig: LoadedAgentsJsConfig;
   initialRuntime: ResolvedGatewayRuntime;
-  initialRuntimeModels: Awaited<ReturnType<typeof fetchRuntimeModels>>;
   availableRuntimes: Array<{ id: string; displayName: string }>;
-  resolvedDefaultModel: string | undefined;
   session: HostSession;
   surfaceBroadcaster: ReturnType<typeof createGatewaySurfaceBroadcaster>;
   gatewayCard: ReturnType<typeof buildAgentCard>;
@@ -435,11 +432,10 @@ export function describeRuntimeSwitchBlockingActivity(input: {
 }
 
 function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBridge> {
-  // Tracks current runtime/models so a failed switch can roll back to the
-  // last-known-good pair instead of leaving the bridge advertising a
+  // Tracks current runtime so a failed switch can roll back to the
+  // last-known-good runtime instead of leaving the bridge advertising a
   // partially-applied runtime.
   let activeRuntime = opts.initialRuntime;
-  let activeRuntimeModels = opts.initialRuntimeModels;
 
   return createWSBridge({
     controller: opts.session.controller,
@@ -449,8 +445,6 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
       displayName: opts.initialRuntime.definition.displayName,
     },
     availableRuntimes: opts.availableRuntimes,
-    runtimeModels: opts.initialRuntimeModels,
-    defaultModelId: opts.resolvedDefaultModel,
     surfaceBroadcaster: opts.surfaceBroadcaster,
     setRuntime: async (runtimeId) => {
       // WS-bridge runtime switch is "switch the primary routing
@@ -490,23 +484,13 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
             id: activeRuntime.definition.id,
             displayName: activeRuntime.definition.displayName,
           },
-          runtimeModels: activeRuntimeModels,
-          defaultModelId: opts.resolvedDefaultModel,
           preservedSession: true,
           clearedPendingTurn: false,
           message: `Runtime is already ${activeRuntime.definition.displayName} (${activeRuntime.definition.id}); no change.`,
         };
       }
 
-      // Pre-flip the model fetch: if `fetchRuntimeModels` rejects, the
-      // gateway stays on the OLD primary (no card mutation, no
-      // card-changed events published, no local activeRuntime cell
-      // update). Only after the async fetch resolves do we commit the
-      // switch via `setPrimaryHarnessId`. This preserves the "pre-checks
-      // happen before any state mutation" contract documented above.
       const nextRuntime = opts.laneManager.getHarnessRuntime(runtimeId);
-      const nextRuntimeCommand = nextRuntime.acp.command ?? nextRuntime.definition.command;
-      const nextRuntimeModels = await fetchRuntimeModels(nextRuntimeCommand);
 
       // Commit. The lane manager mutates `gatewayCard.capabilities.harnesses`
       // in place and publishes `gateway.harness.card-changed` for both
@@ -516,7 +500,6 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
       opts.laneManager.setPrimaryHarnessId(runtimeId);
 
       activeRuntime = nextRuntime;
-      activeRuntimeModels = nextRuntimeModels;
       opts.setActiveRuntime(nextRuntime);
 
       console.log(
@@ -528,8 +511,6 @@ function setupWsBridge(opts: SetupWsBridgeOptions): ReturnType<typeof createWSBr
           id: nextRuntime.definition.id,
           displayName: nextRuntime.definition.displayName,
         },
-        runtimeModels: nextRuntimeModels,
-        defaultModelId: opts.resolvedDefaultModel,
         // The current primary-flip semantics never swap a session, so
         // the legacy session-preservation fields are trivially
         // "preserved, nothing cleared." Kept on the wire for back-compat
@@ -613,12 +594,6 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   const installedRuntimeIds = await detectInstalledGatewayRuntimes();
   const availableRuntimes = buildAvailableRuntimeInfos(installedRuntimeIds, selectedRuntime);
 
-  // Resolve defaultModel: CLI --default-model > config files > env var (via gatewayConfig)
-  const resolvedDefaultModel =
-    cliArgs.defaultModel ??
-    loadedConfig.effectiveConfig.serve?.defaultModel ??
-    gatewayConfig.defaultModel;
-
   console.log(
     `[Gateway] Primary runtime: ${selectedRuntime.definition.id} (${selectedRuntime.definition.displayName})`,
   );
@@ -636,26 +611,10 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     `[Gateway] Workspace trust: ${cliArgs.trustWorkspace ? "trusted (loading .agents-js/permission-rules.json)" : "untrusted (workspace-local rules ignored; pass --trust-workspace to enable)"}`,
   );
   console.log(`[Gateway] Requested port: ${resolvedPort}`);
-  if (resolvedDefaultModel) {
-    console.log(`[Gateway] Default model: ${resolvedDefaultModel}`);
-  }
 
   if (cliArgs.check) {
     console.log("[Gateway] Check complete.");
     return 0;
-  }
-
-  // Fetch available models from runtime CLI (non-blocking on failure).
-  // acp.command is the resolved path; definition.command is the unresolved
-  // name (e.g. "opencode") used only as a last-resort fallback.
-  const runtimeCommand = selectedRuntime.acp.command ?? selectedRuntime.definition.command;
-  const runtimeModels = await fetchRuntimeModels(runtimeCommand);
-  if (runtimeModels.length > 0) {
-    console.log(`[Gateway] Fetched ${runtimeModels.length} runtime models`);
-  } else {
-    console.log(
-      "[Gateway] No runtime models discovered (model selector will be empty until session)",
-    );
   }
 
   // Create the A2UI surface broadcaster BEFORE the host session so the
@@ -669,7 +628,6 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     runtime: selectedRuntime,
     workspacePath: cliArgs.workspace,
     permissionMode: cliArgs.permissionMode,
-    defaultModel: resolvedDefaultModel,
     surfaceAdapter: surfaceBroadcaster,
     trustWorkspace: cliArgs.trustWorkspace,
   });
@@ -736,7 +694,6 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
         session,
         workspacePath: cliArgs.workspace,
         permissionMode: cliArgs.permissionMode,
-        defaultModel: resolvedDefaultModel,
         surfaceAdapter: surfaceBroadcaster,
       }),
     });
@@ -875,9 +832,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     cliArgs,
     loadedConfig,
     initialRuntime: selectedRuntime,
-    initialRuntimeModels: runtimeModels,
     availableRuntimes,
-    resolvedDefaultModel,
     session,
     surfaceBroadcaster,
     gatewayCard,

@@ -59,7 +59,6 @@ export interface HostSessionConfig {
   runtime: ResolvedGatewayRuntime;
   workspacePath: string;
   permissionMode: PermissionMode;
-  defaultModel?: string;
   /**
    * Optional A2UI host surface adapter. When provided, surface messages
    * originating from the ACP agent are handed off here; surface events
@@ -90,7 +89,7 @@ export interface HostSession {
    * same workspace / file-adapter surface.
    */
   workspacePath: string;
-  switchRuntime(config: { runtime: ResolvedGatewayRuntime; defaultModel?: string }): Promise<{
+  switchRuntime(config: { runtime: ResolvedGatewayRuntime }): Promise<{
     preservedSession: boolean;
     clearedPendingTurn: boolean;
   }>;
@@ -113,7 +112,6 @@ export type GatewayHostController = Pick<
   | "sendPrompt"
   | "sendSurfaceEvent"
   | "setLastError"
-  | "setModel"
   | "setPermissionMode"
   | "subscribe"
 > & {
@@ -196,10 +194,6 @@ class StableHostSessionController implements GatewayHostController {
 
   resolveElicitation(response: Parameters<ACPSessionController["resolveElicitation"]>[0]): void {
     this.activeController.resolveElicitation(response);
-  }
-
-  setModel(modelId: Parameters<ACPSessionController["setModel"]>[0]): Promise<void> {
-    return this.activeController.setModel(modelId);
   }
 
   setPermissionMode(mode: PermissionMode): Promise<void> {
@@ -500,7 +494,6 @@ function deriveRememberedPermissionRule(
 function buildStartConfig(
   runtime: ResolvedGatewayRuntime,
   workspacePath: string,
-  defaultModel: string | undefined,
   fileAdapters: NodeFileAdapters,
   permissionEngine: PermissionEngine,
   permissionStore: PermissionStore,
@@ -516,7 +509,6 @@ function buildStartConfig(
       authHints: [],
       workspacePolicy: "workspace-root-only" as const,
       workspaceFlag: resolveHostWorkspaceFlag(runtime),
-      defaultModel,
       // External runtimes need real HOME for credential/config access
       // (e.g., ~/.config/opencode/, ~/.claude/)
       allowRealHome: true,
@@ -603,7 +595,6 @@ function deriveRuntimeSwitchResult(state: RuntimeSwitchState): RuntimeSwitchResu
 async function createStartedRuntimeController(config: {
   runtime: ResolvedGatewayRuntime;
   workspacePath: string;
-  defaultModel?: string;
   fileAdapters: NodeFileAdapters;
   permissionEngine: PermissionEngine;
   permissionStore: PermissionStore;
@@ -613,7 +604,6 @@ async function createStartedRuntimeController(config: {
   const {
     runtime,
     workspacePath,
-    defaultModel,
     fileAdapters,
     permissionEngine,
     permissionStore,
@@ -624,7 +614,6 @@ async function createStartedRuntimeController(config: {
   const startConfig = buildStartConfig(
     runtime,
     workspacePath,
-    defaultModel,
     fileAdapters,
     permissionEngine,
     permissionStore,
@@ -643,13 +632,10 @@ export async function switchHostSessionRuntime(config: {
   createController(config: {
     runtime: ResolvedGatewayRuntime;
     permissionMode: PermissionMode;
-    defaultModel?: string;
   }): Promise<HostSessionRuntimeController>;
   runtime: ResolvedGatewayRuntime;
-  defaultModel?: string;
 }): Promise<RuntimeSwitchResult> {
-  const { activeController, replaceActiveController, createController, runtime, defaultModel } =
-    config;
+  const { activeController, replaceActiveController, createController, runtime } = config;
   const result = deriveRuntimeSwitchResult(activeController.getState() as RuntimeSwitchState);
   const permissionMode = activeController.permissionMode;
   let validationController: HostSessionRuntimeController | null = null;
@@ -659,7 +645,6 @@ export async function switchHostSessionRuntime(config: {
     validationController = await createController({
       runtime,
       permissionMode,
-      defaultModel,
     });
     if (result.preservedSession) {
       await validationController.newSession();
@@ -702,7 +687,6 @@ export async function createStandaloneHostController(config: {
   runtime: ResolvedGatewayRuntime;
   workspacePath: string;
   permissionMode: PermissionMode;
-  defaultModel?: string;
   permissionEngine: PermissionEngine;
   permissionStore: PermissionStore;
   fileAdapters: NodeFileAdapters;
@@ -711,7 +695,6 @@ export async function createStandaloneHostController(config: {
   const controller = await createStartedRuntimeController({
     runtime: config.runtime,
     workspacePath: config.workspacePath,
-    defaultModel: config.defaultModel,
     fileAdapters: config.fileAdapters,
     permissionEngine: config.permissionEngine,
     permissionStore: config.permissionStore,
@@ -725,14 +708,7 @@ export async function createStandaloneHostController(config: {
 }
 
 export async function createHostSession(config: HostSessionConfig): Promise<HostSession> {
-  const {
-    runtime,
-    workspacePath,
-    permissionMode,
-    defaultModel,
-    surfaceAdapter,
-    trustWorkspace = false,
-  } = config;
+  const { runtime, workspacePath, permissionMode, surfaceAdapter, trustWorkspace = false } = config;
 
   // Create permission engine and store
   const permissionEngine = new PermissionEngine();
@@ -753,7 +729,6 @@ export async function createHostSession(config: HostSessionConfig): Promise<Host
   let activeController = await createStartedRuntimeController({
     runtime,
     workspacePath,
-    defaultModel,
     fileAdapters,
     permissionEngine,
     permissionStore,
@@ -776,11 +751,10 @@ export async function createHostSession(config: HostSessionConfig): Promise<Host
           activeController = nextController as ACPSessionController;
           controller.swapActiveController(activeController);
         },
-        createController: ({ runtime, permissionMode, defaultModel }) =>
+        createController: ({ runtime, permissionMode }) =>
           createStartedRuntimeController({
             runtime,
             workspacePath,
-            defaultModel,
             fileAdapters,
             permissionEngine,
             permissionStore,
@@ -788,7 +762,6 @@ export async function createHostSession(config: HostSessionConfig): Promise<Host
             surfaceAdapter,
           }),
         runtime: nextConfig.runtime,
-        defaultModel: nextConfig.defaultModel,
       });
 
       console.log(`[Gateway] Host session switched to runtime ${nextConfig.runtime.definition.id}`);

@@ -133,26 +133,14 @@ describe("parseAcpCommandArgs", () => {
     ).toThrow("--runtime-log-level must be one of");
   });
 
-  test("parses --default-model", () => {
-    const args = parseAcpCommandArgs([
-      "--harness",
-      "opencode",
-      "--default-model",
-      "anthropic/sonnet",
-    ]);
-    expect(args.defaultModel).toBe("anthropic/sonnet");
-  });
-
   test("acpArgsToRuntimeEnvOverrides extracts runtime-env fields", () => {
     const overrides = acpArgsToRuntimeEnvOverrides({
       opencodeDisableExternalPlugins: true,
       runtimeLogLevel: "silent",
-      defaultModel: "foo/bar",
     });
     expect(overrides).toEqual({
       disableExternalPlugins: true,
       runtimeLogLevel: "silent",
-      defaultModel: "foo/bar",
     });
   });
 });

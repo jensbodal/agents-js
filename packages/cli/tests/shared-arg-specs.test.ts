@@ -42,12 +42,10 @@ describe("runtimeLogArgs", () => {
   test("declares the runtime log/env flag set", () => {
     const spec = runtimeLogArgs<RuntimeLogArgs>();
     expect(Object.keys(spec).sort()).toEqual([
-      "--default-model",
       "--opencode-disable-external-plugins",
       "--runtime-log-level",
     ]);
     expect(spec["--runtime-log-level"]?.kind).toBe("value");
-    expect(spec["--default-model"]?.kind).toBe("value");
     expect(spec["--opencode-disable-external-plugins"]?.kind).toBe("flag");
   });
 

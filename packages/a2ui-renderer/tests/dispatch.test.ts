@@ -56,11 +56,6 @@ const samples: Record<string, A2uiComponentNode> = {
     component: "AcpAuthSelector",
     methods: ["oauth", "token"],
   },
-  AcpModelSelector: {
-    component: "AcpModelSelector",
-    models: ["sonnet"],
-    selected: { path: "/model" },
-  },
   AcpDebugPanel: {
     component: "AcpDebugPanel",
     logs: { path: "/logs" },
@@ -81,16 +76,15 @@ const expectedTags: Record<string, string> = {
   AcpPermissionModeSelector: "acp-permission-mode-selector",
   AcpWriteGateModal: "acp-write-gate-modal",
   AcpAuthSelector: "acp-auth-selector",
-  AcpModelSelector: "acp-model-selector",
   AcpDebugPanel: "acp-debug-panel",
   AcpStatusBar: "acp-status-bar",
   AcpCodeBlock: "acp-code-block",
 };
 
 describe("renderA2uiComponent dispatch", () => {
-  test("ACP_BINDINGS contains all 15 catalog components", () => {
+  test("ACP_BINDINGS contains all 14 catalog components", () => {
     const keys = Object.keys(ACP_BINDINGS);
-    expect(keys).toHaveLength(15);
+    expect(keys).toHaveLength(14);
     for (const name of Object.keys(samples)) {
       expect(ACP_BINDINGS[name]).toBeDefined();
     }

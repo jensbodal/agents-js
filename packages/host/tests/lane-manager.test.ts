@@ -47,7 +47,6 @@ function createMockController(opts?: { pid?: number }): MockController {
       return "session-mock";
     },
     async sendPrompt() {},
-    async setModel() {},
     async setPermissionMode() {},
     forceReset() {},
     getState: () => state as ACPSessionState,

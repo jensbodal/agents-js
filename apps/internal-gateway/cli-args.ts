@@ -35,7 +35,6 @@ export interface GatewayCliArgs {
    */
   cardName?: string;
   check: boolean;
-  defaultModel?: string;
   heartbeatEnabled: boolean;
   heartbeatIntervalMs?: number;
   hostname?: string;
@@ -136,7 +135,6 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
   let workspace: string = process.cwd();
   let permissionMode: PermissionMode = "default";
   let cardName: string | undefined;
-  let defaultModel: string | undefined;
   let hostname: string | undefined;
   let port: number | undefined;
   let publicUrl: string | undefined;
@@ -203,16 +201,6 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
         );
       }
       permissionMode = normalizePermissionMode(next);
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--default-model") {
-      const next = argv[index + 1];
-      if (!next) {
-        throw new Error('[Gateway] Missing value for "--default-model".');
-      }
-      defaultModel = next;
       index += 1;
       continue;
     }
@@ -298,7 +286,7 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     }
 
     throw new Error(
-      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --default-model <id>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync, --heartbeat-enabled, --no-heartbeat, --heartbeat-interval-ms <ms>, --card-name <name>.`,
+      `[Gateway] Unknown argument "${arg}". Supported args: --check, --runtime <id>, --runtimes <id1,id2,...>, --workspace <path>, --permission-mode <mode>, --port <port>, --hostname <host>, --public-url <url>, --trust-workspace, --registry-sync, --heartbeat-enabled, --no-heartbeat, --heartbeat-interval-ms <ms>, --card-name <name>.`,
     );
   }
 
@@ -321,7 +309,6 @@ export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv): GatewayCli
     runtimeOverrides,
     workspace,
     permissionMode,
-    defaultModel,
     hostname,
     port,
     publicUrl: publicUrl ?? envPublicUrl,

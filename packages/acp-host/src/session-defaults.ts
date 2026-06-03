@@ -1,20 +1,18 @@
 /**
- * Agent default mode/model application logic.
+ * Agent default mode application logic.
  *
  * Extracted from session-controller to keep mode-setting concerns
  * in one place. The two trySetMode branches (plan / default) are
  * unified into a single parameterised helper.
  */
-import type { SessionModelState, SessionModeState } from "@agentclientprotocol/sdk";
+import type { SessionModeState } from "@agentclientprotocol/sdk";
 import type { Logger } from "./logger.ts";
 import type { PermissionMode } from "./session-state.ts";
 import type { AgentConfig } from "./types/agent-config.ts";
 
 interface DefaultsContext {
   setMode(modeId: string): Promise<void>;
-  setModel(modelId: string): Promise<void>;
   modes: SessionModeState | null;
-  models: SessionModelState | null;
   permissionMode: PermissionMode;
   agentAdvertisedModes: boolean;
   modeFallbackReason: "missing" | "empty" | null;
@@ -51,19 +49,6 @@ export async function applyAgentDefaults(
       ctx.log.warn("Configured defaultMode not found in available modes", {
         defaultMode: config.defaultMode,
         availableModes: ctx.modes.availableModes.map((m) => m.id),
-      });
-    }
-  }
-
-  if (config.defaultModel && ctx.models) {
-    const hasModel = ctx.models.availableModels.some((m) => m.modelId === config.defaultModel);
-    if (hasModel) {
-      await ctx.setModel(config.defaultModel);
-      ctx.permLog.info("Applied default agent model", { model: config.defaultModel });
-    } else {
-      ctx.log.warn("Configured defaultModel not found in available models", {
-        defaultModel: config.defaultModel,
-        availableModels: ctx.models.availableModels.map((m) => m.modelId),
       });
     }
   }

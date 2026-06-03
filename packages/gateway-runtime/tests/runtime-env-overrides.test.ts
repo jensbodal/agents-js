@@ -44,32 +44,29 @@ describe("mergeRuntimeEnvOverrides", () => {
     expect(merged.AJS_DEFAULT_MODEL).toBe("model-a");
   });
 
-  test("runtimeLogLevel, defaultHarness, defaultModel overrides win over env", () => {
+  test("runtimeLogLevel, defaultHarness overrides win over env", () => {
     const merged = mergeRuntimeEnvOverrides(
       {
         AJS_RUNTIME_LOG_LEVEL: "info",
         AJS_DEFAULT_HARNESS: "claude",
-        AJS_DEFAULT_MODEL: "old",
       },
       {
         runtimeLogLevel: "silent",
         defaultHarness: "opencode",
-        defaultModel: "new",
       },
     );
     expect(merged.AJS_RUNTIME_LOG_LEVEL).toBe("silent");
     expect(merged.AJS_DEFAULT_HARNESS).toBe("opencode");
-    expect(merged.AJS_DEFAULT_MODEL).toBe("new");
   });
 
   test("shallow-merges unrelated keys from base", () => {
     const merged = mergeRuntimeEnvOverrides(
       { PATH: "/usr/bin", HOME: "/home/x" },
-      { defaultModel: "foo" },
+      { defaultHarness: "opencode" },
     );
     expect(merged.PATH).toBe("/usr/bin");
     expect(merged.HOME).toBe("/home/x");
-    expect(merged.AJS_DEFAULT_MODEL).toBe("foo");
+    expect(merged.AJS_DEFAULT_HARNESS).toBe("opencode");
   });
 });
 
@@ -77,25 +74,25 @@ describe("applyRuntimeEnvOverrides", () => {
   test("mutates target env and restore reverts to original values", () => {
     const target: NodeJS.ProcessEnv = {
       AJS_RUNTIME_LOG_LEVEL: "info",
-      AJS_DEFAULT_MODEL: "before",
+      AJS_DEFAULT_HARNESS: "before",
       UNMANAGED: "keep-me",
     };
 
     const restore = applyRuntimeEnvOverrides(target, {
       runtimeLogLevel: "debug",
-      defaultModel: "after",
+      defaultHarness: "after",
       disableExternalPlugins: true,
     });
 
     expect(target.AJS_RUNTIME_LOG_LEVEL).toBe("debug");
-    expect(target.AJS_DEFAULT_MODEL).toBe("after");
+    expect(target.AJS_DEFAULT_HARNESS).toBe("after");
     expect(target.AJS_OPENCODE_DISABLE_EXTERNAL_PLUGINS).toBe("1");
     expect(target.UNMANAGED).toBe("keep-me");
 
     restore();
 
     expect(target.AJS_RUNTIME_LOG_LEVEL).toBe("info");
-    expect(target.AJS_DEFAULT_MODEL).toBe("before");
+    expect(target.AJS_DEFAULT_HARNESS).toBe("before");
     expect(target.AJS_OPENCODE_DISABLE_EXTERNAL_PLUGINS).toBeUndefined();
     expect(target.UNMANAGED).toBe("keep-me");
   });
@@ -103,10 +100,10 @@ describe("applyRuntimeEnvOverrides", () => {
   test("restore removes keys that were not present in the original env", () => {
     const target: NodeJS.ProcessEnv = {};
     const restore = applyRuntimeEnvOverrides(target, {
-      defaultModel: "temporary",
+      defaultHarness: "temporary",
     });
-    expect(target.AJS_DEFAULT_MODEL).toBe("temporary");
+    expect(target.AJS_DEFAULT_HARNESS).toBe("temporary");
     restore();
-    expect(target.AJS_DEFAULT_MODEL).toBeUndefined();
+    expect(target.AJS_DEFAULT_HARNESS).toBeUndefined();
   });
 });

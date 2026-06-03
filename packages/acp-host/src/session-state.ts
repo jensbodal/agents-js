@@ -135,7 +135,6 @@ export function createInitialState(): ACPSessionState {
     sessionUpdatedAt: null,
     localLabel: null,
     modes: null,
-    models: null,
     modesAdvertisedByAgent: false,
     permissionGatingActive: true,
     hubPath: null,

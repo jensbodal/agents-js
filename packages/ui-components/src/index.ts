@@ -42,7 +42,6 @@ export { AcpInboxMessageList, filterMessages } from "./acp-inbox-message-list.ts
 export { acpInputStyles } from "./acp-input-styles.ts";
 export { AcpMessage } from "./acp-message.ts";
 export { AcpModal } from "./acp-modal.ts";
-export { AcpModelSelector } from "./acp-model-selector.ts";
 export { AcpPermissionModal } from "./acp-permission-modal.ts";
 export {
   AcpPermissionModeSelector,
@@ -65,11 +64,9 @@ export { AcpTranscript } from "./acp-transcript.ts";
 export type {
   AgentCardLike,
   DebugRecordLike,
-  ModelInfoLike,
   PermissionRequestLike,
   PlanEntryLike,
   RuntimeInfoLike,
-  SessionModelsLike,
   SessionStateLike,
   TranscriptEntryLike,
   TranscriptMessageEntryLike,

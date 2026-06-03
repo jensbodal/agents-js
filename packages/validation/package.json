@@ -113,7 +113,7 @@
   },
   "peerDependencies": {
     "@a2a-js/sdk": "^0.3.13",
-    "@agentclientprotocol/sdk": "^0.21.0",
+    "@agentclientprotocol/sdk": "^0.24.0",
     "zod": "^3"
   },
   "peerDependenciesMeta": {

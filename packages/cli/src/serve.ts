@@ -65,7 +65,6 @@ export interface ServeCommandArgs {
   acpArgsJson?: string;
   acpCommand?: string;
   cardName?: string;
-  defaultModel?: string;
   /**
    * Ordered list of curated harness ids. Populated by `--harness`
    * (repeatable) and `--harnesses` (comma-separated), in argv order.
@@ -204,7 +203,6 @@ export function serveArgsToRuntimeEnvOverrides(args: ServeCommandArgs): RuntimeE
   return {
     disableExternalPlugins: args.opencodeDisableExternalPlugins,
     runtimeLogLevel: args.runtimeLogLevel,
-    defaultModel: args.defaultModel,
   };
 }
 
@@ -245,7 +243,6 @@ function printServeUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "  --port <port>                       Bind port (0 = auto-allocate)",
       "  --runtime-log-level <level>         Runtime log level (debug|info|warn|error|silent)",
       "  --opencode-disable-external-plugins Append --pure when launching opencode",
-      "  --default-model <id>                Default model id (AJS_DEFAULT_MODEL override)",
       "  --registry-sync                     Enable cross-gateway peer registry sync (default: off; A2A-only payload)",
       "  --version, -v                       Print version and exit",
       "  --help, -h                          Show this message",

@@ -7,7 +7,6 @@ import type {
   CreateElicitationResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
-  SessionModelState,
   SessionModeState,
   SessionNotification,
   ToolCallLocation,
@@ -48,8 +47,6 @@ export interface ACPSessionState {
   promptQueue: ContentBlock[][];
   /** Available session modes and current mode, if supported by the agent. */
   modes: SessionModeState | null;
-  /** Available models and current model. @experimental -- not yet stable in ACP spec. */
-  models: SessionModelState | null;
   /** Whether the agent explicitly advertised modes in its session response. */
   modesAdvertisedByAgent: boolean;
   /** Whether runtime mode sync succeeded for permission gating (ask/hub modes). */
@@ -242,7 +239,6 @@ export type ACPSessionEvent =
   | { type: "session_info_updated"; title: string | null; updatedAt: string | null }
   | { type: "queue_changed"; count: number }
   | { type: "mode_changed"; modeId: string; modes: SessionModeState }
-  | { type: "model_changed"; modelId: string; models: SessionModelState }
   | { type: "ungated_write_detected"; toolCallId: string; title: string; kind: string | undefined }
   | { type: "permission_gating_status"; active: boolean; reason: string }
   | { type: "config_option_changed"; configId: string; value: boolean | string }

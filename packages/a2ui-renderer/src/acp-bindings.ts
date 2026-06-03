@@ -302,15 +302,6 @@ export function bindAuthSelector(props: AnyAcpProps, ctx: BindingContext): Bindi
   ></acp-auth-selector>`;
 }
 
-export function bindModelSelector(props: AnyAcpProps, ctx: BindingContext): BindingResult {
-  const models = unwrapStringList(props.models);
-  const onChange = wrapAction(props.change, ctx);
-  return html`<acp-model-selector
-    .models=${models}
-    @acp-model-change=${onChange}
-  ></acp-model-selector>`;
-}
-
 export function bindDebugPanel(props: AnyAcpProps, _ctx: BindingContext): BindingResult {
   const enabled = unwrapBoolean(props.enabled, false);
   return html`<acp-debug-panel ?enabled=${enabled}></acp-debug-panel>`;
@@ -352,7 +343,6 @@ export const ACP_BINDINGS: Readonly<
   AcpPermissionModeSelector: bindPermissionModeSelector,
   AcpWriteGateModal: bindWriteGateModal,
   AcpAuthSelector: bindAuthSelector,
-  AcpModelSelector: bindModelSelector,
   AcpDebugPanel: bindDebugPanel,
   AcpStatusBar: bindStatusBar,
   AcpCodeBlock: bindCodeBlock,

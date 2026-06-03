@@ -82,12 +82,11 @@ describe("saved-runtime-restore", () => {
     ).toBe(false);
   });
 
-  test("repairs the active saved profile to the recovered runtime and compatible model", () => {
+  test("repairs the active saved profile to the recovered runtime", () => {
     saveConnectPreferences(
       {
         url: "http://localhost:4123",
         runtimeId: "sisyphus",
-        modelId: "ultraworker",
       },
       {
         profileName: "Recovered browser profile",
@@ -97,12 +96,6 @@ describe("saved-runtime-restore", () => {
     const result = repairActiveSavedRuntimePreference({
       hostState: {
         runtime: { id: "claude", displayName: "Claude ACP" },
-        defaultModelId: "sonnet",
-        models: {
-          currentModelId: "sonnet",
-          availableModels: [{ modelId: "sonnet", name: "Sonnet" }],
-        },
-        runtimeModels: [{ id: "sonnet", name: "Sonnet", provider: "anthropic" }],
         runtimeSwitchState: {
           status: "failed",
           requestedRuntimeId: "sisyphus",
@@ -111,8 +104,6 @@ describe("saved-runtime-restore", () => {
         },
       },
       fallbackUrl: "http://localhost:4123",
-      pendingModelSelection: "ultraworker",
-      selectedModelId: "",
     });
 
     expect(result).toEqual({
@@ -120,13 +111,11 @@ describe("saved-runtime-restore", () => {
       savedPreferences: {
         url: "http://localhost:4123",
         runtimeId: "claude",
-        modelId: "sonnet",
       },
     });
     expect(loadConnectPreferences()).toEqual({
       url: "http://localhost:4123",
       runtimeId: "claude",
-      modelId: "sonnet",
     });
     expect(loadConnectProfiles()).toMatchObject({
       activeProfileId: "default",
@@ -135,7 +124,6 @@ describe("saved-runtime-restore", () => {
           id: "default",
           harnessId: "claude",
           runtimeId: "claude",
-          modelId: "sonnet",
         },
       ],
     });
@@ -148,8 +136,6 @@ describe("saved-runtime-restore", () => {
           runtime: { id: "claude", displayName: "Claude ACP" },
         },
         fallbackUrl: "http://localhost:4123",
-        pendingModelSelection: null,
-        selectedModelId: "",
       }),
     ).toEqual({
       repaired: false,
