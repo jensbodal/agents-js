@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Message, type Part, Role, TaskState } from "@a2a-js/sdk";
 import { ndJsonStream } from "@agents-js/acp";
+import { mapStopReasonToTaskState } from "../src/executor.ts";
 import {
   extractValidAgentMessageId,
   resolveAgentMessageId,
@@ -988,5 +989,22 @@ describe("ACPtoA2AExecutor beforePrompt hook", () => {
 
     expect(receivedPrompts).toHaveLength(1);
     expect(receivedPrompts[0]).toEqual([{ type: "text", text: "should still work" }]);
+  });
+});
+
+describe("mapStopReasonToTaskState", () => {
+  test("maps clean terminal stop reasons to their specific states", () => {
+    expect(mapStopReasonToTaskState("end_turn")).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(mapStopReasonToTaskState("max_tokens")).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(mapStopReasonToTaskState("max_turn_requests")).toBe(TaskState.TASK_STATE_COMPLETED);
+    expect(mapStopReasonToTaskState("cancelled")).toBe(TaskState.TASK_STATE_CANCELED);
+    expect(mapStopReasonToTaskState("refusal")).toBe(TaskState.TASK_STATE_REJECTED);
+  });
+
+  test("maps an unrecognized stop reason to FAILED (terminal, not a false success)", () => {
+    // The default branch is defensive against runtime values outside the typed
+    // union. It must stay terminal (so the SSE stream closes) but report FAILED
+    // rather than COMPLETED — an unknown stop reason is not a clean success.
+    expect(mapStopReasonToTaskState("totally_unknown" as never)).toBe(TaskState.TASK_STATE_FAILED);
   });
 });

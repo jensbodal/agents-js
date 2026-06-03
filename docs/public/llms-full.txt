@@ -4493,6 +4493,7 @@ bun add @agents-js/a2a
 - **`isACPAuthRequiredError`**
 - **`isAgentEventMetadata`** — Type guard: does this `metadata` carry a known agent-event kind?
 - **`mapCapabilities`** — Map ACP agentCapabilities and discovered resources into A2A AgentCard
+- **`mapStopReasonToTaskState`**
 - **`newCorrelationId`** — Generate a fresh correlation id.
 - **`normalizeAdvertisedHost`**
 - **`nowIso`**

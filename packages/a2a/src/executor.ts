@@ -119,7 +119,9 @@ function createDeferred<T>(): PendingResolver<T> {
   return { promise, reject, resolve };
 }
 
-function mapStopReasonToTaskState(stopReason: PromptResponse["stopReason"]): TaskStatus["state"] {
+export function mapStopReasonToTaskState(
+  stopReason: PromptResponse["stopReason"],
+): TaskStatus["state"] {
   switch (stopReason) {
     case "cancelled":
       return TaskState.TASK_STATE_CANCELED;
@@ -130,11 +132,13 @@ function mapStopReasonToTaskState(stopReason: PromptResponse["stopReason"]): Tas
     case "max_turn_requests":
       return TaskState.TASK_STATE_COMPLETED;
     default:
-      // An unrecognized stop reason still means the turn ended. Map to a
-      // terminal state (not UNSPECIFIED) so the terminal status update closes
-      // the SSE stream — A2A 1.0 drives stream lifecycle off TaskState
-      // terminality, and UNSPECIFIED is non-terminal.
-      return TaskState.TASK_STATE_COMPLETED;
+      // An unrecognized stop reason still means the turn ended, so map to a
+      // terminal state (not UNSPECIFIED) — A2A 1.0 drives stream lifecycle off
+      // TaskState terminality, and UNSPECIFIED is non-terminal, so the SSE
+      // stream would never close. FAILED (not COMPLETED): an unknown stop
+      // reason is not a clean success, and FAILED is equally terminal so the
+      // stream still closes while the reported task state stays honest.
+      return TaskState.TASK_STATE_FAILED;
   }
 }
 
