@@ -5,7 +5,7 @@ import type { z } from "zod";
  * Local shadow of `@a2ui/web_core`'s `ComponentApi` with a
  * v4-compatible schema constraint.
  *
- * `@a2ui/web_core@0.9.1-alpha.0` declares
+ * `@a2ui/web_core@0.10.0` declares
  * `ComponentApi<Schema extends z.ZodTypeAny>` against zod v3's
  * `ZodTypeAny`. When this workspace upgrades to zod v4, v4's
  * `ZodObject<…, $strict>` is structurally distinct (new `_zod.def`

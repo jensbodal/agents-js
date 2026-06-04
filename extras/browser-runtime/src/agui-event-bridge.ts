@@ -67,7 +67,7 @@ export interface AguiEventBridgeOptions {
  * notification (`tool.invoked`) faithfully maps to three AG-UI events
  * (start + args + end). Collapsing to one would lose protocol fidelity.
  *
- * AG-UI v0.0.52 has no first-class "cancelled" run status.
+ * AG-UI v0.0.55 has no first-class "cancelled" run status.
  * `RunFinishedEvent` carries no status field. We map `cancelled` to
  * `RunErrorEvent` with `code: "cancelled"` as the closest semantic.
  */

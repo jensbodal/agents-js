@@ -1,7 +1,7 @@
 /**
  * `@agents-js/agui-types` — canonical AG-UI types for the agents-js monorepo.
  *
- * Re-exports `@ag-ui/core@0.0.52` (pinned exact — pre-1.0) and adds
+ * Re-exports `@ag-ui/core@0.0.55` (pinned exact — pre-1.0) and adds
  * agents-js ↔ AG-UI adapter helpers that live in `./adapters/`.
  *
  * See `../README.md` for the adapter surface.

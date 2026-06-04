@@ -82,7 +82,7 @@ export class AGUITransport {
   async resolveTarget(input: AgentTargetInput): Promise<ResolvedAgentTarget> {
     const normalized = normalizeAgentTargetInput({ ...input, mode: "base" });
     const baseUrl = normalized.baseUrl;
-    const protocolVersion = "agui/0.0.52";
+    const protocolVersion = "agui/0.0.55";
     // AG-UI has no agent card; synthesize a proto-canonical (A2A 1.0)
     // AgentCard so downstream consumers get a uniform shape.
     const card = {
