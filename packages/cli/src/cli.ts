@@ -7,6 +7,7 @@ import { runClientCommand } from "./client/command.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
 import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
+import { runOnboardCommand } from "./onboard.ts";
 import { runRegistryCommand } from "./registry.ts";
 import { runSendCommand } from "./send.ts";
 import { runServeCommand } from "./serve.ts";
@@ -29,7 +30,8 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  client    Open the A2A client TUI",
       "  send      Send a one-shot prompt to a running serve and print the response",
       "  registry  Manage the shared agent registry",
-      "  launch    Launch or attach to an agent's tmux session (Phase 1 — claude-code)",
+      "  launch    Launch or attach to an agent's tmux session (claude-code | pi)",
+      "  onboard   Onboard an agent onto the mesh (launch + provision)",
       "  skill     Print the installable agents-js SKILL.md document",
       "",
       "Global options:",
@@ -94,6 +96,11 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "launch") {
     const result = await runLaunchCommand(rest);
+    return typeof result === "number" ? result : EXIT_OK;
+  }
+
+  if (command === "onboard") {
+    const result = await runOnboardCommand(rest);
     return typeof result === "number" ? result : EXIT_OK;
   }
 

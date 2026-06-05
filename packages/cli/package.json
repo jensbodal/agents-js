@@ -65,6 +65,7 @@
     "@agents-js/host": "0.5.1",
     "@agents-js/mcp-bridge": "0.5.1",
     "@agents-js/schema-utils": "0.5.1",
+    "@agents-js/skills": "0.5.1",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentui/core": "0.1.99",
     "@agentclientprotocol/claude-agent-acp": "0.33.1",

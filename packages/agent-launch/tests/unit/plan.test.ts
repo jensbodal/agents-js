@@ -239,3 +239,69 @@ describe("buildLaunchPlan — allowed_tools", () => {
     expect(plan.allowedTools).toEqual([]);
   });
 });
+
+describe("buildLaunchPlan — pi harness (Phase 2, native peer)", () => {
+  const piEntry = {
+    tmuxSession: "malar-pi-0",
+    harness: "pi",
+    binary: "pi",
+    workspace: "/tmp/malar",
+    freshFlags: "",
+    envSetup: "export MATRIX_AGENT=malar-pi-0",
+    piExtension: "./extras/pi-extension/src/index.ts",
+    piPort: "3199",
+    gitAuthorName: "malar-pi-0",
+    gitAuthorEmail: "malar-pi-0@agents.example",
+    extra: {},
+  };
+
+  test("emits `pi -e <extension>` and reports the pi harness", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: { PATH: "/usr/bin" } });
+    expect(plan.command).toBe("pi");
+    expect(plan.args).toEqual(["-e", "./extras/pi-extension/src/index.ts"]);
+    expect(plan.harness).toBe("pi");
+    expect(plan.mode).toBe("fresh");
+    expect(plan.allowedTools).toEqual([]);
+  });
+
+  test("injects AGENTS_JS_PI_* env (native flag + name from MATRIX_AGENT + port)", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {} });
+    expect(plan.env.AGENTS_JS_PI_NATIVE).toBe("1");
+    expect(plan.env.AGENTS_JS_PI_NAME).toBe("malar-pi-0");
+    expect(plan.env.AGENTS_JS_PI_PORT).toBe("3199");
+  });
+
+  test("AGENTS_JS_PI_* are in sessionEnv so launch.ts exports them to the pi process", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {} });
+    expect(plan.sessionEnv.AGENTS_JS_PI_NATIVE).toBe("1");
+    expect(plan.sessionEnv.AGENTS_JS_PI_NAME).toBe("malar-pi-0");
+    expect(plan.sessionEnv.AGENTS_JS_PI_PORT).toBe("3199");
+  });
+
+  test("empty fresh_flags is allowed for pi (`-e <ext>` is the base invocation)", () => {
+    const plan = buildLaunchPlan({ ...piEntry, freshFlags: "   " }, { baseEnv: {} });
+    expect(plan.args).toEqual(["-e", "./extras/pi-extension/src/index.ts"]);
+  });
+
+  test("fresh_flags append after `-e <ext>`", () => {
+    const plan = buildLaunchPlan({ ...piEntry, freshFlags: "--provider zai" }, { baseEnv: {} });
+    expect(plan.args).toEqual(["-e", "./extras/pi-extension/src/index.ts", "--provider", "zai"]);
+  });
+
+  test("AGENTS_JS_PI_NAME falls back to tmux_session when MATRIX_AGENT is absent", () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, tmuxSession: "fallback-pi", envSetup: undefined },
+      { baseEnv: {} },
+    );
+    expect(plan.env.AGENTS_JS_PI_NAME).toBe("fallback-pi");
+  });
+
+  test("defaults extension to @agents-js/pi-extension; omits port when pi_port unset", () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, piExtension: undefined, piPort: undefined },
+      { baseEnv: {} },
+    );
+    expect(plan.args).toEqual(["-e", "@agents-js/pi-extension"]);
+    expect(plan.env.AGENTS_JS_PI_PORT).toBeUndefined();
+  });
+});

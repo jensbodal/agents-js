@@ -67,8 +67,10 @@ agents-js send --url http://127.0.0.1:<port> "hello"
 | `agents-js mcp` | Stdio MCP server that exposes registered A2A agents as MCP tools. |
 | `agents-js client` | A2A client TUI, one-shot message sender, or endpoint probe. |
 | `agents-js send` | Headless one-shot prompt to a running gateway. |
+| `agents-js launch` | Launch an agent in a tmux session (`claude-code`, `pi`). |
+| `agents-js onboard` | Onboard an agent onto the mesh — launch + provision. See [ONBOARDING.md](ONBOARDING.md). |
 | `agents-js registry` | Manage `~/.agents-js/registry.json` (A2A and ACP entries). |
-| `agents-js skill` | Print an installable `SKILL.md` for agent command guidance. |
+| `agents-js skill` | Print the installable `SKILL.md`, or install one with `skill install <name> --from <dir>`. |
 
 Full flag and exit-code reference: [packages/cli/README.md](packages/cli/README.md).
 

@@ -96,6 +96,18 @@ export interface AgentEntry {
    * deny-by-default posture.
    */
   readonly allowedTools?: readonly string[];
+  /**
+   * pi harness (Phase 2) native-peer mode: the spec passed to `pi -e <…>`.
+   * Defaults to `@agents-js/pi-extension` when unset. The extension binds the
+   * pi process's localhost A2A endpoint so it joins the mesh as a native peer.
+   */
+  readonly piExtension?: string;
+  /**
+   * pi harness (Phase 2): fixed localhost port for the native-peer A2A endpoint
+   * (`AGENTS_JS_PI_PORT`). When unset, pi-extension picks an ephemeral port and
+   * self-registers its URL in `~/.agents-js/registry.json`.
+   */
+  readonly piPort?: string;
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -165,6 +177,8 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "git_author_email",
   "matrix_mxid",
   "allowed_tools",
+  "pi_extension",
+  "pi_port",
 ]);
 
 function requireString(
@@ -250,6 +264,8 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     gitAuthorEmail: optionalString(obj, "git_author_email", ctx),
     matrixMxid: optionalString(obj, "matrix_mxid", ctx),
     allowedTools: optionalStringArray(obj, "allowed_tools", ctx),
+    piExtension: optionalString(obj, "pi_extension", ctx),
+    piPort: optionalString(obj, "pi_port", ctx),
     extra,
   };
 }

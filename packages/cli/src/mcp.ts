@@ -1,11 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { createSharedAgentRegistry } from "@agents-js/a2a-client/node";
 import { type AgentEndpoint, type BridgeConfig, createBridgeServer } from "@agents-js/mcp-bridge";
+import { listSkills, type SkillMeta } from "@agents-js/skills";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
+import { skillSourceSearchPaths } from "./skill.ts";
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
 
 /**
@@ -228,7 +230,35 @@ function generateMcpServerConfig(opts?: { name?: string; url?: string }): {
   };
 }
 
-async function loadBridgeConfig(env?: NodeJS.ProcessEnv): Promise<BridgeConfig> {
+/**
+ * Surface skills from a skills source (e.g. a skills-js checkout) through the
+ * MCP bridge's `tool_search`, when `AGENTS_JS_SKILLS_DIR` is set (a
+ * `path.delimiter`-separated list of source dirs). Skills are discoverable
+ * references, not invocable tools. agents-js stays skills-js-free — sources are
+ * plain directories read through the `@agents-js/skills` loader. This is how a
+ * native pi (whose pi-extension spawns `agents-js mcp` in bridge mode)
+ * discovers provisioned skills like grill-me.
+ */
+function loadSkillsFromEnv(env: NodeJS.ProcessEnv): SkillMeta[] {
+  const dirs = env.AGENTS_JS_SKILLS_DIR;
+  if (!dirs) return [];
+  const searchPaths = dirs
+    .split(delimiter)
+    .filter(Boolean)
+    .flatMap((dir) => skillSourceSearchPaths(dir));
+  try {
+    return listSkills(searchPaths);
+  } catch {
+    return [];
+  }
+}
+
+function withSkills(config: BridgeConfig, env: NodeJS.ProcessEnv): BridgeConfig {
+  const skills = loadSkillsFromEnv(env);
+  return skills.length > 0 ? { ...config, skills } : config;
+}
+
+export async function loadBridgeConfig(env?: NodeJS.ProcessEnv): Promise<BridgeConfig> {
   // biome-ignore lint/style/noProcessEnv: CLI entry point reads config env vars by design.
   const processEnv = env ?? process.env;
   const configPath = processEnv.AGENTS_JS_BRIDGE_CONFIG;
@@ -261,7 +291,7 @@ async function loadBridgeConfig(env?: NodeJS.ProcessEnv): Promise<BridgeConfig> 
         agents.push({ name: record.name, url: record.url });
       }
     }
-    return { agents };
+    return withSkills({ agents }, processEnv);
   }
 
   const registry = createSharedAgentRegistry({ env });
@@ -271,7 +301,7 @@ async function loadBridgeConfig(env?: NodeJS.ProcessEnv): Promise<BridgeConfig> 
     if (entry.kind !== "a2a") continue; // ACP entries are not exposed via the MCP surface.
     agents.push({ name: entry.name, url: entry.url });
   }
-  return { agents };
+  return withSkills({ agents }, processEnv);
 }
 
 async function defaultStartServer(config: BridgeConfig): Promise<void> {

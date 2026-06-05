@@ -45,9 +45,17 @@ export type LaunchMode = "fresh";
  * {@link buildLaunchPlan}, which keeps boundary-narrowing-drift in
  * check.
  */
-export type SupportedHarness = "claude-code";
+export type SupportedHarness = "claude-code" | "pi";
 
-const SUPPORTED_HARNESSES: ReadonlySet<string> = new Set<SupportedHarness>(["claude-code"]);
+const SUPPORTED_HARNESSES: ReadonlySet<string> = new Set<SupportedHarness>(["claude-code", "pi"]);
+
+/**
+ * Default `-e <extension>` entry pi loads in native-peer mode. Operators
+ * override via the `pi_extension` config field. The native-peer extension
+ * exposes the live Pi TUI as a localhost A2A endpoint (see
+ * `extras/pi-extension`), which is how a native pi joins the agents-js mesh.
+ */
+const DEFAULT_PI_EXTENSION = "@agents-js/pi-extension";
 
 /**
  * Structured plan returned by {@link buildLaunchPlan}. The tmux layer
@@ -117,6 +125,12 @@ const SESSION_ENV_KEYS: ReadonlySet<string> = new Set([
   "GIT_COMMITTER_NAME",
   "GIT_COMMITTER_EMAIL",
   "MATRIX_AGENT",
+  // pi native-peer vars — must reach the pi process via `launch.ts`'s
+  // send-keys export (which only emits sessionEnv + channelEnv). Absent for
+  // non-pi harnesses, so pickSessionEnv simply skips them.
+  "AGENTS_JS_PI_NATIVE",
+  "AGENTS_JS_PI_NAME",
+  "AGENTS_JS_PI_PORT",
 ]);
 
 function splitFlags(flags: string): readonly string[] {
@@ -174,36 +188,74 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
   const channelEnv: LaunchEnv = entry.channelEnv
     ? Object.freeze({ ...parseEnvSetup(entry.channelEnv, entry.tmuxSession) })
     : Object.freeze({});
-  // The full child env is identity + channel vars layered on the base.
-  const env = Object.freeze({ ...injectIdentityEnv(entry, options.baseEnv), ...channelEnv });
-  const flagArgs = splitFlags(entry.freshFlags);
-  if (flagArgs.length === 0) {
-    throw new LaunchPlanError(
-      `fresh_flags is empty after split — harness would launch with no flags`,
-      {
-        agentName: entry.tmuxSession,
-        harness: entry.harness,
-      },
-    );
-  }
+  // Identity + channel vars layered on the base env. Provider keys (e.g.
+  // ZAI_API_KEY for pi) flow through from baseEnv untouched.
+  const baseEnv = Object.freeze({ ...injectIdentityEnv(entry, options.baseEnv), ...channelEnv });
 
-  // Declarative tool allowlist → a single comma-joined `--allowedTools` flag
-  // appended after the operator's fresh_flags (comma form avoids the variadic
-  // flag greedily consuming later tokens). Empty when unset.
-  const allowedTools = entry.allowedTools ?? [];
-  const args =
-    allowedTools.length > 0 ? [...flagArgs, "--allowedTools", allowedTools.join(",")] : flagArgs;
+  // Harness-specific command/args/env. Phase 1 shipped claude-code; Phase 2
+  // adds pi (native-peer mode onto the agents-js A2A bus). Adding a harness =
+  // a new branch here + a token in SUPPORTED_HARNESSES.
+  const harness = entry.harness as SupportedHarness;
+  const built =
+    harness === "pi"
+      ? buildPiInvocation(entry, baseEnv)
+      : buildClaudeCodeInvocation(entry, baseEnv);
 
   return {
     tmuxSession: entry.tmuxSession,
     cwd: entry.workspace,
-    command: entry.binary,
-    args,
-    env,
-    sessionEnv: pickSessionEnv(env),
+    command: built.command,
+    args: built.args,
+    env: built.env,
+    sessionEnv: pickSessionEnv(built.env),
     channelEnv,
-    allowedTools,
-    harness: "claude-code",
+    allowedTools: built.allowedTools,
+    harness,
     mode,
   };
+}
+
+/** Command/args/env a single harness contributes to a {@link LaunchPlan}. */
+interface HarnessInvocation {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env: LaunchEnv;
+  readonly allowedTools: readonly string[];
+}
+
+/** claude-code (Phase 1): operator fresh_flags + optional `--allowedTools`. */
+function buildClaudeCodeInvocation(entry: AgentEntry, baseEnv: LaunchEnv): HarnessInvocation {
+  const flagArgs = splitFlags(entry.freshFlags);
+  if (flagArgs.length === 0) {
+    throw new LaunchPlanError(
+      `fresh_flags is empty after split — harness would launch with no flags`,
+      { agentName: entry.tmuxSession, harness: entry.harness },
+    );
+  }
+  const allowedTools = entry.allowedTools ?? [];
+  const args =
+    allowedTools.length > 0 ? [...flagArgs, "--allowedTools", allowedTools.join(",")] : flagArgs;
+  return { command: entry.binary, args, env: baseEnv, allowedTools };
+}
+
+/**
+ * pi (Phase 2) — native-peer mode. Emits `pi -e <extension> [fresh_flags]`
+ * with `AGENTS_JS_PI_*` env so the pi-extension binds a localhost A2A endpoint
+ * under the agent's identity (its `MATRIX_AGENT` name), joining the agents-js
+ * mesh as a native, always-listening peer. Provider auth comes from
+ * `ZAI_API_KEY` in baseEnv or pi's own stored login. `fresh_flags` may be empty
+ * — `-e <ext>` is the base invocation, so there is no empty-flags failure here.
+ */
+function buildPiInvocation(entry: AgentEntry, baseEnv: LaunchEnv): HarnessInvocation {
+  const extension = entry.piExtension ?? DEFAULT_PI_EXTENSION;
+  const flagArgs = splitFlags(entry.freshFlags);
+  const args: readonly string[] = ["-e", extension, ...flagArgs];
+  const piName = baseEnv.MATRIX_AGENT ?? entry.tmuxSession;
+  const env: LaunchEnv = Object.freeze({
+    ...baseEnv,
+    AGENTS_JS_PI_NATIVE: "1",
+    AGENTS_JS_PI_NAME: piName,
+    ...(entry.piPort ? { AGENTS_JS_PI_PORT: entry.piPort } : {}),
+  });
+  return { command: entry.binary, args, env, allowedTools: [] };
 }

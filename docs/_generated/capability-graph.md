@@ -70,6 +70,7 @@ graph LR
   cli --> host
   cli --> mcp_bridge
   cli --> schema_utils
+  cli --> skills
   droid_acp --> acp
   droid_acp --> gateway_runtime
   gateway_runtime --> a2a

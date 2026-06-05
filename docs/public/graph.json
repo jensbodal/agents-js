@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T17:59:22.735Z",
+  "generated_at": "2026-06-05T03:59:07.071Z",
   "package_count": 40,
   "publishable_count": 28,
   "packages": [
@@ -188,7 +188,8 @@
         "@agents-js/gateway-runtime",
         "@agents-js/host",
         "@agents-js/mcp-bridge",
-        "@agents-js/schema-utils"
+        "@agents-js/schema-utils",
+        "@agents-js/skills"
       ],
       "external_deps": [
         "@agentclientprotocol/claude-agent-acp",
@@ -694,6 +695,7 @@
       "@agents-js/plane"
     ],
     "@agents-js/skills": [
+      "@agents-js/cli",
       "@agents-js/mcp-bridge"
     ],
     "@agents-js/agent-launch": [
