@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/canvas-model",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "Dependency-free canvas document model helpers for agents-js A2UI payload handoff, OCIF-style preservation, and JSON Canvas preview export.",

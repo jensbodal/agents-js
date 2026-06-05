@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/agent-launch",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "Typed launcher for agents-js-managed tmux/harness sessions. Phase-1 slice (AJS-141): config loader, claude-code fresh-mode plan builder, git+MATRIX_AGENT identity env composition, tmux execFile wrapper. Replaces the dot-cognee `scripts/agent-launch.sh` bash original in phased increments; bridge preflight stays in dot-cognee per non-goal.",

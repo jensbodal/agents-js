@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/wake-signal-store",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "Durable wake-signal store for the AJS-89 HYBRID gateway substrate. Source-side persistence + at-least-once delivery dedup for wake signals consumed by per-harness terminal adapters (e.g. @agents-js/claude-channel-adapter). Persistence-backend swap shape (in-mem → SQLite → Postgres) baked into the Backend interface.",
@@ -47,7 +47,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/wake-types": "0.5.1"
+    "@agents-js/wake-types": "0.6.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

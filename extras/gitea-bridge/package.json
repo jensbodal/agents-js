@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/gitea-bridge",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -32,8 +32,8 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/a2a": "0.5.1",
-    "@agents-js/host": "0.5.1"
+    "@agents-js/a2a": "0.6.0",
+    "@agents-js/host": "0.6.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

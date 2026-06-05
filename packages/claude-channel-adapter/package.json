@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/claude-channel-adapter",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "Claude Code receiver-side MCP server for the wake-adapter family. Declares the experimental `claude/channel` + `claude/channel/permission` capabilities so Claude Code registers a listener for `notifications/claude/channel` (capability-gated, per Anthropic Channels protocol research-preview ~v2.1.80+); subscribes to gateway wake/inbox events and emits push messages into running Claude Code sessions. Bidirectional: also exposes `agents_js_reply` + `agents_js_send` outbound tools for CC → mesh replies. Per ADR-0007 §Revision-2026-05-28.",
@@ -48,7 +48,7 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agents-js/wake-types": "0.5.1",
+    "@agents-js/wake-types": "0.6.0",
     "@modelcontextprotocol/sdk": "catalog:"
   },
   "devDependencies": {

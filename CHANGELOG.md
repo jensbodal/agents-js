@@ -11,14 +11,40 @@ moves, major feature lanes).
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/jensbodal/agents-js/compare/v0.5.1...v0.6.0) (2026-06-05)
+
+The 0.6.0 source baseline forward-migrates every wrapped protocol SDK to its
+latest release and deletes the legacy/compat surface that choice unlocks. It is
+**forward-only**: published wire shapes changed, and consumers building from
+source must adapt. See `docs/migration-0.6.0.md`.
+
+### ⚠ BREAKING CHANGES
+
+* **a2a,a2a-client,host,validation:** `@a2a-js/sdk` 0.3.13 → **1.0.0-alpha.0** — the A2A data model is now protobuf-canonical. JSON-RPC method renames (`message/send`→`SendMessage`, `message/stream`→`SendStreamingMessage`, `tasks/get`→`GetTask`, `tasks/cancel`→`CancelTask`, push-config CRUD); `role` string → `Role` enum (`ROLE_USER`/`ROLE_AGENT`); message parts → tagged `content` (`{$case:"text",value}`); `TaskStatus.state` string → `TaskState` enum; `kind`/`final` discriminators removed; agent-card `url`/`protocolVersion`/`preferredTransport`/`additionalInterfaces` → `supportedInterfaces[]`. `eventBus.publish` now takes a wrapped `AgentExecutionEvent`; `ServerCallContext` is required on the handler.
+* **acp:** `@agentclientprotocol/sdk` 0.21 → **0.24** — the LLM model-selection API was removed upstream (`SessionModelState`, `session/set_model`, `setModel`, `--default-model` / `AJS_DEFAULT_MODEL`); the separate permission `mode` concept is unchanged.
+* **cli:** `serve` now mounts the AG-UI `/agent` endpoint via the host-session path (`createHostSession` + `HostA2AExecutor`); the legacy raw-executor path is removed.
+* Legacy/compat surface deleted — permission-mode aliases (`ask`/`yolo`/`hub`), deprecated re-exports/props, and the AJS-65 migration-window code paths.
+
 ### Added
 
-* **gateway-runtime,cli:** periodic host-address heartbeat for the federated registry (AJS-87) — gateways now re-publish their `(name, url)` record on a default 60s interval so peers tolerate DHCP roams and DDNS drift; `--heartbeat-interval-ms`, `--heartbeat-enabled` / `--no-heartbeat` flags and `AGENTS_JS_HEARTBEAT_INTERVAL_MS` / `AGENTS_JS_HEARTBEAT_ENABLED` env vars control the loop.
-* **host,ui-components,internal-gateway:** inbox.deliver contract widening — `matrix_origin` envelope, `kind` discriminator, `idempotency_key` (AJS-88, DOT-502 v0.2)
+* **deps:** AG-UI `@ag-ui/core` 0.0.55; A2UI `@a2ui/web_core` 0.10.0.
+* **docs:** `docs/migration-0.6.0.md` — consumer migration guide for the 0.6.0 protocol baseline.
+* **gateway-runtime,cli:** periodic host-address heartbeat for the federated registry (AJS-87) — gateways re-publish their `(name, url)` record on a default 60s interval so peers tolerate DHCP roams and DDNS drift; `--heartbeat-interval-ms`, `--heartbeat-enabled` / `--no-heartbeat` flags and `AGENTS_JS_HEARTBEAT_INTERVAL_MS` / `AGENTS_JS_HEARTBEAT_ENABLED` env vars control the loop.
+* **host,ui-components,internal-gateway:** inbox.deliver contract widening — `matrix_origin` envelope, `kind` discriminator, `idempotency_key` (AJS-88, DOT-502 v0.2).
+* **agent-launch,cli:** `pi` joins the launch surface as a native A2A peer — `agents-js launch <pi-agent>` and the new `agents-js onboard <agent>` verb start `pi -e <extension>` with `AGENTS_JS_PI_NATIVE` / `AGENTS_JS_PI_NAME` / `AGENTS_JS_PI_PORT` so the pi-extension binds a localhost A2A endpoint under the agent's identity (AJS-141 Phase 2); `pi_extension` / `pi_port` fields on `AgentEntry`. Scope: this is a native-pi launch / on-bus proof — the agent joins the mesh as an A2A peer — **not** full fleet-identity onboarding (no write-time identity-uniqueness guard; see `ONBOARDING.md`).
+* **cli:** `agents-js skill install <name> --from <skills-source>` copies a resolved skill from a skills-js-style source into a harness skills directory (default `~/.claude/skills`), and `agents-js mcp` folds skills from `AGENTS_JS_SKILLS_DIR` into `tool_search` so MCP-consuming harnesses (e.g. a native pi) discover them. agents-js core stays skills-js-free — sources are plain filesystem directories read via `@agents-js/skills`.
+* **docs:** root `ONBOARDING.md` — the agents-js-side onboarding guide (native vs ajs-fronted modes, skills provisioning, and the mesh-join boundary: the CLI emits the join artifacts; the gateway operator installs and proves them).
+
+### Fixed
+
+* **web-ui,ui-components:** the chat panel renders the agent transcript from host-bridge state — AG-UI-mode turns now render the reply instead of hanging on "Waiting for messages…" (DOT-532).
+* **a2a:** an unrecognized turn stop reason maps to a terminal `FAILED` rather than a false `COMPLETED`.
 
 ### Internal
 
-- `scripts/publish-all.ts` exit-1-on-FAILED regression guard (AJS-101). Adds `tests/publish-all.test.ts` assertion that a failing publish (single package against an unreachable registry) exits with rc=1 and writes `[FAILED]` to the summary. No production behavior change; the exit-1 path was already correct at HEAD (introduced by `fcded82f`). The original AJS-101 observation traced to an operator-wrapper pipe consuming `bun`'s exit code rather than a script defect — captured separately in release-operator docs.
+- Test gates closing the classes that shipped undetected during the migration: host-bridge → chat-view transcript routing regression; `@@dispatch` streaming-ordering driven through the real SDK `DefaultRequestHandler`/`ResultManager`.
+- `scripts/publish-all.ts` exit-1-on-FAILED regression guard (AJS-101) — `tests/publish-all.test.ts` asserts a failing publish exits rc=1 and writes `[FAILED]`. No production behavior change.
+- Corrected stale AG-UI / A2UI version strings in docs to the current pins (no code change).
 
 ## [0.5.1](https://github.com/jensbodal/agents-js/compare/v0.5.0...v0.5.1) (2026-05-18)
 

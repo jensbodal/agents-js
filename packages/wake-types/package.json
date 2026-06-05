@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/wake-types",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "WakeAdapter BASE type + shape-discriminated union (in-session-push, translator-inject, spawn-with-signal) for the AJS-89 HYBRID wake-transport architecture. Pure types — no runtime.",

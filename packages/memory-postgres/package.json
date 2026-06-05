@@ -1,6 +1,6 @@
 {
   "name": "@agents-js/memory-postgres",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
   "description": "PostgreSQL Storage backend for the agents-js MemoryProvider. Plugs into @agents-js/memory-local's LocalMemoryProvider via the public Storage seam. Implements substrate read primitives (get + listByScope) per ADR 0001 using indexed cursor-based pagination.",
@@ -50,8 +50,8 @@
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-js/memory": "0.5.1",
-    "@agents-js/memory-local": "0.5.1",
+    "@agents-js/memory": "0.6.0",
+    "@agents-js/memory-local": "0.6.0",
     "postgres": "^3.4.5"
   },
   "publishConfig": {
