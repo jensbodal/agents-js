@@ -108,6 +108,16 @@ export interface AgentEntry {
    * self-registers its URL in `~/.agents-js/registry.json`.
    */
   readonly piPort?: string;
+  /**
+   * pi harness (Phase 2): the host the native-peer binds + advertises in its
+   * agent-card / registry record (`AGENTS_JS_PI_HOST`). An explicit IP/hostname
+   * is used literally — set `"127.0.0.1"` or `"localhost"` to force loopback.
+   * The sentinels `"lan"` / `"auto"` request the host's detected LAN address so
+   * the peer is reachable from other machines. When unset, the launch defaults
+   * to the detected LAN address (loopback fallback) so onboarded peers join the
+   * cross-machine mesh by default.
+   */
+  readonly piHost?: string;
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -179,6 +189,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "allowed_tools",
   "pi_extension",
   "pi_port",
+  "pi_host",
 ]);
 
 function requireString(
@@ -266,6 +277,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     allowedTools: optionalStringArray(obj, "allowed_tools", ctx),
     piExtension: optionalString(obj, "pi_extension", ctx),
     piPort: optionalString(obj, "pi_port", ctx),
+    piHost: optionalString(obj, "pi_host", ctx),
     extra,
   };
 }

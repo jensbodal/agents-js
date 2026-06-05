@@ -37,6 +37,7 @@ import path from "node:path";
 import {
   buildLaunchPlan,
   createTmuxRunner,
+  detectLanHost,
   type LaunchEnv,
   loadLaunchConfig,
   resolveAgentEntry,
@@ -262,7 +263,13 @@ export async function runLaunchCommand(
 
   const config = await loadLaunchConfig(configPath);
   const entry = resolveAgentEntry(config, agentName);
-  const plan = buildLaunchPlan(entry, { baseEnv: filterEnv(env) });
+  // Inject LAN-host detection at the impure CLI boundary (keeps buildLaunchPlan
+  // pure). A native pi then advertises a routable LAN address instead of
+  // loopback, so onboarded peers are reachable across machines by default.
+  const plan = buildLaunchPlan(entry, {
+    baseEnv: filterEnv(env),
+    resolveLanHost: detectLanHost,
+  });
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();
 

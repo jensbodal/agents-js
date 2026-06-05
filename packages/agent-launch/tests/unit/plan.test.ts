@@ -305,3 +305,61 @@ describe("buildLaunchPlan — pi harness (Phase 2, native peer)", () => {
     expect(plan.env.AGENTS_JS_PI_PORT).toBeUndefined();
   });
 });
+
+describe("buildLaunchPlan — pi LAN-host advertisement (AGENTS_JS_PI_HOST)", () => {
+  const piEntry = {
+    tmuxSession: "malar-pi-0",
+    harness: "pi",
+    binary: "pi",
+    workspace: "/tmp/malar",
+    freshFlags: "",
+    envSetup: "export MATRIX_AGENT=malar-pi-0",
+    piPort: "3199",
+    extra: {},
+  };
+  const lan = () => "10.0.0.223";
+
+  test("unset pi_host + injected resolver advertises the detected LAN address", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {}, resolveLanHost: lan });
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+  });
+
+  test("AGENTS_JS_PI_HOST is in sessionEnv so launch.ts exports it to the pi process", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {}, resolveLanHost: lan });
+    expect(plan.sessionEnv.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+  });
+
+  test("no resolver injected keeps host unset (pi-extension's 127.0.0.1 default)", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {} });
+    expect(plan.env.AGENTS_JS_PI_HOST).toBeUndefined();
+  });
+
+  test("resolver returning undefined (isolated host) leaves host unset", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {}, resolveLanHost: () => undefined });
+    expect(plan.env.AGENTS_JS_PI_HOST).toBeUndefined();
+  });
+
+  test("explicit pi_host literal wins over the resolver", () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, piHost: "192.168.1.50" },
+      { baseEnv: {}, resolveLanHost: lan },
+    );
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("192.168.1.50");
+  });
+
+  test('pi_host "lan" requests the detected LAN address', () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, piHost: "lan" },
+      { baseEnv: {}, resolveLanHost: lan },
+    );
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+  });
+
+  test('pi_host "127.0.0.1" forces loopback even with a LAN resolver', () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, piHost: "127.0.0.1" },
+      { baseEnv: {}, resolveLanHost: lan },
+    );
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("127.0.0.1");
+  });
+});

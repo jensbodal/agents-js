@@ -131,6 +131,7 @@ const SESSION_ENV_KEYS: ReadonlySet<string> = new Set([
   "AGENTS_JS_PI_NATIVE",
   "AGENTS_JS_PI_NAME",
   "AGENTS_JS_PI_PORT",
+  "AGENTS_JS_PI_HOST",
 ]);
 
 function splitFlags(flags: string): readonly string[] {
@@ -162,6 +163,15 @@ export interface BuildLaunchPlanOptions {
   readonly baseEnv: LaunchEnv;
   /** Phase 1 always `"fresh"`. */
   readonly mode?: LaunchMode;
+  /**
+   * Resolver for the host's LAN-reachable address. Injected so this planner
+   * stays pure (no `os` read) while the native-pi launch can advertise a
+   * routable A2A endpoint across machines instead of loopback. The CLI passes
+   * {@link detectLanHost}; tests inject a fixed value. When omitted (or it
+   * returns `undefined`), the launch keeps the localhost default — the
+   * pi-extension falls back to `127.0.0.1`.
+   */
+  readonly resolveLanHost?: () => string | undefined;
 }
 
 /**
@@ -198,7 +208,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
   const harness = entry.harness as SupportedHarness;
   const built =
     harness === "pi"
-      ? buildPiInvocation(entry, baseEnv)
+      ? buildPiInvocation(entry, baseEnv, options.resolveLanHost)
       : buildClaudeCodeInvocation(entry, baseEnv);
 
   return {
@@ -246,16 +256,41 @@ function buildClaudeCodeInvocation(entry: AgentEntry, baseEnv: LaunchEnv): Harne
  * `ZAI_API_KEY` in baseEnv or pi's own stored login. `fresh_flags` may be empty
  * — `-e <ext>` is the base invocation, so there is no empty-flags failure here.
  */
-function buildPiInvocation(entry: AgentEntry, baseEnv: LaunchEnv): HarnessInvocation {
+function buildPiInvocation(
+  entry: AgentEntry,
+  baseEnv: LaunchEnv,
+  resolveLanHost?: () => string | undefined,
+): HarnessInvocation {
   const extension = entry.piExtension ?? DEFAULT_PI_EXTENSION;
   const flagArgs = splitFlags(entry.freshFlags);
   const args: readonly string[] = ["-e", extension, ...flagArgs];
   const piName = baseEnv.MATRIX_AGENT ?? entry.tmuxSession;
+  const host = resolvePiHost(entry.piHost, resolveLanHost);
   const env: LaunchEnv = Object.freeze({
     ...baseEnv,
     AGENTS_JS_PI_NATIVE: "1",
     AGENTS_JS_PI_NAME: piName,
     ...(entry.piPort ? { AGENTS_JS_PI_PORT: entry.piPort } : {}),
+    ...(host ? { AGENTS_JS_PI_HOST: host } : {}),
   });
   return { command: entry.binary, args, env, allowedTools: [] };
+}
+
+/**
+ * Resolve the A2A host a native pi binds + advertises. Config `pi_host` wins:
+ * an explicit IP/hostname is used literally (set `"127.0.0.1"` / `"localhost"`
+ * to force loopback); the sentinels `"lan"` / `"auto"` request the detected LAN
+ * address. When `pi_host` is unset, default to the injected LAN resolver so an
+ * onboarded peer is reachable across machines. A `undefined` result (no
+ * resolver injected, or no LAN interface found) leaves `AGENTS_JS_PI_HOST`
+ * unset, so the pi-extension keeps its `127.0.0.1` default — never advertise an
+ * address we could not resolve.
+ */
+function resolvePiHost(
+  piHost: string | undefined,
+  resolveLanHost?: () => string | undefined,
+): string | undefined {
+  const explicit = piHost?.trim();
+  if (explicit && explicit !== "lan" && explicit !== "auto") return explicit;
+  return resolveLanHost?.();
 }
