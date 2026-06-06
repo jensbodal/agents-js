@@ -127,7 +127,7 @@ curl -X POST http://my-gateway.example.internal:9000/a2a \
   -d '{
     "jsonrpc": "2.0",
     "id": "req-1",
-    "method": "message/send",
+    "method": "SendMessage",
     "params": {
       "message": { "role": "user", "parts": [{ "kind": "text", "text": "Hello" }] }
     }

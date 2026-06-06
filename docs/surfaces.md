@@ -401,10 +401,10 @@ happens when User A types `@bob-reviewer please look at this diff`:
    plain text so the local agent can still try to answer.
 
 5. **It issues an A2A request** to `http://bob.local:9300`. When Host B's card
-   advertises `capabilities.streaming`, the middleware uses `message/stream` so
+   advertises `capabilities.streaming`, the middleware uses `SendStreamingMessage` so
    Host A's audit/event surface sees Bob's intermediate lifecycle events. When
    Host B does not advertise streaming, the middleware falls back to
-   `message/send` automatically. Host A's lane still waits for Bob's terminal
+   `SendMessage` automatically. Host A's lane still waits for Bob's terminal
    response before composing the local reply — streaming only unblocks the
    intermediate-event surface, not the lane completion. Hosts can force
    non-streaming by passing `stream: false` to `createA2AMentionMiddleware`.
@@ -458,8 +458,8 @@ involving the local model.
    available agents.
 
 4. **It dispatches the payload** (everything after `@@agent-name`) to the target
-   agent's URL. The host-executor uses `message/stream` when the target advertises
-   streaming and `message/send` when it does not. Hosts can force non-streaming by
+   agent's URL. The host-executor uses `SendStreamingMessage` when the target advertises
+   streaming and `SendMessage` when it does not. Hosts can force non-streaming by
    constructing `HostA2AExecutor` with `dispatchStream: false`.
 
 5. **The response is returned or displayed directly.** The gateway returns the target
@@ -536,8 +536,8 @@ const middleware = createA2AMentionMiddleware({
   activity via the `onDispatchStart` / `onDispatchSuccess` / `onDispatchError`
   lifecycle hooks (see above).
 - **Streaming-by-default for delegation.** Both the @mention middleware and the
-  host-executor A2A dispatch path use `message/stream` when the target
-  advertises `capabilities.streaming`, and fall back to `message/send`
+  host-executor A2A dispatch path use `SendStreamingMessage` when the target
+  advertises `capabilities.streaming`, and fall back to `SendMessage`
   automatically when it does not. Hosts can force non-streaming by passing
   `stream: false` to `createA2AMentionMiddleware` (mention middleware) or
   `dispatchStream: false` to `HostA2AExecutor` (host-executor dispatch).

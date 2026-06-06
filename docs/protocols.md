@@ -164,18 +164,20 @@ The important boundary for embedders is that JSON-RPC carries the frame, ACP car
 
 A2A uses JSON-RPC as the request/response envelope for the gateway and client surfaces.
 
-- `validateA2ARequest` calls the generic JSON-RPC request validator first, then validates
-  method-specific payloads for `message/send`, `message/stream`, `tasks/get`, `tasks/cancel`,
-  `tasks/resubscribe`, `agent/getAuthenticatedExtendedCard`, and push-notification config methods
-- `validateA2AResponse` starts with the generic JSON-RPC response validator and then validates the
-  streamed result shape when the response carries an A2A event payload
+- A2A wire validation is handled by `@a2a-js/sdk`. Its `JsonRpcTransportHandler` validates the typed
+  1.0 requests — `SendMessage`, `SendStreamingMessage`, `GetTask`, `CancelTask`, `SubscribeToTask`,
+  `GetExtendedAgentCard`, and the push-notification config methods
+  (`Create`/`Get`/`List`/`DeleteTaskPushNotificationConfig`) — so `agents-js` no longer ships
+  standalone A2A request/response validators
+- `validateAgentCard` (in `@agents-js/validation`) remains a public surface, reimplemented as a thin
+  wrapper over the SDK's canonical `AgentCard.fromJSON`
 - `@agents-js/a2a` serves the protocol over HTTP and SSE, but it does not change the JSON-RPC
   envelope rules
 
 That split matters when you are integrating with the reference gateway:
 
 - JSON-RPC tells you whether the frame is structurally valid
-- A2A schema validation tells you whether the protocol payload is valid
+- the `@a2a-js/sdk` transport handler tells you whether the typed A2A protocol payload is valid
 - gateway-specific behavior such as streaming, task state, and push-notification config is layered
   above the envelope
 
@@ -198,9 +200,11 @@ validated one layer up.
 If you are building on top of `agents-js`, validate in this order:
 
 1. Check the JSON-RPC envelope with `validateJsonRpcEnvelope`.
-2. Apply the protocol validator for the layer you are using:
+2. Apply the protocol validation for the layer you are using:
    - `validateACPRequest` / `validateACPResponse` for ACP
-   - `validateA2ARequest` / `validateA2AResponse` for A2A
+   - for A2A, let `@a2a-js/sdk` (`JsonRpcTransportHandler.handle`) validate the typed 1.0 request;
+     `agents-js` exposes `validateAgentCard` for card validation but no standalone request/response
+     A2A validators
 3. Handle host-specific concerns separately from the wire contract:
    - permissions
    - terminals
@@ -389,7 +393,7 @@ deliberately simple:
 
 - `url`: `http://127.0.0.1`
 - `version`: `1.0.0`
-- `protocolVersion`: `0.3.0`
+- `protocolVersion`: `1.0`
 - `defaultInputModes`: `["text"]`
 - `defaultOutputModes`: `["text"]`
 - empty `skills` and `capabilities`
@@ -473,33 +477,35 @@ Request handling follows two paths:
 
 The server-side bridge currently supports these user-facing A2A methods:
 
-- `message/send`
-- `message/stream`
-- `tasks/get`
-- `tasks/cancel`
-- `tasks/resubscribe`
+- `SendMessage`
+- `SendStreamingMessage`
+- `GetTask`
+- `CancelTask`
+- `SubscribeToTask`
 
 The gateway also supports push-notification config CRUD and authenticated extended-card retrieval at
 the SDK/server layer, but the turn/task methods above are the core user-facing bridge.
 
-For the full set of registered A2A schemas (request/response shapes
-and named validators), see
-[`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/validation/src/a2a.ts)
-(`a2aValidationSchemas`).
+For the canonical A2A request/response shapes, see the typed message
+definitions in [`@a2a-js/sdk`](https://www.npmjs.com/package/@a2a-js/sdk),
+which the gateway's `JsonRpcTransportHandler` validates on the wire. The
+remaining A2A validation surface in this repo is `validateAgentCard`
+([`packages/validation/src/a2a.ts`](https://github.com/jensbodal/agents-js/tree/main/packages/validation/src/a2a.ts)),
+a thin wrapper over the SDK's `AgentCard.fromJSON`.
 
 ### Streaming behavior
 
 Streaming is task-backed rather than raw ACP chunk forwarding. The bridge emits JSON-RPC envelopes
 that wrap A2A task events, and the client stack can either consume them live or resume an in-flight
-task through `tasks/resubscribe`.
+task through `SubscribeToTask`.
 
 In practice this means:
 
-- `message/send` remains available for non-streaming clients
-- `message/stream` returns `text/event-stream`
+- `SendMessage` remains available for non-streaming clients
+- `SendStreamingMessage` returns `text/event-stream`
 - streamed turns may begin with a submitted task, continue through working status updates, and end
   with a final task snapshot
-- `tasks/resubscribe` reattaches to the same task-backed stream shape
+- `SubscribeToTask` reattaches to the same task-backed stream shape
 
 The reference client prefers streaming when the target advertises it. The CLI and browser surfaces
 both consume this same task-backed stream model.
@@ -538,8 +544,8 @@ layer, while the repo owns the gateway, client, and session semantics around it.
 A2A is also the wire protocol that powers cross-host `@mention` delegation in `agents-js`. When a
 user types `@other-agent` in a prompt, the host's `beforePrompt` middleware (from
 `@agents-js/a2a-client`) issues an A2A request to the remote agent and injects the reply into the
-user's turn. The middleware honors the target's advertised capability: `message/stream` when the
-target's `AgentCard` advertises streaming, `message/send` otherwise. The user's lane still
+user's turn. The middleware honors the target's advertised capability: `SendStreamingMessage` when the
+target's `AgentCard` advertises streaming, `SendMessage` otherwise. The user's lane still
 resolves on the terminal task/message — streaming only surfaces intermediate lifecycle events to
 the host's audit/event hooks. Hosts can force non-streaming by passing `stream: false` to
 `createA2AMentionMiddleware`.
@@ -897,7 +903,7 @@ expected-but-not-yet-shipped capabilities are intentionally out of scope:
   Multi-tenant deployments should run one gateway process per concurrent run.
 - **No AG-UI resume.** The spec does not currently define a resume/reattach operation for
   runs. agents-js does not ship one either. A disconnected client must start a new run.
-  The existing A2A `tasks/resubscribe` path is unchanged, but it is an A2A feature, not an
+  The existing A2A `SubscribeToTask` path is unchanged, but it is an A2A feature, not an
   AG-UI one.
 - **No per-thread multi-session isolation.** `threadId` is echoed correctly on every
   run, but the gateway does not maintain per-thread state across runs — each `POST /agent`

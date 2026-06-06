@@ -146,10 +146,10 @@ already uses for outbound A2A calls. The parent gateway does not
 invent a second federation protocol; it treats the child gateway like
 any other remote A2A agent.
 
-Flow for a single `message/stream` dispatch when an entry carries
+Flow for a single `SendStreamingMessage` dispatch when an entry carries
 `source: "remote"`:
 
-1. Parent gateway receives an A2A `message/stream` request whose
+1. Parent gateway receives an A2A `SendStreamingMessage` request whose
    target harness resolves (via the operator-pinned primary or an
    explicit harness routing param) to an entry with `source: "remote"`.
 2. Parent constructs an `A2AAgentEntry` from `entry.remote.gatewayUrl`
@@ -157,7 +157,7 @@ Flow for a single `message/stream` dispatch when an entry carries
    the call to the child via the existing `A2AClient`/`A2ATransport`
    path.
 3. Child gateway responds with the standard A2A surface: a JSON-RPC
-   `message/stream` endpoint at `/a2a`, a `/events` SSE stream, and a
+   `SendStreamingMessage` endpoint at `/a2a`, a `/events` SSE stream, and a
    `/.well-known/agent-card.json` discovery document.
 4. Parent re-broadcasts the child's bus events onto its own
    `GatewayBus` under a namespaced topic so subscribers of the parent
@@ -233,7 +233,7 @@ v2 will add a federation-conformance harness at
 `packages/a2a-client/src/federation-conformance.ts`. The shape mirrors
 the `@agents-js/memory/testing` conformance pattern: a set of black-box
 behavioural assertions any federation transport must satisfy
-(agent-card discovery, `message/stream` proxying, bus re-broadcast
+(agent-card discovery, `SendStreamingMessage` proxying, bus re-broadcast
 topic naming, error propagation on child crash). When that harness
 ships, the test-shape itself becomes the contract reviewers point new
 transport implementations at.

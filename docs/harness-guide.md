@@ -270,8 +270,8 @@ What the middleware does:
 1. Detects `@name` tokens in the user's prompt via the parser in
    `packages/a2a-client/src/mention-parser.ts`.
 2. Resolves each unique name through the provided `registry`.
-3. Issues an A2A request to each target — `message/stream` when the target advertises
-   `capabilities.streaming`, `message/send` otherwise. Hosts can force non-streaming by
+3. Issues an A2A request to each target — `SendStreamingMessage` when the target advertises
+   `capabilities.streaming`, `SendMessage` otherwise. Hosts can force non-streaming by
    passing `stream: false` to `createA2AMentionMiddleware`. See
    `packages/a2a-client/src/middleware.ts`.
 4. Wraps each terminal response in an `<a2a-delegation-response>` framing block and prepends it

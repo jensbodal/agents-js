@@ -97,7 +97,7 @@ sequenceDiagram
   participant P as Host B (peer gateway)
   participant R as Runtime B (ACP)
   U->>H: prompt with @peer mention
-  H->>P: A2A message/stream (JSON-RPC)
+  H->>P: A2A SendStreamingMessage (JSON-RPC)
   P->>R: ACP prompt (stdio)
   R-->>P: ACP message_chunk
   P-->>H: A2A status update (SSE)

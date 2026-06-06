@@ -529,7 +529,7 @@ export async function collectDocsConsistencyErrors(root = repoRoot): Promise<str
     },
     {
       path: "docs/streaming-and-events.md",
-      contains: ["message/stream", "tasks/resubscribe", "## Current support"],
+      contains: ["SendStreamingMessage", "SubscribeToTask", "## Current support"],
     },
     {
       path: "docs/harness-guide.md",

@@ -9,7 +9,7 @@ diataxis: explanation
 
 This page documents three related runtime contracts:
 
-1. **Streaming** — the wire-level guarantees on task-backed SSE (`message/stream`, `tasks/resubscribe`).
+1. **Streaming** — the wire-level guarantees on task-backed SSE (`SendStreamingMessage`, `SubscribeToTask`).
 2. **Events** — the normalized event vocabularies that flow across the ACP bridge, A2A gateway, and clients.
 3. **Concurrency and session model** — how the gateway isolates sessions across the five distinct request paths.
 
@@ -25,10 +25,10 @@ The Browser and CLI guides describe how those capabilities show up in the refere
 
 ### Gateway and transport
 
-- `message/send` remains supported for non-streaming clients.
-- `message/stream` is supported and served as `text/event-stream`.
-- `tasks/get` remains supported for streamed and non-streamed tasks.
-- `tasks/resubscribe` is supported through the gateway and client stack.
+- `SendMessage` remains supported for non-streaming clients.
+- `SendStreamingMessage` is supported and served as `text/event-stream`.
+- `GetTask` remains supported for streamed and non-streamed tasks.
+- `SubscribeToTask` is supported through the gateway and client stack.
 - Discovery advertises `capabilities.streaming = true`.
 
 ### Event model
@@ -48,9 +48,9 @@ The Browser and CLI guides describe how those capabilities show up in the refere
 
 ### Client and CLI
 
-- `@agents-js/a2a-client` prefers `message/stream` when the target advertises streaming, unless the
+- `@agents-js/a2a-client` prefers `SendStreamingMessage` when the target advertises streaming, unless the
   caller disables streaming explicitly.
-- The client can resume an in-flight or persisted task with `tasks/resubscribe`.
+- The client can resume an in-flight or persisted task with `SubscribeToTask`.
 - The CLI is the reference live-task UX for the release track.
 - The CLI shows:
   - streaming capability
@@ -89,13 +89,13 @@ in the streaming layer:)
 
 ## Contract details
 
-### `message/send`
+### `SendMessage`
 
 - Returns the existing non-streaming JSON-RPC result path.
 - Should remain safe for older or simpler clients.
 - Must not require streaming support from the caller.
 
-### `message/stream`
+### `SendStreamingMessage`
 
 - Returns SSE with `data: <json>` frames.
 - Each frame contains a valid JSON-RPC response envelope whose `result` is an A2A stream event.
@@ -104,9 +104,9 @@ in the streaming layer:)
   - one or more working `TaskStatusUpdateEvent` frames
   - a final `Task`
 
-### `tasks/resubscribe`
+### `SubscribeToTask`
 
-- Uses the same SSE framing as `message/stream`.
+- Uses the same SSE framing as `SendStreamingMessage`.
 - Reconnects the caller to task-backed streamed state instead of forcing a new prompt turn.
 - Current support is oriented around task continuity for the reference client and CLI flows.
 
@@ -170,9 +170,9 @@ These are still open even though streaming is now enabled:
 
 The following are currently covered by tests in this branch:
 
-- gateway E2E for `message/send`
-- gateway E2E for `message/stream`
-- gateway E2E for `tasks/resubscribe`
+- gateway E2E for `SendMessage`
+- gateway E2E for `SendStreamingMessage`
+- gateway E2E for `SubscribeToTask`
 - a2a-client integration using the streamed gateway path
 - executor tests for first-valid ACP chunk `messageId` handling
 - ACP controller tests for elicitation capability advertisement and runtime dispatch
@@ -184,7 +184,7 @@ For the initial release track, the streaming claim is:
 - task-backed streaming text
 - streamed task-state transitions
 - resumable task identity
-- `tasks/resubscribe`
+- `SubscribeToTask`
 - CLI reference UX for live streaming, form elicitation, and auth-required continuation
 
 Artifact-append parity remains intentionally outside that claim.
@@ -197,10 +197,10 @@ Artifact-append parity remains intentionally outside that claim.
 
 | Path | Endpoint | Session isolation | In-flight slots | Streaming | Notes |
 |---|---|---|---|---|---|
-| **A2A** (`message/send`, `message/stream`, `tasks/resubscribe`) | `POST /a2a` | **Per `contextId`** — disjoint `SessionLane` per context | One in-flight prompt per lane (per-lane mutex) | Yes (SSE on `message/stream` / `tasks/resubscribe`) | Each lane gets its own controller when a `controllerFactory` is configured; otherwise lanes share a primary controller. |
+| **A2A** (`SendMessage`, `SendStreamingMessage`, `SubscribeToTask`) | `POST /a2a` | **Per `contextId`** — disjoint `SessionLane` per context | One in-flight prompt per lane (per-lane mutex) | Yes (SSE on `SendStreamingMessage` / `SubscribeToTask`) | Each lane gets its own controller when a `controllerFactory` is configured; otherwise lanes share a primary controller. |
 | **AG-UI** (native transport) | `POST /agent` | **None today** — single shared `controller` | Single in-flight run for the gateway process | Yes (SSE: `RUN_STARTED` → events → `RUN_FINISHED` / `RUN_ERROR`) | No per-`threadId` lane separation. Concurrent AG-UI runs serialize on the shared host session. |
 | **Browser WS bridge** | `ws://…/ws` | Bridge-scoped session | Bridge-scoped | Yes (forwarded events) | Lifecycle is owned by the WS bridge; surface events ride a namespaced `agents-js.a2ui.surface_event` `CUSTOM` event. |
-| **mention path** (delegated dispatch via mention middleware) | A2A submission containing a recognized mention token | N/A — middleware delegates outbound | Caller's lane waits for target's terminal response | **Yes — by default** when the target advertises `capabilities.streaming` (AJS-92); falls back to `message/send` for non-streaming targets; hosts can force non-streaming with `createA2AMentionMiddleware({ stream: false })` | Streaming surfaces the target's intermediate lifecycle events to the caller's audit/event hooks. The framed `<a2a-delegation-response>` shape is unchanged — only the terminal text is folded into the local model context. |
+| **mention path** (delegated dispatch via mention middleware) | A2A submission containing a recognized mention token | N/A — middleware delegates outbound | Caller's lane waits for target's terminal response | **Yes — by default** when the target advertises `capabilities.streaming` (AJS-92); falls back to `SendMessage` for non-streaming targets; hosts can force non-streaming with `createA2AMentionMiddleware({ stream: false })` | Streaming surfaces the target's intermediate lifecycle events to the caller's audit/event hooks. The framed `<a2a-delegation-response>` shape is unchanged — only the terminal text is folded into the local model context. |
 | **dispatch directive** (deterministic A2A routing) | A2A submission with a parsed dispatch directive | Routed to target executor; current lane is bypassed | Target-side concurrency | Yes — target's native streaming applies | `host-executor.ts:259-263` parses the directive before lane resolution; routing is deterministic, not blocking-by-default. |
 
 ## Path-by-path detail
@@ -234,7 +234,7 @@ calls out:
 - no per-thread state retention
 
 If you need parallel sessions, drive A2A. If you need resumption, the path is
-`tasks/resubscribe` on the A2A side, not AG-UI.
+`SubscribeToTask` on the A2A side, not AG-UI.
 
 ### Browser WS bridge
 
@@ -247,9 +247,9 @@ back-channel; tracked in `docs/streaming-and-events.md` deliberate-limits).
 
 The mention middleware (`packages/a2a-client/src/middleware.ts`) intercepts mention
 tokens and delegates to the target via `provider.sendTurn(...)`. Since AJS-92, the
-middleware honors the target's advertised capability: it issues `message/stream` when
+middleware honors the target's advertised capability: it issues `SendStreamingMessage` when
 the target's `AgentCard` reports `capabilities.streaming`, and falls back to
-`message/send` automatically when it does not. Hosts can force non-streaming by
+`SendMessage` automatically when it does not. Hosts can force non-streaming by
 passing `stream: false` to `createA2AMentionMiddleware`.
 
 The caller's lane still waits for the target's terminal task/message before composing
