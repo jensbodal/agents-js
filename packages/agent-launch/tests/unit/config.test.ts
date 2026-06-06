@@ -164,6 +164,24 @@ describe("parseLaunchConfig — well-formed input", () => {
       /field "allowed_tools" must be an array of strings/,
     );
   });
+
+  test("top-level lan_domain is parsed onto LaunchConfig.lanDomain", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({ version: "0.1.0", lan_domain: "q4m.dev", agents: {} }),
+      "inline.json",
+    );
+    expect(config.lanDomain).toBe("q4m.dev");
+  });
+
+  test("lanDomain is undefined when lan_domain is absent or non-string", () => {
+    expect(
+      parseLaunchConfig(JSON.stringify({ version: "0.1.0", agents: {} }), "inline.json").lanDomain,
+    ).toBeUndefined();
+    expect(
+      parseLaunchConfig(JSON.stringify({ version: "0.1.0", lan_domain: 42, agents: {} }), "x.json")
+        .lanDomain,
+    ).toBeUndefined();
+  });
 });
 
 describe("parseLaunchConfig — top-level error cases", () => {

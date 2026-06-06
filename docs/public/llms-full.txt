@@ -5484,6 +5484,7 @@ bun add @agents-js/agent-launch
 - **`deriveLaunchProfile`** — Derive the {AgentLaunchProfile} for a parsed numbered identity. Pure. - native: `command` = the harness binary (operator host); provider env set. - ajs-fronted: `command` = `agents-js-gateway --run...
 - **`deriveRegistryEntry`** — Generate the native-path A2A registry entry for a numbered identity — the `{kind:"a2a", name, url}` shape consumed by the agent registry (`packages/host/src/agent-registry.ts`) and emitted by `agen...
 - **`deriveRuntimeHost`** — Derive the host where the runtime actually runs: ajs-fronted → the fronting gateway's host (co-located ACP subprocess) native → the operator host `gatewayHost` is the host of the gateway that front...
+- **`detectHostname`** — The host's short name: the first DNS label of `os.hostname()`. The runtime is platform-inconsistent — macOS reports the mDNS form `malar.local`, Linux reports bare `malar`, some hosts report a full...
 - **`detectLanHost`** — Pick the host's primary LAN-reachable IPv4 address (first non-internal IPv4), or `undefined` when none exists. `source` is injectable for deterministic tests; production callers use the default `no...
 - **`injectIdentityEnv`** — Layer git identity + MATRIX_AGENT (from envSetup) onto `baseEnv` and return a fresh frozen env record. Caller passes `process.env` as baseEnv in production; tests inject a controlled record.
 - **`loadLaunchConfig`** — Load + parse + validate the launch config at `path`. Throws {LaunchConfigError} for any structural failure; filesystem failures propagate as-is from `readFile`.
@@ -5491,6 +5492,7 @@ bun add @agents-js/agent-launch
 - **`parseEnvSetup`** — Parse the per-agent `env_setup` string into a typed env record. Splits on newlines + `&&`; each segment must parse as an `export` line. Empty segments are skipped.
 - **`parseLaunchConfig`** — Parse + validate a config JSON string into a {LaunchConfig}. Exposed for tests; production callers use {loadLaunchConfig}.
 - **`resolveAgentEntry`** — Resolve a named agent from a loaded config and normalize its entry. **Lazy normalization point** (PR #99 cognee-codex review fix): per-agent field validation happens HERE, not at load time. The cal...
+- **`resolveLanAdvertiseHost`** — Resolve the address a native peer advertises on the LAN, preferring a stable FQDN over a raw IP. When `lanDomain` is configured AND the short hostname is detectable, advertise `<shortHost>.<lanDoma...
 
 ### Interfaces
 
@@ -5512,6 +5514,7 @@ bun add @agents-js/agent-launch
 ### Types
 
 - **`HarnessToken`**
+- **`HostnameSource`** — Source of the host's name — injectable for deterministic tests.
 - **`LaunchEnv`** — Env record passed to {injectIdentityEnv} as the base; returned as a fresh object with identity vars layered on top.
 - **`LaunchMode`** — `"fresh"` only today. `"resume"` lands once per-harness session resolvers do.
 - **`LaunchPathMode`** — Operational class of a launch — the native-vs-AJS-fronted runtime-path axis.

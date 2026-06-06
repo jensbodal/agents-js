@@ -60,9 +60,12 @@ export {
   parseAgentIdentity,
 } from "./identity-scheme.ts";
 export {
+  detectHostname,
   detectLanHost,
+  type HostnameSource,
   type InterfaceAddressInfo,
   type NetworkInterfacesSource,
+  resolveLanAdvertiseHost,
 } from "./lan-host.ts";
 export {
   type A2ARegistryEntry,

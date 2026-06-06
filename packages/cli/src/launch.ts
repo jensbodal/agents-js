@@ -37,10 +37,10 @@ import path from "node:path";
 import {
   buildLaunchPlan,
   createTmuxRunner,
-  detectLanHost,
   type LaunchEnv,
   loadLaunchConfig,
   resolveAgentEntry,
+  resolveLanAdvertiseHost,
   type TmuxRunner,
 } from "@agents-js/agent-launch";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
@@ -263,12 +263,15 @@ export async function runLaunchCommand(
 
   const config = await loadLaunchConfig(configPath);
   const entry = resolveAgentEntry(config, agentName);
-  // Inject LAN-host detection at the impure CLI boundary (keeps buildLaunchPlan
-  // pure). A native pi then advertises a routable LAN address instead of
-  // loopback, so onboarded peers are reachable across machines by default.
+  // Inject LAN-host resolution at the impure CLI boundary (keeps buildLaunchPlan
+  // pure). A native pi advertises a stable `<shortHost>.<lanDomain>` FQDN when a
+  // LAN domain is configured (config `lan_domain` or AGENTS_JS_LAN_DOMAIN), else
+  // its detected LAN IP — so onboarded peers are reachable across machines and
+  // survive DHCP lease changes.
+  const lanDomain = config.lanDomain ?? env.AGENTS_JS_LAN_DOMAIN;
   const plan = buildLaunchPlan(entry, {
     baseEnv: filterEnv(env),
-    resolveLanHost: detectLanHost,
+    resolveLanHost: () => resolveLanAdvertiseHost({ lanDomain }),
   });
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();

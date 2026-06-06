@@ -143,6 +143,14 @@ export interface LaunchConfig {
   readonly version: string;
   /** Optional human description. */
   readonly description?: string;
+  /**
+   * Operator's LAN domain (e.g. `q4m.dev`). When set, a launched native peer
+   * advertises a stable `<shortHost>.<lanDomain>` FQDN instead of a raw IP, so
+   * it stays reachable across DHCP lease changes. Fleet-wide (the launching
+   * box's hostname + this domain); the CLI also honors `AGENTS_JS_LAN_DOMAIN`
+   * as an override. Unset → the peer advertises its detected LAN IP.
+   */
+  readonly lanDomain?: string;
   /** Map of `agentName → RAW entry`. Normalize via {@link resolveAgentEntry}. */
   readonly agents: Readonly<Record<string, unknown>>;
 }
@@ -322,9 +330,11 @@ export function parseLaunchConfig(text: string, path: string): LaunchConfig {
   // because of unrelated entries.
   const agentsRaw = top.agents as Record<string, unknown>;
   const description = typeof top.description === "string" ? top.description : undefined;
+  const lanDomain = typeof top.lan_domain === "string" ? top.lan_domain : undefined;
   return {
     version: top.version,
     ...(description !== undefined ? { description } : {}),
+    ...(lanDomain !== undefined ? { lanDomain } : {}),
     agents: agentsRaw,
   };
 }
