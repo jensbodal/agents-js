@@ -3,10 +3,12 @@
  * don't need a real tmux binary; the agent-launch package owns the
  * runner-internal tests.
  */
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { runLaunchCommand } from "../src/launch.ts";
+import { resolveConfigPath, runLaunchCommand } from "../src/launch.ts";
 
 const FIXTURE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -197,5 +199,52 @@ describe("runLaunchCommand — argument errors", () => {
       createRunner: () => runner,
     });
     expect(code).toBe(1);
+  });
+});
+
+describe("resolveConfigPath — $XDG_CONFIG_HOME honoring", () => {
+  const tmpDirs: string[] = [];
+  async function makeConfigDir(): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), "ajs-xdg-"));
+    tmpDirs.push(dir);
+    return dir;
+  }
+  async function writeLaunchConfig(root: string): Promise<string> {
+    const dir = path.join(root, "agents-js");
+    await mkdir(dir, { recursive: true });
+    const file = path.join(dir, "agent-launch-config.json");
+    await writeFile(file, "{}");
+    return file;
+  }
+  afterEach(async () => {
+    await Promise.all(tmpDirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
+  });
+
+  test("resolves the config under $XDG_CONFIG_HOME when set", async () => {
+    const xdg = await makeConfigDir();
+    const expected = await writeLaunchConfig(xdg);
+    const got = resolveConfigPath(
+      {},
+      { XDG_CONFIG_HOME: xdg },
+      "/nonexistent-home",
+      "/nonexistent-cwd",
+    );
+    expect(got).toBe(expected);
+  });
+
+  test("$XDG_CONFIG_HOME takes priority over ~/.config when both exist", async () => {
+    const xdg = await makeConfigDir();
+    const home = await makeConfigDir();
+    const xdgFile = await writeLaunchConfig(xdg);
+    await writeLaunchConfig(path.join(home, ".config"));
+    const got = resolveConfigPath({}, { XDG_CONFIG_HOME: xdg }, home, "/nonexistent-cwd");
+    expect(got).toBe(xdgFile);
+  });
+
+  test("falls back to ~/.config when $XDG_CONFIG_HOME is unset (existing layouts unchanged)", async () => {
+    const home = await makeConfigDir();
+    const expected = await writeLaunchConfig(path.join(home, ".config"));
+    const got = resolveConfigPath({}, {}, home, "/nonexistent-cwd");
+    expect(got).toBe(expected);
   });
 });

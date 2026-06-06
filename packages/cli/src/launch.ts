@@ -20,11 +20,14 @@
  *
  *   1. `--config <path>` flag
  *   2. `AGENTS_JS_LAUNCH_CONFIG` env var
- *   3. `~/.config/agents-js/agent-launch-config.json`
- *   4. `./agent-launch-config.json` (cwd-relative)
+ *   3. `$XDG_CONFIG_HOME/agents-js/agent-launch-config.json` (when set)
+ *   4. `~/.config/agents-js/agent-launch-config.json`
+ *   5. `./agent-launch-config.json` (cwd-relative)
  *
  * The first path that exists wins. If none exist, launch fails with a
- * helpful error listing all four candidates.
+ * helpful error listing all candidates. `$XDG_CONFIG_HOME` is honored to
+ * match `@agents-js/gateway-runtime`'s config resolution; it falls back to
+ * `~/.config` (the XDG default) when unset, so existing layouts are unchanged.
  *
  * **Boundary discipline**: this module is pure parse + dispatch. It
  * does NOT spawn tmux directly — every side effect goes through
@@ -115,8 +118,9 @@ function printLaunchUsage(output: Pick<NodeJS.WriteStream, "write"> = process.st
       "Config search path (first found wins):",
       "  1. --config <path>",
       "  2. $AGENTS_JS_LAUNCH_CONFIG",
-      "  3. ~/.config/agents-js/agent-launch-config.json",
-      "  4. ./agent-launch-config.json",
+      "  3. $XDG_CONFIG_HOME/agents-js/agent-launch-config.json",
+      "  4. ~/.config/agents-js/agent-launch-config.json",
+      "  5. ./agent-launch-config.json",
       "",
       "Examples:",
       "  agents-js launch cognee-claude --bg",
@@ -139,6 +143,12 @@ export function resolveConfigPath(
   const candidates: Array<{ source: string; path: string | undefined }> = [
     { source: "--config", path: args.configPath },
     { source: "$AGENTS_JS_LAUNCH_CONFIG", path: env.AGENTS_JS_LAUNCH_CONFIG },
+    {
+      source: "$XDG_CONFIG_HOME/agents-js/agent-launch-config.json",
+      path: env.XDG_CONFIG_HOME
+        ? path.join(env.XDG_CONFIG_HOME, "agents-js", "agent-launch-config.json")
+        : undefined,
+    },
     {
       source: "~/.config/agents-js/agent-launch-config.json",
       path: path.join(home, ".config", "agents-js", "agent-launch-config.json"),
