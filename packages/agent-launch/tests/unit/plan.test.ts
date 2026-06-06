@@ -363,3 +363,29 @@ describe("buildLaunchPlan — pi LAN-host advertisement (AGENTS_JS_PI_HOST)", ()
     expect(plan.env.AGENTS_JS_PI_HOST).toBe("127.0.0.1");
   });
 });
+
+describe("buildLaunchPlan — harness registry isolation", () => {
+  test("a non-pi harness routes without touching pi-owned session env or the LAN resolver", () => {
+    const plan = buildLaunchPlan(
+      {
+        tmuxSession: "x",
+        harness: "claude-code",
+        binary: "claude",
+        workspace: "/tmp",
+        freshFlags: "--agent x",
+        extra: {},
+      },
+      {
+        // pi var present in baseEnv: it may flow to the child env, but it is the
+        // pi launcher's session key — it must NOT be lifted into a claude-code
+        // plan's sessionEnv. And claude-code's builder ignores resolveLanHost.
+        baseEnv: { AGENTS_JS_PI_NATIVE: "1", PATH: "/usr/bin" },
+        resolveLanHost: () => "10.0.0.5",
+      },
+    );
+    expect(plan.sessionEnv.AGENTS_JS_PI_NATIVE).toBeUndefined();
+    expect(plan.sessionEnv.AGENTS_JS_PI_NAME).toBeUndefined();
+    expect(plan.env.AGENTS_JS_PI_HOST).toBeUndefined();
+    expect(plan.command).toBe("claude");
+  });
+});

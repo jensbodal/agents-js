@@ -1,7 +1,7 @@
 /**
- * Plan builder for {@link LaunchCommand}. Phase 1 covers `mode: "fresh"`
- * for the `claude-code` harness. Resume mode + per-harness session
- * resolvers land in Phase 5 per vault plan.
+ * Plan builder for {@link LaunchCommand}. Supports `mode: "fresh"` across a
+ * registry of harnesses ({@link HARNESS_LAUNCHERS}). Resume mode + per-harness
+ * session resolvers are a follow-up.
  *
  * **Critique-first reasoning**
  *
@@ -10,52 +10,44 @@
  *   filesystem.
  * - **Default**: rejects unsupported harnesses + unsupported modes with
  *   a typed `LaunchPlanError` carrying the agent + harness for caller
- *   diagnostics. Strict-by-default for forward compat — Phase 2 adds
- *   harness branches by extending the switch, not by silently accepting
- *   unknown values.
+ *   diagnostics. Strict-by-default — a harness is launchable iff it has a
+ *   {@link HARNESS_LAUNCHERS} entry; unknown values never silently pass.
  * - **Contract**: returns `{cwd, command, args, env, sessionEnv}` — the
  *   tmux `set-environment` calls happen in `tmux.ts` consuming
  *   `sessionEnv`. The structured shape is testable without rendering
  *   shell strings (bash `printf '%q'` quoting ≠ JS string handling;
  *   equivalence is at the structured layer).
  * - **Safety**: argv splitting on whitespace is intentionally simple.
- *   The bash original assembles a command string with shell-aware
- *   quoting; here we treat `freshFlags` as a whitespace-separated argv
- *   list. Agents with embedded quoted flags will surface as malformed
- *   in Phase 1 — they get a fix in Phase 2 alongside `launch_prompt`
- *   handling (codex-cli's `printf '%q'` path).
- * - **Validation**: unit tests cover the cognee-claude fixture plus
- *   negative cases (unsupported harness, missing required field via
- *   loader, empty freshFlags, fresh flag splitting).
+ *   `freshFlags` is treated as a whitespace-separated argv list; agents
+ *   with embedded quoted flags surface as malformed (a quoted-flag parser
+ *   is a follow-up alongside codex-cli's `launch_prompt` `printf '%q'` path).
+ * - **Extension seam**: per-harness command/args/env live in
+ *   {@link HARNESS_LAUNCHERS}, keyed by {@link SupportedHarness}. Adding a
+ *   harness = one registry entry (a builder + any session-env keys it owns);
+ *   {@link buildLaunchPlan}'s body never changes. The `Record` type forces
+ *   every union member to have an entry, so the union and the dispatch table
+ *   cannot drift apart.
+ * - **Validation**: unit tests cover the cognee-claude fixture, the pi
+ *   native-peer path, and negative cases (unsupported harness/mode, empty
+ *   freshFlags, flag splitting), plus a registry-dispatch test proving a
+ *   non-pi harness routes without touching pi env keys.
  */
 
 import type { AgentEntry } from "./config.ts";
 import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
 
 /**
- * Phase 1 supports `"fresh"` only. Phase 5 adds `"resume"` once
- * per-harness session resolvers land.
+ * `"fresh"` only today. `"resume"` lands once per-harness session resolvers do.
  */
 export type LaunchMode = "fresh";
 
 /**
- * Harnesses supported in Phase 1. Phase 2 extends this union with
- * `"codex-cli"`, `"opencode"`, `"kiro-cli"`, etc. The union is the
- * source of truth — adding a harness requires updating the switch in
- * {@link buildLaunchPlan}, which keeps boundary-narrowing-drift in
- * check.
+ * Config harness kinds with a {@link HARNESS_LAUNCHERS} entry. The union is the
+ * source of truth; the registry is typed as a total `Record` over it, so adding
+ * a kind here without a launcher entry is a compile error (and vice versa) —
+ * boundary-narrowing-drift is enforced structurally, not by convention.
  */
 export type SupportedHarness = "claude-code" | "pi";
-
-const SUPPORTED_HARNESSES: ReadonlySet<string> = new Set<SupportedHarness>(["claude-code", "pi"]);
-
-/**
- * Default `-e <extension>` entry pi loads in native-peer mode. Operators
- * override via the `pi_extension` config field. The native-peer extension
- * exposes the live Pi TUI as a localhost A2A endpoint (see
- * `extras/pi-extension`), which is how a native pi joins the agents-js mesh.
- */
-const DEFAULT_PI_EXTENSION = "@agents-js/pi-extension";
 
 /**
  * Structured plan returned by {@link buildLaunchPlan}. The tmux layer
@@ -112,32 +104,25 @@ export class LaunchPlanError extends Error {
 }
 
 /**
- * Keys lifted into `sessionEnv` (tmux set-environment). Caller-supplied
- * vars that are NOT in this set go to the child process env only.
- *
- * The git identity vars + MATRIX_AGENT are the ones that downstream
- * tmux windows (opened by the user later in the same session) need to
- * see for git commits + Matrix routing to behave consistently.
+ * Session-env keys every harness lifts into `sessionEnv` (tmux
+ * set-environment): the git identity vars + MATRIX_AGENT that downstream tmux
+ * windows (opened by the user later in the same session) need to see for git
+ * commits + Matrix routing to behave consistently. A harness may declare
+ * ADDITIONAL keys via {@link HarnessLauncher.sessionEnvKeys} (e.g. pi's
+ * `AGENTS_JS_PI_*`). Caller-supplied vars in neither set go to the child
+ * process env only.
  */
-const SESSION_ENV_KEYS: ReadonlySet<string> = new Set([
+const BASE_SESSION_ENV_KEYS: readonly string[] = [
   "GIT_AUTHOR_NAME",
   "GIT_AUTHOR_EMAIL",
   "GIT_COMMITTER_NAME",
   "GIT_COMMITTER_EMAIL",
   "MATRIX_AGENT",
-  // pi native-peer vars — must reach the pi process via `launch.ts`'s
-  // send-keys export (which only emits sessionEnv + channelEnv). Absent for
-  // non-pi harnesses, so pickSessionEnv simply skips them.
-  "AGENTS_JS_PI_NATIVE",
-  "AGENTS_JS_PI_NAME",
-  "AGENTS_JS_PI_PORT",
-  "AGENTS_JS_PI_HOST",
-]);
+];
 
 function splitFlags(flags: string): readonly string[] {
-  // Phase 1: whitespace split. Phase 2 adds quoted-flag support for
-  // codex-cli's `launch_prompt` positional (which uses bash `printf %q`
-  // in the original).
+  // Whitespace split. A quoted-flag parser (for codex-cli's `launch_prompt`
+  // positional, which uses bash `printf %q`) is a follow-up.
   const tokens = flags
     .trim()
     .split(/\s+/)
@@ -145,9 +130,14 @@ function splitFlags(flags: string): readonly string[] {
   return tokens;
 }
 
-function pickSessionEnv(env: LaunchEnv): LaunchEnv {
+/**
+ * Select the session-wide env subset: the shared base keys plus any extra keys
+ * the launching harness owns. A key present in neither stays child-process-only.
+ */
+function pickSessionEnv(env: LaunchEnv, harness: SupportedHarness): LaunchEnv {
   const out: Record<string, string> = {};
-  for (const k of SESSION_ENV_KEYS) {
+  const keys = [...BASE_SESSION_ENV_KEYS, ...(HARNESS_LAUNCHERS[harness].sessionEnvKeys ?? [])];
+  for (const k of keys) {
     const v = env[k];
     if (v !== undefined) out[k] = v;
   }
@@ -202,14 +192,14 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
   // ZAI_API_KEY for pi) flow through from baseEnv untouched.
   const baseEnv = Object.freeze({ ...injectIdentityEnv(entry, options.baseEnv), ...channelEnv });
 
-  // Harness-specific command/args/env. Phase 1 shipped claude-code; Phase 2
-  // adds pi (native-peer mode onto the agents-js A2A bus). Adding a harness =
-  // a new branch here + a token in SUPPORTED_HARNESSES.
+  // Harness-specific command/args/env via the registry — no inline branch.
+  // Adding a harness = a {@link HARNESS_LAUNCHERS} entry, nothing here.
   const harness = entry.harness as SupportedHarness;
-  const built =
-    harness === "pi"
-      ? buildPiInvocation(entry, baseEnv, options.resolveLanHost)
-      : buildClaudeCodeInvocation(entry, baseEnv);
+  const built = HARNESS_LAUNCHERS[harness].build({
+    entry,
+    baseEnv,
+    resolveLanHost: options.resolveLanHost,
+  });
 
   return {
     tmuxSession: entry.tmuxSession,
@@ -217,7 +207,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     command: built.command,
     args: built.args,
     env: built.env,
-    sessionEnv: pickSessionEnv(built.env),
+    sessionEnv: pickSessionEnv(built.env, harness),
     channelEnv,
     allowedTools: built.allowedTools,
     harness,
@@ -233,8 +223,65 @@ interface HarnessInvocation {
   readonly allowedTools: readonly string[];
 }
 
-/** claude-code (Phase 1): operator fresh_flags + optional `--allowedTools`. */
-function buildClaudeCodeInvocation(entry: AgentEntry, baseEnv: LaunchEnv): HarnessInvocation {
+/** Inputs a harness builder receives — the same for every harness. */
+interface HarnessBuildContext {
+  readonly entry: AgentEntry;
+  /** Identity + channel env already layered onto the base process env. */
+  readonly baseEnv: LaunchEnv;
+  /** LAN-host resolver injected at the CLI boundary (see {@link BuildLaunchPlanOptions}). */
+  readonly resolveLanHost?: () => string | undefined;
+}
+
+/** A harness's registry entry: how to build its invocation + which env it owns session-wide. */
+interface HarnessLauncher {
+  /** Produce command/args/env for this harness. */
+  readonly build: (ctx: HarnessBuildContext) => HarnessInvocation;
+  /**
+   * Env keys this harness contributes to `sessionEnv` ON TOP of
+   * {@link BASE_SESSION_ENV_KEYS}. These must reach the harness process via
+   * `launch.ts`'s send-keys export (which emits only sessionEnv + channelEnv).
+   * Omit when the harness adds none beyond the shared base.
+   */
+  readonly sessionEnvKeys?: readonly string[];
+}
+
+/**
+ * Default `-e <extension>` pi loads in native-peer mode. Operators override via
+ * the `pi_extension` config field. The native-peer extension exposes the live Pi
+ * TUI as a localhost A2A endpoint (see `extras/pi-extension`) — how a native pi
+ * joins the agents-js mesh.
+ */
+const DEFAULT_PI_EXTENSION = "@agents-js/pi-extension";
+
+/**
+ * pi native-peer vars the pi launcher owns session-wide. Declared before
+ * {@link HARNESS_LAUNCHERS} because the registry literal references it at
+ * module-load time.
+ */
+const PI_SESSION_ENV_KEYS: readonly string[] = [
+  "AGENTS_JS_PI_NATIVE",
+  "AGENTS_JS_PI_NAME",
+  "AGENTS_JS_PI_PORT",
+  "AGENTS_JS_PI_HOST",
+];
+
+/**
+ * Harness launcher registry — the single extension seam. Typed as a total
+ * `Record<SupportedHarness, …>`, so the union and this table cannot drift:
+ * adding a {@link SupportedHarness} member without an entry (or vice versa) is a
+ * compile error. {@link buildLaunchPlan} dispatches through this; its body never
+ * grows a per-harness branch.
+ */
+const HARNESS_LAUNCHERS: Readonly<Record<SupportedHarness, HarnessLauncher>> = Object.freeze({
+  "claude-code": { build: buildClaudeCodeInvocation },
+  pi: { build: buildPiInvocation, sessionEnvKeys: PI_SESSION_ENV_KEYS },
+});
+
+/** Launchable harness kinds — derived from the registry, never hand-maintained. */
+const SUPPORTED_HARNESSES: ReadonlySet<string> = new Set(Object.keys(HARNESS_LAUNCHERS));
+
+/** claude-code: operator fresh_flags + optional `--allowedTools`. */
+function buildClaudeCodeInvocation({ entry, baseEnv }: HarnessBuildContext): HarnessInvocation {
   const flagArgs = splitFlags(entry.freshFlags);
   if (flagArgs.length === 0) {
     throw new LaunchPlanError(
@@ -249,18 +296,18 @@ function buildClaudeCodeInvocation(entry: AgentEntry, baseEnv: LaunchEnv): Harne
 }
 
 /**
- * pi (Phase 2) — native-peer mode. Emits `pi -e <extension> [fresh_flags]`
- * with `AGENTS_JS_PI_*` env so the pi-extension binds a localhost A2A endpoint
- * under the agent's identity (its `MATRIX_AGENT` name), joining the agents-js
- * mesh as a native, always-listening peer. Provider auth comes from
- * `ZAI_API_KEY` in baseEnv or pi's own stored login. `fresh_flags` may be empty
- * — `-e <ext>` is the base invocation, so there is no empty-flags failure here.
+ * pi — native-peer mode. Emits `pi -e <extension> [fresh_flags]` with
+ * `AGENTS_JS_PI_*` env so the pi-extension binds a localhost A2A endpoint under
+ * the agent's identity (its `MATRIX_AGENT` name), joining the agents-js mesh as a
+ * native, always-listening peer. Provider auth comes from `ZAI_API_KEY` in
+ * baseEnv or pi's own stored login. `fresh_flags` may be empty — `-e <ext>` is
+ * the base invocation, so there is no empty-flags failure here.
  */
-function buildPiInvocation(
-  entry: AgentEntry,
-  baseEnv: LaunchEnv,
-  resolveLanHost?: () => string | undefined,
-): HarnessInvocation {
+function buildPiInvocation({
+  entry,
+  baseEnv,
+  resolveLanHost,
+}: HarnessBuildContext): HarnessInvocation {
   const extension = entry.piExtension ?? DEFAULT_PI_EXTENSION;
   const flagArgs = splitFlags(entry.freshFlags);
   const args: readonly string[] = ["-e", extension, ...flagArgs];
