@@ -45,14 +45,10 @@ export function resolveBrowserLaunchConfig(
       ? options.search
       : new URLSearchParams(options.search);
 
-  const hasCanonicalQueryTarget = params.has("target");
-  const hasLegacyQueryTarget = !hasCanonicalQueryTarget && params.has("url");
-  const hasQueryTarget = hasCanonicalQueryTarget || hasLegacyQueryTarget;
+  const hasQueryTarget = params.has("target");
   const hasQueryWs = params.has("ws");
 
-  const queryTargetUrl = hasQueryTarget
-    ? sanitizeTargetUrl(params.get(hasCanonicalQueryTarget ? "target" : "url"))
-    : "";
+  const queryTargetUrl = hasQueryTarget ? sanitizeTargetUrl(params.get("target")) : "";
   const savedTargetUrl = sanitizeTargetUrl(options.savedUrl);
   const envTargetUrl = sanitizeTargetUrl(options.envTargetUrl);
 

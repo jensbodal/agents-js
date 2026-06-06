@@ -90,20 +90,6 @@ describe("resolveBrowserLaunchConfig", () => {
 
     expect(config.restoreSavedRuntime).toBe(true);
   });
-
-  test("accepts the legacy ?url override for compatibility", () => {
-    const config = resolveBrowserLaunchConfig({
-      search: "?url=http://127.0.0.1:61001",
-      savedUrl: "http://127.0.0.1:62001",
-      envTargetUrl: "http://127.0.0.1:63001",
-      envWsUrl: "ws://127.0.0.1:63002",
-    });
-
-    expect(config.defaultTargetUrl).toBe("http://127.0.0.1:61001");
-    expect(config.queryTargetUrl).toBe("http://127.0.0.1:61001");
-    expect(config.savedTargetUrl).toBe("http://127.0.0.1:62001");
-    expect(config.envTargetUrl).toBe("http://127.0.0.1:63001");
-  });
 });
 
 describe("isHostBridgeActiveForTarget", () => {

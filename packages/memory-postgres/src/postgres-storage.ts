@@ -58,8 +58,6 @@ interface EncodedScope {
   key: string;
 }
 
-const CURRENT_SCHEMA_VERSION = 1;
-
 /**
  * PostgreSQL-backed {@link Storage} implementation. Plugs into
  * {@link LocalMemoryProvider} via the public Storage seam to back
@@ -299,7 +297,6 @@ export class PostgresStorage implements Storage {
       CREATE INDEX IF NOT EXISTS idx_records_scope_id
         ON ${this.sql(this.schemaName)}.records (scope_kind, scope_key, id)
     `;
-    void CURRENT_SCHEMA_VERSION; // reserved for future migration logic
     this.migrated = true;
   }
 
