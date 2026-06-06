@@ -17,18 +17,6 @@ export interface AgentConfig {
   builtIn?: boolean;
   /** Default mode to activate when starting a session (e.g. "plan", "default"). Applied if the agent advertises this mode. */
   defaultMode?: string;
-  /**
-   * @deprecated Use `StartConfig.directoryPolicy.autoApprovedWriteFolders`
-   * (or the inline `StartConfig.autoApprovedWriteFolders` field) instead.
-   * Carried per-AgentConfig to preserve backward compatibility for hosts
-   * that have not yet migrated. When both are provided, the session-level
-   * directory-policy field wins; this field is merged in as a fallback.
-   *
-   * Workspace-identity-relative folders where the agent can write without
-   * approval. Mixing agent-level and session-level concerns; the directory
-   * policy belongs on the session, not on the spawn config.
-   */
-  writableFolders?: string[];
   /** CLI flag name for passing workspace directory (default: "--directory") */
   workspaceFlag?: string;
   /** When true, pass the real HOME to the agent process instead of a sandboxed temp directory. Required for external runtimes that store credentials under ~/.config/. */

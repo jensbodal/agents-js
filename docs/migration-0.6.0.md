@@ -229,6 +229,17 @@ later upstream alpha churn contained to the translators.
   model-selection types or APIs, drop them.
 - Regenerate any vendored ACP schema from the 0.24 SDK.
 
+## acp-host: `AgentConfig.writableFolders` removed
+
+The deprecated `AgentConfig.writableFolders` field is removed. Declare
+auto-approved write folders at the session level instead, via
+`StartConfig.directoryPolicy.autoApprovedWriteFolders` (or the inline
+`StartConfig.autoApprovedWriteFolders`). The write-gate now resolves the
+auto-approved set solely from the session directory policy — folders that were
+declared only through `writableFolders` will require explicit write approval
+until migrated. (Directory policy is a session concern; the agent spawn config
+no longer mixes it in.)
+
 ## AG-UI 0.0.55 and A2UI 0.10.0
 
 Catalog/pin bumps. If you pinned the prior versions directly, move to the new

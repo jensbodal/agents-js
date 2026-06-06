@@ -1299,14 +1299,10 @@ export class ACPSessionController {
     diff: string;
     absolutePath?: string;
   }): Promise<boolean> {
-    // Merge directory-policy auto-approved write folders (session-level,
-    // resolved by `resolveWorkspaceContext`) with the legacy
-    // `AgentConfig.writableFolders` fallback so unmigrated hosts keep working.
-    // The session-level value is the new authoritative source; the
-    // AgentConfig field is preserved as deprecated fallback.
-    const autoApprovedFromPolicy = this.resolvedWorkspaceContext?.autoApprovedWriteFolders ?? [];
-    const autoApprovedFromAgent = this.agentConfig?.writableFolders ?? [];
-    const allAutoApproved = [...autoApprovedFromPolicy, ...autoApprovedFromAgent];
+    // Directory-policy auto-approved write folders (session-level, resolved by
+    // `resolveWorkspaceContext`) are the authoritative source for which folders
+    // the agent may write to without approval.
+    const allAutoApproved = this.resolvedWorkspaceContext?.autoApprovedWriteFolders ?? [];
 
     return requestWriteGateApproval(
       gate,

@@ -314,33 +314,4 @@ describe("ACPSessionController workspace context", () => {
     expect(result).toBe(true);
     expect(events.some((e) => e.type === "write_gate_requested")).toBe(false);
   });
-
-  test("legacy AgentConfig.writableFolders is still honored as a fallback", async () => {
-    const { createProcess } = createMockAgent({ prompts: [] });
-    const events: ACPSessionEvent[] = [];
-    controller.subscribe((event) => events.push(event));
-
-    await controller.start(
-      makeStartConfig({
-        createProcess,
-        agentConfig: {
-          name: "Test",
-          command: "unused",
-          args: [],
-          env: {},
-          authHints: [],
-          workspacePolicy: "workspace-root-only",
-          writableFolders: ["legacy-zone"],
-        },
-      }),
-    );
-
-    const result = await controller._requestWriteGateApproval({
-      path: "legacy-zone/file.md",
-      diff: "some diff",
-    });
-
-    expect(result).toBe(true);
-    expect(events.some((e) => e.type === "write_gate_requested")).toBe(false);
-  });
 });
