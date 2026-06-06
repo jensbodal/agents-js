@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ValidationError } from "./errors.ts";
 import { resolveValidationMode, type ValidationMode, type ValidationOptions } from "./modes.ts";
-import { toValidationIssues, zodObjectWithMode } from "./zod-utils.ts";
+import { zodIssuesToValidationIssues, zodObjectWithMode } from "./zod-utils.ts";
 
 const jsonRpcIdSchema = z.union([z.string(), z.number(), z.null()]);
 
@@ -102,7 +102,7 @@ export function validateJsonRpcEnvelope(
     throw new ValidationError(`Invalid JSON-RPC ${kind} envelope`, {
       field: "jsonrpc",
       value: input,
-      issues: toValidationIssues(result.error),
+      issues: zodIssuesToValidationIssues(result.error),
       jsonRpcCode: kind === "request" ? -32600 : undefined,
     });
   }

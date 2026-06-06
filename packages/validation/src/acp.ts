@@ -8,7 +8,7 @@ import {
 } from "./generated/acp-schema.ts";
 import { type JsonSchemaValidationArtifacts, validateJsonSchemaArtifacts } from "./json-schema.ts";
 import { resolveValidationMode, type ValidationMode, type ValidationOptions } from "./modes.ts";
-import { toValidationIssues, zodObjectWithMode } from "./zod-utils.ts";
+import { zodIssuesToValidationIssues, zodObjectWithMode } from "./zod-utils.ts";
 
 const jsonRpcIdSchema = z.union([z.string(), z.number(), z.null()]);
 
@@ -203,7 +203,7 @@ function validateACPEnvelopeShape(input: unknown, options: ValidationOptions = {
     throw new ValidationError("Invalid ACP envelope", {
       field: "jsonrpc",
       value: input,
-      issues: toValidationIssues(parsed.error),
+      issues: zodIssuesToValidationIssues(parsed.error),
       jsonRpcCode: -32600,
     });
   }

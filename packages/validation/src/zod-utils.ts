@@ -30,15 +30,6 @@ export function zodIssuesToValidationIssues(error: ZodErrorLike): ValidationIssu
   }));
 }
 
-/**
- * @deprecated Use {@link zodIssuesToValidationIssues} — it accepts both
- * Zod v3 and v4 errors via duck-typing. Kept as an alias for callers that
- * want the v4-typed signature.
- */
-export function toValidationIssues(error: z.ZodError): ValidationIssue[] {
-  return zodIssuesToValidationIssues(error);
-}
-
 export function zodObjectWithMode<T extends z.ZodRawShape>(shape: T, mode: ValidationMode) {
   const objectSchema = z.object(shape);
 
