@@ -1038,13 +1038,13 @@ describe("@agents-js/gateway-runtime", () => {
       expect(droid.authEnvKeys).toEqual(["FACTORY_API_KEY"]);
     });
 
-    test("pi declares no authEnvKeys (pi manages credentials out-of-band)", () => {
-      // Pi stores credentials under ~/.pi via its /login TUI; no env-var
-      // passthrough is intended. If this regresses (e.g. someone adds
-      // `authEnvKeys: ["PI_API_KEY"]` to the pi entry), revisit the pi
-      // architectural note in `packages/gateway-runtime/src/runtimes.ts`.
+    test("pi declares ZAI_API_KEY for nested Pi provider auth", () => {
+      // Pi can store credentials under ~/.pi via its /login TUI, but the
+      // Zai provider also reads ZAI_API_KEY from the environment. The host
+      // filters secret env by harness, so Pi must explicitly declare this key
+      // or gateway-spawned pi-acp children cannot authenticate.
       const pi = getGatewayRuntimeDefinition("pi");
-      expect(pi.authEnvKeys).toBeUndefined();
+      expect(pi.authEnvKeys).toEqual(["ZAI_API_KEY"]);
     });
 
     test("claude declares ANTHROPIC_API_KEY as its harness-specific authEnvKeys", () => {

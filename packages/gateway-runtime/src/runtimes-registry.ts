@@ -381,7 +381,9 @@ const gatewayRuntimeRegistry = {
     resolvesFromWorkspaceBin: true,
     // Pi manages provider credentials internally via its /login TUI and
     // ~/.pi config, while provider env vars are read by the nested Pi CLI.
-    // Intentionally no `authEnvKeys` entry.
+    // The gateway host must forward ZAI_API_KEY to the pi-acp child so the
+    // nested Pi process can authenticate when the operator selects Zai.
+    authEnvKeys: ["ZAI_API_KEY"],
   }),
   droid: createAcpHarness({
     id: "droid",
