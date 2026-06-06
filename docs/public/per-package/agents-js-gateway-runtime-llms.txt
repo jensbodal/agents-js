@@ -52,6 +52,7 @@ bun add @agents-js/gateway-runtime
 - **`resolveGatewayRuntimeCommand`**
 - **`resolveGatewayRuntimeProfile`** — Materialize a {GatewayRuntimeProfile} via the internal profile resolver. The narrower {GatewayRuntimeId} is preserved on the returned {ResolvedGatewayRuntimeProfile}.
 - **`resolveGatewayRuntimeSelection`**
+- **`resolveProviderCredEnvKeys`** — Resolve a provider's credential env-key names. Fail-closed: an absent or unrecognized provider yields NO keys (never a wildcard), so a misconfigured provider can only ever NARROW the secret-env all...
 - **`resolveRemoteGatewayEnv`**
 - **`resolveRuntimeArgs`** — Resolve the runtime argv for a curated definition, honoring env-based overrides.
 - **`runCommand`**
@@ -100,6 +101,7 @@ bun add @agents-js/gateway-runtime
 - **`GatewayRuntimeSelection`**
 - **`HarnessSelectionPolicy`**
 - **`HostnameMode`**
+- **`ProviderId`** — Semantic LLM provider id an agent/runtime authenticates against. The cred env-var requirement is a property of the PROVIDER, not the runtime — a runtime that can target multiple providers (e.g. pi:...
 - **`ResolveGatewayRuntimeFn`** — Runtime resolver shape. Factored out so tests can inject a resolver that returns canned `ResolvedGatewayRuntime` values without touching the filesystem.
 - **`SpawnACPAgentFn`** — Abstraction over `spawnACPAgent` for test injection. Shape matches the imported function; tests substitute a fake that returns a controlled `Stream` / `kill` handle.
 - **`SpawnSubSessionStatus`** — Terminal status of a {spawnSubSession} call. - `completed` — subagent returned an `end_turn` stopReason within the timeout. - `errored` — subagent returned a non-`end_turn` stopReason, or the ACP h...
@@ -117,6 +119,7 @@ bun add @agents-js/gateway-runtime
 - **`GATEWAY_RUNTIME_REGISTRY`** — Curated runtime registry, exposed as a read-only `Record` so the selection layer can iterate and look up entries. The type is widened from the literal `as const` shape to `Readonly<Record<…>>` so d...
 - **`HOME_PLACEHOLDER`** — Default directories the gateway prepends to `process.env.PATH` when resolving runtime binaries via the resolver in `./runtime-command-resolution.ts`. The host composition layer threads this list in...
 - **`MOCK_ACP_RUNTIME_ENV`** — Env var that gates registration of the in-repo `mock-acp` runtime in {listGatewayRuntimeIds}. Surfaced as a constant rather than an inline string so tests and consumers can reference the same key.
+- **`PROVIDER_CRED_ENV`** — Provider → credential env-var NAMES (never values). The mapping lives here ONCE; runtimes declare a {GatewayRuntimeDefinition.defaultProvider} instead of hand-maintaining their own `authEnvKeys` li...
 - **`SPAWN_SUB_SESSION_DEFAULT_HARNESS`** — Default harness used when `hints.harness` is unspecified.
 - **`SPAWN_SUB_SESSION_DEFAULT_TIMEOUT_MS`** — Default subtask timeout (5 minutes).
 - **`SPAWN_SUB_SESSION_SUPPORTED_HARNESSES`** — Harness ids supported by `spawnSubSession` v1. Expand this set as harnesses land hardening gates for subagent spawning.

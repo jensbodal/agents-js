@@ -46,6 +46,40 @@ export interface GatewayRuntimeResolveArgsInput {
   env: Record<string, string | undefined>;
 }
 
+/**
+ * Semantic LLM provider id an agent/runtime authenticates against. The cred
+ * env-var requirement is a property of the PROVIDER, not the runtime — a
+ * runtime that can target multiple providers (e.g. pi: zai|anthropic|…) needs a
+ * different key per provider, so the provider is the single source of truth for
+ * which secret env keys to forward.
+ */
+export type ProviderId = "anthropic" | "openai" | "zai" | "factory" | "google";
+
+/**
+ * Provider → credential env-var NAMES (never values). The mapping lives here
+ * ONCE; runtimes declare a {@link GatewayRuntimeDefinition.defaultProvider}
+ * instead of hand-maintaining their own `authEnvKeys` list. `google` is empty
+ * by design — the gemini CLI self-authenticates (OAuth/gcloud) with no env
+ * passthrough.
+ */
+export const PROVIDER_CRED_ENV: Readonly<Record<ProviderId, readonly string[]>> = Object.freeze({
+  anthropic: ["ANTHROPIC_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  zai: ["ZAI_API_KEY"],
+  factory: ["FACTORY_API_KEY"],
+  google: [],
+});
+
+/**
+ * Resolve a provider's credential env-key names. Fail-closed: an absent or
+ * unrecognized provider yields NO keys (never a wildcard), so a misconfigured
+ * provider can only ever NARROW the secret-env allowlist, never widen it.
+ */
+export function resolveProviderCredEnvKeys(provider: string | undefined): readonly string[] {
+  if (!provider) return [];
+  return PROVIDER_CRED_ENV[provider as ProviderId] ?? [];
+}
+
 export interface GatewayRuntimeDefinition {
   id: string;
   displayName: string;
@@ -71,8 +105,22 @@ export interface GatewayRuntimeDefinition {
    * passes it into `StartConfig.envPolicy.agentSecretEnvKeys` when starting
    * an ACP session. Leave `undefined` (or empty) when a harness manages its
    * own credentials out-of-band (e.g. `pi` persists auth in `~/.pi`).
+   *
+   * Curated harnesses no longer hand-maintain this — it is DERIVED from
+   * {@link defaultProvider} via {@link PROVIDER_CRED_ENV} (see
+   * {@link createAcpHarness}). The field remains the host-facing source of
+   * truth so consumers (`buildHostRuntimeEnvPolicy`, `cli/acp.ts`) are
+   * unchanged.
    */
   authEnvKeys?: readonly string[];
+  /**
+   * Semantic provider this runtime authenticates against by default. The
+   * runtime's `authEnvKeys` are derived from it ({@link PROVIDER_CRED_ENV}), so
+   * the provider→cred mapping is declared once, by the provider. A multi-provider
+   * runtime (pi) carries its most common provider here; per-agent provider
+   * override is a follow-on.
+   */
+  defaultProvider?: ProviderId;
   /**
    * Optional per-definition hook that produces the runtime's final argv.
    *
@@ -203,6 +251,23 @@ export interface CreateAcpHarnessInput {
   workspaceFlag?: string;
   defaultEnv?: Readonly<Record<string, string>>;
   resolveArgs?: GatewayRuntimeDefinition["resolveArgs"];
+  /**
+   * Semantic provider this harness authenticates against. Preferred over
+   * {@link authEnvKeys}: the harness's cred keys are DERIVED from the provider
+   * via {@link PROVIDER_CRED_ENV}, so the provider→cred mapping lives once.
+   */
+  defaultProvider?: ProviderId;
+  /**
+   * Harness-specific credential keys layered ON TOP of the provider-derived
+   * ones (e.g. codex reads its own `CODEX_API_KEY` in addition to the openai
+   * provider's `OPENAI_API_KEY`). Order: extras first, then provider keys.
+   */
+  extraAuthEnvKeys?: readonly string[];
+  /**
+   * Explicit override of the derived cred keys. Honored verbatim when set
+   * (used by custom/test runtimes); curated harnesses use {@link defaultProvider}
+   * instead and leave this unset.
+   */
   authEnvKeys?: readonly string[];
 }
 
@@ -236,8 +301,23 @@ export function createAcpHarness(input: CreateAcpHarnessInput): GatewayRuntimeDe
   if (input.resolveArgs !== undefined) {
     definition.resolveArgs = input.resolveArgs;
   }
-  if (input.authEnvKeys !== undefined) {
-    definition.authEnvKeys = input.authEnvKeys;
+  if (input.defaultProvider !== undefined) {
+    definition.defaultProvider = input.defaultProvider;
+  }
+  // authEnvKeys precedence: an explicit override wins (custom/test runtimes);
+  // otherwise DERIVE from the provider (extras first, then provider keys,
+  // deduped). Only set the field when non-empty so out-of-band-auth runtimes
+  // (gemini, trial, mock) keep `authEnvKeys` absent, as before.
+  const derivedAuthEnvKeys =
+    input.authEnvKeys ??
+    Array.from(
+      new Set([
+        ...(input.extraAuthEnvKeys ?? []),
+        ...resolveProviderCredEnvKeys(input.defaultProvider),
+      ]),
+    );
+  if (derivedAuthEnvKeys.length > 0) {
+    definition.authEnvKeys = derivedAuthEnvKeys;
   }
   return definition;
 }
@@ -343,7 +423,7 @@ const gatewayRuntimeRegistry = {
     // claude-agent-acp reads ANTHROPIC_API_KEY from the inherited env.
     // Declared explicitly per-harness — the host no longer forwards a
     // global baseline, so each runtime owns its own credential surface.
-    authEnvKeys: ["ANTHROPIC_API_KEY"],
+    defaultProvider: "anthropic",
   }),
   codex: createAcpHarness({
     id: "codex",
@@ -363,7 +443,8 @@ const gatewayRuntimeRegistry = {
     // CODEX_API_KEY (preferred) or OPENAI_API_KEY; ChatGPT-subscription
     // cookie auth works locally only. We forward both env keys so the
     // adapter can choose whichever the operator has configured.
-    authEnvKeys: ["CODEX_API_KEY", "OPENAI_API_KEY"],
+    defaultProvider: "openai",
+    extraAuthEnvKeys: ["CODEX_API_KEY"],
   }),
   pi: createAcpHarness({
     id: "pi",
@@ -379,11 +460,11 @@ const gatewayRuntimeRegistry = {
         'The in-repo "pi-acp" binary is built from @agents-js/pi-acp; ensure the "pi" CLI is also installed (npm i -g @mariozechner/pi-coding-agent).',
     },
     resolvesFromWorkspaceBin: true,
-    // Pi manages provider credentials internally via its /login TUI and
-    // ~/.pi config, while provider env vars are read by the nested Pi CLI.
-    // The gateway host must forward ZAI_API_KEY to the pi-acp child so the
-    // nested Pi process can authenticate when the operator selects Zai.
-    authEnvKeys: ["ZAI_API_KEY"],
+    // Pi is multi-provider; its default here is Zai. The host forwards the
+    // provider's cred key (derived: zai → ZAI_API_KEY) to the pi-acp child so
+    // the nested Pi process authenticates headlessly — there is no /login TUI in
+    // the gateway path. Per-agent provider override is a follow-on.
+    defaultProvider: "zai",
   }),
   droid: createAcpHarness({
     id: "droid",
@@ -402,7 +483,7 @@ const gatewayRuntimeRegistry = {
     // Droid authenticates via FACTORY_API_KEY. Declaring it here makes the
     // host composition layer forward the variable into the spawned child
     // and block it from being overridden by untrusted extraEnv input.
-    authEnvKeys: ["FACTORY_API_KEY"],
+    defaultProvider: "factory",
   }),
   gemini: createAcpHarness({
     id: "gemini",

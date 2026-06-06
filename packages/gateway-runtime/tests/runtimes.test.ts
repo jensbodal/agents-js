@@ -14,7 +14,12 @@ import {
   resolveRuntimeArgs,
   validateGatewayRuntimeProfileName,
 } from "../src/runtimes.ts";
-import { createAcpHarness, DEFAULT_EXTRA_BIN_PATHS } from "../src/runtimes-registry.ts";
+import {
+  createAcpHarness,
+  DEFAULT_EXTRA_BIN_PATHS,
+  PROVIDER_CRED_ENV,
+  resolveProviderCredEnvKeys,
+} from "../src/runtimes-registry.ts";
 
 describe("@agents-js/gateway-runtime", () => {
   test("lists curated runtime definitions", () => {
@@ -1192,5 +1197,55 @@ describe("@agents-js/gateway-runtime", () => {
       const pi = await resolveGatewayRuntime("pi", { resolver: fakeResolver });
       expect(codex.agentCard.name).not.toBe(pi.agentCard.name);
     });
+  });
+});
+
+describe("@agents-js/gateway-runtime — provider-keyed auth env", () => {
+  test("PROVIDER_CRED_ENV maps each provider to its cred key NAMES (not values)", () => {
+    expect(PROVIDER_CRED_ENV.anthropic).toEqual(["ANTHROPIC_API_KEY"]);
+    expect(PROVIDER_CRED_ENV.openai).toEqual(["OPENAI_API_KEY"]);
+    expect(PROVIDER_CRED_ENV.zai).toEqual(["ZAI_API_KEY"]);
+    expect(PROVIDER_CRED_ENV.factory).toEqual(["FACTORY_API_KEY"]);
+    // google is empty by design — the gemini CLI self-authenticates.
+    expect(PROVIDER_CRED_ENV.google).toEqual([]);
+  });
+
+  test("resolveProviderCredEnvKeys is fail-closed: unknown/absent provider → no keys", () => {
+    expect(resolveProviderCredEnvKeys("zai")).toEqual(["ZAI_API_KEY"]);
+    // Unknown provider must yield NO keys (never a wildcard) so a misconfigured
+    // provider can only narrow the secret-env allowlist, never widen it.
+    expect(resolveProviderCredEnvKeys("totally-unknown-provider")).toEqual([]);
+    expect(resolveProviderCredEnvKeys(undefined)).toEqual([]);
+    expect(resolveProviderCredEnvKeys("")).toEqual([]);
+  });
+
+  test("curated runtimes declare a provider; authEnvKeys is DERIVED from it", () => {
+    // The provider→cred mapping is the single source of truth — runtimes no
+    // longer hand-maintain authEnvKeys. Each derived list must equal the
+    // provider's keys (plus any runtime-specific extras).
+    const claude = getGatewayRuntimeDefinition("claude");
+    expect(claude.defaultProvider).toBe("anthropic");
+    expect(claude.authEnvKeys).toEqual(PROVIDER_CRED_ENV.anthropic);
+
+    const pi = getGatewayRuntimeDefinition("pi");
+    expect(pi.defaultProvider).toBe("zai");
+    expect(pi.authEnvKeys).toEqual(PROVIDER_CRED_ENV.zai);
+
+    const droid = getGatewayRuntimeDefinition("droid");
+    expect(droid.defaultProvider).toBe("factory");
+    expect(droid.authEnvKeys).toEqual(PROVIDER_CRED_ENV.factory);
+  });
+
+  test("codex layers a runtime-specific key over the provider's (extras first, deduped)", () => {
+    const codex = getGatewayRuntimeDefinition("codex");
+    expect(codex.defaultProvider).toBe("openai");
+    // CODEX_API_KEY (runtime-specific extra) precedes the openai provider key.
+    expect(codex.authEnvKeys).toEqual(["CODEX_API_KEY", "OPENAI_API_KEY"]);
+  });
+
+  test("a provider mapping to no keys leaves authEnvKeys absent (out-of-band auth)", () => {
+    // gemini self-authenticates → no provider declared, no keys forwarded.
+    const gemini = getGatewayRuntimeDefinition("gemini");
+    expect(gemini.authEnvKeys).toBeUndefined();
   });
 });
