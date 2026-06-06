@@ -56,18 +56,7 @@ export class ValidationError extends Error {
   public readonly issues: ValidationIssue[];
   public readonly jsonRpcCode?: -32600 | -32602;
 
-  constructor(message: string, field: string, value: unknown);
-  constructor(message: string, options?: ValidationErrorOptions);
-  constructor(
-    message: string,
-    fieldOrOptions: string | ValidationErrorOptions = "input",
-    legacyValue?: unknown,
-  ) {
-    const options: ValidationErrorOptions =
-      typeof fieldOrOptions === "string"
-        ? { field: fieldOrOptions, value: legacyValue }
-        : fieldOrOptions;
-
+  constructor(message: string, options: ValidationErrorOptions = {}) {
     const normalizedField = options.field ?? options.issues?.[0]?.path ?? "input";
     super(`Validation failed for "${normalizedField}": ${message}`);
 
