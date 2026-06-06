@@ -60,7 +60,6 @@ graph LR
   acp --> policy
   browser_runtime --> agui_types
   browser_runtime --> validation
-  claude_channel_adapter --> wake_types
   cli --> a2a
   cli --> a2a_client
   cli --> acp

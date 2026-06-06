@@ -124,7 +124,7 @@
     },
     "extras/browser-runtime": {
       "name": "@agents-js/browser-runtime",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/agui-types": "0.5.1",
         "@agents-js/validation": "0.5.1",
@@ -139,7 +139,7 @@
     },
     "extras/droid-acp": {
       "name": "@agents-js/droid-acp",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "droid-acp": "dist/droid-acp",
       },
@@ -154,7 +154,7 @@
     },
     "extras/gitea-bridge": {
       "name": "@agents-js/gitea-bridge",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/a2a": "0.5.1",
         "@agents-js/host": "0.5.1",
@@ -165,7 +165,7 @@
     },
     "extras/matrix-bridge": {
       "name": "@agents-js/matrix-bridge",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/host": "0.5.1",
       },
@@ -175,7 +175,7 @@
     },
     "extras/mcp-bus-bridge": {
       "name": "@agents-js/mcp-bus-bridge",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "agents-js-mcp-bus-bridge": "./dist/bin.mjs",
       },
@@ -189,7 +189,7 @@
     },
     "extras/pi-acp": {
       "name": "@agents-js/pi-acp",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "pi-acp": "dist/pi-acp",
       },
@@ -204,7 +204,7 @@
     },
     "extras/pi-extension": {
       "name": "@agents-js/pi-extension",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agents-js/a2a": "0.5.1",
@@ -218,7 +218,7 @@
     },
     "extras/plane": {
       "name": "@agents-js/plane",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/gateway-runtime": "0.5.1",
       },
@@ -228,7 +228,7 @@
     },
     "extras/reporting": {
       "name": "@agents-js/reporting",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "agents-report": "dist/cli.mjs",
       },
@@ -238,7 +238,7 @@
     },
     "extras/wake-channel-bridge": {
       "name": "@agents-js/wake-channel-bridge",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/claude-channel-adapter": "0.5.1",
         "@agents-js/wake-signal-store": "0.5.1",
@@ -250,7 +250,7 @@
     },
     "packages/a2a": {
       "name": "@agents-js/a2a",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agentclientprotocol/sdk": "catalog:",
@@ -260,7 +260,7 @@
     },
     "packages/a2a-client": {
       "name": "@agents-js/a2a-client",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agentclientprotocol/sdk": "catalog:",
@@ -271,7 +271,7 @@
     },
     "packages/a2ui-host": {
       "name": "@agents-js/a2ui-host",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
         "@agents-js/acp-host": "0.5.1",
@@ -288,7 +288,7 @@
     },
     "packages/a2ui-renderer": {
       "name": "@agents-js/a2ui-renderer",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/a2ui-types": "0.5.1",
         "@agents-js/ui-components": "0.5.1",
@@ -302,7 +302,7 @@
     },
     "packages/a2ui-types": {
       "name": "@agents-js/a2ui-types",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@a2ui/web_core": "0.10.0",
         "zod": "catalog:",
@@ -316,7 +316,7 @@
     },
     "packages/acp": {
       "name": "@agents-js/acp",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
         "@agents-js/policy": "0.5.1",
@@ -324,7 +324,7 @@
     },
     "packages/acp-host": {
       "name": "@agents-js/acp-host",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
         "@agents-js/acp": "0.5.1",
@@ -333,14 +333,14 @@
     },
     "packages/agent-launch": {
       "name": "@agents-js/agent-launch",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "devDependencies": {
         "@types/bun": "catalog:",
       },
     },
     "packages/agui-types": {
       "name": "@agents-js/agui-types",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@ag-ui/core": "catalog:",
       },
@@ -350,13 +350,12 @@
     },
     "packages/canvas-model": {
       "name": "@agents-js/canvas-model",
-      "version": "0.5.1",
+      "version": "0.6.0",
     },
     "packages/claude-channel-adapter": {
       "name": "@agents-js/claude-channel-adapter",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
-        "@agents-js/wake-types": "0.5.1",
         "@modelcontextprotocol/sdk": "catalog:",
       },
       "devDependencies": {
@@ -365,7 +364,7 @@
     },
     "packages/cli": {
       "name": "@agents-js/cli",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "agents-js": "dist/bin.mjs",
         "ajs": "dist/bin.mjs",
@@ -389,7 +388,7 @@
     },
     "packages/gateway-runtime": {
       "name": "@agents-js/gateway-runtime",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "mock-acp": "bin/mock-acp.ts",
       },
@@ -401,7 +400,7 @@
     },
     "packages/host": {
       "name": "@agents-js/host",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agentclientprotocol/sdk": "catalog:",
@@ -420,7 +419,7 @@
     },
     "packages/mcp-bridge": {
       "name": "@agents-js/mcp-bridge",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/a2a-client": "0.5.1",
         "@agents-js/skills": "0.5.1",
@@ -430,18 +429,18 @@
     },
     "packages/memory": {
       "name": "@agents-js/memory",
-      "version": "0.5.1",
+      "version": "0.6.0",
     },
     "packages/memory-local": {
       "name": "@agents-js/memory-local",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/memory": "0.5.1",
       },
     },
     "packages/memory-postgres": {
       "name": "@agents-js/memory-postgres",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/memory": "0.5.1",
         "@agents-js/memory-local": "0.5.1",
@@ -450,29 +449,29 @@
     },
     "packages/policy": {
       "name": "@agents-js/policy",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
       },
     },
     "packages/schema-utils": {
       "name": "@agents-js/schema-utils",
-      "version": "0.5.1",
+      "version": "0.6.0",
     },
     "packages/skills": {
       "name": "@agents-js/skills",
-      "version": "0.5.1",
+      "version": "0.6.0",
     },
     "packages/tools": {
       "name": "@agents-js/tools",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/gateway-runtime": "0.5.1",
       },
     },
     "packages/ui-components": {
       "name": "@agents-js/ui-components",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
         "@agents-js/a2ui-types": "0.5.1",
@@ -491,7 +490,7 @@
     },
     "packages/validation": {
       "name": "@agents-js/validation",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "agents-validate": "dist/cli.mjs",
       },
@@ -512,7 +511,7 @@
     },
     "packages/wake-mcp-triggers": {
       "name": "@agents-js/wake-mcp-triggers",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/wake-types": "0.5.1",
       },
@@ -522,7 +521,7 @@
     },
     "packages/wake-signal-store": {
       "name": "@agents-js/wake-signal-store",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "@agents-js/wake-types": "0.5.1",
       },
@@ -532,14 +531,14 @@
     },
     "packages/wake-types": {
       "name": "@agents-js/wake-types",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "devDependencies": {
         "@types/bun": "catalog:",
       },
     },
     "tests/trial-agent": {
       "name": "@agents-js/trial-agent",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "bin": {
         "trial-agent": "bin/trial-agent.ts",
       },

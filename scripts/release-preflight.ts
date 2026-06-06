@@ -1084,12 +1084,6 @@ function parseCliArgs(argv: string[]): CliOptions {
       case "--require-publish-env":
         requireNpmrc = true;
         break;
-      case "--allow-missing-npmrc":
-        // Back-compat alias: the new model has no committed-.npmrc
-        // requirement, but accept the old flag as a no-op so existing docs
-        // and scripts keep working.
-        requireNpmrc = false;
-        break;
       case "--help":
       case "-h":
         printUsageAndExit(0);
@@ -1108,7 +1102,6 @@ function printUsageAndExit(code: number): never {
 Options:
   --json                   Print the audit result as JSON.
   --require-publish-env    Also require ${PUBLISH_REGISTRY_ENV} to be set.
-  --allow-missing-npmrc    Deprecated; retained as a no-op for back-compat.
   -h, --help               Show this message.
 `);
   process.exit(code);

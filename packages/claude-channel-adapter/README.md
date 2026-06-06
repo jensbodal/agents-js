@@ -75,7 +75,6 @@ bun add @agents-js/claude-channel-adapter
 
 ## Dependencies
 
-- `@agents-js/wake-types`
 - `@modelcontextprotocol/sdk`
 
 ## License

@@ -180,27 +180,6 @@ export interface LaunchCommandDependencies {
 }
 
 /**
- * Pure parse helper exposed for tests. Production code path is
- * {@link runLaunchCommand}.
- */
-export function parseLaunchCommandArgs(argv: string[]): LaunchCommandArgs {
-  return parseArgv<LaunchCommandArgs>(
-    argv.filter((a) => !a.startsWith("@") && !isFirstPositional(a, argv)),
-    LAUNCH_ARG_SPEC,
-    {
-      subcommandName: "launch",
-      defaults: { bg: false, help: false },
-    },
-  );
-}
-
-function isFirstPositional(_a: string, _argv: string[]): boolean {
-  // Stub: not used directly. parseLaunchCommandArgs handles positional
-  // separately. Kept for symmetry with the parser pattern.
-  return false;
-}
-
-/**
  * Public entry. Wires `agents-js launch <agent>` into the top-level
  * dispatcher.
  *

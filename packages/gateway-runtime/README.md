@@ -90,7 +90,6 @@ bun add @agents-js/gateway-runtime
 
 - **`EnvSource`**
 - **`GatewayRuntimeId`**
-- **`GatewayRuntimeProfileRoots`** — Gateway-runtime alias for internal runtime profile roots. The shape is preserved so existing downstream imports keep compiling without churn.
 - **`GatewayRuntimeSelection`**
 - **`HarnessSelectionPolicy`**
 - **`HostnameMode`**

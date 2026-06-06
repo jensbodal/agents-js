@@ -7,11 +7,7 @@
  */
 export { PiRpcClient, type PiRpcClientOptions } from "./pi-rpc-client.ts";
 export { PiAcpSession, type PiAcpSessionOptions } from "./session.ts";
-export {
-  PiToAcpTranslator,
-  promptRequestToPiMessage,
-  type TranslatorStepResult,
-} from "./translator.ts";
+export { PiToAcpTranslator, type TranslatorStepResult } from "./translator.ts";
 export {
   isPiRpcResponse,
   PI_ASSISTANT_EVENT_TYPES,

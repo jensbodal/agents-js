@@ -1,12 +1,10 @@
 import type {
-  PromptRequest,
   SessionNotification,
   StopReason,
   ToolCall,
   ToolCallStatus,
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
-import { extractPromptText } from "@agents-js/acp";
 import { PI_ASSISTANT_EVENT_TYPES, PI_EVENT_TYPES, type PiRpcMessage } from "./types.ts";
 
 /**
@@ -21,20 +19,6 @@ import { PI_ASSISTANT_EVENT_TYPES, PI_EVENT_TYPES, type PiRpcMessage } from "./t
 export interface TranslatorStepResult {
   notifications: SessionNotification[];
   turnComplete?: { stopReason: StopReason };
-}
-
-/**
- * Extract the concatenated textual content from an ACP `PromptRequest` blob.
- * Pi's `prompt` command accepts a single `message` string (plus optional
- * `images` blocks); images are not supported in this adapter's first cut.
- *
- * Thin alias over the shared {@link extractPromptText} helper from
- * `@agents-js/acp`. Kept as a named export so existing pi-acp consumers
- * (and the translator's external API surface) remain stable; new code
- * should prefer the shared helper directly.
- */
-export function promptRequestToPiMessage(request: PromptRequest): string {
-  return extractPromptText(request);
 }
 
 /**

@@ -1,14 +1,3 @@
-// -- ACP streaming translator compatibility -----------------------------------
-// The canonical home is `@agents-js/acp`; keep this re-export through the 0.5.x
-// line so existing acp-host consumers do not break.
-export {
-  type AcpStreamingSink,
-  AcpStreamingTranslator,
-  type TextDeltaCall,
-  type ToolCallStartCall,
-  type ToolCallUpdateCall,
-} from "@agents-js/acp";
-
 // -- Atomic write infrastructure ----------------------------------------------
 export {
   atomicWrite,

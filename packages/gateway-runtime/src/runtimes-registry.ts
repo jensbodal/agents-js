@@ -18,11 +18,7 @@ import {
   CODEX_ACP_PACKAGE_NAME,
   CODEX_ACP_VERSION,
 } from "./generated-runtime-installs.ts";
-import type {
-  ResolvedRuntimeProfile,
-  RuntimeProfile,
-  RuntimeProfileRoots,
-} from "./profiles/types.ts";
+import type { ResolvedRuntimeProfile, RuntimeProfile } from "./profiles/types.ts";
 
 export interface GatewayRuntimeInstall {
   owner: "external" | "zed" | "agentclientprotocol" | "custom" | "agents-js";
@@ -189,12 +185,6 @@ export interface RuntimeResolutionOptions {
    */
   profile?: string;
 }
-
-/**
- * Gateway-runtime alias for internal runtime profile roots. The shape is
- * preserved so existing downstream imports keep compiling without churn.
- */
-export type GatewayRuntimeProfileRoots = RuntimeProfileRoots;
 
 /**
  * Gateway-runtime-flavored {@link RuntimeProfile}: identical shape, but the
