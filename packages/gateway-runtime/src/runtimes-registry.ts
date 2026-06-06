@@ -13,6 +13,11 @@
 import type { GatewayCardInput } from "@agents-js/a2a";
 import type { ACPProcessOptions } from "@agents-js/acp";
 import {
+  PROVIDER_CRED_ENV,
+  type ProviderId,
+  resolveProviderCredEnvKeys,
+} from "@agents-js/agent-launch";
+import {
   CLAUDE_AGENT_ACP_PACKAGE_NAME,
   CLAUDE_AGENT_ACP_VERSION,
   CODEX_ACP_PACKAGE_NAME,
@@ -42,39 +47,12 @@ export interface GatewayRuntimeResolveArgsInput {
   env: Record<string, string | undefined>;
 }
 
-/**
- * Semantic LLM provider id an agent/runtime authenticates against. The cred
- * env-var requirement is a property of the PROVIDER, not the runtime — a
- * runtime that can target multiple providers (e.g. pi: zai|anthropic|…) needs a
- * different key per provider, so the provider is the single source of truth for
- * which secret env keys to forward.
- */
-export type ProviderId = "anthropic" | "openai" | "zai" | "factory" | "google";
-
-/**
- * Provider → credential env-var NAMES (never values). The mapping lives here
- * ONCE; runtimes declare a {@link GatewayRuntimeDefinition.defaultProvider}
- * instead of hand-maintaining their own `authEnvKeys` list. `google` is empty
- * by design — the gemini CLI self-authenticates (OAuth/gcloud) with no env
- * passthrough.
- */
-export const PROVIDER_CRED_ENV: Readonly<Record<ProviderId, readonly string[]>> = Object.freeze({
-  anthropic: ["ANTHROPIC_API_KEY"],
-  openai: ["OPENAI_API_KEY"],
-  zai: ["ZAI_API_KEY"],
-  factory: ["FACTORY_API_KEY"],
-  google: [],
-});
-
-/**
- * Resolve a provider's credential env-key names. Fail-closed: an absent or
- * unrecognized provider yields NO keys (never a wildcard), so a misconfigured
- * provider can only ever NARROW the secret-env allowlist, never widen it.
- */
-export function resolveProviderCredEnvKeys(provider: string | undefined): readonly string[] {
-  if (!provider) return [];
-  return PROVIDER_CRED_ENV[provider as ProviderId] ?? [];
-}
+// The provider → credential env registry is the single source of truth shared
+// by BOTH launch paths. It lives in @agents-js/agent-launch (the zero-dep leaf),
+// so standalone `agents-js launch` and this gateway runtime registry derive
+// from one place. Re-exported here so consumers that import these from
+// @agents-js/gateway-runtime keep working.
+export { PROVIDER_CRED_ENV, type ProviderId, resolveProviderCredEnvKeys };
 
 export interface GatewayRuntimeDefinition {
   id: string;

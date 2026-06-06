@@ -89,6 +89,11 @@ export {
   type SupportedHarness,
 } from "./plan.ts";
 export {
+  PROVIDER_CRED_ENV,
+  type ProviderId,
+  resolveProviderCredEnvKeys,
+} from "./provider-registry.ts";
+export {
   createTmuxRunner,
   type TmuxRunner,
   type TmuxRunnerOptions,

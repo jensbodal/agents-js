@@ -389,3 +389,50 @@ describe("buildLaunchPlan — harness registry isolation", () => {
     expect(plan.command).toBe("claude");
   });
 });
+
+describe("buildLaunchPlan — provider-credential derivation (standalone)", () => {
+  const piEntry = {
+    tmuxSession: "mdg-pi-0",
+    harness: "pi",
+    binary: "pi",
+    workspace: "/tmp/mdg",
+    freshFlags: "",
+    envSetup: "export MATRIX_AGENT=mdg-pi-0",
+    extra: {},
+  };
+
+  test("declared provider lifts its cred key into sessionEnv (so the native agent gets it via send-keys)", () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, provider: "zai" },
+      { baseEnv: { ZAI_API_KEY: "secret-zai-key" } },
+    );
+    // The native agent's process only receives sessionEnv (via launch.ts
+    // send-keys export), so the provider cred must be lifted there.
+    expect(plan.sessionEnv.ZAI_API_KEY).toBe("secret-zai-key");
+  });
+
+  test("fail-closed: declared provider with an absent cred key throws (no credentialless launch)", () => {
+    expect(() => buildLaunchPlan({ ...piEntry, provider: "zai" }, { baseEnv: {} })).toThrow(
+      LaunchPlanError,
+    );
+    try {
+      buildLaunchPlan({ ...piEntry, provider: "zai" }, { baseEnv: {} });
+    } catch (err) {
+      expect((err as Error).message).toContain('provider "zai" requires env ZAI_API_KEY');
+      expect((err as Error).message).toContain("refusing to launch a credentialless agent");
+    }
+  });
+
+  test("no provider declared: no cred validation, no cred key lifted (unchanged behavior)", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: { ZAI_API_KEY: "secret-zai-key" } });
+    // Without a declared provider the launch does not assert or lift creds.
+    expect(plan.sessionEnv.ZAI_API_KEY).toBeUndefined();
+  });
+
+  test("a provider with no cred keys (e.g. google) neither validates nor lifts", () => {
+    // google → [] in the registry (gemini self-authenticates); an absent
+    // ZAI_API_KEY must not block a google-provider launch.
+    const plan = buildLaunchPlan({ ...piEntry, provider: "google" }, { baseEnv: {} });
+    expect(plan.sessionEnv.ZAI_API_KEY).toBeUndefined();
+  });
+});

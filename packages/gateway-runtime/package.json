@@ -54,7 +54,8 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
     "@agents-js/a2a": "0.6.0",
-    "@agents-js/acp": "0.6.0"
+    "@agents-js/acp": "0.6.0",
+    "@agents-js/agent-launch": "0.6.0"
   },
   "publishConfig": {
     "access": "public"

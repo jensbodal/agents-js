@@ -35,6 +35,7 @@ bun add @agents-js/agent-launch
 - **`parseLaunchConfig`** — Parse + validate a config JSON string into a {LaunchConfig}. Exposed for tests; production callers use {loadLaunchConfig}.
 - **`resolveAgentEntry`** — Resolve a named agent from a loaded config and normalize its entry. **Lazy normalization point** (PR #99 cognee-codex review fix): per-agent field validation happens HERE, not at load time. The cal...
 - **`resolveLanAdvertiseHost`** — Resolve the address a native peer advertises on the LAN, preferring a stable FQDN over a raw IP. When `lanDomain` is configured AND the short hostname is detectable, advertise `<shortHost>.<lanDoma...
+- **`resolveProviderCredEnvKeys`** — Resolve a provider's credential env-key names. Fail-closed: an absent or unrecognized provider yields NO keys (never a wildcard), so a misconfigured provider can only ever NARROW the secret-env sur...
 
 ### Interfaces
 
@@ -61,6 +62,7 @@ bun add @agents-js/agent-launch
 - **`LaunchMode`** — `"fresh"` only today. `"resume"` lands once per-harness session resolvers do.
 - **`LaunchPathMode`** — Operational class of a launch — the native-vs-AJS-fronted runtime-path axis.
 - **`NetworkInterfacesSource`**
+- **`ProviderId`** — Semantic LLM provider an agent authenticates against.
 - **`SupportedHarness`** — Config harness kinds with a {HARNESS_LAUNCHERS} entry. The union is the source of truth; the registry is typed as a total `Record` over it, so adding a kind here without a launcher entry is a compi...
 - **`TmuxSpawner`** — Spawner signature. `args` is `["tmux", ...tmuxArgs]` semantically — caller passes JUST the tmux args; the spawner prepends the resolved tmux binary internally.
 
@@ -70,6 +72,7 @@ bun add @agents-js/agent-launch
 - **`HARNESS_PROVIDER_ENV`** — Provider env var read directly by a harness (no adapter/LiteLLM in the path). Pi supports Zai natively via `ZAI_API_KEY`. Harnesses absent from this map manage provider auth by other means (e.g. cl...
 - **`HARNESS_TOKEN_TO_KIND`** — Map a scheme harness token to the `agent-launch-config.json` harness kind consumed by {buildLaunchPlan}. Only `claude` is launch-supported today (Phase 1); the rest map their kinds for forward use.
 - **`HARNESS_TOKENS`** — Short harness tokens used in the identity scheme (NOT the config harness kind).
+- **`PROVIDER_CRED_ENV`** — Provider → credential env-var NAMES. Declared ONCE here. `google` is empty by design — the gemini CLI self-authenticates (OAuth/gcloud) with no env passthrough.
 
 ## License
 

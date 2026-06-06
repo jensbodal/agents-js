@@ -74,6 +74,7 @@ graph LR
   droid_acp --> gateway_runtime
   gateway_runtime --> a2a
   gateway_runtime --> acp
+  gateway_runtime --> agent_launch
   gateway --> a2a
   gateway --> a2a_client
   gateway --> acp_host

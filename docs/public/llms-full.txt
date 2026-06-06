@@ -5493,6 +5493,7 @@ bun add @agents-js/agent-launch
 - **`parseLaunchConfig`** — Parse + validate a config JSON string into a {LaunchConfig}. Exposed for tests; production callers use {loadLaunchConfig}.
 - **`resolveAgentEntry`** — Resolve a named agent from a loaded config and normalize its entry. **Lazy normalization point** (PR #99 cognee-codex review fix): per-agent field validation happens HERE, not at load time. The cal...
 - **`resolveLanAdvertiseHost`** — Resolve the address a native peer advertises on the LAN, preferring a stable FQDN over a raw IP. When `lanDomain` is configured AND the short hostname is detectable, advertise `<shortHost>.<lanDoma...
+- **`resolveProviderCredEnvKeys`** — Resolve a provider's credential env-key names. Fail-closed: an absent or unrecognized provider yields NO keys (never a wildcard), so a misconfigured provider can only ever NARROW the secret-env sur...
 
 ### Interfaces
 
@@ -5519,6 +5520,7 @@ bun add @agents-js/agent-launch
 - **`LaunchMode`** — `"fresh"` only today. `"resume"` lands once per-harness session resolvers do.
 - **`LaunchPathMode`** — Operational class of a launch — the native-vs-AJS-fronted runtime-path axis.
 - **`NetworkInterfacesSource`**
+- **`ProviderId`** — Semantic LLM provider an agent authenticates against.
 - **`SupportedHarness`** — Config harness kinds with a {HARNESS_LAUNCHERS} entry. The union is the source of truth; the registry is typed as a total `Record` over it, so adding a kind here without a launcher entry is a compi...
 - **`TmuxSpawner`** — Spawner signature. `args` is `["tmux", ...tmuxArgs]` semantically — caller passes JUST the tmux args; the spawner prepends the resolved tmux binary internally.
 
@@ -5528,6 +5530,7 @@ bun add @agents-js/agent-launch
 - **`HARNESS_PROVIDER_ENV`** — Provider env var read directly by a harness (no adapter/LiteLLM in the path). Pi supports Zai natively via `ZAI_API_KEY`. Harnesses absent from this map manage provider auth by other means (e.g. cl...
 - **`HARNESS_TOKEN_TO_KIND`** — Map a scheme harness token to the `agent-launch-config.json` harness kind consumed by {buildLaunchPlan}. Only `claude` is launch-supported today (Phase 1); the rest map their kinds for forward use.
 - **`HARNESS_TOKENS`** — Short harness tokens used in the identity scheme (NOT the config harness kind).
+- **`PROVIDER_CRED_ENV`** — Provider → credential env-var NAMES. Declared ONCE here. `google` is empty by design — the gemini CLI self-authenticates (OAuth/gcloud) with no env passthrough.
 
 ## License
 
@@ -6143,7 +6146,6 @@ bun add @agents-js/gateway-runtime
 - **`resolveGatewayRuntimeCommand`**
 - **`resolveGatewayRuntimeProfile`** — Materialize a {GatewayRuntimeProfile} via the internal profile resolver. The narrower {GatewayRuntimeId} is preserved on the returned {ResolvedGatewayRuntimeProfile}.
 - **`resolveGatewayRuntimeSelection`**
-- **`resolveProviderCredEnvKeys`** — Resolve a provider's credential env-key names. Fail-closed: an absent or unrecognized provider yields NO keys (never a wildcard), so a misconfigured provider can only ever NARROW the secret-env all...
 - **`resolveRemoteGatewayEnv`**
 - **`resolveRuntimeArgs`** — Resolve the runtime argv for a curated definition, honoring env-based overrides.
 - **`runCommand`**
@@ -6191,7 +6193,6 @@ bun add @agents-js/gateway-runtime
 - **`GatewayRuntimeSelection`**
 - **`HarnessSelectionPolicy`**
 - **`HostnameMode`**
-- **`ProviderId`** — Semantic LLM provider id an agent/runtime authenticates against. The cred env-var requirement is a property of the PROVIDER, not the runtime — a runtime that can target multiple providers (e.g. pi:...
 - **`ResolveGatewayRuntimeFn`** — Runtime resolver shape. Factored out so tests can inject a resolver that returns canned `ResolvedGatewayRuntime` values without touching the filesystem.
 - **`SpawnACPAgentFn`** — Abstraction over `spawnACPAgent` for test injection. Shape matches the imported function; tests substitute a fake that returns a controlled `Stream` / `kill` handle.
 - **`SpawnSubSessionStatus`** — Terminal status of a {spawnSubSession} call. - `completed` — subagent returned an `end_turn` stopReason within the timeout. - `errored` — subagent returned a non-`end_turn` stopReason, or the ACP h...
@@ -6209,7 +6210,6 @@ bun add @agents-js/gateway-runtime
 - **`GATEWAY_RUNTIME_REGISTRY`** — Curated runtime registry, exposed as a read-only `Record` so the selection layer can iterate and look up entries. The type is widened from the literal `as const` shape to `Readonly<Record<…>>` so d...
 - **`HOME_PLACEHOLDER`** — Default directories the gateway prepends to `process.env.PATH` when resolving runtime binaries via the resolver in `./runtime-command-resolution.ts`. The host composition layer threads this list in...
 - **`MOCK_ACP_RUNTIME_ENV`** — Env var that gates registration of the in-repo `mock-acp` runtime in {listGatewayRuntimeIds}. Surfaced as a constant rather than an inline string so tests and consumers can reference the same key.
-- **`PROVIDER_CRED_ENV`** — Provider → credential env-var NAMES (never values). The mapping lives here ONCE; runtimes declare a {GatewayRuntimeDefinition.defaultProvider} instead of hand-maintaining their own `authEnvKeys` li...
 - **`SPAWN_SUB_SESSION_DEFAULT_HARNESS`** — Default harness used when `hints.harness` is unspecified.
 - **`SPAWN_SUB_SESSION_DEFAULT_TIMEOUT_MS`** — Default subtask timeout (5 minutes).
 - **`SPAWN_SUB_SESSION_SUPPORTED_HARNESSES`** — Harness ids supported by `spawnSubSession` v1. Expand this set as harnesses land hardening gates for subagent spawning.
@@ -6221,7 +6221,10 @@ bun add @agents-js/gateway-runtime
 - **`EnvError`**
 - **`OptionalEnvVar`**
 - **`parseEnv`**
+- **`PROVIDER_CRED_ENV`**
 - **`RequiredEnvVar`**
+- **`resolveProviderCredEnvKeys`**
+- **`type ProviderId`**
 
 
 ## Dependencies
@@ -6229,6 +6232,7 @@ bun add @agents-js/gateway-runtime
 - `@agentclientprotocol/sdk`
 - `@agents-js/a2a`
 - `@agents-js/acp`
+- `@agents-js/agent-launch`
 
 ## License
 

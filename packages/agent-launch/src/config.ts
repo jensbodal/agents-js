@@ -118,6 +118,15 @@ export interface AgentEntry {
    * cross-machine mesh by default.
    */
   readonly piHost?: string;
+  /**
+   * Semantic LLM provider this agent authenticates against (e.g. `"zai"`). The
+   * launch derives the provider's credential env-var names from
+   * {@link resolveProviderCredEnvKeys} and lifts them into the exported session
+   * env, so a native agent with no gateway/login-TUI still authenticates. When
+   * a provider is declared but its cred env var is absent, the plan build fails
+   * closed rather than launching a credentialless agent.
+   */
+  readonly provider?: string;
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -198,6 +207,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "pi_extension",
   "pi_port",
   "pi_host",
+  "provider",
 ]);
 
 function requireString(
@@ -286,6 +296,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     piExtension: optionalString(obj, "pi_extension", ctx),
     piPort: optionalString(obj, "pi_port", ctx),
     piHost: optionalString(obj, "pi_host", ctx),
+    provider: optionalString(obj, "provider", ctx),
     extra,
   };
 }

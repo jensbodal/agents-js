@@ -254,8 +254,8 @@
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/acp": "0.5.1",
-        "@agents-js/validation": "0.5.1",
+        "@agents-js/acp": "0.6.0",
+        "@agents-js/validation": "0.6.0",
       },
     },
     "packages/a2a-client": {
@@ -319,7 +319,7 @@
       "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/policy": "0.5.1",
+        "@agents-js/policy": "0.6.0",
       },
     },
     "packages/acp-host": {
@@ -394,8 +394,9 @@
       },
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/a2a": "0.5.1",
-        "@agents-js/acp": "0.5.1",
+        "@agents-js/a2a": "0.6.0",
+        "@agents-js/acp": "0.6.0",
+        "@agents-js/agent-launch": "0.6.0",
       },
     },
     "packages/host": {
@@ -497,8 +498,8 @@
       "dependencies": {
         "@a2a-js/sdk": "catalog:",
         "@agentclientprotocol/sdk": "catalog:",
-        "@agents-js/a2ui-types": "0.5.1",
-        "@agents-js/agui-types": "0.5.1",
+        "@agents-js/a2ui-types": "0.6.0",
+        "@agents-js/agui-types": "0.6.0",
         "ajv": "catalog:",
         "ajv-formats": "catalog:",
         "zod": "catalog:",

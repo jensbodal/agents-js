@@ -95,6 +95,28 @@ describe("parseLaunchConfig — well-formed input", () => {
     expect(entry.extra.channel_env).toBeUndefined();
   });
 
+  test("provider is promoted to entry.provider (not left in extra)", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "pi",
+            binary: "pi",
+            workspace: "/tmp",
+            fresh_flags: "",
+            provider: "zai",
+          },
+        },
+      }),
+      "inline.json",
+    );
+    const entry = resolveAgentEntry(config, "foo");
+    expect(entry.provider).toBe("zai");
+    expect(entry.extra.provider).toBeUndefined();
+  });
+
   test("channel_env wrong type (not a string) throws", () => {
     const config = parseLaunchConfig(
       JSON.stringify({

@@ -35,6 +35,7 @@
 
 import type { AgentEntry } from "./config.ts";
 import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
+import { resolveProviderCredEnvKeys } from "./provider-registry.ts";
 
 /**
  * `"fresh"` only today. `"resume"` lands once per-harness session resolvers do.
@@ -131,12 +132,24 @@ function splitFlags(flags: string): readonly string[] {
 }
 
 /**
- * Select the session-wide env subset: the shared base keys plus any extra keys
- * the launching harness owns. A key present in neither stays child-process-only.
+ * Select the session-wide env subset: the shared base keys, the launching
+ * harness's own keys, and the agent's provider credential keys. The provider
+ * keys are lifted here so a native agent (whose process only receives sessionEnv
+ * via the CLI's send-keys export, not the full env) authenticates without
+ * relying on the ambient session env. A key present in none stays
+ * child-process-only.
  */
-function pickSessionEnv(env: LaunchEnv, harness: SupportedHarness): LaunchEnv {
+function pickSessionEnv(
+  env: LaunchEnv,
+  harness: SupportedHarness,
+  providerCredKeys: readonly string[],
+): LaunchEnv {
   const out: Record<string, string> = {};
-  const keys = [...BASE_SESSION_ENV_KEYS, ...(HARNESS_LAUNCHERS[harness].sessionEnvKeys ?? [])];
+  const keys = [
+    ...BASE_SESSION_ENV_KEYS,
+    ...(HARNESS_LAUNCHERS[harness].sessionEnvKeys ?? []),
+    ...providerCredKeys,
+  ];
   for (const k of keys) {
     const v = env[k];
     if (v !== undefined) out[k] = v;
@@ -201,13 +214,29 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     resolveLanHost: options.resolveLanHost,
   });
 
+  // Provider-credential derivation. The agent declares its provider; the cred
+  // env-var NAMES come from the shared provider registry. Fail closed: a
+  // declared provider whose cred var is absent from the env aborts the build
+  // rather than launching a credentialless agent (which would silently hang at
+  // first turn). The keys are then lifted into sessionEnv so a native agent —
+  // whose process only sees sessionEnv via the CLI's send-keys export — can
+  // authenticate without relying on the ambient session env.
+  const providerCredKeys = resolveProviderCredEnvKeys(entry.provider);
+  const missingCredKeys = providerCredKeys.filter((k) => built.env[k] === undefined);
+  if (missingCredKeys.length > 0) {
+    throw new LaunchPlanError(
+      `provider "${entry.provider}" requires env ${missingCredKeys.join(", ")}, which ${missingCredKeys.length > 1 ? "are" : "is"} not set — refusing to launch a credentialless agent`,
+      { agentName: entry.tmuxSession, harness: entry.harness },
+    );
+  }
+
   return {
     tmuxSession: entry.tmuxSession,
     cwd: entry.workspace,
     command: built.command,
     args: built.args,
     env: built.env,
-    sessionEnv: pickSessionEnv(built.env, harness),
+    sessionEnv: pickSessionEnv(built.env, harness, providerCredKeys),
     channelEnv,
     allowedTools: built.allowedTools,
     harness,

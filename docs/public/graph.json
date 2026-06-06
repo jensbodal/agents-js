@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-06T16:56:02.065Z",
+  "generated_at": "2026-06-06T19:00:20.240Z",
   "package_count": 40,
   "publishable_count": 28,
   "packages": [
@@ -245,7 +245,8 @@
       "version": "0.6.0",
       "internal_deps": [
         "@agents-js/a2a",
-        "@agents-js/acp"
+        "@agents-js/acp",
+        "@agents-js/agent-launch"
       ],
       "external_deps": [
         "@agentclientprotocol/sdk"
@@ -697,7 +698,8 @@
       "@agents-js/mcp-bridge"
     ],
     "@agents-js/agent-launch": [
-      "@agents-js/cli"
+      "@agents-js/cli",
+      "@agents-js/gateway-runtime"
     ],
     "@agents-js/acp": [
       "@agents-js/host",
