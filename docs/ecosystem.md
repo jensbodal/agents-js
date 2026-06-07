@@ -24,7 +24,7 @@ Tiers:
 - **Registry is trusted-network-only.** No public-internet hardening unless explicitly proven and labeled; default assumption is same-network membership.
 - **MCP bridge assumes stdio + gateway-relative addressing.** Authenticating bridges to the public internet is not supported in this configuration.
 - **Gateway runs single-tenant per process.** Multi-tenant isolation is not implemented — run one gateway per trust boundary.
-- **Trust/routing is in a migration window.** AJS-65 has not landed; `AGENTS_MCP_TARGETS_JSON` and signed peer-records are independently updateable today — treat install procedures as dual-surface until consolidation lands.
+- **Trust-derived routing with env override (AJS-65, landed).** Dispatch routing derives from signed peer-records (the trust-derived target directory); `AGENTS_MCP_TARGETS_JSON`, if set, layers on top as an explicit per-target override (env wins; the trust-derived entry is the fallback base). Keep the two consistent — an env override silently shadows the trust-derived entry for that target.
 - **Registry/card auth boundary.** Agent cards are public-readable; minting credentials are gopass-gated and short-lived (JWT TTL 900s).
 - **No persistent revocation.** Identity revocation requires re-signing the trust manifest plus hot-reload; there is no central revocation-list service.
 
