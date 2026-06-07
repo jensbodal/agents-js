@@ -205,6 +205,63 @@ describe("HarnessLaneManager", () => {
     expect(card.capabilities.harnesses?.find((c) => c.id === "opencode")?.ready).toBe(true);
   });
 
+  test("markHarnessReady flips a pre-spawned harness ready false→true + publishes card-changed (#52)", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const events: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((e) => events.push(e));
+
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+
+    // The primary (opencode) is eagerly spawned by createHostSession OUTSIDE
+    // the lane manager, so the card starts ready:false until marked.
+    expect(card.capabilities.harnesses?.find((c) => c.id === "opencode")?.ready).toBe(false);
+
+    mgr.markHarnessReady("opencode");
+
+    expect(card.capabilities.harnesses?.find((c) => c.id === "opencode")?.ready).toBe(true);
+    const changed = events.find((e) => e.type === "gateway.harness.card-changed");
+    expect(changed).toBeDefined();
+    expect((changed?.payload as { harnessId: string }).harnessId).toBe("opencode");
+  });
+
+  test("markHarnessReady is idempotent — no duplicate card-changed when already ready", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const events: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((e) => events.push(e));
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+
+    mgr.markHarnessReady("opencode"); // flip → one card-changed
+    events.length = 0;
+    mgr.markHarnessReady("opencode"); // already ready → no-op
+
+    expect(events.find((e) => e.type === "gateway.harness.card-changed")).toBeUndefined();
+    expect(card.capabilities.harnesses?.find((c) => c.id === "opencode")?.ready).toBe(true);
+  });
+
+  test("markHarnessReady throws on an unknown harnessId", () => {
+    const bus = createGatewayBus();
+    const { entries, card } = buildFleet();
+    const mgr = new HarnessLaneManager({
+      entries,
+      gatewayCard: card,
+      bus,
+      createController: async () => createMockController().controller,
+    });
+    expect(() => mgr.markHarnessReady("nope")).toThrow(/unknown harnessId/);
+  });
+
   test("process exit fires child-exited AND card-changed (ready true → false)", async () => {
     const bus = createGatewayBus();
     const { entries, card } = buildFleet();

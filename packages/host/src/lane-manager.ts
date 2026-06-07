@@ -384,20 +384,9 @@ export class HarnessLaneManager {
     slot.liveControllers.set(controller, { controller, unsubscribeSession });
 
     // First-spawn transition for this harness: flip `ready: false → true`
-    // in place and publish `card-changed` so subscribers who only listen
-    // to the card-invalidation signal (not `child-spawned`) see the
-    // transition.
-    const wasReady = slot.capability.ready;
-    if (!wasReady) {
-      const previousEntry: HarnessCapabilityEntry = { ...slot.capability, ready: false };
-      slot.capability.ready = true;
-      const newEntry: HarnessCapabilityEntry = { ...slot.capability };
-      publishHarnessCardChanged(this.bus, {
-        harnessId: slot.entry.id,
-        previousEntry,
-        newEntry,
-      });
-    }
+    // and publish `card-changed` so subscribers who only listen to the
+    // card-invalidation signal (not `child-spawned`) see the transition.
+    this.flipHarnessReady(slot);
 
     publishHarnessChildSpawned(this.bus, {
       harnessId: slot.entry.id,
@@ -409,6 +398,44 @@ export class HarnessLaneManager {
     });
 
     return controller;
+  }
+
+  /**
+   * Mark a harness ready WITHOUT spawning a lane through this manager — for a
+   * harness whose controller was spawned EAGERLY outside the manager. The
+   * gateway's PRIMARY runtime is spawned by `createHostSession` at startup, so
+   * its lane never flows through {@link getOrSpawnLane} (which only fires for
+   * on-demand @@dispatch lanes). Without this, the primary's card `ready` stays
+   * `false` until something dispatches to it, and `/.well-known/agent-card.json`
+   * under-reports a healthy, serving gateway. Idempotent (no-op if already
+   * ready); throws on an unknown harnessId, mirroring {@link getOrSpawnLane}.
+   */
+  markHarnessReady(harnessId: string): void {
+    const slot = this.slots.get(harnessId);
+    if (!slot) {
+      throw new Error(`HarnessLaneManager: unknown harnessId "${harnessId}"`);
+    }
+    this.flipHarnessReady(slot);
+  }
+
+  /**
+   * Flip a harness's capability `ready: false → true` in place and publish
+   * `card-changed` for federation cache-invalidation. Idempotent — a no-op when
+   * already ready. Shared by lazy lane-spawn ({@link getOrSpawnLane}) and the
+   * eager primary-spawn signal ({@link markHarnessReady}).
+   */
+  private flipHarnessReady(slot: HarnessSlot): void {
+    if (slot.capability.ready) {
+      return;
+    }
+    const previousEntry: HarnessCapabilityEntry = { ...slot.capability, ready: false };
+    slot.capability.ready = true;
+    const newEntry: HarnessCapabilityEntry = { ...slot.capability };
+    publishHarnessCardChanged(this.bus, {
+      harnessId: slot.entry.id,
+      previousEntry,
+      newEntry,
+    });
   }
 
   /**

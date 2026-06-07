@@ -706,6 +706,14 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     throw err;
   }
 
+  // The PRIMARY runtime's ACP child was already spawned eagerly by
+  // createHostSession (above), bypassing the lane manager's lazy spawn path
+  // (getOrSpawnLane) where `ready` normally flips. Flip the primary's card
+  // `ready: false → true` now — otherwise /.well-known/agent-card.json reports
+  // the primary as not-ready until something @@dispatches to it, under-reporting
+  // a healthy, serving gateway.
+  laneManager.markHarnessReady(laneManager.getPrimaryHarnessId());
+
   // The A2A executor spawns a dedicated controller per A2A `contextId`
   // via this factory so genuinely independent conversations run in
   // parallel. The factory delegates to the lane manager, which resolves
