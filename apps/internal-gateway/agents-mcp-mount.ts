@@ -540,6 +540,30 @@ export interface AgentsMcpWireup {
  * the fs.watch debouncer. Synchronous override paths (tests + back-compat
  * deploys without trust manifest) still resolve immediately.
  */
+/**
+ * Build the dispatch send-routing {@link TargetDirectory} by layering two
+ * sources: explicit env `config.targets` is the operator OVERRIDE (resolved
+ * first), falling back to the trust-derived directory (resolved from verified
+ * peer-records by the trust manifest). This closes the AJS-65 dual-surface
+ * window where a trust-registered peer authenticated (challenge/redeem) but
+ * `agents.send_message` 404'd because the peer was absent from the env targets —
+ * the trust manifest already derives a routing entry for it, it just wasn't
+ * wired into the dispatcher. Env targets stay authoritative as the migration
+ * override; the trust directory hot-reloads atomically via the manifest handle.
+ */
+export function buildDispatchTargetDirectory(
+  configTargets: AgentsMcpEnvConfig["targets"],
+  trustTargetDirectory: TargetDirectory | null,
+): TargetDirectory {
+  return {
+    resolve(target: string) {
+      const fromConfig = configTargets[target];
+      if (fromConfig) return fromConfig;
+      return trustTargetDirectory?.resolve(target) ?? null;
+    },
+  };
+}
+
 export async function setupAgentsMcpMount(opts: {
   overrides?: SetupAgentsMcpOverrides;
 }): Promise<AgentsMcpWireup | null> {
@@ -548,29 +572,19 @@ export async function setupAgentsMcpMount(opts: {
     overrides.config !== undefined ? overrides.config : readAgentsMcpEnv(overrides.env);
   if (config === null) return null;
 
-  const targetDirectory: TargetDirectory = {
-    resolve(target: string) {
-      const entry = config.targets[target];
-      return entry ?? null;
-    },
-  };
-
   const matrixTool = overrides.matrixTool ?? createSubprocessMatrixTool(config.sendScript);
   const agentInboxTool =
     overrides.agentInboxTool ??
     (config.agentMsgBin ? createSubprocessAgentInboxTool(config.agentMsgBin) : undefined);
-  const dispatcher = createAgentsDispatcher({
-    matrixTool,
-    ...(agentInboxTool ? { agentInboxTool } : {}),
-    targetDirectory,
-  });
 
   // AJS-55 substrate auto-wire from env. When AGENTS_MCP_TRUST_MANIFEST_PATH +
   // AGENTS_MCP_TRUST_ROOT_PATH are set, the gateway loads + watches the
-  // manifest at startup. The resulting peerKeyDirectory + challengeStore
-  // + ipRateLimiter are threaded into the mint endpoints (POST
-  // /api/agents/mint/challenge + /redeem). Tests wire concrete stubs via
-  // SetupAgentsMcpOverrides; production reads the env paths above.
+  // manifest at startup. Loaded BEFORE the dispatcher so its trust-derived
+  // TargetDirectory (resolved from verified peer-records) can feed send-routing.
+  // The resulting peerKeyDirectory + challengeStore + ipRateLimiter are also
+  // threaded into the mint endpoints (POST /api/agents/mint/challenge + /redeem).
+  // Tests wire concrete stubs via SetupAgentsMcpOverrides; production reads the
+  // env paths above.
   let trustManifestHandle: ReloadableTrustManifest | null = null;
   if (config.trustManifestPath && config.trustRootPath && !overrides.peerKeyDirectory) {
     trustManifestHandle = await watchTrustManifest({
@@ -578,6 +592,20 @@ export async function setupAgentsMcpMount(opts: {
       trustRootPath: config.trustRootPath,
     });
   }
+
+  // Send-routing layers env config.targets (operator override) over the
+  // trust-derived directory, so a trust-registered peer routes for
+  // agents.send_message without a separate env-targets entry (AJS-65 fix).
+  const targetDirectory = buildDispatchTargetDirectory(
+    config.targets,
+    trustManifestHandle?.targetDirectory ?? null,
+  );
+  const dispatcher = createAgentsDispatcher({
+    matrixTool,
+    ...(agentInboxTool ? { agentInboxTool } : {}),
+    targetDirectory,
+  });
+
   const peerKeyDirectory: PeerKeyDirectory | null =
     overrides.peerKeyDirectory ?? trustManifestHandle?.peerKeyDirectory ?? null;
   const challengeStore =

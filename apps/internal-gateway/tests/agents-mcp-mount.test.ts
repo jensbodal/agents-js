@@ -32,6 +32,7 @@ import { SignJWT } from "jose";
 import {
   type AgentsMcpEnvConfig,
   buildAgentMsgDeliverArgv,
+  buildDispatchTargetDirectory,
   buildSendMatrixCliArgs,
   createSubprocessAgentInboxTool,
   parseMatrixOriginEnvelope,
@@ -1471,5 +1472,35 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
         Bun.env.AGENTS_MCP_DISABLE_ADMIN_MINT = originalEnv;
       }
     }
+  });
+});
+
+describe("buildDispatchTargetDirectory — env override + trust-derived fallback (AJS-65)", () => {
+  const trustOnly = {
+    resolve: (t: string) => (t === "trust-peer" ? { matrix: { room: "!trust:hs" } } : null),
+  };
+
+  test("env config.targets takes precedence (operator override)", () => {
+    const td = buildDispatchTargetDirectory(
+      { "trust-peer": { matrix: { room: "!env:hs" } } },
+      trustOnly,
+    );
+    expect(td.resolve("trust-peer")).toEqual({ matrix: { room: "!env:hs" } });
+  });
+
+  test("falls back to trust-derived directory when absent from env targets (send-404 fix)", () => {
+    const td = buildDispatchTargetDirectory({}, trustOnly);
+    expect(td.resolve("trust-peer")).toEqual({ matrix: { room: "!trust:hs" } });
+  });
+
+  test("returns null when neither env nor trust resolves the target", () => {
+    const td = buildDispatchTargetDirectory({}, trustOnly);
+    expect(td.resolve("unknown")).toBeNull();
+  });
+
+  test("back-compat: no trust directory → env targets only", () => {
+    const td = buildDispatchTargetDirectory({ a: { matrix: { room: "!a" } } }, null);
+    expect(td.resolve("a")).toEqual({ matrix: { room: "!a" } });
+    expect(td.resolve("trust-peer")).toBeNull();
   });
 });
