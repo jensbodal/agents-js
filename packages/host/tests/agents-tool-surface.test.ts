@@ -27,6 +27,7 @@ import {
   type AgentInboxTool,
   type AgentsDispatcher,
   createAgentsDispatcher,
+  type InboxDeliverArgs,
   isFanOutSendResult,
   type MatrixSendArgs,
   type MatrixTool,
@@ -108,10 +109,13 @@ function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
  * so the default dispatcher always wires one. Returns a stable message id
  * so single-target success assertions can pin it.
  */
-function makeRecordingInboxTool(): AgentInboxTool {
+function makeRecordingInboxTool(): AgentInboxTool & { calls: InboxDeliverArgs[] } {
   let n = 0;
+  const calls: InboxDeliverArgs[] = [];
   return {
-    async deliver() {
+    calls,
+    async deliver(args) {
+      calls.push(args);
       n += 1;
       return { message_id: `inbox-msg-${n}`, created_at: "2026-05-22T02:00:00Z" };
     },
@@ -163,6 +167,31 @@ describe("packages/host/tests/agents-tool-surface.test.ts — AJS-56 dispatcher 
     expect(matrix.calls[0]?.room).toBe("!ajs:matrix.example");
     // Matrix overlay carries a pointer to the durable inbox row, not the body.
     expect(matrix.calls[0]?.body).toBe("see inbox: inbox-msg-1");
+  });
+
+  test("send_message bridge fanout fields reach inbox deliver contract", async () => {
+    const inbox = makeRecordingInboxTool();
+    const dispatcher = makeDispatcher({ agentInboxTool: inbox });
+    const result = await dispatcher.sendMessage(
+      {
+        target: "ajs-claude",
+        body: "@ajs-claude bridge fanout",
+        idempotencyKey: "matrix:!room:$event:ajs-claude",
+        matrixOrigin: {
+          event_id: "$event:matrix.example",
+          room_id: "!room:matrix.example",
+          sender: "@human:matrix.example",
+          origin_server_ts: 1780812789751,
+        },
+        kind: "matrix_room_mention",
+      },
+      identity({ agentName: "matrix-bridge-fanout" }),
+    );
+    expectSingleTargetSuccess(result);
+    expect(inbox.calls).toHaveLength(1);
+    expect(inbox.calls[0]?.idempotencyKey).toBe("matrix:!room:$event:ajs-claude");
+    expect(inbox.calls[0]?.matrixOrigin?.event_id).toBe("$event:matrix.example");
+    expect(inbox.calls[0]?.kind).toBe("matrix_room_mention");
   });
 
   /**

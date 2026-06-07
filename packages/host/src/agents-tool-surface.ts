@@ -333,6 +333,24 @@ export interface SendMessageArgs {
   /** Optional reply threading; ignored if not a string. */
   reply_to_event_id?: string;
   /**
+   * Optional bridge-fanout idempotency key. Native callers omit this;
+   * Matrix bridge fanout sets it so duplicate event processing resolves
+   * to the existing inbox row instead of creating a second delivery.
+   */
+  idempotencyKey?: string;
+  /**
+   * Optional Matrix-origin envelope for bridge-fanout rows. Native
+   * callers omit this; bridge fanout passes the Matrix event metadata so
+   * `agents.get_messages` consumers can correlate the row to the room
+   * event without parsing body text.
+   */
+  matrixOrigin?: MatrixOriginEnvelope;
+  /**
+   * Optional origin discriminator. Defaults to `"agents_message"` for
+   * native callers; bridge fanout passes `"matrix_room_mention"`.
+   */
+  kind?: InboxKind;
+  /**
    * Optional quorum. Absent → "wait for every target to reach a terminal
    * state; success is the all-terminal state". Present → "return when
    * `at_least` targets have delivered OR when remaining targets cannot
@@ -661,8 +679,20 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
      * recipient set). Absent when no targets in the call are Matrix-visible.
      */
     recipientsEnvelope?: { explicit: string[]; quorum_attested: boolean };
+    idempotencyKey?: string;
+    matrixOrigin?: MatrixOriginEnvelope;
+    kind?: InboxKind;
   }): Promise<PerTargetResult> {
-    const { target, body, replyToEventId, identity, recipientsEnvelope } = opts;
+    const {
+      target,
+      body,
+      replyToEventId,
+      identity,
+      recipientsEnvelope,
+      idempotencyKey,
+      matrixOrigin,
+      kind,
+    } = opts;
     const correlation_id = identity.correlationId;
     const timestamp = (): string => new Date().toISOString();
 
@@ -720,7 +750,11 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         toSession: entry.inbox.session,
         body,
         correlationId: correlation_id,
-        kind: "agents_message",
+        ...(typeof idempotencyKey === "string" && idempotencyKey.length > 0
+          ? { idempotencyKey }
+          : {}),
+        ...(matrixOrigin !== undefined ? { matrixOrigin } : {}),
+        kind: kind ?? "agents_message",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -846,6 +880,15 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
         const replyToEventId =
           typeof args.reply_to_event_id === "string" ? args.reply_to_event_id : undefined;
         const target = args.target as string;
+        const idempotencyKey =
+          typeof args.idempotencyKey === "string" && args.idempotencyKey.length > 0
+            ? args.idempotencyKey
+            : undefined;
+        const matrixOrigin =
+          typeof args.matrixOrigin === "object" && args.matrixOrigin !== null
+            ? args.matrixOrigin
+            : undefined;
+        const kind = normalizeInboxKind(args.kind);
         // AJS-67 single-target envelope: n=1 Matrix-visible inference.
         // Resolve once here for envelope computation; sendOne re-resolves
         // for its own routing logic (back-compat with the per-target
@@ -864,6 +907,9 @@ export function createAgentsDispatcher(options: AgentsDispatcherOptions): Agents
           ...(singleRecipientsEnvelope !== undefined
             ? { recipientsEnvelope: singleRecipientsEnvelope }
             : {}),
+          ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+          ...(matrixOrigin !== undefined ? { matrixOrigin } : {}),
+          kind,
         });
         if (per.status !== "delivered") {
           return {
