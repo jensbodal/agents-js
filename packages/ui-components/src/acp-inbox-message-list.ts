@@ -21,7 +21,7 @@ import { safeCustomElement } from "./safe-custom-element.ts";
  * Threading (`m.in_reply_to`), live overlay, and `kind` discriminator
  * filtering are Phase 2/3 follow-ons.
  *
- * @fires acp-inbox-refresh - Bubbling event when the user clicks refresh.
+ * Emits the `acp-inbox-refresh` bubbling event when the user clicks refresh.
  */
 @safeCustomElement("acp-inbox-message-list")
 export class AcpInboxMessageList extends LitElement {

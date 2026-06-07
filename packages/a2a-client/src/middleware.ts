@@ -76,7 +76,7 @@ export interface CreateA2AMentionMiddlewareOptions {
   transport?: A2ATransport;
   getPromptText?: (content: ContentBlock[]) => string;
   /**
-   * Caller intent for streaming the @mention delegation.
+   * Caller intent for streaming the `@mention` delegation.
    *
    * Default (undefined): the provider chooses based on
    * `target.capabilities.supportsStreaming`. Streaming-capable targets
