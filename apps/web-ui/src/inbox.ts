@@ -31,18 +31,12 @@ import {
   type InboxMessageLike,
   registerAllComponents,
 } from "@agents-js/ui-components";
+import { type InboxBrowserConfig, isInboxConfigError, parseInboxConfig } from "./inbox-config.ts";
 
 registerAllComponents();
 
 const app = document.getElementById("app");
 if (!app) throw new Error("Missing #app mount point");
-
-interface InboxBrowserConfig {
-  gatewayUrl: string;
-  token: string;
-  target?: string;
-  limit?: number;
-}
 
 interface GetMessagesSuccess {
   ok: true;
@@ -57,29 +51,6 @@ interface GetMessagesFailure {
 }
 
 type GetMessagesResponse = GetMessagesSuccess | GetMessagesFailure;
-
-function parseConfig(hash: string): InboxBrowserConfig | { error: string } {
-  const cleaned = hash.startsWith("#") ? hash.slice(1) : hash;
-  const params = new URLSearchParams(cleaned);
-  const token = params.get("token");
-  if (!token) {
-    return {
-      error:
-        "Missing required URL hash parameter `token`. Construct URL as #gateway=<url>&token=<jwt>&target=<session>&limit=<n>",
-    };
-  }
-  const limitRaw = params.get("limit");
-  const limit = limitRaw ? Number(limitRaw) : undefined;
-  if (limit !== undefined && (!Number.isFinite(limit) || limit <= 0)) {
-    return { error: `Invalid \`limit\` value "${limitRaw}" — must be a positive integer.` };
-  }
-  return {
-    gatewayUrl: params.get("gateway") ?? window.location.origin,
-    token,
-    target: params.get("target") ?? undefined,
-    limit,
-  };
-}
 
 async function fetchInbox(config: InboxBrowserConfig): Promise<GetMessagesResponse> {
   const url = new URL("/api/agents/get_messages", config.gatewayUrl);
@@ -147,6 +118,13 @@ async function load(config: InboxBrowserConfig, list: AcpInboxMessageList): Prom
     list.subtitle = `gateway=${config.gatewayUrl}${targetLabel} · ${result.messages.length} message(s)`;
   } else {
     list.messages = [];
+    // Log the typed failure at the call site (browser console for now;
+    // ADR 0010 replaces this with the unified throw→log bridge post-0.6.x).
+    console.error("[inbox] fetch failed", {
+      error: result.error,
+      message: result.message,
+      correlation_id: result.correlation_id,
+    });
     list.errorMessage = formatError(result);
   }
 }
@@ -156,9 +134,11 @@ function formatError(failure: GetMessagesFailure): string {
   return `${failure.error}${suffix}`;
 }
 
-const config = parseConfig(window.location.hash);
-if ("error" in config) {
-  renderConfigError(config.error);
+const config = parseInboxConfig(window.location.hash, window.location.origin);
+if (isInboxConfigError(config)) {
+  // Log the typed config error at the call site before rendering its message.
+  console.error("[inbox] config error", { code: config.code, message: config.message });
+  renderConfigError(config.message);
 } else {
   const list = new AcpInboxMessageList();
   list.heading = "agents-js · inbox browser";
