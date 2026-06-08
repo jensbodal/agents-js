@@ -132,3 +132,7 @@ but it is not the default path.
   always-listening native pi does not need it.
 - `agents-js launch`/`onboard` for additional harnesses beyond `claude-code`
   and `pi`.
+- A baseline provisioning profile for `agents-js onboard` that can install the
+  configured harness-native skills, write the `AGENTS_JS_SKILLS_DIR` MCP
+  discovery wiring, run/write `agents-js mcp setup`, and bootstrap common built-in
+  tool discovery where a harness requires explicit registration.
