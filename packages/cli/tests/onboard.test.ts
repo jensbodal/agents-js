@@ -4,7 +4,11 @@
  * pure functions that shape the emitted dispatch entry.
  */
 import { describe, expect, test } from "bun:test";
-import { buildMeshJoinDispatchEntry, parseOnboardTarget } from "../src/onboard.ts";
+import {
+  buildMeshJoinDispatchEntry,
+  parseOnboardTarget,
+  runOnboardCommand,
+} from "../src/onboard.ts";
 
 describe("parseOnboardTarget", () => {
   test("takes the first non-flag token as the agent name", () => {
@@ -43,4 +47,37 @@ describe("buildMeshJoinDispatchEntry", () => {
   test("returns null when no advertise host resolves", () => {
     expect(buildMeshJoinDispatchEntry("mdg-pi-0", "3199", undefined)).toBeNull();
   });
+});
+
+describe("runOnboardCommand --help", () => {
+  function capture(): { sink: { write: (s: string) => boolean }; text: () => string } {
+    const chunks: string[] = [];
+    return {
+      sink: {
+        write: (s: string) => {
+          chunks.push(s);
+          return true;
+        },
+      },
+      text: () => chunks.join(""),
+    };
+  }
+
+  // Regression: --help must short-circuit BEFORE the launch path, so it prints
+  // onboard's own usage — not launch's help wrapped in launching/launched
+  // banners (and never actually launching a session).
+  for (const flag of ["--help", "-h"]) {
+    test(`\`onboard ${flag}\` prints onboard usage and skips the launch path`, async () => {
+      const out = capture();
+      const code = await runOnboardCommand([flag], {
+        output: out.sink as unknown as Pick<NodeJS.WriteStream, "write">,
+      });
+      const text = out.text();
+      expect(code).toBe(0);
+      expect(text).toContain("agents-js onboard <agent-name>");
+      expect(text).toContain("mesh-join dispatch entry");
+      expect(text).not.toContain("launching agent onto the mesh");
+      expect(text).not.toContain("harness launched");
+    });
+  }
 });

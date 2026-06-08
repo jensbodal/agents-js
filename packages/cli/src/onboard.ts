@@ -27,7 +27,43 @@ import {
   resolveAgentEntry,
   resolveLanAdvertiseHost,
 } from "@agents-js/agent-launch";
+import { EXIT_OK } from "./exit-codes.ts";
 import { type LaunchCommandDependencies, resolveConfigPath, runLaunchCommand } from "./launch.ts";
+
+/**
+ * Print `agents-js onboard` usage. Kept distinct from `launch`'s help: onboard
+ * adds the mesh-join dispatch emit on top of launch, so `--help` must describe
+ * that — not silently forward to launch's help wrapped in launching/launched
+ * banners (which is what happened before the short-circuit in
+ * {@link runOnboardCommand}).
+ */
+function printOnboardUsage(output: Pick<NodeJS.WriteStream, "write">): void {
+  output.write(
+    `${[
+      "Usage:",
+      "  agents-js onboard <agent-name> [options]",
+      "",
+      "Conformant onboarding: launch (or attach to) an agent, then emit the",
+      "agent's mesh-join dispatch entry so `@@dispatch <agent>` routes to it.",
+      "A thin wrapper over `agents-js launch` — accepts the same target and",
+      "options. Skills + registry provisioning layer in via `agents-js mcp setup`",
+      "(see ONBOARDING.md).",
+      "",
+      "Options:",
+      "  --bg, --background, -d   Create the launch session detached (passed to launch)",
+      "  --config <path>          Override the agent-launch config search path",
+      "  --help, -h               Show this message",
+      "",
+      "The mesh-join dispatch entry is emitted only when the agent has a fixed",
+      "A2A port (pi_port) and a resolvable advertise host; ephemeral-port agents",
+      "self-register locally and are not stable cross-host dispatch targets.",
+      "",
+      "Examples:",
+      "  agents-js onboard my-agent",
+      "  agents-js onboard my-agent --config ./agent-launch-config.json",
+    ].join("\n")}\n`,
+  );
+}
 
 /**
  * Parse the onboard target — the agent name (first non-flag token) and an
@@ -90,6 +126,15 @@ export async function runOnboardCommand(
   const env = dependencies.env ?? process.env;
   const home = dependencies.home ?? homedir();
   const cwd = dependencies.cwd ?? process.cwd();
+
+  // Short-circuit on --help BEFORE the launch path: otherwise onboard prints its
+  // launching banner, forwards to launch's --help, then prints "harness
+  // launched" — surfacing launch's help wrapped in misleading banners and never
+  // describing onboard's own mesh-join behavior.
+  if (argv.includes("--help") || argv.includes("-h")) {
+    printOnboardUsage(output);
+    return EXIT_OK;
+  }
 
   output.write("[agents-js] onboard: launching agent onto the mesh…\n");
   const code = await runLaunchCommand(argv, dependencies);
