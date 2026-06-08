@@ -157,7 +157,9 @@ Flow for a single `SendStreamingMessage` dispatch when an entry carries
    the call to the child via the existing `A2AClient`/`A2ATransport`
    path.
 3. Child gateway responds with the standard A2A surface: a JSON-RPC
-   `SendStreamingMessage` endpoint at `/a2a`, a `/events` SSE stream, and a
+   `SendStreamingMessage` endpoint at the URL its agent card advertises
+   (`supportedInterfaces[].url`; the server accepts A2A JSON-RPC on any
+   POST path), a `/events` SSE stream, and a
    `/.well-known/agent-card.json` discovery document.
 4. Parent re-broadcasts the child's bus events onto its own
    `GatewayBus` under a namespaced topic so subscribers of the parent

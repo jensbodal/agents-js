@@ -29,7 +29,7 @@ features:
   - title: Bridge into any MCP host
     details: Registered/configured A2A agents project into MCP tools two ways — local stdio via `agents-js mcp` (registry-backed) or `agents-js mcp bridge --url <gateway>` (single-gateway bridge), or the gateway-hosted HTTP MCP surface (JWT-gated when AGENTS_MCP_JWT_SIGNING_KEY is set). One agent process; many operator UXs.
   - title: Local-operator first
-    details: Default posture is single-tenant trusted-network (unauthenticated /a2a and /.well-known/agent-card.json). A hardening track is shipped opt-in — ed25519 peer-record signing, trust-manifest verification, JWT mint/redeem session flow, scope-ACL enforcement — mounted when AGENTS_MCP_JWT_SIGNING_KEY is set. See docs/federation/v1-contract.md and docs/hosted-mcp-tool-surface.md.
+    details: Default posture is single-tenant trusted-network (unauthenticated A2A surface and /.well-known/agent-card.json). A hardening track is shipped opt-in — ed25519 peer-record signing, trust-manifest verification, JWT mint/redeem session flow, scope-ACL enforcement — mounted when AGENTS_MCP_JWT_SIGNING_KEY is set. See docs/federation/v1-contract.md and docs/hosted-mcp-tool-surface.md.
 ---
 
 ## Two tracks, one runtime
@@ -53,7 +53,7 @@ You already have an ACP harness (`claude`, `opencode`, `gemini`, `pi`, `droid`, 
 agents-js serve --harness claude --port 9000
 ```
 
-The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering `/a2a` on the port. Any peer on the same trusted network can now reach it. See [Surfaces](/surfaces) and `packages/cli/README.md` for full options.
+The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering A2A JSON-RPC on the port. Clients discover the exact URL from the agent card at `/.well-known/agent-card.json` (`supportedInterfaces[].url`) — the server accepts A2A JSON-RPC on any POST path, so there is no fixed endpoint to hardcode. Any peer on the same trusted network can now reach it. See [Surfaces](/surfaces) and `packages/cli/README.md` for full options.
 
 For the full launcher walkthrough — clone, `bun run dev`, browser session, session-continuity walkthrough — see [Get Started](/getting-started).
 
@@ -117,12 +117,12 @@ Host that binary on a gateway with one command:
 agents-js serve --harness trial --port 9000
 ```
 
-`--harness trial` selects the curated trial-agent runtime (the same shape works for `claude`, `opencode`, `gemini`, `pi`, `droid`, `codex`, or `--harness custom --acp-command <bin>` for anything else). The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering `/a2a` on the port.
+`--harness trial` selects the curated trial-agent runtime (the same shape works for `claude`, `opencode`, `gemini`, `pi`, `droid`, `codex`, or `--harness custom --acp-command <bin>` for anything else). The gateway boots, registers itself in `~/.agents-js/registry.json`, and starts answering A2A JSON-RPC on the port.
 
-From any client on the network:
+From any client on the network — the agent card advertises the canonical URL (bare authority, i.e. the root path, by default; a fronting proxy may publish a different path such as `/jsonrpc`). The server accepts A2A JSON-RPC on any POST path:
 
 ```bash
-curl -X POST http://my-gateway.example.internal:9000/a2a \
+curl -X POST http://my-gateway.example.internal:9000/ \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
