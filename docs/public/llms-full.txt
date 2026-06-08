@@ -6056,18 +6056,77 @@ agents-js registry remove planner
 
 ---
 
+### `agents-js launch`
+
+Launch or attach to an agent's tmux session from an agent-launch config (AJS-141). Resolves the named agent entry from the config search path, then creates (or attaches to) its tmux session. Phase 1 supports the `claude-code` harness in fresh mode.
+
+| Flag | Takes | Default | Effect |
+| --- | --- | --- | --- |
+| `--bg`, `--background`, `-d` | flag | off (attach) | Create the session detached instead of attaching to it. |
+| `--config <path>` | value | search path | Override the agent-launch config search path. |
+| `--help`, `-h` | flag | — | Print usage. |
+
+**Config search path (first found wins):**
+1. `--config <path>`
+2. `$AGENTS_JS_LAUNCH_CONFIG`
+3. `$XDG_CONFIG_HOME/agents-js/agent-launch-config.json`
+4. `~/.config/agents-js/agent-launch-config.json`
+5. `./agent-launch-config.json`
+
+**Examples:**
+
+```sh
+agents-js launch my-agent --bg
+agents-js launch my-agent --config ./scripts/agent-launch-config.json
+```
+
+**stdout/stderr:** session/attach diagnostics go to stdout; config-resolution errors go to stderr.
+
+---
+
+### `agents-js onboard`
+
+Conformant onboarding entry point — a thin wrapper over `launch` (accepts the same agent name and options, e.g. `--config`, `--bg`) that, on a successful launch, also emits the agent's **mesh-join dispatch entry**: the `{kind:"a2a", url}` registry record a gateway operator installs so `@@dispatch <agent>` routes to the launched peer (AJS #41). Skills + registry provisioning layer in via `agents-js mcp setup` — see [`ONBOARDING.md`](../../ONBOARDING.md).
+
+The dispatch entry is emitted only when the agent has a fixed A2A port (`pi_port`) and a resolvable advertise host; ephemeral-port agents self-register locally and are not stable cross-host dispatch targets.
+
+**Examples:**
+
+```sh
+agents-js onboard my-agent
+agents-js onboard my-agent --config ./scripts/agent-launch-config.json
+```
+
+**stdout/stderr:** launch diagnostics plus the mesh-join dispatch entry (a JSON bundle and an equivalent `agents-js registry add …` line) go to stdout. A post-launch resolution issue never flips the exit code — the launch result wins.
+
+---
+
 ### `agents-js skill`
 
-Print the installable `agents-js` skill document to stdout so an AI coding agent can install durable command guidance into its skill directory.
+Print or install agents-js skill documents. With no subcommand, prints the installable `agents-js` `SKILL.md` to stdout so an AI coding agent can install durable command guidance into its skill directory. `skill install` is the harness-native install half of the skills seam (the other half is skills-as-MCP through `agents-js mcp`): it resolves a named skill from a skills source directory and copies it into a harness skills dir.
+
+**Subcommands:**
+
+```text
+agents-js skill                                          # print the agents-js SKILL.md to stdout
+agents-js skill install <name> --from <dir> [--into <dir>]   # install a skill into a harness skills dir
+```
+
+| Flag | Takes | Applies to | Effect |
+| --- | --- | --- | --- |
+| `--from <dir>` | value | `install` | **Required.** Skills source directory (e.g. a skills-js checkout). |
+| `--into <dir>` | value | `install` | Target skills directory. Default: `~/.claude/skills`. |
+| `--help`, `-h` | flag | both | Print usage. |
 
 **Examples:**
 
 ```sh
 agents-js skill > ~/.codex/skills/agents-js/SKILL.md
 agents-js skill > .agents/skills/agents-js/SKILL.md
+agents-js skill install grill-me --from ~/workspace/skills-js
 ```
 
-**stdout/stderr:** the `SKILL.md` content goes to stdout; usage errors go to stderr.
+**stdout/stderr:** the `SKILL.md` content (or the install confirmation `… -> <dest>`) goes to stdout; usage and resolution errors go to stderr.
 
 ---
 
