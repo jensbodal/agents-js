@@ -473,6 +473,7 @@ const releaseGapLanguagePattern =
 const RELEASE_GAP_LANGUAGE_SCAN_PATHS = [
   "apps/web-ui/src/a2ui-demo.ts",
   "apps/web-ui/src/main.ts",
+  "apps/web-ui/src/chat.ts",
   "docs/architecture.md",
   "docs/develop/playground-smoke.md",
   "docs/observability.md",
@@ -862,10 +863,10 @@ export const RELEASE_READINESS_CHECKS: readonly SourceCheck[] = [
   },
   {
     name: "A2UI back-channel reaches the WS bridge",
-    filePath: "apps/web-ui/src/main.ts",
+    filePath: "apps/web-ui/src/chat.ts",
     validate: (contents) => {
       if (!/_hostClient\.sendSurfaceEvent/.test(contents)) {
-        return "apps/web-ui/src/main.ts must route A2UI surface events through hostClient.sendSurfaceEvent";
+        return "apps/web-ui/src/chat.ts must route A2UI surface events through hostClient.sendSurfaceEvent";
       }
       return null;
     },

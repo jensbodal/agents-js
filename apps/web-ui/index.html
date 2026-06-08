@@ -3,12 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>agents-js Reference UI</title>
+  <title>agents-js</title>
   <link rel="icon" href="data:,">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; background: #0f1117; color: #c0caf5; font-family: system-ui, sans-serif; }
-        #app { height: 100%; display: flex; flex-direction: column; }
+    html, body { min-height: 100%; background: #0f1117; color: #c0caf5; font-family: system-ui, sans-serif; }
+    #app { min-height: 100%; max-width: 880px; margin: 0 auto; padding: 48px 16px; display: flex; flex-direction: column; gap: 32px; }
+    .landing-hero h1 { font-size: 2.4rem; letter-spacing: -0.02em; }
+    .landing-hero p { margin-top: 6px; color: #7aa2f7; font-size: 1.05rem; }
+    .landing-body { display: flex; flex-direction: column; gap: 28px; }
+    .landing-surface { border: 1px solid #1f2335; border-radius: 12px; padding: 16px; background: #11131c; min-height: 96px; }
+    .landing-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .landing-card { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; border: 1px solid #1f2335; border-radius: 12px; background: #11131c; color: inherit; text-decoration: none; transition: border-color 0.15s ease, transform 0.15s ease; }
+    .landing-card:hover { border-color: #7aa2f7; transform: translateY(-2px); }
+    .landing-card-title { font-size: 1.1rem; font-weight: 600; }
+    .landing-card-desc { color: #9aa5ce; font-size: 0.92rem; }
   </style>
 </head>
 <body>
