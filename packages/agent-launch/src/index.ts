@@ -81,6 +81,12 @@ export {
   type LaunchPathMode,
 } from "./launch-profile.ts";
 export {
+  assertSelectedMatrixAgentUnique,
+  extractMatrixAgent,
+  type MatrixAgentCoClaimant,
+  MatrixAgentCollisionError,
+} from "./matrix-agent-uniqueness.ts";
+export {
   type BuildLaunchPlanOptions,
   buildLaunchPlan,
   type LaunchMode,

@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture — two agents authoring-error share one MATRIX_AGENT identity (#37 / ADR #75 Phase 1 collision case); a third agent is uniquely named",
+  "agents": {
+    "agent-dup-a": {
+      "tmux_session": "agent-dup-a",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/tmp/a",
+      "fresh_flags": "--agent agent-dup-a",
+      "env_setup": "export MATRIX_AGENT=shared-identity"
+    },
+    "agent-dup-b": {
+      "tmux_session": "agent-dup-b",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/tmp/b",
+      "fresh_flags": "--agent agent-dup-b",
+      "env_setup": "export MATRIX_AGENT=shared-identity"
+    },
+    "agent-unique": {
+      "tmux_session": "agent-unique",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/tmp/c",
+      "fresh_flags": "--agent agent-unique",
+      "env_setup": "export MATRIX_AGENT=unique-identity"
+    }
+  }
+}

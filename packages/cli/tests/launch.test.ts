@@ -20,6 +20,11 @@ const CHANNEL_ENV_FIXTURE_PATH = path.join(
   "../../agent-launch/tests/fixtures/channel-env-agent.json",
 );
 
+const COLLISION_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/matrix-agent-collision.json",
+);
+
 interface FakeRunnerCalls {
   hasSession: string[];
   newSessionDetached: Array<[string, string]>;
@@ -145,6 +150,44 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(calls.newSessionDetached).toEqual([]);
     expect(calls.sendKeys).toEqual([]);
     expect(out.text).toContain('session "cognee-claude" already exists');
+  });
+});
+
+describe("runLaunchCommand — MATRIX_AGENT uniqueness (#37 / ADR #75 Phase 1)", () => {
+  test("rejects a co-claimant launch with EXIT_DATAERR and creates no session", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      ["agent-dup-a", "--bg", "--config", COLLISION_FIXTURE_PATH],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(65); // EXIT_DATAERR
+    // The guard runs before any tmux side effect.
+    expect(calls.newSessionDetached).toEqual([]);
+    expect(calls.sendKeys).toEqual([]);
+  });
+
+  test("a uniquely-named agent in the same config still launches", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      ["agent-unique", "--bg", "--config", COLLISION_FIXTURE_PATH],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(0);
+    expect(calls.newSessionDetached).toEqual([["agent-unique", "/tmp/c"]]);
   });
 });
 

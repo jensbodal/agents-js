@@ -38,16 +38,18 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import {
+  assertSelectedMatrixAgentUnique,
   buildLaunchPlan,
   createTmuxRunner,
   type LaunchEnv,
   loadLaunchConfig,
+  MatrixAgentCollisionError,
   resolveAgentEntry,
   resolveLanAdvertiseHost,
   type TmuxRunner,
 } from "@agents-js/agent-launch";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
-import { EXIT_ERROR, EXIT_OK, EXIT_USAGE } from "./exit-codes.ts";
+import { EXIT_DATAERR, EXIT_ERROR, EXIT_OK, EXIT_USAGE } from "./exit-codes.ts";
 import { handleVersionFlag } from "./version.ts";
 
 interface LaunchCommandArgs {
@@ -252,6 +254,22 @@ export async function runLaunchCommand(
 
   const config = await loadLaunchConfig(configPath);
   const entry = resolveAgentEntry(config, agentName);
+
+  // Write-time MATRIX_AGENT uniqueness (#37 / ADR #75 Phase 1): reject the
+  // launch if this agent's fleet identity is also claimed by another entry in
+  // the config — two sessions sharing one MATRIX_AGENT collide on name-keyed
+  // credential/memory/routing paths. Pure check over the loaded entry set; a
+  // clean agent is never blocked by an unrelated dup elsewhere.
+  try {
+    assertSelectedMatrixAgentUnique(config, agentName);
+  } catch (err) {
+    if (err instanceof MatrixAgentCollisionError) {
+      process.stderr.write(`${err.message}\n`);
+      return EXIT_DATAERR;
+    }
+    throw err;
+  }
+
   // Inject LAN-host resolution at the impure CLI boundary (keeps buildLaunchPlan
   // pure). A native pi advertises a stable `<shortHost>.<lanDomain>` FQDN when a
   // LAN domain is configured (config `lan_domain` or AGENTS_JS_LAN_DOMAIN), else
