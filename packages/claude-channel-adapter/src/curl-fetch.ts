@@ -117,3 +117,15 @@ const curlFetchImpl = (
 export const curlFetch: typeof fetch = Object.assign(curlFetchImpl, {
   preconnect: () => {},
 });
+
+/**
+ * Map an opt-in transport selector to a `fetchImpl`. Returns {@link curlFetch}
+ * only when `transport === "curl"`, otherwise `undefined` so the caller falls
+ * back to the platform `fetch` (`HttpGatewayInboxClient` does `opts.fetchImpl ??
+ * fetch`). Lets a launcher flip to curl behind the BL-64 TCC wall via env
+ * (e.g. `CH_GATEWAY_FETCH=curl`) while staying native `fetch` by default — the
+ * fix is opt-in, never silently forced on every consumer.
+ */
+export function selectFetchImpl(transport?: string): typeof fetch | undefined {
+  return transport === "curl" ? curlFetch : undefined;
+}

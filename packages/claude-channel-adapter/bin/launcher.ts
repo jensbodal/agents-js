@@ -26,6 +26,10 @@
  *   challenge/redeem over HTTPS. URL e.g. `https://ajs-gateway.q4m.dev`;
  *   KEY_CMD prints the PEM ed25519 key, e.g.
  *   `gopass show services/agents-js/identity/hostname-null-claude-0/key`.
+ * - `CH_GATEWAY_FETCH` — set to `curl` to route gateway HTTP through the curl
+ *   binary instead of the platform `fetch` (BL-64: bun/node `fetch` to a LAN
+ *   gateway IP is TCC-blocked on macOS while curl reaches it). Opt-in; default
+ *   is native `fetch`. Applies to both the mint and poll/send paths.
  * - `CH_GATEWAY_MCP_COMMAND` — alt transport: spawn an agents_gateway MCP
  *   server. Inbound polling is DISABLED unless one transport is configured.
  * - `CH_GATEWAY_MCP_ARGS` — JSON array (or whitespace-split) of server args.
@@ -36,6 +40,7 @@
  * - `CH_EMIT_AFTER_MS` / `CH_EMIT_CONTENT` — optional transport-ping self-test.
  */
 import { appendFileSync } from "node:fs";
+import { selectFetchImpl } from "../src/curl-fetch.ts";
 import { FileCursorStore } from "../src/cursor-store.ts";
 import { type GatewayInboxClient, McpGatewayInboxClient } from "../src/gateway-inbox-client.ts";
 import { HttpGatewayInboxClient } from "../src/http-gateway-inbox-client.ts";
@@ -74,10 +79,14 @@ function buildInboxClient(): GatewayInboxClient | null {
   const gatewayUrl = Bun.env.CH_GATEWAY_URL;
   const keyCmd = Bun.env.CH_GATEWAY_KEY_CMD;
   if (gatewayUrl && keyCmd) {
+    // `CH_GATEWAY_FETCH=curl` opts into the curl transport (BL-64 TCC wall);
+    // undefined keeps the platform `fetch`. The client threads this single
+    // fetchImpl through both the mint and poll/send paths.
     return new HttpGatewayInboxClient({
       baseUrl: gatewayUrl,
       entity: IDENTITY,
       getPrivateKeyPem: () => runForOutput(keyCmd),
+      fetchImpl: selectFetchImpl(Bun.env.CH_GATEWAY_FETCH),
     });
   }
   // Alt transport: spawn a provisioned agents_gateway MCP server.

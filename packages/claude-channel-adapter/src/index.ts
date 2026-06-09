@@ -64,7 +64,7 @@
  * adapter — compose a runtime entry by injecting their own `onMessage` sink
  * instead of re-implementing the poll loop.
  */
-export { curlFetch } from "./curl-fetch.ts";
+export { curlFetch, selectFetchImpl } from "./curl-fetch.ts";
 export {
   type CursorState,
   type CursorStore,

@@ -22,6 +22,7 @@ import {
   type InboxMessage,
   MemoryCursorStore,
   runInboxPoller,
+  selectFetchImpl,
 } from "../src/index.ts";
 
 describe("public surface — reusable inbox-poller primitive", () => {
@@ -34,6 +35,8 @@ describe("public surface — reusable inbox-poller primitive", () => {
     // The curl-backed fetchImpl is a public primitive: bun/node consumers
     // inject it into HttpGatewayInboxClient to sidestep the BL-64 TCC wall.
     expect(typeof curlFetch).toBe("function");
+    // selectFetchImpl lets a launcher opt into curl via env (CH_GATEWAY_FETCH).
+    expect(typeof selectFetchImpl).toBe("function");
   });
 
   test("a runtime entry composes from the public surface — row flows to a custom sink", async () => {
