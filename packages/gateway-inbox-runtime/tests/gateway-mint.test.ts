@@ -134,6 +134,60 @@ describe("mintGatewayJwt", () => {
     ).rejects.toThrow(/missing challenge/);
   });
 
+  test("rejects a mint result for the wrong subject before caching", async () => {
+    const { privateKey } = makeKeypair();
+    const fakeFetch = (async (url: string) => {
+      if (url.endsWith("/mint/challenge"))
+        return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          jwt: "J",
+          expires_in: 900,
+          sub: "someone-else",
+          scopes: SCOPES,
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      mintGatewayJwt({
+        baseUrl: "https://gw.test",
+        entity: ENTITY,
+        scopes: SCOPES,
+        privateKeyPem: privateKey,
+        fetchImpl: fakeFetch,
+      }),
+    ).rejects.toThrow(/sub mismatch/);
+  });
+
+  test("rejects a mint result missing a requested scope", async () => {
+    const { privateKey } = makeKeypair();
+    const fakeFetch = (async (url: string) => {
+      if (url.endsWith("/mint/challenge"))
+        return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          jwt: "J",
+          expires_in: 900,
+          sub: ENTITY,
+          scopes: ["inbox.read"],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(
+      mintGatewayJwt({
+        baseUrl: "https://gw.test",
+        entity: ENTITY,
+        scopes: SCOPES,
+        privateKeyPem: privateKey,
+        fetchImpl: fakeFetch,
+      }),
+    ).rejects.toThrow(/missing requested scopes/);
+  });
+
   test("surfaces a redeem HTTP error (bad sig / rate limit)", async () => {
     const { privateKey } = makeKeypair();
     const fakeFetch = (async (url: string) => {

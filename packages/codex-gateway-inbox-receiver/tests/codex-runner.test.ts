@@ -39,6 +39,25 @@ describe("AppServerCodexRunner", () => {
     expect(await proveAppServerRunner(client)).toBe(false);
   });
 
+  test("proof locks thread/resume plus dry-run turn/start params", async () => {
+    const calls: Array<{ method: string; params: unknown }> = [];
+    const client: JsonRpcClient = {
+      async request(method, params) {
+        calls.push({ method, params });
+        return { ok: true };
+      },
+    };
+
+    expect(await proveAppServerRunner(client)).toBe(true);
+    expect(calls).toEqual([
+      { method: "thread/resume", params: { last: true } },
+      {
+        method: "turn/start",
+        params: { dry_run: true, prompt: "agents-js app-server proof" },
+      },
+    ]);
+  });
+
   test("selector uses app-server when proof succeeds", async () => {
     const calls: string[] = [];
     const runner = await selectCodexRunner({

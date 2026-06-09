@@ -24,6 +24,7 @@ export interface CodexGatewayInboxReceiverOptions {
   readonly client?: GatewayInboxClient;
   readonly runner?: CodexRunner;
   readonly appServerClient?: JsonRpcClient;
+  readonly fetchImpl?: typeof fetch;
   readonly cursorPath?: string;
   readonly intervalMs?: number;
   readonly limit?: number;
@@ -43,6 +44,7 @@ export async function runCodexGatewayInboxReceiver(
       baseUrl: options.gatewayUrl,
       entity: options.identity,
       getPrivateKeyPem: () => runKeyCommand(options.keyCommand),
+      fetchImpl: options.fetchImpl,
     });
   const runner = await selectCodexRunner({
     explicitRunner: options.runner,

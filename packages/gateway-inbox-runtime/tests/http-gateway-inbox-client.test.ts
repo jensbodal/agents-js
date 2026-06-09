@@ -25,7 +25,12 @@ function fakeGateway() {
     if (url.endsWith("/mint/redeem")) {
       state.mints += 1;
       return new Response(
-        JSON.stringify({ jwt: `JWT-${state.mints}`, expires_in: 900, sub: ENTITY, scopes: [] }),
+        JSON.stringify({
+          jwt: `JWT-${state.mints}`,
+          expires_in: 900,
+          sub: ENTITY,
+          scopes: ["inbox.read", "inbox.deliver", "matrix.send_message"],
+        }),
         { status: 200 },
       );
     }
@@ -103,9 +108,17 @@ describe("HttpGatewayInboxClient", () => {
       if (url.endsWith("/mint/challenge"))
         return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
       if (url.endsWith("/mint/redeem"))
-        return new Response(JSON.stringify({ jwt: "J", expires_in: 900, sub: ENTITY }), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({
+            jwt: "J",
+            expires_in: 900,
+            sub: ENTITY,
+            scopes: ["inbox.read", "inbox.deliver", "matrix.send_message"],
+          }),
+          {
+            status: 200,
+          },
+        );
       return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
     }) as unknown as typeof fetch;
     const client = new HttpGatewayInboxClient({
@@ -126,9 +139,17 @@ describe("HttpGatewayInboxClient", () => {
         return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
       if (url.endsWith("/mint/redeem")) {
         mints += 1;
-        return new Response(JSON.stringify({ jwt: `JWT-${mints}`, expires_in: 900, sub: ENTITY }), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({
+            jwt: `JWT-${mints}`,
+            expires_in: 900,
+            sub: ENTITY,
+            scopes: ["inbox.read", "inbox.deliver", "matrix.send_message"],
+          }),
+          {
+            status: 200,
+          },
+        );
       }
       // First inbox read rejects the (freshly minted) token; the retry succeeds.
       if (firstRead) {
@@ -160,9 +181,17 @@ describe("HttpGatewayInboxClient", () => {
         return new Response(JSON.stringify({ challenge: "CH", expires_at: 1 }), { status: 200 });
       if (url.endsWith("/mint/redeem")) {
         mints += 1;
-        return new Response(JSON.stringify({ jwt: `JWT-${mints}`, expires_in: 900, sub: ENTITY }), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({
+            jwt: `JWT-${mints}`,
+            expires_in: 900,
+            sub: ENTITY,
+            scopes: ["inbox.read", "inbox.deliver", "matrix.send_message"],
+          }),
+          {
+            status: 200,
+          },
+        );
       }
       // Every inbox read is forbidden — a re-mint requests the same scopes and
       // can't lift the denial, so the cached token must be reused (not re-minted).

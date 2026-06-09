@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
+import { missingRequiredReceiverCliEnv, readReceiverCliConfig } from "./cli-config.ts";
 import { runCodexGatewayInboxReceiver } from "./receiver.ts";
 
-const identity = env("CODEX_GATEWAY_IDENTITY", "AGENTS_GATEWAY_SUB");
-const gatewayUrl = env("CODEX_GATEWAY_URL", "AGENTS_GATEWAY_URL");
-const workspace = env("CODEX_WORKSPACE", "PWD") ?? process.cwd();
-const keyCommand = env("CODEX_GATEWAY_KEY_CMD", "AGENTS_GATEWAY_KEY_CMD");
+const config = readReceiverCliConfig(Bun.env, process.cwd());
+const { gatewayUrl, identity, keyCommand } = config;
 
-if (!identity || !gatewayUrl || !keyCommand) {
+if (missingRequiredReceiverCliEnv(config) || !identity || !gatewayUrl || !keyCommand) {
   console.error(
     "missing required env: CODEX_GATEWAY_IDENTITY/AGENTS_GATEWAY_SUB, CODEX_GATEWAY_URL/AGENTS_GATEWAY_URL, CODEX_GATEWAY_KEY_CMD/AGENTS_GATEWAY_KEY_CMD",
   );
@@ -21,28 +20,13 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
 await runCodexGatewayInboxReceiver({
   identity,
   gatewayUrl,
-  workspace,
+  workspace: config.workspace,
   keyCommand,
-  cursorPath: env("CODEX_GATEWAY_CURSOR_PATH"),
-  intervalMs: numberEnv("CODEX_GATEWAY_POLL_INTERVAL_MS"),
-  limit: numberEnv("CODEX_GATEWAY_POLL_LIMIT"),
-  autoReply: env("CODEX_GATEWAY_AUTO_REPLY") === "true",
-  replyTarget: env("CODEX_GATEWAY_REPLY_TARGET"),
+  cursorPath: config.cursorPath,
+  intervalMs: config.intervalMs,
+  limit: config.limit,
+  autoReply: config.autoReply,
+  replyTarget: config.replyTarget,
+  fetchImpl: config.fetchImpl,
   signal: abort.signal,
 });
-
-function env(...names: string[]): string | undefined {
-  for (const name of names) {
-    // biome-ignore lint/style/noProcessEnv: this CLI is configured by launch-time environment.
-    const value = process.env[name];
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function numberEnv(name: string): number | undefined {
-  const value = env(name);
-  if (!value) return undefined;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-}

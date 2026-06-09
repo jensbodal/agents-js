@@ -143,4 +143,37 @@ describe("runInboxPoller", () => {
     expect(attempts).toBe(2); // failed once, retried, succeeded — then deduped
     expect(delivered).toEqual(["m1"]);
   });
+
+  test("transport failures back off, leave cursor unchanged, and reset after success", async () => {
+    const r = row({ message_id: "m1", idempotency_key: "evt1:tgt" });
+    const script = (n: number): GetMessagesResult => {
+      if (n === 0) throw new Error("network unreachable");
+      if (n === 1) return { ok: false, identity: IDENTITY, messages: [r] };
+      return ok([r]);
+    };
+    const client = new FakeClient(script);
+    const controller = new AbortController();
+    const sleeps: number[] = [];
+    const got: string[] = [];
+    const store = new MemoryCursorStore();
+
+    await runInboxPoller({
+      client,
+      identity: IDENTITY,
+      onMessage: (m) => void got.push(m.message_id),
+      cursorStore: store,
+      signal: controller.signal,
+      intervalMs: 10,
+      backoffMaxMs: 20,
+      logger: { log() {}, warn() {}, error() {} },
+      sleepImpl: async (ms) => {
+        sleeps.push(ms);
+        if (sleeps.length >= 3) controller.abort();
+      },
+    });
+
+    expect(sleeps).toEqual([10, 20, 10]);
+    expect(got).toEqual(["m1"]);
+    expect(store.load()).toEqual({ seen: ["evt1:tgt"] });
+  });
 });

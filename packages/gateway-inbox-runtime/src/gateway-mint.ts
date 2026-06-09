@@ -120,6 +120,24 @@ export async function mintGatewayJwt(opts: MintOptions): Promise<MintResult> {
   if (typeof out.jwt !== "string" || out.jwt.length === 0) {
     throw new Error("mint/redeem: missing jwt");
   }
+  if (
+    typeof out.expires_in !== "number" ||
+    !Number.isFinite(out.expires_in) ||
+    out.expires_in <= 0
+  ) {
+    throw new Error("mint/redeem: invalid expires_in");
+  }
+  if (out.sub !== opts.entity) {
+    throw new Error(`mint/redeem: sub mismatch expected=${opts.entity} actual=${out.sub}`);
+  }
+  if (!Array.isArray(out.scopes) || !out.scopes.every((scope) => typeof scope === "string")) {
+    throw new Error("mint/redeem: invalid scopes");
+  }
+  const granted = new Set(out.scopes);
+  const missingScopes = opts.scopes.filter((scope) => !granted.has(scope));
+  if (missingScopes.length > 0) {
+    throw new Error(`mint/redeem: missing requested scopes ${missingScopes.join(",")}`);
+  }
   return out;
 }
 
