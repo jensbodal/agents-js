@@ -116,4 +116,41 @@ describe("ExecResumeCodexRunner", () => {
     await expect(promise).resolves.toEqual({ reply: "done" });
     expect(stdin).toBe("hello");
   });
+
+  test("can run resume from a workspace cwd with git-check bypass", async () => {
+    let captured:
+      | {
+          command: string;
+          args: string[];
+          cwd?: string;
+        }
+      | undefined;
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    const spawnImpl = ((command: string, args: string[], options: { cwd?: string }) => {
+      captured = { command, args, cwd: options.cwd };
+      return child;
+    }) as never;
+    const promise = new ExecResumeCodexRunner({
+      cwd: "/agent-workspace",
+      skipGitRepoCheck: true,
+      spawnImpl,
+    }).run("hello");
+
+    child.stdout.write(`${JSON.stringify({ reply: "done" })}\n`);
+    child.emit("close", 0);
+
+    await expect(promise).resolves.toEqual({ reply: "done" });
+    expect(captured).toEqual({
+      command: "codex",
+      args: ["exec", "resume", "--last", "--skip-git-repo-check", "--json", "-"],
+      cwd: "/agent-workspace",
+    });
+  });
 });

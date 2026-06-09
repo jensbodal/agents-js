@@ -14,6 +14,8 @@ export type SpawnImpl = typeof spawn;
 export interface ExecResumeCodexRunnerOptions {
   readonly command?: string;
   readonly args?: string[];
+  readonly cwd?: string;
+  readonly skipGitRepoCheck?: boolean;
   readonly spawnImpl?: SpawnImpl;
 }
 
@@ -27,11 +29,20 @@ export interface ExecResumeCodexRunnerOptions {
 export class ExecResumeCodexRunner implements CodexRunner {
   private readonly command: string;
   private readonly args: string[];
+  private readonly cwd?: string;
   private readonly spawnImpl: SpawnImpl;
 
   constructor(options: ExecResumeCodexRunnerOptions = {}) {
     this.command = options.command ?? "codex";
-    this.args = options.args ?? ["exec", "resume", "--last", "--json", "-"];
+    this.args = options.args ?? [
+      "exec",
+      "resume",
+      "--last",
+      ...(options.skipGitRepoCheck ? ["--skip-git-repo-check"] : []),
+      "--json",
+      "-",
+    ];
+    this.cwd = options.cwd;
     this.spawnImpl = options.spawnImpl ?? spawn;
   }
 
@@ -39,6 +50,7 @@ export class ExecResumeCodexRunner implements CodexRunner {
     return new Promise((resolve, reject) => {
       const child = this.spawnImpl(this.command, this.args, {
         stdio: ["pipe", "pipe", "pipe"],
+        ...(this.cwd ? { cwd: this.cwd } : {}),
       });
       let stdout = "";
       let stderr = "";
@@ -95,6 +107,7 @@ export interface SelectCodexRunnerOptions {
   readonly explicitRunner?: CodexRunner;
   readonly appServerClient?: JsonRpcClient;
   readonly execRunner?: CodexRunner;
+  readonly execRunnerOptions?: ExecResumeCodexRunnerOptions;
   readonly logger?: { log(message: string): void; warn(message: string): void };
 }
 
@@ -111,7 +124,7 @@ export async function selectCodexRunner(
     options.logger?.warn("codex-app-server-proof-failed; falling back to exec-resume");
   }
   options.logger?.log("codex-runner=exec-resume");
-  return options.execRunner ?? new ExecResumeCodexRunner();
+  return options.execRunner ?? new ExecResumeCodexRunner(options.execRunnerOptions);
 }
 
 function extractReplyFromJsonl(stdout: string): string | undefined {
