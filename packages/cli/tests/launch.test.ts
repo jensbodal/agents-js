@@ -20,6 +20,16 @@ const CHANNEL_ENV_FIXTURE_PATH = path.join(
   "../../agent-launch/tests/fixtures/channel-env-agent.json",
 );
 
+const CODEX_RECEIVER_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/codex-with-receiver.json",
+);
+
+const CODEX_MISSING_RECEIVER_ENV_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/codex-missing-receiver-env.json",
+);
+
 const COLLISION_FIXTURE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../agent-launch/tests/fixtures/matrix-agent-collision.json",
@@ -150,6 +160,81 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(calls.newSessionDetached).toEqual([]);
     expect(calls.sendKeys).toEqual([]);
     expect(out.text).toContain('session "cognee-claude" already exists');
+  });
+
+  test("codex --with-receiver launches a companion gateway inbox receiver", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      ["olthoi0-codex-0", "--with-receiver", "--bg", "--config", CODEX_RECEIVER_FIXTURE_PATH],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(0);
+    expect(calls.newSessionDetached).toEqual([
+      ["olthoi0-codex-0", "/Users/jensbodal/workspaces/agents/olthoi0-codex-0"],
+      ["olthoi0-codex-0-receiver", "/Users/jensbodal/workspaces/agents/olthoi0-codex-0"],
+    ]);
+
+    const mainCmd = calls.sendKeys[0]?.[1] ?? "";
+    expect(mainCmd).toContain("codex --sandbox workspace-write");
+
+    const receiverCmd = calls.sendKeys[1]?.[1] ?? "";
+    expect(receiverCmd).toContain("agents-js codex-receiver");
+    expect(receiverCmd).toContain('export CODEX_GATEWAY_IDENTITY="olthoi0-codex-0"');
+    expect(receiverCmd).toContain('export CODEX_GATEWAY_URL="https://ajs-gateway.q4m.dev"');
+    expect(receiverCmd).toContain(
+      'export CODEX_GATEWAY_KEY_CMD="gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key"',
+    );
+    expect(receiverCmd).toContain('export CODEX_GATEWAY_FETCH="curl"');
+    expect(receiverCmd).toContain('export CODEX_GATEWAY_SKIP_GIT_REPO_CHECK="true"');
+    expect(receiverCmd).toContain(
+      'export CODEX_GATEWAY_CURSOR_PATH="/Users/jensbodal/workspaces/agents/olthoi0-codex-0/.agents/olthoi0-codex-0/gateway-inbox-cursor.json"',
+    );
+
+    const receiverSessionEnvKeys = calls.setEnvironment
+      .filter(([session]) => session === "olthoi0-codex-0-receiver")
+      .map(([_, key]) => key)
+      .sort();
+    expect(receiverSessionEnvKeys).toEqual([
+      "AGENTS_GATEWAY_SUB",
+      "GIT_AUTHOR_EMAIL",
+      "GIT_AUTHOR_NAME",
+      "GIT_COMMITTER_EMAIL",
+      "GIT_COMMITTER_NAME",
+      "MATRIX_AGENT",
+    ]);
+    expect(calls.setEnvironment.map(([_, key]) => key)).not.toContain("CODEX_GATEWAY_KEY_CMD");
+  });
+
+  test("codex --with-receiver fails before tmux side effects when receiver env is missing", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      [
+        "olthoi0-codex-0",
+        "--with-receiver",
+        "--bg",
+        "--config",
+        CODEX_MISSING_RECEIVER_ENV_FIXTURE_PATH,
+      ],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(65);
+    expect(calls.hasSession).toEqual([]);
+    expect(calls.newSessionDetached).toEqual([]);
+    expect(calls.sendKeys).toEqual([]);
   });
 });
 

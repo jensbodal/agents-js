@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture - native Codex agent without receiver gateway env",
+  "agents": {
+    "olthoi0-codex-0": {
+      "tmux_session": "olthoi0-codex-0",
+      "harness": "codex",
+      "binary": "codex",
+      "workspace": "/Users/jensbodal/workspaces/agents/olthoi0-codex-0",
+      "fresh_flags": "--sandbox workspace-write",
+      "env_setup": "export MATRIX_AGENT=olthoi0-codex-0 && export AGENTS_GATEWAY_SUB=olthoi0-codex-0"
+    }
+  }
+}

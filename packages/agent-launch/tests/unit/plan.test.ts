@@ -149,6 +149,34 @@ describe("buildLaunchPlan — flag splitting", () => {
   });
 });
 
+describe("buildLaunchPlan — codex harness", () => {
+  test("emits native Codex CLI args and lifts AGENTS_GATEWAY_SUB into session env", () => {
+    const plan = buildLaunchPlan(
+      {
+        tmuxSession: "olthoi0-codex-0",
+        harness: "codex",
+        binary: "codex",
+        workspace: "/tmp/olthoi0-codex-0",
+        freshFlags: "--sandbox workspace-write -c sandbox_workspace_write.network_access=true",
+        envSetup:
+          "export MATRIX_AGENT=olthoi0-codex-0 && export AGENTS_GATEWAY_SUB=olthoi0-codex-0",
+        extra: {},
+      },
+      { baseEnv: {} },
+    );
+    expect(plan.command).toBe("codex");
+    expect(plan.args).toEqual([
+      "--sandbox",
+      "workspace-write",
+      "-c",
+      "sandbox_workspace_write.network_access=true",
+    ]);
+    expect(plan.harness).toBe("codex");
+    expect(plan.sessionEnv.MATRIX_AGENT).toBe("olthoi0-codex-0");
+    expect(plan.sessionEnv.AGENTS_GATEWAY_SUB).toBe("olthoi0-codex-0");
+  });
+});
+
 describe("buildLaunchPlan — channel_env propagation", () => {
   const entryWithChannelEnv = {
     tmuxSession: "x",

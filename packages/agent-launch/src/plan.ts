@@ -48,7 +48,7 @@ export type LaunchMode = "fresh";
  * a kind here without a launcher entry is a compile error (and vice versa) —
  * boundary-narrowing-drift is enforced structurally, not by convention.
  */
-export type SupportedHarness = "claude-code" | "pi";
+export type SupportedHarness = "claude-code" | "codex" | "pi";
 
 /**
  * Structured plan returned by {@link buildLaunchPlan}. The tmux layer
@@ -303,6 +303,7 @@ const PI_SESSION_ENV_KEYS: readonly string[] = [
  */
 const HARNESS_LAUNCHERS: Readonly<Record<SupportedHarness, HarnessLauncher>> = Object.freeze({
   "claude-code": { build: buildClaudeCodeInvocation },
+  codex: { build: buildCodexInvocation, sessionEnvKeys: ["AGENTS_GATEWAY_SUB"] },
   pi: { build: buildPiInvocation, sessionEnvKeys: PI_SESSION_ENV_KEYS },
 });
 
@@ -322,6 +323,12 @@ function buildClaudeCodeInvocation({ entry, baseEnv }: HarnessBuildContext): Har
   const args =
     allowedTools.length > 0 ? [...flagArgs, "--allowedTools", allowedTools.join(",")] : flagArgs;
   return { command: entry.binary, args, env: baseEnv, allowedTools };
+}
+
+/** codex: native Codex CLI fresh session using operator-provided flags. */
+function buildCodexInvocation({ entry, baseEnv }: HarnessBuildContext): HarnessInvocation {
+  const args = splitFlags(entry.freshFlags);
+  return { command: entry.binary, args, env: baseEnv, allowedTools: [] };
 }
 
 /**
