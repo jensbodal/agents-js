@@ -106,3 +106,9 @@ export {
   type TmuxSpawner,
   type TmuxSpawnResult,
 } from "./tmux.ts";
+export {
+  createTmuxWindowOps,
+  type TmuxAttach,
+  type TmuxWindowOps,
+  type TmuxWindowOpsOptions,
+} from "./tmux-windows.ts";

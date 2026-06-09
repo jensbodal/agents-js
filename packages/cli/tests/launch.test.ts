@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { TmuxWindowOps } from "@agents-js/agent-launch";
 import { resolveConfigPath, runLaunchCommand } from "../src/launch.ts";
 
 const FIXTURE_PATH = path.join(
@@ -33,6 +34,11 @@ const CODEX_MISSING_RECEIVER_ENV_FIXTURE_PATH = path.join(
 const COLLISION_FIXTURE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../agent-launch/tests/fixtures/matrix-agent-collision.json",
+);
+
+const PI_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/pi-native.json",
 );
 
 interface FakeRunnerCalls {
@@ -374,5 +380,115 @@ describe("resolveConfigPath — $XDG_CONFIG_HOME honoring", () => {
     const expected = await writeLaunchConfig(path.join(home, ".config"));
     const got = resolveConfigPath({}, {}, home, "/nonexistent-cwd");
     expect(got).toBe(expected);
+  });
+});
+
+interface WindowCalls {
+  normalize: string[];
+  newWindow: Array<[string, number, string, string]>;
+  selectWindow: Array<[string, number]>;
+  sendKeys: Array<[string, number, string]>;
+  attach: string[];
+}
+
+function fakeWindowOps(): { windows: TmuxWindowOps; wcalls: WindowCalls } {
+  const wcalls: WindowCalls = {
+    normalize: [],
+    newWindow: [],
+    selectWindow: [],
+    sendKeys: [],
+    attach: [],
+  };
+  const windows: TmuxWindowOps = {
+    firstWindowIndex: () => 0,
+    normalizeFirstWindowToZero: (s) => {
+      wcalls.normalize.push(s);
+    },
+    newWindow: (s, i, n, c) => {
+      wcalls.newWindow.push([s, i, n, c]);
+    },
+    selectWindow: (s, i) => {
+      wcalls.selectWindow.push([s, i]);
+    },
+    sendKeysToWindow: (s, i, p) => {
+      wcalls.sendKeys.push([s, i, p]);
+    },
+    attachOrSwitch: (s) => {
+      wcalls.attach.push(s);
+    },
+  };
+  return { windows, wcalls };
+}
+
+describe("runLaunchCommand — pi dual_window orchestration", () => {
+  // LT-5 + dual-window argv (runtime :1, TUI :0), --bg (no attach).
+  test("--bg dual_window splits :0 TUI / :1 runtime; channel secret rides send-keys, not set-env", async () => {
+    const { runner, calls } = fakeRunner();
+    const { windows, wcalls } = fakeWindowOps();
+    const out = captureOutput();
+    const code = await runLaunchCommand(["pi-dual", "--bg", "--config", PI_FIXTURE_PATH], {
+      output: out,
+      env: { PATH: "/usr/bin" },
+      home: "/home/test",
+      cwd: "/tmp",
+      createRunner: () => runner,
+      createWindowOps: () => windows,
+    });
+    expect(code).toBe(0);
+    expect(calls.newSessionDetached).toEqual([["pi-dual", "/tmp/pi-ws"]]);
+    expect(wcalls.normalize).toEqual(["pi-dual"]);
+
+    // :1 = runtime (pi process) with the env export carrying the channel secret.
+    const runtime = wcalls.sendKeys.find(([, i]) => i === 1);
+    expect(runtime?.[2]).toContain("pi -e @agents-js/pi-extension");
+    expect(runtime?.[2]).toContain("CH_GATEWAY_KEY_CMD");
+
+    // :0 = TUI auto-connecting by registered name (MATRIX_AGENT = pi-dual).
+    const tui = wcalls.sendKeys.find(([, i]) => i === 0);
+    expect(tui?.[2]).toBe("agents-js client --agent pi-dual --wait");
+    expect(wcalls.selectWindow).toEqual([["pi-dual", 0]]);
+
+    // LT-5: channel_env secret must NOT be pushed via tmux set-environment.
+    expect(calls.setEnvironment.some(([, k]) => k === "CH_GATEWAY_KEY_CMD")).toBe(false);
+
+    // --bg: do not grab the terminal.
+    expect(wcalls.attach).toEqual([]);
+  });
+
+  // LT-9: foreground auto-attaches after building both windows.
+  test("foreground dual_window auto-attaches the TUI", async () => {
+    const { runner } = fakeRunner();
+    const { windows, wcalls } = fakeWindowOps();
+    const code = await runLaunchCommand(["pi-dual", "--config", PI_FIXTURE_PATH], {
+      output: captureOutput(),
+      env: { PATH: "/usr/bin" },
+      home: "/home/test",
+      cwd: "/tmp",
+      createRunner: () => runner,
+      createWindowOps: () => windows,
+    });
+    expect(code).toBe(0);
+    expect(wcalls.newWindow).toHaveLength(1);
+    expect(wcalls.attach).toEqual(["pi-dual"]);
+  });
+
+  // LT-11: re-launch onto an existing session creates no windows.
+  test("idempotent: existing session is not re-created", async () => {
+    const { runner, calls } = fakeRunner(true);
+    const { windows, wcalls } = fakeWindowOps();
+    const out = captureOutput();
+    const code = await runLaunchCommand(["pi-dual", "--bg", "--config", PI_FIXTURE_PATH], {
+      output: out,
+      env: { PATH: "/usr/bin" },
+      home: "/home/test",
+      cwd: "/tmp",
+      createRunner: () => runner,
+      createWindowOps: () => windows,
+    });
+    expect(code).toBe(0);
+    expect(calls.newSessionDetached).toEqual([]);
+    expect(wcalls.newWindow).toEqual([]);
+    expect(wcalls.sendKeys).toEqual([]);
+    expect(out.text).toContain("already exists");
   });
 });

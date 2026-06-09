@@ -4,14 +4,21 @@ import {
   type DebugRecord,
   type ProbeResult,
 } from "@agents-js/a2a-client";
+import {
+  type AgentRegistryRecord,
+  readAgentRegistryRecords,
+  resolveSharedAgentRegistryPath,
+} from "@agents-js/a2a-client/node";
 import { type CliRenderer, createCliRenderer, type KeyEvent } from "@opentui/core";
 import { type ArgSpec, parseArgv } from "../argv-parser.ts";
 import { isTerminalTaskVocabulary } from "../cli-utils.ts";
 import { EXIT_ERROR, EXIT_OK } from "../exit-codes.ts";
 import { CLI_VERSION, handleVersionFlag } from "../version.ts";
+import { type HealthProbe, resolveAgentUrl, waitForAgentReady } from "./agent-resolve.ts";
 import { type ClientApp, createClientApp } from "./ui/app.ts";
 
 export interface ClientCommandArgs {
+  agent?: string;
   card?: string;
   contextId?: string;
   headers: Record<string, string>;
@@ -22,6 +29,7 @@ export interface ClientCommandArgs {
   raw: boolean;
   taskId?: string;
   url?: string;
+  wait?: boolean;
 }
 
 export interface StartClientAppOptions {
@@ -36,7 +44,20 @@ export interface ClientCommandDependencies {
   createRenderer?: () => Promise<CliRenderer>;
   output?: Pick<NodeJS.WriteStream, "write">;
   runApp?: (options: StartClientAppOptions) => Promise<number>;
+  /** Env for resolving the shared registry path (`--agent`). Defaults to `process.env`. */
+  env?: NodeJS.ProcessEnv;
+  /** Override registry reads (`--agent`). Tests inject in-memory records. */
+  loadRegistryRecords?: () => Promise<AgentRegistryRecord[]>;
+  /** Health probe for `--wait`. Defaults to a native-fetch status check. */
+  probe?: HealthProbe;
+  /** Clock for `--wait` readiness budget. Defaults to `Date.now`. */
+  now?: () => number;
+  /** Sleep between `--wait` polls. Defaults to real `setTimeout`. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/** Native-fetch health probe (only the status is consulted). Injectable for tests. */
+const defaultProbe: HealthProbe = (url) => fetch(url).then((r) => ({ status: r.status }));
 
 function parseHeader(raw: string): [string, string] {
   const separator = raw.indexOf(":");
@@ -74,6 +95,23 @@ const CLIENT_ARG_SPEC: ArgSpec<ClientCommandArgs> = {
     kind: "value",
     assign: (a, v) => {
       a.card = v;
+    },
+  },
+  // Resolve a running agent's base url by NAME from the shared registry
+  // (mutually exclusive with --url/--card). The dual-window launch passes the
+  // agent name; the runtime self-registers its (possibly ephemeral) url.
+  "--agent": {
+    kind: "value",
+    assign: (a, v) => {
+      a.agent = v;
+    },
+  },
+  // Wait for the --agent target to register AND pass a health probe before
+  // connecting — closes the race where the TUI starts before the runtime binds.
+  "--wait": {
+    kind: "flag",
+    assign: (a) => {
+      a.wait = true;
     },
   },
   // Repeatable: each occurrence appends to the headers map. Inline
@@ -141,11 +179,13 @@ export function printClientUsage(output: Pick<NodeJS.WriteStream, "write">): voi
       `agents-js v${CLI_VERSION} — client`,
       "",
       "Usage:",
-      "  agents-js client (--url <base-url> | --card <card-url>) [options]",
+      "  agents-js client (--url <base-url> | --card <card-url> | --agent <name>) [options]",
       "",
       "Options:",
       "  --url <base-url>       Connect using a base A2A URL",
       "  --card <card-url>      Connect using a full agent card URL",
+      "  --agent <name>         Resolve a registered agent's url by name (shared registry)",
+      "  --wait                 With --agent: wait until it registers and health-checks 200",
       "  --header <name:value>  Repeatable custom header",
       "  --context-id <id>      Reuse an existing context id",
       "  --task-id <id>         Reuse a specific task id",
@@ -372,20 +412,50 @@ export async function runClientCommand(
     return EXIT_OK;
   }
 
-  if ((parsed.url ? 1 : 0) + (parsed.card ? 1 : 0) !== 1) {
+  if ((parsed.url ? 1 : 0) + (parsed.card ? 1 : 0) + (parsed.agent ? 1 : 0) !== 1) {
     // EXIT_USAGE = 64 — missing/conflicting required args. Print client
     // usage to stderr so scripted callers see the help text alongside the
     // diagnostic, then exit with the standard sysexits(3) usage code.
-    process.stderr.write("[agents-js] Provide exactly one of --url or --card.\n");
+    process.stderr.write("[agents-js] Provide exactly one of --url, --card, or --agent.\n");
     printClientUsage(process.stderr);
     return 64;
   }
 
-  const target: AgentTargetInput = {
-    url: parsed.url ?? parsed.card ?? "",
-    headers: parsed.headers,
-    mode: parsed.card ? "card" : "base",
-  };
+  let target: AgentTargetInput;
+  if (parsed.agent) {
+    const agentName = parsed.agent;
+    // biome-ignore lint/style/noProcessEnv: CLI resolves the documented shared-registry path; tests inject env.
+    const env = dependencies.env ?? process.env;
+    const loadRecords =
+      dependencies.loadRegistryRecords ??
+      (() => readAgentRegistryRecords({ configPath: resolveSharedAgentRegistryPath({ env }) }));
+    let resolvedUrl: string;
+    try {
+      resolvedUrl = parsed.wait
+        ? await waitForAgentReady({
+            agent: agentName,
+            loadRecords,
+            probe: dependencies.probe ?? defaultProbe,
+            now: dependencies.now ?? Date.now,
+            sleep:
+              dependencies.sleep ??
+              ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
+            onStatus: (status) =>
+              output.write(`[agents-js] waiting for "${agentName}": ${status}\n`),
+          })
+        : resolveAgentUrl(await loadRecords(), agentName);
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return EXIT_ERROR;
+    }
+    target = { url: resolvedUrl, headers: parsed.headers, mode: "base" };
+  } else {
+    target = {
+      url: parsed.url ?? parsed.card ?? "",
+      headers: parsed.headers,
+      mode: parsed.card ? "card" : "base",
+    };
+  }
 
   if (parsed.probe) {
     const controller = new A2AClientController({

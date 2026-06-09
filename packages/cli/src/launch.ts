@@ -41,6 +41,7 @@ import {
   assertSelectedMatrixAgentUnique,
   buildLaunchPlan,
   createTmuxRunner,
+  createTmuxWindowOps,
   type LaunchEnv,
   type LaunchPlan,
   loadLaunchConfig,
@@ -48,6 +49,7 @@ import {
   resolveAgentEntry,
   resolveLanAdvertiseHost,
   type TmuxRunner,
+  type TmuxWindowOps,
 } from "@agents-js/agent-launch";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
 import { EXIT_DATAERR, EXIT_ERROR, EXIT_OK, EXIT_USAGE } from "./exit-codes.ts";
@@ -297,6 +299,57 @@ function startSession(
   return true;
 }
 
+/**
+ * Dual-window launch (pi `dual_window`): the interactive TUI in tmux window `:0`
+ * (auto-connected via `agents-js client --agent <name> --wait`) and the runtime
+ * in `:1` (the pi process, whose embedded A2A endpoint IS the ACP surface).
+ *
+ * Mirrors {@link startSession}'s contract — idempotent (no-op if the session
+ * exists), identity vars via `set-environment`, secrets via the send-keys export
+ * (never `set-environment`) — but splits the work across two windows through the
+ * composable window-ops seam. The `:0`/`:1` split is forced regardless of the
+ * operator's tmux `base-index`. Returns false when the session already exists.
+ */
+function startDualWindowSession(
+  runner: TmuxRunner,
+  windows: TmuxWindowOps,
+  plan: LaunchPlan,
+  output: Pick<NodeJS.WriteStream, "write">,
+): boolean {
+  const session = plan.tmuxSession;
+  if (runner.hasSession(session)) {
+    output.write(`[agents-js] launch: session "${session}" already exists; not re-creating\n`);
+    return false;
+  }
+  runner.newSessionDetached(session, plan.cwd);
+  for (const [k, v] of Object.entries(plan.sessionEnv)) {
+    runner.setEnvironment(session, k, v);
+  }
+  windows.normalizeFirstWindowToZero(session);
+  // :1 = runtime. The full env (sessionEnv + channelEnv, incl. provider creds)
+  // rides the send-keys export, exactly like the single-window launch.
+  windows.newWindow(session, 1, "runtime", plan.cwd);
+  windows.sendKeysToWindow(
+    session,
+    1,
+    renderCommandLine(
+      plan.cwd,
+      plan.command,
+      plan.args,
+      Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
+    ),
+  );
+  // :0 = TUI. Connect by registered NAME — the runtime self-registers its
+  // (possibly ephemeral) url, so the client resolves + waits for it.
+  const agentName = plan.sessionEnv.AGENTS_JS_PI_NAME ?? session;
+  windows.sendKeysToWindow(session, 0, `agents-js client --agent ${agentName} --wait`);
+  windows.selectWindow(session, 0);
+  output.write(
+    `[agents-js] launch: dual-window session "${session}" created (:0 tui, :1 runtime)\n`,
+  );
+  return true;
+}
+
 export interface LaunchCommandDependencies {
   output?: Pick<NodeJS.WriteStream, "write">;
   env?: NodeJS.ProcessEnv;
@@ -304,6 +357,8 @@ export interface LaunchCommandDependencies {
   cwd?: string;
   /** Inject a custom tmux runner for tests (skips real binary probe). */
   createRunner?: () => TmuxRunner;
+  /** Inject a custom tmux window-ops seam for tests (dual-window launches). */
+  createWindowOps?: () => TmuxWindowOps;
 }
 
 /**
@@ -406,6 +461,23 @@ export async function runLaunchCommand(
   }
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();
+
+  // Dual-window (pi): split TUI :0 / runtime :1 and auto-attach in the
+  // foreground. --with-receiver is a codex-only companion-session feature and
+  // does not combine with dual_window (rejected at plan build for non-pi).
+  if (plan.dualWindow) {
+    const windows = dependencies.createWindowOps
+      ? dependencies.createWindowOps()
+      : createTmuxWindowOps({ insideTmux: Boolean(env.TMUX) });
+    startDualWindowSession(runner, windows, plan, output);
+    if (parsed.bg) {
+      return EXIT_OK;
+    }
+    // Foreground: hand the terminal to the TUI window (switch-client when
+    // already inside tmux, else attach-session). Blocks until the user detaches.
+    windows.attachOrSwitch(plan.tmuxSession);
+    return EXIT_OK;
+  }
 
   startSession(
     runner,

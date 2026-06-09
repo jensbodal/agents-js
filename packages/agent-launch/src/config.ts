@@ -127,6 +127,13 @@ export interface AgentEntry {
    * closed rather than launching a credentialless agent.
    */
   readonly provider?: string;
+  /**
+   * Open the agent as a dual-window launch: the interactive TUI in tmux window
+   * `:0` (auto-connected via `agents-js client --agent <name> --wait`) and the
+   * runtime in `:1`. pi-harness only in this increment; the plan build rejects
+   * it on other harnesses. When unset/false the launch stays single-window.
+   */
+  readonly dualWindow?: boolean;
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -208,6 +215,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "pi_port",
   "pi_host",
   "provider",
+  "dual_window",
 ]);
 
 function requireString(
@@ -258,6 +266,22 @@ function optionalStringArray(
   return Object.freeze([...value]);
 }
 
+function optionalBoolean(
+  raw: Record<string, unknown>,
+  field: string,
+  ctx: { path: string; agent: string },
+): boolean | undefined {
+  const value = raw[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new LaunchConfigError(
+      `agent "${ctx.agent}" field "${field}" must be a boolean when present`,
+      { path: ctx.path, agent: ctx.agent, field },
+    );
+  }
+  return value;
+}
+
 function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string }): AgentEntry {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new LaunchConfigError(`agent "${ctx.agent}" entry must be an object`, {
@@ -297,6 +321,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     piPort: optionalString(obj, "pi_port", ctx),
     piHost: optionalString(obj, "pi_host", ctx),
     provider: optionalString(obj, "provider", ctx),
+    dualWindow: optionalBoolean(obj, "dual_window", ctx),
     extra,
   };
 }
