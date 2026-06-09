@@ -1,0 +1,40 @@
+{
+  "name": "@agents-js/lifestone-projector",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Lifestone agent-inbox projection: pure render/parse logic that mirrors the signed gateway inbox into an email-style lifestone mailbox (inbox/outbox/pending/failed/draft/saved/trash). Projection only — routing stays the gateway; lifestone is a view, never a second router. See lifestone hub/agent-inbox/PROJECTION-SPEC.md.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "test": "bun test tests"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

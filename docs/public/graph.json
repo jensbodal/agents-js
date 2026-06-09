@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-06T19:00:20.240Z",
-  "package_count": 40,
+  "generated_at": "2026-06-09T04:53:52.912Z",
+  "package_count": 41,
   "publishable_count": 28,
   "packages": [
     {
@@ -289,6 +289,16 @@
         "@agentclientprotocol/sdk",
         "jose"
       ],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
+      "name": "@agents-js/lifestone-projector",
+      "dir": "extras/lifestone-projector",
+      "private": true,
+      "version": "0.6.0",
+      "internal_deps": [],
+      "external_deps": [],
       "external_peer": [],
       "exports_count": 0
     },
@@ -740,6 +750,7 @@
     "@agents-js/matrix-bridge": [
       "@agents-js/gateway"
     ],
+    "@agents-js/lifestone-projector": [],
     "@agents-js/droid-acp": [
       "@agents-js/gateway"
     ],

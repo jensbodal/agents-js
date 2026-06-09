@@ -163,6 +163,13 @@
         "@types/bun": "catalog:",
       },
     },
+    "extras/lifestone-projector": {
+      "name": "@agents-js/lifestone-projector",
+      "version": "0.6.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "extras/matrix-bridge": {
       "name": "@agents-js/matrix-bridge",
       "version": "0.6.0",
@@ -648,6 +655,8 @@
     "@agents-js/gitea-bridge": ["@agents-js/gitea-bridge@workspace:extras/gitea-bridge"],
 
     "@agents-js/host": ["@agents-js/host@workspace:packages/host"],
+
+    "@agents-js/lifestone-projector": ["@agents-js/lifestone-projector@workspace:extras/lifestone-projector"],
 
     "@agents-js/matrix-bridge": ["@agents-js/matrix-bridge@workspace:extras/matrix-bridge"],
 
