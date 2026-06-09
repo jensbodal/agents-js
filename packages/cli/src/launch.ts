@@ -248,6 +248,8 @@ function buildCodexReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
     plan.env.CODEX_GATEWAY_KEY_CMD ?? plan.env.AGENTS_GATEWAY_KEY_CMD,
     "CODEX_GATEWAY_KEY_CMD/AGENTS_GATEWAY_KEY_CMD",
   );
+  const senderAllowlist =
+    plan.env.CODEX_GATEWAY_SENDER_ALLOWLIST ?? plan.env.AGENTS_GATEWAY_SENDER_ALLOWLIST;
 
   const receiverEnv: LaunchEnv = Object.freeze({
     ...plan.sessionEnv,
@@ -266,6 +268,7 @@ function buildCodexReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
     ...(plan.env.CODEX_GATEWAY_POLL_LIMIT
       ? { CODEX_GATEWAY_POLL_LIMIT: plan.env.CODEX_GATEWAY_POLL_LIMIT }
       : {}),
+    ...(senderAllowlist ? { CODEX_GATEWAY_SENDER_ALLOWLIST: senderAllowlist } : {}),
   });
 
   return {
@@ -314,7 +317,7 @@ function buildClaudeReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
       plan.env.CW_CURSOR_PATH ??
       path.join(plan.cwd, ".agents", identity, "claude-gateway-inbox-cursor.json"),
     CW_CLAUDE_CMD: plan.env.CW_CLAUDE_CMD ?? plan.command,
-    CW_CLAUDE_ARGS: plan.env.CW_CLAUDE_ARGS ?? "-p --permission-mode bypassPermissions",
+    ...(plan.env.CW_CLAUDE_ARGS ? { CW_CLAUDE_ARGS: plan.env.CW_CLAUDE_ARGS } : {}),
     CW_CLAUDE_MCP_CONFIG: mcpConfigPath,
     ...(plan.env.CW_GATEWAY_MCP_COMMAND
       ? { CW_GATEWAY_MCP_COMMAND: plan.env.CW_GATEWAY_MCP_COMMAND }

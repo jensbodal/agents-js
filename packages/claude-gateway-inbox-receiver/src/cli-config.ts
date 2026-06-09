@@ -51,6 +51,8 @@ export function readClaudeReceiverCliConfig(
     fetchMode,
     fetchImpl: selectFetchImpl(fetchMode),
     claudeCommand: env("CW_CLAUDE_CMD"),
+    // CW_CLAUDE_ARGS is an explicit operator override. Supplying
+    // bypassPermissions here is a sandbox-only opt-in, not the default.
     claudeArgs: splitClaudeArgs(env("CW_CLAUDE_ARGS")),
     mcpConfigPath,
     mcpCommand: env("CW_GATEWAY_MCP_COMMAND"),

@@ -17,6 +17,7 @@ describe("readReceiverCliConfig", () => {
         CODEX_GATEWAY_REPLY_TARGET: "coordinator",
         CODEX_GATEWAY_SKIP_GIT_REPO_CHECK: "true",
         CODEX_GATEWAY_FETCH: "curl",
+        CODEX_GATEWAY_SENDER_ALLOWLIST: "ajs-claude hostname-null-claude-0",
       },
       "/cwd",
     );
@@ -34,6 +35,7 @@ describe("readReceiverCliConfig", () => {
       skipGitRepoCheck: true,
     });
     expect(config.fetchImpl).toBe(curlFetch);
+    expect([...config.senderAllowlist]).toEqual(["ajs-claude", "hostname-null-claude-0"]);
     expect(missingRequiredReceiverCliEnv(config)).toBe(false);
   });
 
@@ -56,6 +58,7 @@ describe("readReceiverCliConfig", () => {
     expect(config.autoReply).toBe(false);
     expect(config.skipGitRepoCheck).toBe(false);
     expect(config.fetchImpl).toBeUndefined();
+    expect([...config.senderAllowlist]).toEqual([]);
     expect(missingRequiredReceiverCliEnv(config)).toBe(false);
   });
 

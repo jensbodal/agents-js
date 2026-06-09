@@ -8,6 +8,7 @@ import {
   type GetMessagesResult,
 } from "@agents-js/gateway-inbox-runtime";
 import { deliverRow, runCodexGatewayInboxReceiver } from "../src/receiver.ts";
+import { parseSenderAllowlist } from "../src/sender-allowlist.ts";
 
 function client(): GatewayInboxClient & { sends: Array<{ target: string; body: string }> } {
   const sends: Array<{ target: string; body: string }> = [];
@@ -27,6 +28,30 @@ function client(): GatewayInboxClient & { sends: Array<{ target: string; body: s
 const logger = { log() {}, warn() {}, error() {} };
 
 describe("deliverRow", () => {
+  test("default-deny allowlist skips every sender until configured", async () => {
+    const c = client();
+    const warnings: string[] = [];
+    let runs = 0;
+    await deliverRow({
+      row: { message_id: "m0", body: "hello", sender: "ajs-claude" },
+      runner: {
+        async run() {
+          runs += 1;
+          return { reply: "ack" };
+        },
+      },
+      client: c,
+      identity: "codex",
+      autoReply: true,
+      senderAllowlist: parseSenderAllowlist(undefined),
+      logger: { ...logger, warn: (message) => warnings.push(message) },
+    });
+
+    expect(runs).toBe(0);
+    expect(c.sends).toEqual([]);
+    expect(warnings).toEqual(["sender-not-allowlisted message_id=m0 sender=ajs-claude"]);
+  });
+
   test("does not auto-reply when Matrix row has no routable target", async () => {
     const c = client();
     const warnings: string[] = [];
@@ -44,6 +69,7 @@ describe("deliverRow", () => {
       client: c,
       identity: "codex",
       autoReply: true,
+      senderAllowlist: parseSenderAllowlist("@alice:hs"),
       logger: { ...logger, warn: (message) => warnings.push(message) },
     });
 
@@ -63,6 +89,7 @@ describe("deliverRow", () => {
       client: c,
       identity: "codex",
       autoReply: true,
+      senderAllowlist: parseSenderAllowlist("ajs-claude"),
       logger,
     });
 
@@ -86,6 +113,7 @@ describe("deliverRow", () => {
       identity: "codex",
       autoReply: true,
       replyTarget: "coordinator-agent",
+      senderAllowlist: parseSenderAllowlist("@alice:hs"),
       logger,
     });
     expect(matrixClient.sends).toEqual([{ target: "coordinator-agent", body: "ack" }]);
@@ -102,6 +130,7 @@ describe("deliverRow", () => {
       identity: "codex",
       autoReply: true,
       replyTarget: "coordinator-agent",
+      senderAllowlist: parseSenderAllowlist("ajs-claude"),
       logger,
     });
     expect(nativeClient.sends).toEqual([{ target: "ajs-claude", body: "ack" }]);
@@ -119,6 +148,7 @@ describe("deliverRow", () => {
       client: c,
       identity: "codex",
       autoReply: true,
+      senderAllowlist: parseSenderAllowlist("ajs-claude"),
       logger,
     });
 
@@ -144,6 +174,7 @@ describe("deliverRow", () => {
         client: failingClient,
         identity: "codex",
         autoReply: true,
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         logger,
       }),
     ).rejects.toThrow(/gateway down/);
@@ -185,6 +216,7 @@ describe("runCodexGatewayInboxReceiver", () => {
             return {};
           },
         },
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         signal: controller.signal,
         logger,
       });
@@ -227,6 +259,7 @@ describe("runCodexGatewayInboxReceiver", () => {
             throw new Error("codex turn failed");
           },
         },
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         signal: first.signal,
         logger,
       });
@@ -248,6 +281,7 @@ describe("runCodexGatewayInboxReceiver", () => {
             return {};
           },
         },
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         signal: second.signal,
         logger,
       });

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parseSenderAllowlist, senderAllowed } from "../src/sender-allowlist.ts";
 
 describe("sender allowlist", () => {
-  test("documents the default-deny behavior and exact-match configured guard", () => {
+  test("documents default-deny behavior for untrusted gateway inbox rows", () => {
     expect(senderAllowed("ajs-claude", parseSenderAllowlist(undefined))).toBe(false);
 
     const allowlist = parseSenderAllowlist("ajs-claude,hostname-null-claude-0 @alice:hs");

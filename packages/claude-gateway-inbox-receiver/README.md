@@ -51,6 +51,10 @@ bun add @agents-js/claude-gateway-inbox-receiver
 - **`SenderAllowlist`**
 - **`SpawnImpl`**
 
+### Constants
+
+- **`DEFAULT_CLAUDE_ARGS`**
+
 
 ## Dependencies
 

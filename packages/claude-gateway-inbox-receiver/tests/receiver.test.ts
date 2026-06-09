@@ -25,6 +25,25 @@ function client(row: { message_id: string; body: string; sender?: string }): Gat
 }
 
 describe("deliverRow", () => {
+  test("default-deny allowlist skips every sender until configured", async () => {
+    const warnings: string[] = [];
+    let runs = 0;
+    await deliverRow({
+      row: { message_id: "m0", body: "hello", sender: "ajs-claude" },
+      runner: {
+        async run() {
+          runs += 1;
+          return { delivered: true };
+        },
+      },
+      senderAllowlist: parseSenderAllowlist(undefined),
+      logger: { ...logger, warn: (message) => warnings.push(message) },
+    });
+
+    expect(runs).toBe(0);
+    expect(warnings).toEqual(["sender-not-allowlisted message_id=m0 sender=ajs-claude"]);
+  });
+
   test("skips non-allowlisted senders before spawning Claude", async () => {
     const warnings: string[] = [];
     let runs = 0;
@@ -75,6 +94,7 @@ describe("runClaudeGatewayInboxReceiver", () => {
             return { delivered: true };
           },
         },
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         signal: controller.signal,
         logger,
       });
@@ -108,6 +128,7 @@ describe("runClaudeGatewayInboxReceiver", () => {
             throw new Error("claude turn failed");
           },
         },
+        senderAllowlist: parseSenderAllowlist("ajs-claude"),
         signal: first.signal,
         logger,
       });

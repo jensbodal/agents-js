@@ -9,6 +9,7 @@ import {
 import { type CodexRunner, type JsonRpcClient, selectCodexRunner } from "./codex-runner.ts";
 import { runKeyCommand } from "./key-command.ts";
 import { formatInboxRowForCodex } from "./prompt-format.ts";
+import { type SenderAllowlist, senderAllowed } from "./sender-allowlist.ts";
 
 export interface ReceiverLogger {
   log(message: string): void;
@@ -31,6 +32,7 @@ export interface CodexGatewayInboxReceiverOptions {
   readonly autoReply?: boolean;
   readonly replyTarget?: string;
   readonly skipGitRepoCheck?: boolean;
+  readonly senderAllowlist?: SenderAllowlist;
   readonly signal: AbortSignal;
   readonly logger?: ReceiverLogger;
 }
@@ -76,6 +78,7 @@ export async function runCodexGatewayInboxReceiver(
           identity: options.identity,
           autoReply: options.autoReply ?? false,
           replyTarget: options.replyTarget,
+          senderAllowlist: options.senderAllowlist ?? new Set(),
           logger,
         }),
     });
@@ -91,11 +94,18 @@ export interface DeliverRowOptions {
   readonly identity: string;
   readonly autoReply: boolean;
   readonly replyTarget?: string;
+  readonly senderAllowlist: SenderAllowlist;
   readonly logger: ReceiverLogger;
 }
 
 export async function deliverRow(options: DeliverRowOptions): Promise<void> {
   const formatted = formatInboxRowForCodex(options.row);
+  if (!senderAllowed(formatted.senderIdentity, options.senderAllowlist)) {
+    options.logger.warn(
+      `sender-not-allowlisted message_id=${options.row.message_id} sender=${formatted.senderIdentity}`,
+    );
+    return;
+  }
   options.logger.log(`delivering message_id=${options.row.message_id}`);
   const result = await options.runner.run(formatted.prompt);
   if (!options.autoReply || !result.reply?.trim()) return;

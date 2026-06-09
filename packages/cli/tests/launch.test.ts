@@ -205,6 +205,9 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(receiverCmd).toContain('export CODEX_GATEWAY_FETCH="curl"');
     expect(receiverCmd).toContain('export CODEX_GATEWAY_SKIP_GIT_REPO_CHECK="true"');
     expect(receiverCmd).toContain(
+      'export CODEX_GATEWAY_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"',
+    );
+    expect(receiverCmd).toContain(
       'export CODEX_GATEWAY_CURSOR_PATH="/Users/jensbodal/workspaces/agents/olthoi0-codex-0/.agents/olthoi0-codex-0/gateway-inbox-cursor.json"',
     );
 
@@ -264,6 +267,7 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
       'export CW_CLAUDE_MCP_CONFIG="/Users/jensbodal/workspaces/agents/hostname-null-claude-0/.agents/hostname-null-claude-0/gateway-mcp.json"',
     );
     expect(receiverCmd).toContain('export CW_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"');
+    expect(receiverCmd).not.toContain("bypassPermissions");
 
     const receiverSessionEnvKeys = calls.setEnvironment
       .filter(([session]) => session === "hostname-null-claude-0-receiver")

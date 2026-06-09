@@ -11,6 +11,14 @@ export interface ClaudeRunner {
 
 export type SpawnImpl = typeof spawn;
 
+export const DEFAULT_CLAUDE_ARGS: readonly string[] = Object.freeze([
+  "-p",
+  "--disallowedTools",
+  "Bash,Edit,Write,WebFetch",
+  "--allowedTools",
+  "mcp__agents_gateway__agents_send_message",
+]);
+
 export interface ClaudeSpawnRunnerOptions {
   readonly command?: string;
   readonly args?: readonly string[];
@@ -33,7 +41,7 @@ export class ClaudeSpawnRunner implements ClaudeRunner {
 
   constructor(private readonly options: ClaudeSpawnRunnerOptions) {
     this.command = options.command ?? "claude";
-    this.args = options.args ?? ["-p", "--permission-mode", "bypassPermissions"];
+    this.args = options.args ?? DEFAULT_CLAUDE_ARGS;
     this.cwd = options.cwd;
     this.spawnImpl = options.spawnImpl ?? spawn;
   }

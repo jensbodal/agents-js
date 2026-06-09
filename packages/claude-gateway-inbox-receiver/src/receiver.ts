@@ -34,7 +34,7 @@ export interface ClaudeGatewayInboxReceiverOptions {
   readonly mcpConfigPath: string;
   readonly mcpCommand?: string;
   readonly mcpArgs?: readonly string[];
-  readonly senderAllowlist?: SenderAllowlist;
+  readonly senderAllowlist: SenderAllowlist;
   readonly signal: AbortSignal;
   readonly logger?: ReceiverLogger;
 }
@@ -93,7 +93,7 @@ export async function runClaudeGatewayInboxReceiver(
 export interface DeliverClaudeRowOptions {
   readonly row: InboxMessage;
   readonly runner: ClaudeRunner;
-  readonly senderAllowlist?: SenderAllowlist;
+  readonly senderAllowlist: SenderAllowlist;
   readonly logger: ReceiverLogger;
 }
 
