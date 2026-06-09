@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TmuxWindowOps } from "@agents-js/agent-launch";
-import { resolveConfigPath, runLaunchCommand } from "../src/launch.ts";
+import { isSafeAgentName, resolveConfigPath, runLaunchCommand } from "../src/launch.ts";
 
 const FIXTURE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -470,6 +470,17 @@ describe("runLaunchCommand — pi dual_window orchestration", () => {
     expect(code).toBe(0);
     expect(wcalls.newWindow).toHaveLength(1);
     expect(wcalls.attach).toEqual(["pi-dual"]);
+  });
+
+  // Hardening: the agent name interpolated into the :0 client send-keys is
+  // validated; a malformed config name fails closed instead of reaching a shell.
+  test("isSafeAgentName accepts slug-like fleet ids and rejects shell-significant input", () => {
+    for (const ok of ["hostname-null-ajs-pi-0", "pi-dual", "cognee_claude", "Agent.1", "p0"]) {
+      expect(isSafeAgentName(ok)).toBe(true);
+    }
+    for (const bad of ["pi dual", "pi;rm -rf /", "$(whoami)", "pi&&x", "-leading", "pi`x`", ""]) {
+      expect(isSafeAgentName(bad)).toBe(false);
+    }
   });
 
   // LT-11: re-launch onto an existing session creates no windows.

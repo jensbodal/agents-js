@@ -310,10 +310,25 @@ function startSession(
  * composable window-ops seam. The `:0`/`:1` split is forced regardless of the
  * operator's tmux `base-index`. Returns false when the session already exists.
  */
+/**
+ * Agent names that are safe to interpolate into the `:0` window's
+ * `agents-js client --agent <name> --wait` send-keys command. The name is
+ * trusted launch-config/identity data (a slug-like fleet id), but the value
+ * reaches a shell via send-keys, so we fail closed on anything outside a
+ * conservative slug charset rather than risk an injection through a malformed
+ * config. Matches the registry/identity naming already in use.
+ */
+const SAFE_AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export function isSafeAgentName(name: string): boolean {
+  return SAFE_AGENT_NAME.test(name);
+}
+
 function startDualWindowSession(
   runner: TmuxRunner,
   windows: TmuxWindowOps,
   plan: LaunchPlan,
+  agentName: string,
   output: Pick<NodeJS.WriteStream, "write">,
 ): boolean {
   const session = plan.tmuxSession;
@@ -340,8 +355,8 @@ function startDualWindowSession(
     ),
   );
   // :0 = TUI. Connect by registered NAME — the runtime self-registers its
-  // (possibly ephemeral) url, so the client resolves + waits for it.
-  const agentName = plan.sessionEnv.AGENTS_JS_PI_NAME ?? session;
+  // (possibly ephemeral) url, so the client resolves + waits for it. The name is
+  // validated by the caller (see isSafeAgentName) before reaching this send-keys.
   windows.sendKeysToWindow(session, 0, `agents-js client --agent ${agentName} --wait`);
   windows.selectWindow(session, 0);
   output.write(
@@ -466,10 +481,19 @@ export async function runLaunchCommand(
   // foreground. --with-receiver is a codex-only companion-session feature and
   // does not combine with dual_window (rejected at plan build for non-pi).
   if (plan.dualWindow) {
+    // The TUI window connects by registered name; validate it before it reaches
+    // the `:0` send-keys command (fail closed on a malformed config name).
+    const agentName = plan.sessionEnv.AGENTS_JS_PI_NAME ?? plan.tmuxSession;
+    if (!isSafeAgentName(agentName)) {
+      process.stderr.write(
+        `[agents-js launch] refusing dual-window: agent name "${agentName}" is not a safe slug (expected [A-Za-z0-9][A-Za-z0-9._-]*)\n`,
+      );
+      return EXIT_DATAERR;
+    }
     const windows = dependencies.createWindowOps
       ? dependencies.createWindowOps()
       : createTmuxWindowOps({ insideTmux: Boolean(env.TMUX) });
-    startDualWindowSession(runner, windows, plan, output);
+    startDualWindowSession(runner, windows, plan, agentName, output);
     if (parsed.bg) {
       return EXIT_OK;
     }
