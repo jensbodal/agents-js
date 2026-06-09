@@ -2,6 +2,7 @@
   "name": "@agents-js/wake-channel-bridge",
   "version": "0.6.0",
   "type": "module",
+  "private": true,
   "sideEffects": false,
   "description": "Gateway-side composition: pulls pending wake signals from @agents-js/wake-signal-store, emits them via @agents-js/claude-channel-adapter, marks delivered on success. Closes the AJS-89 HYBRID SOURCE → CC receiver loop per ADR-0007 revision.",
   "author": "Jens Bodal",
