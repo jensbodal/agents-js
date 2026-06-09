@@ -28,3 +28,9 @@ export {
   slugify,
   toCompactStamp,
 } from "./render.ts";
+export {
+  annotateDelivered,
+  type OutboxRouteOutcome,
+  type OutboxSendFn,
+  routeOutboxContent,
+} from "./send-path.ts";
