@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture - native Codex agent with gateway receiver env",
+  "agents": {
+    "olthoi0-codex-0": {
+      "tmux_session": "olthoi0-codex-0",
+      "harness": "codex",
+      "binary": "codex",
+      "workspace": "/Users/jensbodal/workspaces/agents/olthoi0-codex-0",
+      "fresh_flags": "--sandbox workspace-write -c sandbox_workspace_write.network_access=true",
+      "env_setup": "export MATRIX_AGENT=olthoi0-codex-0 && export AGENTS_GATEWAY_SUB=olthoi0-codex-0",
+      "git_author_name": "olthoi0-codex-0",
+      "git_author_email": "olthoi0-codex-0@noreply.bodal.dev",
+      "channel_env": "export CODEX_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CODEX_GATEWAY_KEY_CMD='gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key' && export CODEX_GATEWAY_POLL_INTERVAL_MS=15000"
+    }
+  }
+}

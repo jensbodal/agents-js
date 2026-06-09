@@ -173,6 +173,11 @@ describe("agents-js CLI", () => {
     expect(captured).toContain("# agents-js CLI");
   });
 
+  test("prints codex-receiver help", async () => {
+    const code = await runAgentsJsCli(["codex-receiver", "--help"]);
+    expect(code).toBe(0);
+  });
+
   test("resolves the packaged skill path from source and dist module URLs", () => {
     expect(resolvePackagedSkillPath(new URL("../src/skill.ts", import.meta.url).href)).toBe(
       path.join(import.meta.dir, "..", "skills", "agents-js", "SKILL.md"),

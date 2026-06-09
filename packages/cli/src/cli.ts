@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { runAcpCommand } from "./acp.ts";
 import { runBridgeCommand } from "./bridge.ts";
 import { runClientCommand } from "./client/command.ts";
+import { runCodexReceiverCommand } from "./codex-receiver.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
 import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
@@ -30,7 +31,8 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  client    Open the A2A client TUI",
       "  send      Send a one-shot prompt to a running serve and print the response",
       "  registry  Manage the shared agent registry",
-      "  launch    Launch or attach to an agent's tmux session (claude-code | pi)",
+      "  launch    Launch or attach to an agent's tmux session (claude-code | codex | pi)",
+      "  codex-receiver  Poll gateway inbox rows into native Codex",
       "  onboard   Onboard an agent onto the mesh (launch + provision)",
       "  skill     Print the installable agents-js SKILL.md document",
       "",
@@ -44,6 +46,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "Run `agents-js mcp --help` for mcp-specific options.",
       "Run `agents-js client --help` for client-specific options.",
       "Run `agents-js send --help` for send-specific options.",
+      "Run `agents-js codex-receiver --help` for receiver env details.",
       "Run `agents-js skill --help` for skill-specific options.",
     ].join("\n")}\n`,
   );
@@ -97,6 +100,10 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
   if (command === "launch") {
     const result = await runLaunchCommand(rest);
     return typeof result === "number" ? result : EXIT_OK;
+  }
+
+  if (command === "codex-receiver") {
+    return runCodexReceiverCommand(rest);
   }
 
   if (command === "onboard") {

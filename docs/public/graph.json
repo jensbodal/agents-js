@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-09T11:06:53.593Z",
+  "generated_at": "2026-06-09T21:24:34.533Z",
   "package_count": 43,
-  "publishable_count": 30,
+  "publishable_count": 29,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -185,6 +185,7 @@
         "@agents-js/acp",
         "@agents-js/acp-host",
         "@agents-js/agent-launch",
+        "@agents-js/codex-gateway-inbox-receiver",
         "@agents-js/gateway-runtime",
         "@agents-js/host",
         "@agents-js/mcp-bridge",
@@ -564,7 +565,7 @@
     {
       "name": "@agents-js/wake-channel-bridge",
       "dir": "extras/wake-channel-bridge",
-      "private": false,
+      "private": true,
       "version": "0.6.0",
       "internal_deps": [
         "@agents-js/claude-channel-adapter",
@@ -735,7 +736,9 @@
       "@agents-js/cli",
       "@agents-js/mcp-bridge"
     ],
-    "@agents-js/codex-gateway-inbox-receiver": [],
+    "@agents-js/codex-gateway-inbox-receiver": [
+      "@agents-js/cli"
+    ],
     "@agents-js/agent-launch": [
       "@agents-js/cli",
       "@agents-js/gateway-runtime"

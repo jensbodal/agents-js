@@ -2,7 +2,7 @@
  * `agents-js launch` subcommand.
  *
  * Launches a named agent in a fresh tmux session via the harness-launcher
- * registry (currently the claude-code and pi harnesses). Resume mode, status
+ * registry (currently the claude-code, codex, and pi harnesses). Resume mode, status
  * overview, and bridge preflight land in subsequent phases per the vault plan.
  *
  * **Subcommand shape**:
@@ -42,6 +42,7 @@ import {
   buildLaunchPlan,
   createTmuxRunner,
   type LaunchEnv,
+  type LaunchPlan,
   loadLaunchConfig,
   MatrixAgentCollisionError,
   resolveAgentEntry,
@@ -57,6 +58,7 @@ interface LaunchCommandArgs {
   bg: boolean;
   configPath?: string;
   help: boolean;
+  withReceiver: boolean;
 }
 
 const LAUNCH_ARG_SPEC: ArgSpec<LaunchCommandArgs> = {
@@ -87,6 +89,13 @@ const LAUNCH_ARG_SPEC: ArgSpec<LaunchCommandArgs> = {
     description: "Override config search path",
     valueExample: "<path>",
   },
+  "--with-receiver": {
+    kind: "flag",
+    assign: (a) => {
+      a.withReceiver = true;
+    },
+    description: "Start a companion Codex gateway-inbox receiver session",
+  },
   "--help": {
     kind: "flag",
     assign: (a) => {
@@ -108,12 +117,13 @@ function printLaunchUsage(output: Pick<NodeJS.WriteStream, "write"> = process.st
       "Usage:",
       "  agents-js launch <agent-name> [options]",
       "",
-      "Launch or attach to an agent's tmux session. Supports the",
-      "claude-code and pi harnesses in fresh mode (resume not yet supported).",
+      "Launch or attach to an agent's tmux session.",
+      "Supports claude-code, codex, and pi harnesses in fresh mode.",
       "",
       "Options:",
       "  --bg, --background, -d   Create session detached, don't attach",
       "  --config <path>          Override config search path",
+      "  --with-receiver          Start companion Codex gateway-inbox receiver",
       "  --help, -h               Show this message",
       "  --version, -v            Print version",
       "",
@@ -126,6 +136,7 @@ function printLaunchUsage(output: Pick<NodeJS.WriteStream, "write"> = process.st
       "",
       "Examples:",
       "  agents-js launch cognee-claude --bg",
+      "  agents-js launch olthoi0-codex-0 --with-receiver --bg",
       "  agents-js launch ajs-claude --config ./scripts/agent-launch-config.json",
     ].join("\n")}\n`,
   );
@@ -182,6 +193,110 @@ function filterEnv(env: NodeJS.ProcessEnv): LaunchEnv {
   return out;
 }
 
+function renderCommandLine(
+  cwd: string,
+  command: string,
+  args: readonly string[],
+  env: LaunchEnv,
+): string {
+  const envExports = Object.entries(env)
+    .map(([k, v]) => `export ${k}=${JSON.stringify(v)}`)
+    .join(" && ");
+  return `${envExports ? `${envExports} && ` : ""}cd ${JSON.stringify(cwd)} && ${command} ${args.join(" ")}`;
+}
+
+interface ReceiverLaunchPlan {
+  readonly tmuxSession: string;
+  readonly cwd: string;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env: LaunchEnv;
+  readonly sessionEnv: LaunchEnv;
+}
+
+function requireReceiverEnv(value: string | undefined, name: string): string {
+  if (value && value.trim().length > 0) return value;
+  throw new Error(`[agents-js launch] --with-receiver requires ${name} via channel_env or env`);
+}
+
+function buildCodexReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
+  if (plan.harness !== "codex") {
+    throw new Error(`[agents-js launch] --with-receiver is only supported for harness "codex"`);
+  }
+
+  const identity =
+    plan.env.CODEX_GATEWAY_IDENTITY ??
+    plan.env.AGENTS_GATEWAY_SUB ??
+    plan.env.MATRIX_AGENT ??
+    plan.tmuxSession;
+  const gatewayUrl = requireReceiverEnv(
+    plan.env.CODEX_GATEWAY_URL ?? plan.env.AGENTS_GATEWAY_URL,
+    "CODEX_GATEWAY_URL/AGENTS_GATEWAY_URL",
+  );
+  const keyCommand = requireReceiverEnv(
+    plan.env.CODEX_GATEWAY_KEY_CMD ?? plan.env.AGENTS_GATEWAY_KEY_CMD,
+    "CODEX_GATEWAY_KEY_CMD/AGENTS_GATEWAY_KEY_CMD",
+  );
+
+  const receiverEnv: LaunchEnv = Object.freeze({
+    ...plan.sessionEnv,
+    CODEX_GATEWAY_IDENTITY: identity,
+    CODEX_GATEWAY_URL: gatewayUrl,
+    CODEX_GATEWAY_KEY_CMD: keyCommand,
+    CODEX_WORKSPACE: plan.cwd,
+    CODEX_GATEWAY_CURSOR_PATH:
+      plan.env.CODEX_GATEWAY_CURSOR_PATH ??
+      path.join(plan.cwd, ".agents", identity, "gateway-inbox-cursor.json"),
+    CODEX_GATEWAY_FETCH: plan.env.CODEX_GATEWAY_FETCH ?? "curl",
+    CODEX_GATEWAY_SKIP_GIT_REPO_CHECK: plan.env.CODEX_GATEWAY_SKIP_GIT_REPO_CHECK ?? "true",
+    ...(plan.env.CODEX_GATEWAY_POLL_INTERVAL_MS
+      ? { CODEX_GATEWAY_POLL_INTERVAL_MS: plan.env.CODEX_GATEWAY_POLL_INTERVAL_MS }
+      : {}),
+    ...(plan.env.CODEX_GATEWAY_POLL_LIMIT
+      ? { CODEX_GATEWAY_POLL_LIMIT: plan.env.CODEX_GATEWAY_POLL_LIMIT }
+      : {}),
+  });
+
+  return {
+    tmuxSession: plan.env.CODEX_GATEWAY_RECEIVER_SESSION ?? `${plan.tmuxSession}-receiver`,
+    cwd: plan.cwd,
+    command: plan.env.CODEX_GATEWAY_RECEIVER_COMMAND ?? "agents-js",
+    args: plan.env.CODEX_GATEWAY_RECEIVER_COMMAND ? [] : ["codex-receiver"],
+    env: receiverEnv,
+    sessionEnv: plan.sessionEnv,
+  };
+}
+
+function startSession(
+  runner: TmuxRunner,
+  launch: {
+    readonly tmuxSession: string;
+    readonly cwd: string;
+    readonly command: string;
+    readonly args: readonly string[];
+    readonly env: LaunchEnv;
+    readonly sessionEnv: LaunchEnv;
+  },
+  output: Pick<NodeJS.WriteStream, "write">,
+): boolean {
+  if (runner.hasSession(launch.tmuxSession)) {
+    output.write(
+      `[agents-js] launch: session "${launch.tmuxSession}" already exists; not re-creating\n`,
+    );
+    return false;
+  }
+  runner.newSessionDetached(launch.tmuxSession, launch.cwd);
+  for (const [k, v] of Object.entries(launch.sessionEnv)) {
+    runner.setEnvironment(launch.tmuxSession, k, v);
+  }
+  runner.sendKeys(
+    launch.tmuxSession,
+    renderCommandLine(launch.cwd, launch.command, launch.args, launch.env),
+  );
+  output.write(`[agents-js] launch: session "${launch.tmuxSession}" created (detached)\n`);
+  return true;
+}
+
 export interface LaunchCommandDependencies {
   output?: Pick<NodeJS.WriteStream, "write">;
   env?: NodeJS.ProcessEnv;
@@ -225,7 +340,7 @@ export async function runLaunchCommand(
   try {
     parsed = parseArgv<LaunchCommandArgs>(flagsOnly, LAUNCH_ARG_SPEC, {
       subcommandName: "launch",
-      defaults: { bg: false, help: false },
+      defaults: { bg: false, help: false, withReceiver: false },
     });
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
@@ -280,46 +395,33 @@ export async function runLaunchCommand(
     baseEnv: filterEnv(env),
     resolveLanHost: () => resolveLanAdvertiseHost({ lanDomain }),
   });
+  let receiverPlan: ReceiverLaunchPlan | undefined;
+  if (parsed.withReceiver) {
+    try {
+      receiverPlan = buildCodexReceiverPlan(plan);
+    } catch (err) {
+      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+      return EXIT_DATAERR;
+    }
+  }
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();
 
-  if (runner.hasSession(plan.tmuxSession)) {
-    output.write(
-      `[agents-js] launch: session "${plan.tmuxSession}" already exists; not re-creating\n`,
-    );
-    if (parsed.bg) return EXIT_OK;
-    // Attach path (foreground) is deferred — Phase 1 documents this as
-    // "use tmux attach -t <session>" manually until --bg-less mode is
-    // wired in Phase 5 alongside the dot-cognee shim cutover.
-    output.write(`[agents-js] launch: attach with \`tmux attach -t ${plan.tmuxSession}\`\n`);
-    return EXIT_OK;
+  startSession(
+    runner,
+    {
+      tmuxSession: plan.tmuxSession,
+      cwd: plan.cwd,
+      command: plan.command,
+      args: plan.args,
+      env: Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
+      sessionEnv: plan.sessionEnv,
+    },
+    output,
+  );
+  if (receiverPlan) {
+    startSession(runner, receiverPlan, output);
   }
-
-  runner.newSessionDetached(plan.tmuxSession, plan.cwd);
-
-  // Push identity env onto the tmux session env so windows opened later
-  // by the user see the same identity. Phase 1 set: git + MATRIX_AGENT.
-  for (const [k, v] of Object.entries(plan.sessionEnv)) {
-    runner.setEnvironment(plan.tmuxSession, k, v);
-  }
-
-  // Compose the launch command string for send-keys. Phase 1 emits
-  //   <env exports> <binary> <args>
-  // as a single send-keys payload so the harness inherits the env vars.
-  // Phase 2+ revisits this when codex-cli's printf-quoted launch_prompt
-  // surfaces shell-quoting concerns.
-  //
-  // Both sessionEnv (identity) and channelEnv (channel-adapter provisioning)
-  // are exported into the harness process env so a launched session is fully
-  // provisioned. channelEnv is intentionally absent from set-environment above
-  // — it should not persist to later windows in the session.
-  const envExports = Object.entries({ ...plan.sessionEnv, ...plan.channelEnv })
-    .map(([k, v]) => `export ${k}=${JSON.stringify(v)}`)
-    .join(" && ");
-  const cmdLine = `${envExports ? `${envExports} && ` : ""}cd ${JSON.stringify(plan.cwd)} && ${plan.command} ${plan.args.join(" ")}`;
-  runner.sendKeys(plan.tmuxSession, cmdLine);
-
-  output.write(`[agents-js] launch: session "${plan.tmuxSession}" created (detached)\n`);
   if (parsed.bg) {
     return EXIT_OK;
   }

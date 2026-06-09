@@ -68,6 +68,7 @@ graph LR
   cli --> acp
   cli --> acp_host
   cli --> agent_launch
+  cli --> codex_gateway_inbox_receiver
   cli --> gateway_runtime
   cli --> host
   cli --> mcp_bridge
