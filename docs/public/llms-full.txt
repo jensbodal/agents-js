@@ -5490,6 +5490,7 @@ bun add @agents-js/agent-launch
 - **`assertSelectedMatrixAgentUnique`** — Assert the SELECTED agent's MATRIX_AGENT identity is unique within the launch config (ADR #75 Phase 1). Pure + I/O-free. Throws {MatrixAgentCollisionError} iff the selected agent declares a MATRIX_...
 - **`buildLaunchPlan`** — Build a {LaunchPlan} for `entry` in `mode`. Throws {LaunchPlanError} for unsupported harnesses or mode.
 - **`createTmuxRunner`** — Build a {TmuxRunner}. Production callers pass no options; tests inject `tmuxBin` and/or `spawner` to avoid the real binary. The function eagerly verifies tmux is on PATH (via a `tmux -V` probe) so ...
+- **`createTmuxWindowOps`** — Build {TmuxWindowOps}. Production callers pass no options; tests inject `spawner` (and `attach`) to avoid the real binary.
 - **`deriveChannelEnv`** — Generate the `CH_GATEWAY_*` channel-adapter env for a numbered identity — the AJS-55 mint/redeem transport wiring the wake/inbox channel-adapter reads (`packages/claude-channel-adapter/bin/launcher...
 - **`deriveLaunchProfile`** — Derive the {AgentLaunchProfile} for a parsed numbered identity. Pure. - native: `command` = the harness binary (operator host); provider env set. - ajs-fronted: `command` = `agents-js-gateway --run...
 - **`deriveRegistryEntry`** — Generate the native-path A2A registry entry for a numbered identity — the `{kind:"a2a", name, url}` shape consumed by the agent registry (`packages/host/src/agent-registry.ts`) and emitted by `agen...
@@ -5523,6 +5524,8 @@ bun add @agents-js/agent-launch
 - **`TmuxRunner`** — Resolved tmux runner. Constructed once by the launch path (CLI) and passed to every tmux operation in the same launch.
 - **`TmuxRunnerOptions`** — Override for tests. Production caller doesn't pass this; the default resolves to `"tmux"` from PATH.
 - **`TmuxSpawnResult`**
+- **`TmuxWindowOps`**
+- **`TmuxWindowOpsOptions`**
 
 ### Types
 
@@ -5534,6 +5537,7 @@ bun add @agents-js/agent-launch
 - **`NetworkInterfacesSource`**
 - **`ProviderId`** — Semantic LLM provider an agent authenticates against.
 - **`SupportedHarness`** — Config harness kinds with a {HARNESS_LAUNCHERS} entry. The union is the source of truth; the registry is typed as a total `Record` over it, so adding a kind here without a launcher entry is a compi...
+- **`TmuxAttach`** — Interactive attach/switch seam — handed the tmux argv; inherits stdio.
 - **`TmuxSpawner`** — Spawner signature. `args` is `["tmux", ...tmuxArgs]` semantically — caller passes JUST the tmux args; the spawner prepends the resolved tmux binary internally.
 
 ### Constants
