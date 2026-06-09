@@ -1,9 +1,9 @@
 /**
- * `agents-js launch` subcommand — Phase 1 of the AJS-141 migration.
+ * `agents-js launch` subcommand.
  *
- * Phase 1 scope: launch a named agent in a fresh tmux session using a
- * claude-code harness. Resume mode, other harnesses, status overview,
- * and bridge preflight land in subsequent phases per the vault plan.
+ * Launches a named agent in a fresh tmux session via the harness-launcher
+ * registry (currently the claude-code and pi harnesses). Resume mode, status
+ * overview, and bridge preflight land in subsequent phases per the vault plan.
  *
  * **Subcommand shape**:
  *
@@ -108,8 +108,8 @@ function printLaunchUsage(output: Pick<NodeJS.WriteStream, "write"> = process.st
       "Usage:",
       "  agents-js launch <agent-name> [options]",
       "",
-      "Launch or attach to an agent's tmux session. Phase 1 (AJS-141)",
-      "supports claude-code harness in fresh mode only.",
+      "Launch or attach to an agent's tmux session. Supports the",
+      "claude-code and pi harnesses in fresh mode (resume not yet supported).",
       "",
       "Options:",
       "  --bg, --background, -d   Create session detached, don't attach",
