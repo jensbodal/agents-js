@@ -5782,6 +5782,7 @@ bun add @agents-js/claude-channel-adapter
 
 - **`CHALLENGE_MINT_DOMAIN`** — Domain separator the gateway prepends before the canonical JSON.
 - **`CLAUDE_CHANNEL_METHOD`** — Method name for the Channels protocol inbound push.
+- **`curlFetch`** — The curl-backed fetch adapter, presented as `typeof fetch` so it drops into any `fetchImpl` slot. `typeof fetch` carries a `preconnect` hint; this transport opens no speculative connection (every c...
 - **`TOOL_REPLY`** — Outbound tool: context-bearing reply (typically threaded to source sender).
 - **`TOOL_SEND`** — Outbound tool: free-form send to a target identifier.
 

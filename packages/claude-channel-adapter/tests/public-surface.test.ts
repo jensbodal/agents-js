@@ -13,6 +13,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import {
+  curlFetch,
   dedupKey,
   FileCursorStore,
   type GatewayInboxClient,
@@ -30,6 +31,9 @@ describe("public surface — reusable inbox-poller primitive", () => {
     expect(typeof MemoryCursorStore).toBe("function"); // class constructor
     expect(typeof FileCursorStore).toBe("function");
     expect(typeof HttpGatewayInboxClient).toBe("function");
+    // The curl-backed fetchImpl is a public primitive: bun/node consumers
+    // inject it into HttpGatewayInboxClient to sidestep the BL-64 TCC wall.
+    expect(typeof curlFetch).toBe("function");
   });
 
   test("a runtime entry composes from the public surface — row flows to a custom sink", async () => {
