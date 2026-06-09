@@ -66,6 +66,23 @@ bun run client
 
 See the docs pages for the CLI, client, examples, runtime matrix, streaming status, and tooling workflow.
 
+## Root Signpost (`GET /`)
+
+This host is the machine API (`/jsonrpc`, `/.well-known/*`, `/agent`, `/docs`,
+the bus endpoints). It is NOT the human web UI — the web UI is a separate app
+(`apps/web-ui`) served from a separate human edge, and must not be mounted into
+this API process. To remove the "two hostnames" footgun (a human typing the API
+host hitting a bare `404`), `GET /` returns an always-on signpost that
+identifies the host as the machine API and links the human edge when its URL is
+configured. This is the in-app half of the fix; the complete fix is the edge
+alias/redirect (operator/deploy lane, BL-59).
+
+Environment contract:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AGENTS_GATEWAY_HUMAN_URL` | unset | Human-facing web-UI URL the root signpost links (e.g. `https://ajs-gateway.q4m.dev/`). Deployment-specific; set it in the deployed gateway env so the API host points humans at the real UI. Unset → the signpost identifies the API without a link. |
+
 ## Plane Webhook Receiver
 
 The gateway exposes an optional Plane webhook receiver:
