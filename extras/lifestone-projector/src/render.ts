@@ -84,6 +84,17 @@ export function sanitizeForFilename(id: string): string {
   );
 }
 
+/**
+ * Make a value safe to interpolate as a single-line frontmatter header value:
+ * collapse any whitespace run (newline, CR, tab, space) to a single space so a
+ * hostile or malformed field (e.g. a `from` carrying a newline) cannot inject
+ * extra YAML lines or prematurely close the `---` block. Never touches hyphens
+ * (agent ids keep them). cognee-claude #161 follow-up note 1.
+ */
+export function sanitizeHeaderValue(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 /** Resolve the row's authoritative timestamp (ms epoch), if any. */
 export function resolveTimestampMs(msg: ProjectedInboxMessage): number | undefined {
   const fromOrigin = msg.matrix_origin?.origin_server_ts;
@@ -114,7 +125,9 @@ export function resolveFrom(msg: ProjectedInboxMessage): string {
 /**
  * Render a gateway inbox row into a lifestone `inbox/` file. Pure +
  * deterministic given `(msg, ownerIdentity)`. The daemon is responsible
- * for NOT writing a row whose `dedupKey` it has already rendered.
+ * for NOT writing a row whose `dedupKey` it has already rendered. All
+ * frontmatter header values are sanitized so a row field can't break the
+ * YAML block; the message body is appended verbatim after it.
  */
 export function renderInboxMessageToFile(
   msg: ProjectedInboxMessage,
@@ -129,13 +142,13 @@ export function renderInboxMessageToFile(
 
   const frontmatter = [
     "---",
-    `id: ${msg.message_id}`,
-    `gateway_id: ${msg.message_id}`,
-    `from: ${from}`,
-    `to: ${ownerIdentity}`,
-    `ts: ${tsIso}`,
-    `in_reply_to: ${inReplyTo}`,
-    `kind: ${msg.kind ?? "agents_message"}`,
+    `id: ${sanitizeHeaderValue(msg.message_id)}`,
+    `gateway_id: ${sanitizeHeaderValue(msg.message_id)}`,
+    `from: ${sanitizeHeaderValue(from)}`,
+    `to: ${sanitizeHeaderValue(ownerIdentity)}`,
+    `ts: ${sanitizeHeaderValue(tsIso)}`,
+    `in_reply_to: ${sanitizeHeaderValue(inReplyTo)}`,
+    `kind: ${sanitizeHeaderValue(msg.kind ?? "agents_message")}`,
     "state: rendered",
     "---",
     "",
@@ -153,9 +166,12 @@ export function renderInboxMessageToFile(
  * keys recognized: `to` (required), `id` (optional client dedup token).
  * Everything after the closing `---` is the message body. A missing/empty
  * `to` is a typed failure, NOT a guess — the daemon must not send it.
+ * CRLF-tolerant: `\r\n` line endings are normalized first (cognee-claude
+ * #161 follow-up note 2), so files composed on any platform parse.
  */
 export function parseOutboxFile(content: string): OutboxParseResult {
-  const fm = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(content);
+  const normalized = content.replace(/\r\n/g, "\n");
+  const fm = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(normalized);
   if (!fm) return { ok: false, error: "no frontmatter block (--- … ---) found" };
 
   const headerBlock = fm[1] ?? "";

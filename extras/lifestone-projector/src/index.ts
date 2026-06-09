@@ -17,6 +17,7 @@ export {
   resolveFrom,
   resolveTimestampMs,
   sanitizeForFilename,
+  sanitizeHeaderValue,
   slugify,
   toCompactStamp,
 } from "./render.ts";

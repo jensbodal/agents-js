@@ -7,6 +7,7 @@ import {
   resolveFrom,
   resolveTimestampMs,
   sanitizeForFilename,
+  sanitizeHeaderValue,
   slugify,
   toCompactStamp,
 } from "../src/index.ts";
@@ -126,6 +127,46 @@ describe("renderInboxMessageToFile", () => {
     const r = renderInboxMessageToFile({ message_id: "m", body: "no ts", sender: "x" }, "owner");
     expect(r.filename.startsWith("00000000T000000Z__")).toBe(true);
     expect(r.content).toContain("ts: \n");
+  });
+});
+
+// cognee-claude #161 follow-up note 1: a row field carrying a newline must not
+// inject extra YAML lines or close the --- block early.
+describe("sanitizeHeaderValue + frontmatter-injection safety", () => {
+  test("collapses newlines/CR/tabs to a space, keeps hyphens", () => {
+    expect(sanitizeHeaderValue("a\nb\r\nc\td")).toBe("a b c d");
+    expect(sanitizeHeaderValue("hostname-null-ajs-pi-0")).toBe("hostname-null-ajs-pi-0");
+  });
+  test("a hostile `from` with an embedded newline cannot add a YAML line", () => {
+    const hostile = renderInboxMessageToFile(
+      { message_id: "m", body: "b", sender: "evil\nstate: spoofed" },
+      "owner",
+    );
+    // The injected `state: spoofed` is flattened into the from line, not a new key.
+    expect(hostile.content).toContain("from: evil state: spoofed");
+    // Exactly one real `state:` line (the rendered one), no injected duplicate.
+    expect(hostile.content.match(/^state: rendered$/gm)?.length).toBe(1);
+    expect(hostile.content.match(/^state: spoofed$/gm)).toBeNull();
+  });
+  test("frontmatter still has exactly two --- fences (block not broken)", () => {
+    const r = renderInboxMessageToFile(
+      { message_id: "m", body: "b", sender: "x\n---\ninjected" },
+      "owner",
+    );
+    expect(r.content.match(/^---$/gm)?.length).toBe(2);
+  });
+});
+
+// cognee-claude #161 follow-up note 2: CRLF-composed outbox files must parse.
+describe("parseOutboxFile CRLF tolerance", () => {
+  test("parses a \\r\\n (Windows/phone) outbox file identically to \\n", () => {
+    const crlf = "---\r\nto: cognee-claude\r\nid: abc-1\r\n---\r\n\r\nhello there\r\n";
+    expect(parseOutboxFile(crlf)).toEqual({
+      ok: true,
+      to: "cognee-claude",
+      body: "hello there",
+      id: "abc-1",
+    });
   });
 });
 
