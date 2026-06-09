@@ -15,6 +15,7 @@ describe("readReceiverCliConfig", () => {
         CODEX_GATEWAY_POLL_LIMIT: "7",
         CODEX_GATEWAY_AUTO_REPLY: "true",
         CODEX_GATEWAY_REPLY_TARGET: "coordinator",
+        CODEX_GATEWAY_SKIP_GIT_REPO_CHECK: "true",
         CODEX_GATEWAY_FETCH: "curl",
       },
       "/cwd",
@@ -30,6 +31,7 @@ describe("readReceiverCliConfig", () => {
       limit: 7,
       autoReply: true,
       replyTarget: "coordinator",
+      skipGitRepoCheck: true,
     });
     expect(config.fetchImpl).toBe(curlFetch);
     expect(missingRequiredReceiverCliEnv(config)).toBe(false);
@@ -52,6 +54,7 @@ describe("readReceiverCliConfig", () => {
     expect(config.keyCommand).toBe("keycmd");
     expect(config.intervalMs).toBeUndefined();
     expect(config.autoReply).toBe(false);
+    expect(config.skipGitRepoCheck).toBe(false);
     expect(config.fetchImpl).toBeUndefined();
     expect(missingRequiredReceiverCliEnv(config)).toBe(false);
   });

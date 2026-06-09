@@ -10,6 +10,7 @@ export interface ReceiverCliConfig {
   readonly limit?: number;
   readonly autoReply: boolean;
   readonly replyTarget?: string;
+  readonly skipGitRepoCheck: boolean;
   readonly fetchImpl?: typeof fetch;
 }
 
@@ -35,6 +36,7 @@ export function readReceiverCliConfig(
     limit: numberEnv(envSource, "CODEX_GATEWAY_POLL_LIMIT"),
     autoReply: env("CODEX_GATEWAY_AUTO_REPLY") === "true",
     replyTarget: env("CODEX_GATEWAY_REPLY_TARGET"),
+    skipGitRepoCheck: env("CODEX_GATEWAY_SKIP_GIT_REPO_CHECK") === "true",
     fetchImpl: selectFetchImpl(env("CODEX_GATEWAY_FETCH")),
   };
 }

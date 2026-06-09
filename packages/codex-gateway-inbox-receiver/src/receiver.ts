@@ -30,6 +30,7 @@ export interface CodexGatewayInboxReceiverOptions {
   readonly limit?: number;
   readonly autoReply?: boolean;
   readonly replyTarget?: string;
+  readonly skipGitRepoCheck?: boolean;
   readonly signal: AbortSignal;
   readonly logger?: ReceiverLogger;
 }
@@ -49,6 +50,10 @@ export async function runCodexGatewayInboxReceiver(
   const runner = await selectCodexRunner({
     explicitRunner: options.runner,
     appServerClient: options.appServerClient,
+    execRunnerOptions: {
+      cwd: options.workspace,
+      skipGitRepoCheck: options.skipGitRepoCheck,
+    },
     logger,
   });
   const cursorPath =
