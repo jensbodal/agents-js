@@ -19,6 +19,7 @@ graph LR
   agui_types["@agents-js/agui-types"]:::undemonstrated
   browser_runtime["@agents-js/browser-runtime"]:::overclaimed
   claude_channel_adapter["@agents-js/claude-channel-adapter"]:::undemonstrated
+  claude_gateway_inbox_receiver["@agents-js/claude-gateway-inbox-receiver"]:::untiered
   cli["@agents-js/cli"]:::demonstrated
   codex_gateway_inbox_receiver["@agents-js/codex-gateway-inbox-receiver"]:::untiered
   droid_acp["@agents-js/droid-acp"]:::untiered
@@ -63,11 +64,13 @@ graph LR
   browser_runtime --> agui_types
   browser_runtime --> validation
   claude_channel_adapter --> gateway_inbox_runtime
+  claude_gateway_inbox_receiver --> gateway_inbox_runtime
   cli --> a2a
   cli --> a2a_client
   cli --> acp
   cli --> acp_host
   cli --> agent_launch
+  cli --> claude_gateway_inbox_receiver
   cli --> codex_gateway_inbox_receiver
   cli --> gateway_runtime
   cli --> host

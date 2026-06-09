@@ -132,6 +132,7 @@
     "@agents-js/agui-types": "workspace:*",
     "@agents-js/browser-runtime": "workspace:*",
     "@agents-js/canvas-model": "workspace:*",
+    "@agents-js/claude-gateway-inbox-receiver": "workspace:*",
     "@agents-js/cli": "workspace:*",
     "@agents-js/codex-gateway-inbox-receiver": "workspace:*",
     "@agents-js/gateway-inbox-runtime": "workspace:*",

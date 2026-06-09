@@ -2,8 +2,9 @@
  * `agents-js launch` subcommand.
  *
  * Launches a named agent in a fresh tmux session via the harness-launcher
- * registry (currently the claude-code, codex, and pi harnesses). Resume mode, status
- * overview, and bridge preflight land in subsequent phases per the vault plan.
+ * registry (currently the claude-code, codex, and pi harnesses). Resume mode,
+ * status overview, and bridge preflight land in subsequent phases per the
+ * vault plan.
  *
  * **Subcommand shape**:
  *
@@ -96,7 +97,7 @@ const LAUNCH_ARG_SPEC: ArgSpec<LaunchCommandArgs> = {
     assign: (a) => {
       a.withReceiver = true;
     },
-    description: "Start a companion Codex gateway-inbox receiver session",
+    description: "Start a companion gateway-inbox receiver session",
   },
   "--help": {
     kind: "flag",
@@ -125,7 +126,7 @@ function printLaunchUsage(output: Pick<NodeJS.WriteStream, "write"> = process.st
       "Options:",
       "  --bg, --background, -d   Create session detached, don't attach",
       "  --config <path>          Override config search path",
-      "  --with-receiver          Start companion Codex gateway-inbox receiver",
+      "  --with-receiver          Start companion gateway-inbox receiver",
       "  --help, -h               Show this message",
       "  --version, -v            Print version",
       "",
@@ -221,6 +222,14 @@ function requireReceiverEnv(value: string | undefined, name: string): string {
   throw new Error(`[agents-js launch] --with-receiver requires ${name} via channel_env or env`);
 }
 
+function buildReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
+  if (plan.harness === "claude-code") return buildClaudeReceiverPlan(plan);
+  if (plan.harness === "codex") return buildCodexReceiverPlan(plan);
+  throw new Error(
+    `[agents-js launch] --with-receiver is only supported for harness "claude-code" or "codex"`,
+  );
+}
+
 function buildCodexReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
   if (plan.harness !== "codex") {
     throw new Error(`[agents-js launch] --with-receiver is only supported for harness "codex"`);
@@ -264,6 +273,63 @@ function buildCodexReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
     cwd: plan.cwd,
     command: plan.env.CODEX_GATEWAY_RECEIVER_COMMAND ?? "agents-js",
     args: plan.env.CODEX_GATEWAY_RECEIVER_COMMAND ? [] : ["codex-receiver"],
+    env: receiverEnv,
+    sessionEnv: plan.sessionEnv,
+  };
+}
+
+function buildClaudeReceiverPlan(plan: LaunchPlan): ReceiverLaunchPlan {
+  if (plan.harness !== "claude-code") {
+    throw new Error(
+      `[agents-js launch] --with-receiver is only supported for harness "claude-code"`,
+    );
+  }
+
+  const identity =
+    plan.env.CW_IDENTITY ??
+    plan.env.CH_GATEWAY_IDENTITY ??
+    plan.env.AGENTS_GATEWAY_SUB ??
+    plan.env.MATRIX_AGENT ??
+    plan.tmuxSession;
+  const gatewayUrl = requireReceiverEnv(
+    plan.env.CH_GATEWAY_URL ?? plan.env.AGENTS_GATEWAY_URL,
+    "CH_GATEWAY_URL/AGENTS_GATEWAY_URL",
+  );
+  const keyCommand = requireReceiverEnv(
+    plan.env.CH_GATEWAY_KEY_CMD ?? plan.env.AGENTS_GATEWAY_KEY_CMD,
+    "CH_GATEWAY_KEY_CMD/AGENTS_GATEWAY_KEY_CMD",
+  );
+  const mcpConfigPath =
+    plan.env.CW_CLAUDE_MCP_CONFIG ?? path.join(plan.cwd, ".agents", identity, "gateway-mcp.json");
+
+  const receiverEnv: LaunchEnv = Object.freeze({
+    ...plan.sessionEnv,
+    CW_IDENTITY: identity,
+    CH_GATEWAY_IDENTITY: identity,
+    CH_GATEWAY_URL: gatewayUrl,
+    CH_GATEWAY_KEY_CMD: keyCommand,
+    CH_GATEWAY_FETCH: plan.env.CH_GATEWAY_FETCH ?? plan.env.AGENTS_GATEWAY_FETCH ?? "curl",
+    CW_WORKSPACE: plan.cwd,
+    CW_CURSOR_PATH:
+      plan.env.CW_CURSOR_PATH ??
+      path.join(plan.cwd, ".agents", identity, "claude-gateway-inbox-cursor.json"),
+    CW_CLAUDE_CMD: plan.env.CW_CLAUDE_CMD ?? plan.command,
+    CW_CLAUDE_ARGS: plan.env.CW_CLAUDE_ARGS ?? "-p --permission-mode bypassPermissions",
+    CW_CLAUDE_MCP_CONFIG: mcpConfigPath,
+    ...(plan.env.CW_GATEWAY_MCP_COMMAND
+      ? { CW_GATEWAY_MCP_COMMAND: plan.env.CW_GATEWAY_MCP_COMMAND }
+      : {}),
+    ...(plan.env.CW_GATEWAY_MCP_ARGS ? { CW_GATEWAY_MCP_ARGS: plan.env.CW_GATEWAY_MCP_ARGS } : {}),
+    ...(plan.env.CW_SENDER_ALLOWLIST ? { CW_SENDER_ALLOWLIST: plan.env.CW_SENDER_ALLOWLIST } : {}),
+    ...(plan.env.CW_POLL_INTERVAL_MS ? { CW_POLL_INTERVAL_MS: plan.env.CW_POLL_INTERVAL_MS } : {}),
+    ...(plan.env.CW_POLL_LIMIT ? { CW_POLL_LIMIT: plan.env.CW_POLL_LIMIT } : {}),
+  });
+
+  return {
+    tmuxSession: plan.env.CW_RECEIVER_SESSION ?? `${plan.tmuxSession}-receiver`,
+    cwd: plan.cwd,
+    command: plan.env.CW_RECEIVER_COMMAND ?? "agents-js",
+    args: plan.env.CW_RECEIVER_COMMAND ? [] : ["claude-receiver"],
     env: receiverEnv,
     sessionEnv: plan.sessionEnv,
   };
@@ -468,7 +534,7 @@ export async function runLaunchCommand(
   let receiverPlan: ReceiverLaunchPlan | undefined;
   if (parsed.withReceiver) {
     try {
-      receiverPlan = buildCodexReceiverPlan(plan);
+      receiverPlan = buildReceiverPlan(plan);
     } catch (err) {
       process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
       return EXIT_DATAERR;

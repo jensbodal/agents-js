@@ -15,6 +15,7 @@
         "@agents-js/agui-types": "workspace:*",
         "@agents-js/browser-runtime": "workspace:*",
         "@agents-js/canvas-model": "workspace:*",
+        "@agents-js/claude-gateway-inbox-receiver": "workspace:*",
         "@agents-js/cli": "workspace:*",
         "@agents-js/codex-gateway-inbox-receiver": "workspace:*",
         "@agents-js/gateway-inbox-runtime": "workspace:*",
@@ -372,6 +373,20 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/claude-gateway-inbox-receiver": {
+      "name": "@agents-js/claude-gateway-inbox-receiver",
+      "version": "0.6.0",
+      "bin": {
+        "claude-gateway-inbox-receiver": "dist/bin.mjs",
+        "claude-gateway-send-mcp": "dist/mcp-send-bin.mjs",
+      },
+      "dependencies": {
+        "@agents-js/gateway-inbox-runtime": "0.6.0",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/cli": {
       "name": "@agents-js/cli",
       "version": "0.6.0",
@@ -386,6 +401,7 @@
         "@agents-js/acp": "0.6.0",
         "@agents-js/acp-host": "0.6.0",
         "@agents-js/agent-launch": "0.6.0",
+        "@agents-js/claude-gateway-inbox-receiver": "0.6.0",
         "@agents-js/codex-gateway-inbox-receiver": "0.6.0",
         "@agents-js/gateway-runtime": "0.6.0",
         "@agents-js/host": "0.6.0",
@@ -661,6 +677,8 @@
     "@agents-js/canvas-model": ["@agents-js/canvas-model@workspace:packages/canvas-model"],
 
     "@agents-js/claude-channel-adapter": ["@agents-js/claude-channel-adapter@workspace:packages/claude-channel-adapter"],
+
+    "@agents-js/claude-gateway-inbox-receiver": ["@agents-js/claude-gateway-inbox-receiver@workspace:packages/claude-gateway-inbox-receiver"],
 
     "@agents-js/cli": ["@agents-js/cli@workspace:packages/cli"],
 
