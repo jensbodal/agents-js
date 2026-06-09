@@ -60,7 +60,7 @@
  * gateway inbox, dedups (`dedupKey`: idempotency_key else message_id), guards
  * against surfacing another identity's inbox, and persists a seen-cursor. It was
  * previously internal to `bin/launcher.ts` (the Claude sink); exporting it lets
- * other consumers — the lifestone projection daemon, the Codex sink, any harness
+ * other consumers — the lifestone maildrop router, the Codex sink, any harness
  * adapter — compose a runtime entry by injecting their own `onMessage` sink
  * instead of re-implementing the poll loop.
  */
@@ -87,6 +87,11 @@ export {
   type PollerLogger,
   runInboxPoller,
 } from "./inbox-poller.ts";
+export {
+  type ChannelEmit,
+  createInboxSink,
+  type InboxSinkOptions,
+} from "./inbox-sink.ts";
 export { type SanitizedMeta, sanitizeMetaForChannel } from "./meta-sanitizer.ts";
 export {
   createSenderGate,

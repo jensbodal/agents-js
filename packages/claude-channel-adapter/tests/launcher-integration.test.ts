@@ -4,11 +4,12 @@
  * Proves the full inbound path end to end at the in-process contract level:
  * a real {@link createClaudeChannelServer} (with the launcher's exact
  * sender-gate allowlist) connected to a capturing Transport, fed by
- * {@link runInboxPoller} reading a FakeGatewayInboxClient, with an onMessage
- * sink that REPLICATES channel-launcher.ts. One poll is driven (the sleepImpl
- * aborts on first call), and the dispatched `notifications/claude/channel`
- * frame is asserted: content/meta mapping plus the sender-spoofing defense
- * (the gated sender is layered OVER caller-supplied meta).
+ * {@link runInboxPoller} reading a FakeGatewayInboxClient, with the real shared
+ * {@link createInboxSink} spine wired to that server (the same composition as
+ * bin/launcher.ts). One poll is driven (the sleepImpl aborts on first call), and
+ * the dispatched `notifications/claude/channel` frame is asserted: content/meta
+ * mapping plus the sender-spoofing defense (the gated sender is layered OVER
+ * caller-supplied meta).
  */
 
 import { describe, expect, test } from "bun:test";
@@ -20,6 +21,7 @@ import type {
   SendMessageResult,
 } from "../src/gateway-inbox-client.ts";
 import { runInboxPoller } from "../src/inbox-poller.ts";
+import { createInboxSink } from "../src/inbox-sink.ts";
 import { createSenderGate } from "../src/sender-gate.ts";
 import { createClaudeChannelServer, type GatewayEmit } from "../src/server.ts";
 
@@ -104,26 +106,11 @@ describe("durable channel launcher poll -> emit seam", () => {
       sleepImpl: async () => {
         controller.abort();
       },
-      // REPLICATES channel-launcher.ts onMessage (the real launcher sink).
-      onMessage: async (row) => {
-        const author = row.matrix_origin?.sender ?? row.sender ?? "unknown";
-        const res = await server.emitChannelMessage({
-          content: row.body,
-          sender: "agents-gateway-inbox",
-          meta: {
-            source: "agents_gateway_inbox",
-            sender_identity: author,
-            kind: row.kind ?? "agents_message",
-            message_id: row.message_id,
-            ...(row.idempotency_key ? { idempotency_key: row.idempotency_key } : {}),
-            ...(row.matrix_origin?.room_id ? { room_id: row.matrix_origin.room_id } : {}),
-            ...(row.matrix_origin?.event_id ? { matrix_event_id: row.matrix_origin.event_id } : {}),
-          },
-        });
-        if (res.status !== "emitted") {
-          throw new Error(`emit rejected: ${res.status}`);
-        }
-      },
+      // The real launcher sink: the shared, harness-agnostic spine wired to the
+      // real Claude channel server's emit (same composition as bin/launcher.ts).
+      onMessage: createInboxSink({
+        emit: (input) => server.emitChannelMessage(input),
+      }),
     });
 
     // Exactly one frame dispatched, with the channel method.

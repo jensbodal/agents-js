@@ -40,8 +40,9 @@ import { FileCursorStore } from "../src/cursor-store.ts";
 import { type GatewayInboxClient, McpGatewayInboxClient } from "../src/gateway-inbox-client.ts";
 import { HttpGatewayInboxClient } from "../src/http-gateway-inbox-client.ts";
 import { runInboxPoller } from "../src/inbox-poller.ts";
+import { createInboxSink } from "../src/inbox-sink.ts";
 import { createClaudeChannelServer, createSenderGate } from "../src/index.ts";
-import { replyTargetForRow, resolveReplyTarget } from "../src/reply-routing.ts";
+import { resolveReplyTarget } from "../src/reply-routing.ts";
 
 const LOG = Bun.env.CH_LOG ?? "/tmp/agentsjs-channel-launcher.log";
 const log = (m: string): void => {
@@ -203,33 +204,17 @@ if (inboxClient) {
       warn: (...a) => log(`[poller][warn] ${a.map(String).join(" ")}`),
       error: (...a) => log(`[poller][error] ${a.map(String).join(" ")}`),
     },
-    onMessage: async (row) => {
-      const author = row.matrix_origin?.sender ?? row.sender ?? "unknown";
-      // Remember where a bare reply should go, and surface it as a routable
-      // `reply_to` attribute so the agent (and operator logs) can see it.
-      const replyTo = replyTargetForRow(row);
-      lastReplyTarget = replyTo;
-      const res = await server.emitChannelMessage({
-        content: row.body,
-        sender: "agents-gateway-inbox",
-        meta: {
-          source: "agents_gateway_inbox",
-          sender_identity: author,
-          kind: row.kind ?? "agents_message",
-          message_id: row.message_id,
-          ...(replyTo ? { reply_to: replyTo } : {}),
-          ...(row.idempotency_key ? { idempotency_key: row.idempotency_key } : {}),
-          ...(row.matrix_origin?.room_id ? { room_id: row.matrix_origin.room_id } : {}),
-          ...(row.matrix_origin?.event_id ? { matrix_event_id: row.matrix_origin.event_id } : {}),
-        },
-      });
-      log(`INBOUND emit message_id=${row.message_id} status=${res.status}`);
-      if (res.status !== "emitted") {
-        // Surface non-emit so a sender-gate/sanitizer reject is visible and the
-        // poller retries rather than silently marking the row seen.
-        throw new Error(`emit rejected: ${res.status}`);
-      }
-    },
+    // The poll→emit spine is harness-agnostic (see src/inbox-sink.ts); the only
+    // Claude-specific part is the emit — surfacing a row as a
+    // `notifications/claude/channel` frame. `onReplyTarget` threads a bare reply
+    // back to whoever pushed the most-recent row.
+    onMessage: createInboxSink({
+      emit: (input) => server.emitChannelMessage(input),
+      onReplyTarget: (target) => {
+        lastReplyTarget = target;
+      },
+      logger: { log },
+    }),
   });
 } else {
   log("inbound poll DISABLED — set CH_GATEWAY_MCP_COMMAND once provisioning lands");

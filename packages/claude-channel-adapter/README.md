@@ -24,6 +24,7 @@ bun add @agents-js/claude-channel-adapter
 - **`buildSignedBytes`** — Build the exact bytes the gateway expects to be ed25519-signed.
 - **`canonicalSignedObject`** — Canonical JSON (RFC 8785 JCS) for the flat signed object. JCS sorts keys by UTF-16 code unit; `challenge` < `entity` < `requested_scopes` are already in that order and all values are JSON strings /...
 - **`createClaudeChannelServer`** — Build the Claude Code channel-adapter MCP server. Caller invokes `connect()` to attach a transport (defaults to stdio), then `emitChannelMessage(...)` per inbound gateway wake/inbox event.
+- **`createInboxSink`** — Build the {runInboxPoller} `onMessage` sink: map one inbox row to a channel-emit input, report its reply target, and throw on a non-emit so the poller retries rather than silently marking the row s...
 - **`createSenderGate`** — Build a {SenderGate} from static allowlist + optional dynamic callback. Deny-unknown by default — a gate with no `allowedSenders` and no `allow` callback rejects every sender.
 - **`dedupKey`** — Dedup key: bridge-fanout idempotency key, else message id.
 - **`mintGatewayJwt`** — Run the full challenge -> sign -> redeem flow and return the minted JWT (plus its TTL/scopes). Throws on any non-200 or malformed response.
@@ -45,6 +46,7 @@ bun add @agents-js/claude-channel-adapter
 - **`HttpGatewayInboxClientOptions`**
 - **`InboxMessage`** — One durable-inbox row (DOT-502 §7). `kind` discriminates bridge-fanout rows (`"matrix_room_mention"`) from native sends (`"agents_message"`); absent `kind` is treated as `"agents_message"` (back-co...
 - **`InboxPollerOptions`**
+- **`InboxSinkOptions`** — Options for {createInboxSink}.
 - **`MatrixOrigin`** — Structured Matrix-origin envelope (DOT-502 §2/§7). Optional per row.
 - **`McpGatewayInboxClientOptions`** — Spawn config for {McpGatewayInboxClient}. Supplied by provisioning.
 - **`MintOptions`**
@@ -58,6 +60,7 @@ bun add @agents-js/claude-channel-adapter
 
 ### Types
 
+- **`ChannelEmit`** — Harness-specific surface for one mapped inbound row. Returns a typed {EmitResult}; a status other than `"emitted"` makes the sink throw so the poller retries. Claude Code's impl is `ClaudeChannelSe...
 - **`EmitResult`** — Result of an attempted {ClaudeChannelServer.emitChannelMessage}.
 - **`SanitizedMeta`** — Output shape of {sanitizeMetaForChannel}. Type alias rather than a branded type so consumers can spread/compare with plain records; the post-sanitization invariant is enforced by the seam (consumer...
 
