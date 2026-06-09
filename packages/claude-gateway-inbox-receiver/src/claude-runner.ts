@@ -16,7 +16,7 @@ export const DEFAULT_CLAUDE_ARGS: readonly string[] = Object.freeze([
   "--disallowedTools",
   "Bash,Edit,Write,WebFetch",
   "--allowedTools",
-  "mcp__agents_gateway__agents_send_message",
+  "Read,Grep,Glob,mcp__agents_gateway__agents_send_message",
 ]);
 
 export interface ClaudeSpawnRunnerOptions {

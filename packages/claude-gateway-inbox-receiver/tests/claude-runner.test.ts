@@ -8,7 +8,7 @@ describe("DEFAULT_CLAUDE_ARGS", () => {
       "--disallowedTools",
       "Bash,Edit,Write,WebFetch",
       "--allowedTools",
-      "mcp__agents_gateway__agents_send_message",
+      "Read,Grep,Glob,mcp__agents_gateway__agents_send_message",
     ]);
     expect(DEFAULT_CLAUDE_ARGS).not.toContain("--permission-mode");
     expect(DEFAULT_CLAUDE_ARGS).not.toContain("bypassPermissions");
