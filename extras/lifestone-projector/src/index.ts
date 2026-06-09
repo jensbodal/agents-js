@@ -7,6 +7,13 @@
  */
 
 export {
+  buildInboxFilePath,
+  createInboxRenderSink,
+  type InboxRenderSinkOptions,
+  type InboxWriteFn,
+  safePathSegment,
+} from "./read-path.ts";
+export {
   dedupKey,
   type OutboxParseResult,
   type ProjectedInboxMessage,
