@@ -1545,3 +1545,129 @@ describe("buildDispatchTargetDirectory — env override + trust-derived fallback
     expect(td.entries()).toEqual([]);
   });
 });
+
+describe("GET /api/agents/matrix-targets — BL-54 recognition-registry read surface", () => {
+  test("missing bearer → 401 with WWW-Authenticate", async () => {
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", { method: "GET" }),
+    );
+    expect(res?.status).toBe(401);
+    expect(res?.headers.get("WWW-Authenticate")).toContain("Bearer");
+  });
+
+  test("valid JWT without matrix.targets.read scope → 403 scope-not-granted", async () => {
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.send_message"] });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(403);
+    const json = (await res?.json()) as { ok: boolean; error: string };
+    expect(json.ok).toBe(false);
+    expect(json.error).toBe("scope-not-granted");
+  });
+
+  test("valid JWT with matrix.targets.read → 200, enumerates matrix-routable targets", async () => {
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.targets.read"] });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(200);
+    const json = (await res?.json()) as {
+      ok: boolean;
+      targets: Array<{ name: string; room: string }>;
+    };
+    expect(json.ok).toBe(true);
+    const byName = Object.fromEntries(json.targets.map((t) => [t.name, t.room]));
+    expect(byName["ajs-claude"]).toBe("!ajs:matrix.example");
+    expect(byName["cognee-codex"]).toBe("!cog:matrix.example");
+  });
+
+  test("excludes inbox-only targets (no matrix room) from the view", async () => {
+    const config = baseConfig({
+      targets: {
+        "matrix-peer": { matrix: { room: "!m:hs" }, inbox: { session: "matrix-peer" } },
+        "inbox-only-peer": { inbox: { session: "inbox-only-peer" } },
+      },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config, matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.targets.read"] });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(200);
+    const json = (await res?.json()) as {
+      ok: boolean;
+      targets: Array<{ name: string; room: string }>;
+    };
+    const names = json.targets.map((t) => t.name);
+    expect(names).toContain("matrix-peer");
+    expect(names).not.toContain("inbox-only-peer");
+  });
+
+  test("excludes degenerate empty-room targets (env-override defense-in-depth)", async () => {
+    const config = baseConfig({
+      targets: {
+        "real-peer": { matrix: { room: "!real:hs" } },
+        "empty-room-peer": { matrix: { room: "" } },
+        "whitespace-room-peer": { matrix: { room: "   " } },
+      },
+    });
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config, matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.targets.read"] });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(200);
+    const json = (await res?.json()) as {
+      ok: boolean;
+      targets: Array<{ name: string; room: string }>;
+    };
+    expect(json.targets.map((t) => t.name)).toEqual(["real-peer"]);
+  });
+
+  test("non-GET (POST) → 405 Allow: GET", async () => {
+    const wireup = await setupAgentsMcpMount({
+      overrides: { config: baseConfig(), matrixTool: makeRecordingMatrixTool() },
+    });
+    if (wireup === null) throw new Error("unreachable");
+    const jwt = await mintTestJwt({ scopes: ["matrix.targets.read"] });
+    const res = await wireup.fetchHandler(
+      new Request("http://gw.local/api/agents/matrix-targets", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res?.status).toBe(405);
+    expect(res?.headers.get("Allow")).toBe("GET");
+  });
+});

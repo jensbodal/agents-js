@@ -640,6 +640,7 @@ export async function setupAgentsMcpMount(opts: {
   const fetchHandler = createAgentsMcpFetchHandler({
     config,
     dispatcher,
+    targetDirectory,
     now: overrides.now,
     peerKeyDirectory,
     challengeStore,
@@ -660,6 +661,7 @@ export async function setupAgentsMcpMount(opts: {
 function createAgentsMcpFetchHandler(opts: {
   config: AgentsMcpEnvConfig;
   dispatcher: AgentsDispatcher;
+  targetDirectory: TargetDirectory;
   now?: () => Date;
   peerKeyDirectory: PeerKeyDirectory | null;
   challengeStore: ChallengeMintStore | null;
@@ -675,6 +677,13 @@ function createAgentsMcpFetchHandler(opts: {
     }
     if (url.pathname === "/api/agents/get_messages") {
       return handleGetMessages({ req, config: opts.config, dispatcher: opts.dispatcher });
+    }
+    if (url.pathname === "/api/agents/matrix-targets") {
+      return handleMatrixTargets({
+        req,
+        config: opts.config,
+        targetDirectory: opts.targetDirectory,
+      });
     }
     if (url.pathname === "/api/agents/admin/mint") {
       return handleAdminMint({ req, config: opts.config, now: opts.now });
@@ -702,6 +711,88 @@ function createAgentsMcpFetchHandler(opts: {
       headers: JSON_HEADERS,
     });
   };
+}
+
+/** Scope required to read the matrix-targets recognition view (BL-54). */
+const MATRIX_TARGETS_READ_SCOPE = "matrix.targets.read";
+
+/**
+ * `GET /api/agents/matrix-targets` — BL-54 recognition-registry read surface.
+ *
+ * Returns the matrix-routable targets the gateway's signed {@link TargetDirectory}
+ * knows about, as `{ name, room }`. This is the single source of truth the bridge
+ * consumes to decide which `@mention`s it recognizes + fans out, replacing the
+ * bridge's hardcoded `MATRIX_ONLY_AGENT_MENTIONS` / `BRIDGE_FANOUT_TARGETS` lists.
+ *
+ * Fail-closed: requires `Authorization: Bearer <jwt>` with the
+ * `matrix.targets.read` scope. The directory enumeration narrows to verified
+ * peers (entries() == resolve() set), so an unverified record can never appear.
+ * Only entries with a `matrix.room` are included — inbox-only targets aren't
+ * matrix-recognizable.
+ */
+async function handleMatrixTargets(opts: {
+  req: Request;
+  config: AgentsMcpEnvConfig;
+  targetDirectory: TargetDirectory;
+}): Promise<Response> {
+  const { req, config, targetDirectory } = opts;
+  if (req.method !== "GET") {
+    return new Response(JSON.stringify({ ok: false, error: "method-not-allowed" }), {
+      status: HTTP_STATUS.METHOD_NOT_ALLOWED,
+      headers: { ...JSON_HEADERS, Allow: "GET" },
+    });
+  }
+  const token = extractBearerToken(req.headers.get("Authorization"));
+  if (token === null) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "missing-bearer",
+        message: "Authorization: Bearer <jwt> required",
+      }),
+      {
+        status: HTTP_STATUS.UNAUTHORIZED,
+        headers: { ...JSON_HEADERS, "WWW-Authenticate": 'Bearer realm="agents-js-mcp"' },
+      },
+    );
+  }
+  const verification = await verifyJwt(token, {
+    signingKey: config.signingKey,
+    issuer: config.issuer,
+    audience: config.audience,
+  });
+  if (!verification.ok) {
+    return new Response(
+      JSON.stringify({ ok: false, error: verification.reason, message: verification.message }),
+      { status: HTTP_STATUS.UNAUTHORIZED, headers: JSON_HEADERS },
+    );
+  }
+  if (!verification.identity.scopes.includes(MATRIX_TARGETS_READ_SCOPE)) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "scope-not-granted",
+        correlation_id: verification.identity.correlationId,
+        message: `scope '${MATRIX_TARGETS_READ_SCOPE}' required`,
+      }),
+      { status: 403, headers: JSON_HEADERS },
+    );
+  }
+  const targets = targetDirectory
+    .entries()
+    .filter(
+      (entry): entry is [string, TargetDirectoryEntry & { matrix: { room: string } }] =>
+        // Defense-in-depth: the trust-derived directory already drops empty
+        // rooms (truthy guard in recordToTargetEntry), but the env-override
+        // path (AGENTS_MCP_TARGETS_JSON) is unvalidated — a degenerate
+        // `{ matrix: { room: "" } }` must never reach the bridge as a target.
+        entry[1].matrix !== undefined && entry[1].matrix.room.trim() !== "",
+    )
+    .map(([name, entry]) => ({ name, room: entry.matrix.room }));
+  return new Response(JSON.stringify({ ok: true, targets }), {
+    status: HTTP_STATUS.OK,
+    headers: JSON_HEADERS,
+  });
 }
 
 async function handleGetMessages(opts: {
