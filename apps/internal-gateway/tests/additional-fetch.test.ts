@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createDocsViewHandler } from "../docs-view-mount.ts";
+import { createGatewayRootHandler } from "../gateway-root-mount.ts";
 import { composeAdditionalFetch } from "../main.ts";
 
 /**
@@ -355,5 +356,82 @@ describe("composeAdditionalFetch — registry sync default-off", () => {
     const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
     expect(aguiRes?.status).toBe(200);
     expect(aguiHandled).toBe(true);
+  });
+
+  /**
+   * WHAT: When `rootHandler` is absent, `GET /` falls through (returns null,
+   *       the server then 404s) — exactly the prior behavior.
+   * WHY: Optional-field back-compat. Every pre-existing call site omits the
+   *       field; the bare-404 root must be unchanged when not opted in.
+   */
+  test("root signpost NOT mounted when handler is absent (default)", async () => {
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async () => null,
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      // rootHandler intentionally omitted
+    });
+
+    const rootRes = await compose(new Request("http://gw.local/", { method: "GET" }));
+    expect(rootRes).toBeNull();
+  });
+
+  /**
+   * WHAT: `rootHandler` is the LAST fallback — every API handler runs first,
+   *       so the signpost only catches the otherwise-unhandled root and never
+   *       shadows `/agent`, `/docs`, or the sync endpoint.
+   * WHY: A root handler composed too early (or one that didn't self-restrict to
+   *       `/`) would swallow API traffic. This pins the precedence.
+   */
+  test("root signpost runs last — does not shadow /agent, and serves GET /", async () => {
+    let aguiHandled = false;
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async (req) => {
+        if (new URL(req.url).pathname === AGUI_PATH) {
+          aguiHandled = true;
+          return new Response("agui", { status: 200 });
+        }
+        return null;
+      },
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: null,
+      rootHandler: createGatewayRootHandler({ humanUrl: "https://ui.example/" }),
+    });
+
+    // AG-UI still wins for its own path.
+    const aguiRes = await compose(new Request(`http://gw.local${AGUI_PATH}`, { method: "POST" }));
+    expect(aguiRes?.status).toBe(200);
+    expect(aguiHandled).toBe(true);
+
+    // Root is served as the signpost.
+    const rootRes = await compose(new Request("http://gw.local/", { method: "GET" }));
+    expect(rootRes?.status).toBe(200);
+    expect(rootRes?.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+    expect(await rootRes?.text()).toContain("https://ui.example/");
+  });
+
+  /**
+   * WHAT: A provided `syncEndpointHandler` that returns null for a path must
+   *       fall through to the root handler, not terminate the chain.
+   * WHY: Adding the root fallback required restructuring the sync passthrough
+   *       (previously sync's null return was terminal). This pins that the
+   *       sync handler still composes correctly alongside the new fallback.
+   */
+  test("sync handler null-passthrough still composes with the root fallback", async () => {
+    const compose = composeAdditionalFetch({
+      planeWebhookHandler: async () => null,
+      aguiHandler: async () => null,
+      busSubscribeHandler: async () => null,
+      busPublishHandler: async () => null,
+      syncEndpointHandler: async () => null, // self-routes; null for this path
+      rootHandler: createGatewayRootHandler(),
+    });
+
+    const rootRes = await compose(new Request("http://gw.local/", { method: "GET" }));
+    expect(rootRes?.status).toBe(200);
   });
 });

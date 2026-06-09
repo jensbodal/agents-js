@@ -47,6 +47,7 @@ import {
 } from "./discovery.ts";
 import { createDocsViewHandler } from "./docs-view-mount.ts";
 import { gatewayConfig } from "./gateway.config.ts";
+import { createGatewayRootHandler } from "./gateway-root-mount.ts";
 import { setupGiteaBridge } from "./gitea-bridge-mount.ts";
 import { buildLaneControllerFactory } from "./lane-controller-factory.ts";
 import { resolveGatewayRuntime } from "./runtimes.ts";
@@ -163,10 +164,19 @@ export function composeAdditionalFetch(handlers: {
    * supply it keep working unchanged.
    */
   docsViewHandler?: ((req: Request) => Promise<Response | null>) | null;
+  /**
+   * Gateway root signpost. Self-routes on `GET /` and returns `null` for
+   * every other path, so it MUST run last — the final informational fallback
+   * that replaces the bare `/` 404 with a pointer to the human web UI (the
+   * in-app half of the hostname-footgun fix). `null` (or absent) leaves `/`
+   * 404ing as before, preserving back-compat for callers that don't opt in.
+   */
+  rootHandler?: ((req: Request) => Promise<Response | null>) | null;
 }): (req: Request) => Promise<Response | null> {
   const giteaWebhookHandler = handlers.giteaWebhookHandler ?? null;
   const agentsMcpHandler = handlers.agentsMcpHandler ?? null;
   const docsViewHandler = handlers.docsViewHandler ?? null;
+  const rootHandler = handlers.rootHandler ?? null;
   return async (req: Request): Promise<Response | null> => {
     // Bus endpoints self-route on path (`/events`, `/admin/publish`)
     // and return null otherwise — safe to attempt before AG-UI's
@@ -194,7 +204,15 @@ export function composeAdditionalFetch(handlers: {
     const aguiResponse = await handlers.aguiHandler(req);
     if (aguiResponse !== null) return aguiResponse;
     if (handlers.syncEndpointHandler !== null) {
-      return handlers.syncEndpointHandler(req);
+      const syncResponse = await handlers.syncEndpointHandler(req);
+      if (syncResponse !== null) return syncResponse;
+    }
+    // Root signpost runs LAST: it self-routes on `GET /` only, so every API
+    // handler above has already had its chance. It is the informational
+    // fallback for the otherwise-unhandled root, never a shadow of API routes.
+    if (rootHandler !== null) {
+      const rootResponse = await rootHandler(req);
+      if (rootResponse !== null) return rootResponse;
     }
     return null;
   };
@@ -292,6 +310,15 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
   // surfaces — it is not env-gated.
   const docsViewHandler = createDocsViewHandler();
 
+  // Always-on root signpost (GET /). Replaces the bare A2A 404 at `/` with a
+  // page that identifies the machine API and — when `AGENTS_GATEWAY_HUMAN_URL`
+  // is set — links the human web UI (the in-app half of the hostname-footgun
+  // fix; the edge alias/redirect is the operator-side complete fix). The human
+  // URL is deployment-specific, so it is read from env here, never hardcoded.
+  const rootHandler = createGatewayRootHandler({
+    humanUrl: process.env.AGENTS_GATEWAY_HUMAN_URL,
+  });
+
   const a2aServer = new UniversalA2AServer(executor, gatewayCard, undefined, {
     additionalFetch: composeAdditionalFetch({
       planeWebhookHandler,
@@ -302,6 +329,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
       busSubscribeHandler,
       busPublishHandler,
       syncEndpointHandler,
+      rootHandler,
     }),
   });
   const server = await a2aServer.start({
