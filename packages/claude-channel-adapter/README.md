@@ -70,7 +70,7 @@ bun add @agents-js/claude-channel-adapter
 
 ### Exports
 
-- **`type SanitizedMeta`** — `-js/claude-channel-adapter` — Claude Code receiver-side MCP server for the wake-adapter family. **Architectural role on the wake-adapter family map (per [ADR-0007 §Revision-2026-05-28](../../../do...
+- **`type SanitizedMeta`**
 
 
 ## Dependencies

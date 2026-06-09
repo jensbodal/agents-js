@@ -51,6 +51,42 @@
  * @packageDocumentation
  */
 
+/**
+ * Reusable inbox-poller primitive (BL-54 / #88).
+ *
+ * `runInboxPoller` + a transport (`HttpGatewayInboxClient`) + a cursor-store
+ * (`FileCursorStore` for durability across restarts, `MemoryCursorStore` for
+ * tests) is the harness-agnostic auto-read core: it polls an identity's durable
+ * gateway inbox, dedups (`dedupKey`: idempotency_key else message_id), guards
+ * against surfacing another identity's inbox, and persists a seen-cursor. It was
+ * previously internal to `bin/launcher.ts` (the Claude sink); exporting it lets
+ * other consumers — the lifestone projection daemon, the Codex sink, any harness
+ * adapter — compose a runtime entry by injecting their own `onMessage` sink
+ * instead of re-implementing the poll loop.
+ */
+export {
+  type CursorState,
+  type CursorStore,
+  FileCursorStore,
+  MemoryCursorStore,
+} from "./cursor-store.ts";
+export type {
+  GatewayInboxClient,
+  GetMessagesResult,
+  InboxMessage,
+  MatrixOrigin,
+  SendMessageResult,
+} from "./gateway-inbox-client.ts";
+export {
+  HttpGatewayInboxClient,
+  type HttpGatewayInboxClientOptions,
+} from "./http-gateway-inbox-client.ts";
+export {
+  dedupKey,
+  type InboxPollerOptions,
+  type PollerLogger,
+  runInboxPoller,
+} from "./inbox-poller.ts";
 export { type SanitizedMeta, sanitizeMetaForChannel } from "./meta-sanitizer.ts";
 export {
   createSenderGate,
