@@ -16,6 +16,8 @@
         "@agents-js/browser-runtime": "workspace:*",
         "@agents-js/canvas-model": "workspace:*",
         "@agents-js/cli": "workspace:*",
+        "@agents-js/codex-gateway-inbox-receiver": "workspace:*",
+        "@agents-js/gateway-inbox-runtime": "workspace:*",
         "@agents-js/gateway-runtime": "workspace:*",
         "@agents-js/host": "workspace:*",
         "@agents-js/plane": "workspace:*",
@@ -363,6 +365,7 @@
       "name": "@agents-js/claude-channel-adapter",
       "version": "0.6.0",
       "dependencies": {
+        "@agents-js/gateway-inbox-runtime": "0.6.0",
         "@modelcontextprotocol/sdk": "catalog:",
       },
       "devDependencies": {
@@ -391,6 +394,26 @@
         "@modelcontextprotocol/sdk": "catalog:",
         "@opentui/core": "0.1.99",
         "@zed-industries/codex-acp": "0.14.0",
+      },
+    },
+    "packages/codex-gateway-inbox-receiver": {
+      "name": "@agents-js/codex-gateway-inbox-receiver",
+      "version": "0.6.0",
+      "bin": {
+        "codex-gateway-inbox-receiver": "dist/bin.mjs",
+      },
+      "dependencies": {
+        "@agents-js/gateway-inbox-runtime": "0.6.0",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
+    "packages/gateway-inbox-runtime": {
+      "name": "@agents-js/gateway-inbox-runtime",
+      "version": "0.6.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "packages/gateway-runtime": {
@@ -640,6 +663,8 @@
 
     "@agents-js/cli": ["@agents-js/cli@workspace:packages/cli"],
 
+    "@agents-js/codex-gateway-inbox-receiver": ["@agents-js/codex-gateway-inbox-receiver@workspace:packages/codex-gateway-inbox-receiver"],
+
     "@agents-js/droid-acp": ["@agents-js/droid-acp@workspace:extras/droid-acp"],
 
     "@agents-js/example-host-memory-pilot": ["@agents-js/example-host-memory-pilot@workspace:examples/host-memory-pilot"],
@@ -649,6 +674,8 @@
     "@agents-js/example-memory-provider-pilot": ["@agents-js/example-memory-provider-pilot@workspace:examples/memory-provider-pilot"],
 
     "@agents-js/gateway": ["@agents-js/gateway@workspace:apps/internal-gateway"],
+
+    "@agents-js/gateway-inbox-runtime": ["@agents-js/gateway-inbox-runtime@workspace:packages/gateway-inbox-runtime"],
 
     "@agents-js/gateway-runtime": ["@agents-js/gateway-runtime@workspace:packages/gateway-runtime"],
 

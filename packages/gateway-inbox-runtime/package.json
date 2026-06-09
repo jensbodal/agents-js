@@ -1,26 +1,25 @@
 {
-  "name": "@agents-js/claude-channel-adapter",
+  "name": "@agents-js/gateway-inbox-runtime",
   "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
-  "description": "Claude Code receiver-side MCP server for the wake-adapter family. Declares the experimental `claude/channel` + `claude/channel/permission` capabilities so Claude Code registers a listener for `notifications/claude/channel` (capability-gated, per Anthropic Channels protocol research-preview ~v2.1.80+); subscribes to gateway wake/inbox events and emits push messages into running Claude Code sessions. Bidirectional: also exposes `agents_js_reply` + `agents_js_send` outbound tools for CC → mesh replies. Per ADR-0007 §Revision-2026-05-28.",
+  "description": "Harness-neutral gateway durable-inbox runtime primitives: HTTP client, JWT minting, cursor stores, poll loop, reply routing, and generic sink mapping.",
   "author": "Jens Bodal",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/jensbodal/agents-js.git",
-    "directory": "packages/claude-channel-adapter"
+    "directory": "packages/gateway-inbox-runtime"
   },
   "homepage": "https://agents-js.bodal.dev/",
   "bugs": {
     "url": "https://github.com/jensbodal/agents-js/issues"
   },
   "keywords": [
-    "wake-adapter",
-    "mcp",
-    "claude-code",
-    "channel",
-    "agents"
+    "agents-js",
+    "gateway",
+    "inbox",
+    "runtime"
   ],
   "engines": {
     "node": ">=20.19.0",
@@ -46,10 +45,6 @@
     "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
     "prepack": "bun run build",
     "test": "bun test tests"
-  },
-  "dependencies": {
-    "@agents-js/gateway-inbox-runtime": "0.6.0",
-    "@modelcontextprotocol/sdk": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

@@ -18,7 +18,7 @@
  * adapter's; the adapter's contract is "behaves like fetch via curl".
  */
 import { describe, expect, test } from "bun:test";
-import { curlFetch, selectFetchImpl } from "../src/curl-fetch.ts";
+import { curlFetch } from "../src/curl-fetch.ts";
 
 /**
  * A throwaway echo server: replies 200 with a JSON body reflecting the request
@@ -116,18 +116,5 @@ describe("curlFetch — curl-backed fetchImpl transport adapter", () => {
     // curl would parse it as a flag (e.g. `-o/path` writes a file). Reject early.
     await expect(curlFetch("-o/tmp/pwned")).rejects.toThrow(/http/i);
     await expect(curlFetch("file:///etc/passwd")).rejects.toThrow(/http/i);
-  });
-});
-
-describe("selectFetchImpl — opt-in curl transport selection from env", () => {
-  test("returns curlFetch only when transport is exactly 'curl'", () => {
-    expect(selectFetchImpl("curl")).toBe(curlFetch);
-  });
-
-  test("returns undefined for unset/other transports (caller defaults to native fetch)", () => {
-    // undefined → HttpGatewayInboxClient's `opts.fetchImpl ?? fetch` keeps native fetch.
-    expect(selectFetchImpl(undefined)).toBeUndefined();
-    expect(selectFetchImpl("")).toBeUndefined();
-    expect(selectFetchImpl("fetch")).toBeUndefined();
   });
 });

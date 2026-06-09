@@ -79,6 +79,14 @@ export type {
   SendMessageResult,
 } from "./gateway-inbox-client.ts";
 export {
+  buildSignedBytes,
+  CHALLENGE_MINT_DOMAIN,
+  canonicalSignedObject,
+  type MintOptions,
+  type MintResult,
+  mintGatewayJwt,
+} from "./gateway-mint.ts";
+export {
   HttpGatewayInboxClient,
   type HttpGatewayInboxClientOptions,
 } from "./http-gateway-inbox-client.ts";
@@ -94,6 +102,11 @@ export {
   type InboxSinkOptions,
 } from "./inbox-sink.ts";
 export { type SanitizedMeta, sanitizeMetaForChannel } from "./meta-sanitizer.ts";
+export {
+  type ReplyRoutingRow,
+  replyTargetForRow,
+  resolveReplyTarget,
+} from "./reply-routing.ts";
 export {
   createSenderGate,
   type SenderGate,

@@ -22,60 +22,22 @@
  *   fails loudly rather than degrading to an insecure path.
  */
 
+import type {
+  GatewayInboxClient,
+  GetMessagesResult,
+  InboxMessage,
+  SendMessageResult,
+} from "@agents-js/gateway-inbox-runtime";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-/** Structured Matrix-origin envelope (DOT-502 §2/§7). Optional per row. */
-export interface MatrixOrigin {
-  readonly event_id?: string;
-  readonly room_id?: string;
-  readonly sender?: string;
-  readonly origin_server_ts?: number;
-  readonly reply_to_event_id?: string;
-}
-
-/**
- * One durable-inbox row (DOT-502 §7). `kind` discriminates bridge-fanout rows
- * (`"matrix_room_mention"`) from native sends (`"agents_message"`); absent
- * `kind` is treated as `"agents_message"` (back-compat). `idempotency_key` is
- * present only on bridge-fanout rows (`${matrix_event_id}:${target_session}`);
- * native rows carry NULL, so dedup must fall back to `message_id`.
- */
-export interface InboxMessage {
-  readonly message_id: string;
-  readonly created_at?: string | number;
-  readonly body: string;
-  readonly kind?: string;
-  readonly idempotency_key?: string | null;
-  readonly matrix_origin?: MatrixOrigin;
-  /** Fallback author when `matrix_origin.sender` is absent (native sends). */
-  readonly sender?: string;
-}
-
-/** Result of {@link GatewayInboxClient.getMessages}. */
-export interface GetMessagesResult {
-  readonly ok: boolean;
-  /** Identity whose inbox was read — echoed for the poller's identity guard. */
-  readonly identity: string;
-  readonly messages: InboxMessage[];
-}
-
-/** Result of {@link GatewayInboxClient.sendMessage}. */
-export interface SendMessageResult {
-  readonly ok: boolean;
-  readonly event_id?: string;
-  readonly detail?: string;
-}
-
-/** Transport-agnostic durable-inbox client. The poller depends only on this. */
-export interface GatewayInboxClient {
-  /** Read the caller identity's own inbox (most-recent `limit` rows). */
-  getMessages(args: { identity: string; limit?: number }): Promise<GetMessagesResult>;
-  /** Send a message to `target` as `identity`. */
-  sendMessage(args: { target: string; body: string; identity: string }): Promise<SendMessageResult>;
-  /** Release transport resources. */
-  close(): Promise<void>;
-}
+export type {
+  GatewayInboxClient,
+  GetMessagesResult,
+  InboxMessage,
+  MatrixOrigin,
+  SendMessageResult,
+} from "@agents-js/gateway-inbox-runtime";
 
 /** Spawn config for {@link McpGatewayInboxClient}. Supplied by provisioning. */
 export interface McpGatewayInboxClientOptions {

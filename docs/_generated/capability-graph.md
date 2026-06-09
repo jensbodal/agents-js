@@ -20,8 +20,10 @@ graph LR
   browser_runtime["@agents-js/browser-runtime"]:::overclaimed
   claude_channel_adapter["@agents-js/claude-channel-adapter"]:::undemonstrated
   cli["@agents-js/cli"]:::demonstrated
+  codex_gateway_inbox_receiver["@agents-js/codex-gateway-inbox-receiver"]:::untiered
   droid_acp["@agents-js/droid-acp"]:::untiered
   gateway["@agents-js/gateway"]:::overclaimed
+  gateway_inbox_runtime["@agents-js/gateway-inbox-runtime"]:::untiered
   gateway_runtime["@agents-js/gateway-runtime"]:::demonstrated
   gitea_bridge["@agents-js/gitea-bridge"]:::untiered
   host["@agents-js/host"]:::undemonstrated
@@ -60,6 +62,7 @@ graph LR
   acp --> policy
   browser_runtime --> agui_types
   browser_runtime --> validation
+  claude_channel_adapter --> gateway_inbox_runtime
   cli --> a2a
   cli --> a2a_client
   cli --> acp
@@ -70,6 +73,7 @@ graph LR
   cli --> mcp_bridge
   cli --> schema_utils
   cli --> skills
+  codex_gateway_inbox_receiver --> gateway_inbox_runtime
   droid_acp --> acp
   droid_acp --> gateway_runtime
   gateway_runtime --> a2a
