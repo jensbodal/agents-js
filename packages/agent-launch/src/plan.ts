@@ -88,6 +88,13 @@ export interface LaunchPlan {
   readonly harness: SupportedHarness;
   /** Mode — Phase 1 always `"fresh"`. */
   readonly mode: LaunchMode;
+  /**
+   * When true, the CLI opens a dual-window layout — interactive TUI in tmux
+   * window `:0` (auto-connected) and this runtime in `:1`. The launcher owns the
+   * window orchestration + the `agents-js client` command; the plan only carries
+   * the intent. pi-harness only (validated in {@link buildLaunchPlan}).
+   */
+  readonly dualWindow: boolean;
 }
 
 /** Typed error raised when the plan cannot be built. */
@@ -195,6 +202,15 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
       { agentName: entry.tmuxSession, harness: entry.harness },
     );
   }
+  // dual_window is a native-pi affordance (TUI window + embedded A2A/ACP
+  // window). Other harnesses don't expose a self-registered A2A endpoint the
+  // TUI could auto-connect to, so reject it here rather than silently ignore.
+  if (entry.dualWindow && entry.harness !== "pi") {
+    throw new LaunchPlanError(
+      `dual_window is only supported for the "pi" harness (got "${entry.harness}")`,
+      { agentName: entry.tmuxSession, harness: entry.harness },
+    );
+  }
 
   // Channel-adapter env is parsed like envSetup but kept separate so the CLI
   // can export it into the harness process env without pushing it session-wide.
@@ -241,6 +257,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     allowedTools: built.allowedTools,
     harness,
     mode,
+    dualWindow: entry.dualWindow === true,
   };
 }
 
