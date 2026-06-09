@@ -52,6 +52,9 @@ function makeDirectory(
     resolve(target) {
       return entries[target] ?? null;
     },
+    entries() {
+      return Object.entries(entries);
+    },
   };
 }
 

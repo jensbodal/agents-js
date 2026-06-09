@@ -1478,6 +1478,10 @@ describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {
 describe("buildDispatchTargetDirectory — env override + trust-derived fallback (AJS-65)", () => {
   const trustOnly = {
     resolve: (t: string) => (t === "trust-peer" ? { matrix: { room: "!trust:hs" } } : null),
+    entries: () =>
+      [["trust-peer", { matrix: { room: "!trust:hs" } }]] as ReadonlyArray<
+        readonly [string, { matrix?: { room: string }; inbox?: { session: string } }]
+      >,
   };
 
   test("env config.targets takes precedence (operator override)", () => {
@@ -1502,5 +1506,42 @@ describe("buildDispatchTargetDirectory — env override + trust-derived fallback
     const td = buildDispatchTargetDirectory({ a: { matrix: { room: "!a" } } }, null);
     expect(td.resolve("a")).toEqual({ matrix: { room: "!a" } });
     expect(td.resolve("trust-peer")).toBeNull();
+  });
+
+  // ---- BL-54: entries() unions both sources, env wins collision ----
+
+  test("entries() unions env targets + trust directory", () => {
+    const td = buildDispatchTargetDirectory(
+      { "env-peer": { matrix: { room: "!env:hs" } } },
+      trustOnly,
+    );
+    const names = td
+      .entries()
+      .map(([name]) => name)
+      .sort();
+    expect(names).toEqual(["env-peer", "trust-peer"]);
+  });
+
+  test("entries() env override wins on name collision (mirrors resolve precedence)", () => {
+    const td = buildDispatchTargetDirectory(
+      { "trust-peer": { matrix: { room: "!env:hs" } } },
+      trustOnly,
+    );
+    const collisions = td.entries().filter(([name]) => name === "trust-peer");
+    // Single entry under the colliding name (no duplicate), env value wins.
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0]?.[1]).toEqual({ matrix: { room: "!env:hs" } });
+    // entries() and resolve() agree on the same target.
+    expect(td.resolve("trust-peer")).toEqual({ matrix: { room: "!env:hs" } });
+  });
+
+  test("entries() back-compat: no trust directory → env targets only", () => {
+    const td = buildDispatchTargetDirectory({ a: { matrix: { room: "!a" } } }, null);
+    expect(td.entries()).toEqual([["a", { matrix: { room: "!a" } }]]);
+  });
+
+  test("entries() empty when both sources empty", () => {
+    const td = buildDispatchTargetDirectory({}, null);
+    expect(td.entries()).toEqual([]);
   });
 });

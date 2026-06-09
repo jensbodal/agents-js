@@ -299,6 +299,15 @@ export interface AgentInboxTool {
 export interface TargetDirectory {
   /** Look up the routing entry for a target name. Returns null when unknown. */
   resolve(target: string): TargetDirectoryEntry | null;
+  /**
+   * Enumerate every registered target as a `[name, entry]` tuple, mirroring
+   * `Map.entries()`. Order is unspecified. The enumeration MUST narrow to the
+   * exact same set `resolve()` answers for — a name present here resolves to
+   * the equal entry, and a name absent here resolves to null. Read-surfaces
+   * that need the whole directory (e.g. the BL-54 matrix-targets view) consume
+   * this; single-target routing keeps using {@link resolve}.
+   */
+  entries(): ReadonlyArray<readonly [string, TargetDirectoryEntry]>;
 }
 
 /**

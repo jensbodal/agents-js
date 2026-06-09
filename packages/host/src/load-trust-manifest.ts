@@ -365,6 +365,9 @@ export async function loadTrustManifest(
     resolve(target: string) {
       return directoryMap.get(target) ?? null;
     },
+    entries() {
+      return [...directoryMap.entries()];
+    },
   };
 
   const peerKeyDirectory: PeerKeyDirectory = {
@@ -395,7 +398,7 @@ function emptyResult(opts: {
 }): TrustManifestLoadResult {
   return {
     ok: true,
-    targetDirectory: { resolve: () => null },
+    targetDirectory: { resolve: () => null, entries: () => [] },
     peerKeyDirectory: { getPubkey: () => null, getCapabilities: () => null },
     loadedEntities: new Set(),
     trustRootPem: opts.trustRootPem ?? null,
@@ -489,6 +492,9 @@ export async function watchTrustManifest(
   const targetDirectory: TargetDirectory = {
     resolve(target: string) {
       return current.targetDirectory.resolve(target);
+    },
+    entries() {
+      return current.targetDirectory.entries();
     },
   };
   const peerKeyDirectory: PeerKeyDirectory = {

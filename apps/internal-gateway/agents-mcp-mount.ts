@@ -50,6 +50,7 @@ import {
   type SendMessageArgs,
   type SendMessageResult,
   type TargetDirectory,
+  type TargetDirectoryEntry,
   verifyJwt,
   watchTrustManifest,
 } from "@agents-js/host";
@@ -560,6 +561,22 @@ export function buildDispatchTargetDirectory(
       const fromConfig = configTargets[target];
       if (fromConfig) return fromConfig;
       return trustTargetDirectory?.resolve(target) ?? null;
+    },
+    entries() {
+      // Union both sources, narrowing to the SAME precedence resolve() uses:
+      // trust entries first, then env overrides last so a same-name env target
+      // wins the collision (matching `configTargets[target]` being checked
+      // first in resolve). De-dup is implicit via the Map.
+      const merged = new Map<string, TargetDirectoryEntry>();
+      if (trustTargetDirectory) {
+        for (const [name, entry] of trustTargetDirectory.entries()) {
+          merged.set(name, entry);
+        }
+      }
+      for (const [name, entry] of Object.entries(configTargets)) {
+        merged.set(name, entry);
+      }
+      return [...merged.entries()];
     },
   };
 }

@@ -55,7 +55,7 @@ function identity(opts: Partial<AuthenticatedIdentity> = {}): AuthenticatedIdent
 function makeDirectory(
   entries: Record<string, { matrix?: { room: string }; inbox?: { session: string } }>,
 ): TargetDirectory {
-  return { resolve: (t) => entries[t] ?? null };
+  return { resolve: (t) => entries[t] ?? null, entries: () => Object.entries(entries) };
 }
 
 function makeMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {

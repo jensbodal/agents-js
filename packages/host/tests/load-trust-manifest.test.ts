@@ -284,6 +284,126 @@ describe("packages/host/tests/load-trust-manifest.test.ts — AJS-55 loader cont
     }
   });
 
+  // ============================================================
+  // BL-54 — TargetDirectory.entries() enumeration (matrix-targets view)
+  // ============================================================
+
+  /**
+   * WHAT: `targetDirectory.entries()` enumerates every VERIFIED peer as a
+   *       `[name, entry]` tuple, mirroring `Map.entries()`. Order is
+   *       unspecified, so assertions sort/index by name.
+   * WHY: BL-54 collapses the bridge's hardcoded mention/fanout target lists
+   *       into one signed source. The gateway exposes the routable directory
+   *       as a read-surface (`GET /api/agents/matrix-targets`), which needs
+   *       to enumerate the directory — `resolve(name)` alone can't list it.
+   */
+  test("targetDirectory.entries() enumerates all verified peers as [name, entry] tuples", async () => {
+    const tmpDir = makeTempDir();
+    try {
+      const { privateKeyPem, publicKeyPem } = generateEd25519KeyPair();
+      const trustRootPath = join(tmpDir, "trust-root.pub");
+      writeFileSync(trustRootPath, publicKeyPem, "utf-8");
+
+      const peerPubKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      const recordA = join(tmpDir, "a.signed.json");
+      writeSignedRecord(recordA, makeUnsignedRecord("peer-a", peerPubKey), privateKeyPem);
+      const recordB = join(tmpDir, "b.signed.json");
+      writeSignedRecord(recordB, makeUnsignedRecord("peer-b", peerPubKey), privateKeyPem);
+
+      const manifestPath = join(tmpDir, "trust.json");
+      writeManifest(manifestPath, [
+        { entity: "peer-a", record_path: recordA },
+        { entity: "peer-b", record_path: recordB },
+      ]);
+
+      const result = await loadTrustManifest({ manifestPath, trustRootPath });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("expected ok=true");
+
+      const entries = [...result.targetDirectory.entries()].sort(([a], [b]) => a.localeCompare(b));
+      expect(entries.map(([name]) => name)).toEqual(["peer-a", "peer-b"]);
+      expect(entries[0]?.[1].matrix?.room).toBe("!peer-a:matrix.example");
+      expect(entries[1]?.[1].inbox?.session).toBe("peer-b");
+      // entries() and resolve() must agree — the view narrows to the same union.
+      for (const [name, entry] of entries) {
+        expect(result.targetDirectory.resolve(name)).toEqual(entry);
+      }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: A tampered/unverifiable peer record is absent from `entries()`,
+   *       exactly as it is absent from `resolve()`.
+   * WHY: Fail-closed by construction. The matrix-targets read-surface derives
+   *       solely from the verified `directoryMap`, so an attacker who edits a
+   *       record can never inject a routing target into the enumerated view.
+   */
+  test("targetDirectory.entries() omits tampered/unverified peers (fail-closed)", async () => {
+    const tmpDir = makeTempDir();
+    try {
+      const { privateKeyPem, publicKeyPem } = generateEd25519KeyPair();
+      const trustRootPath = join(tmpDir, "trust-root.pub");
+      writeFileSync(trustRootPath, publicKeyPem, "utf-8");
+
+      const peerPubKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      const validRecord = join(tmpDir, "valid.signed.json");
+      writeSignedRecord(validRecord, makeUnsignedRecord("good-peer", peerPubKey), privateKeyPem);
+
+      const tamperedRecord = join(tmpDir, "tampered.signed.json");
+      const signed = signPeerRecord(makeUnsignedRecord("bad-peer", peerPubKey), privateKeyPem);
+      const tampered: SignedPeerRecord = { ...signed, entity: "evil-peer" };
+      writeFileSync(tamperedRecord, JSON.stringify(tampered), "utf-8");
+
+      const manifestPath = join(tmpDir, "trust.json");
+      writeManifest(manifestPath, [
+        { entity: "good-peer", record_path: validRecord },
+        { entity: "bad-peer", record_path: tamperedRecord },
+      ]);
+
+      const result = await loadTrustManifest({
+        manifestPath,
+        trustRootPath,
+        logger: { warn: () => {}, error: () => {} },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("expected ok=true");
+
+      const names = [...result.targetDirectory.entries()].map(([name]) => name);
+      expect(names).toEqual(["good-peer"]);
+      expect(names).not.toContain("bad-peer");
+      expect(names).not.toContain("evil-peer");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * WHAT: An empty/fail-closed directory (no trust root, malformed manifest)
+   *       enumerates to an empty array — never throws.
+   * WHY: The read-surface must degrade to "no targets", not a 500.
+   */
+  test("empty/fail-closed targetDirectory.entries() returns []", async () => {
+    const tmpDir = makeTempDir();
+    try {
+      const trustRootPath = join(tmpDir, "does-not-exist.pub");
+      const manifestPath = join(tmpDir, "trust.json");
+      writeManifest(manifestPath, []);
+
+      const result = await loadTrustManifest({
+        manifestPath,
+        trustRootPath,
+        logger: { warn: () => {}, error: () => {} },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("expected ok=true");
+      expect(result.targetDirectory.entries()).toEqual([]);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   /**
    * WHAT: A peer manifest entry whose `record_path` doesn't exist → that
    *       peer is WARN-skipped (not in directory). Other peers continue

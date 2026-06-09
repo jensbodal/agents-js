@@ -85,6 +85,9 @@ function makeTargetDirectory(
     resolve(target: string) {
       return entries[target] ?? null;
     },
+    entries() {
+      return Object.entries(entries);
+    },
   };
 }
 
