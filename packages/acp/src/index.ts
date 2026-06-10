@@ -16,6 +16,7 @@ export {
 } from "./controller.ts";
 export { CwdResolutionError, resolveSessionCwd } from "./cwd-resolver.ts";
 export { extractRequestErrorDetails, formatRequestError } from "./error-format.ts";
+export { mergeBinPaths } from "./extended-path.ts";
 export {
   ClientSideConnection,
   ndJsonStream,
@@ -30,6 +31,7 @@ export {
   createErrorAwareReadable,
   type ErrorAwareStreamOptions,
   type ErrorSignal,
+  NDJSONLineBuffer,
 } from "./stream-utils.ts";
 export {
   type AcpStreamingSink,

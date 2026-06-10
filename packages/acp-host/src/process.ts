@@ -4,7 +4,12 @@ import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
-import { type ACPProcess, createErrorAwareReadable, ndJsonStream } from "@agents-js/acp";
+import {
+  type ACPProcess,
+  createErrorAwareReadable,
+  mergeBinPaths,
+  ndJsonStream,
+} from "@agents-js/acp";
 import {
   type HostEnvPolicyInput,
   type ResolvedHostEnvPolicy,
@@ -38,30 +43,6 @@ function ensureSandboxHome(workspaceRootPath: string): void {
  * (rather than imported from a runtime-resolution package) so that
  * `@agents-js/acp-host` stays free of harness-catalog dependencies.
  */
-function buildExtendedPath(
-  basePath: string | undefined,
-  extraBinPaths?: readonly string[],
-): string {
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  const append = (segment: string): void => {
-    if (!segment || seen.has(segment)) return;
-    seen.add(segment);
-    merged.push(segment);
-  };
-  if (basePath) {
-    for (const segment of basePath.split(":")) {
-      append(segment);
-    }
-  }
-  if (extraBinPaths) {
-    for (const segment of extraBinPaths) {
-      append(segment);
-    }
-  }
-  return merged.join(":");
-}
-
 export interface BuildMinimalEnvInput {
   workspaceRootPath: string;
   extraEnv?: Record<string, string>;
@@ -108,7 +89,7 @@ function buildMinimalEnvFromResolved(args: {
 
   // Extend PATH with caller-supplied bin directories for GUI-launched hosts
   // whose inherited PATH may omit user-local tool roots.
-  env.PATH = buildExtendedPath(env.PATH, extraBinPaths);
+  env.PATH = mergeBinPaths(env.PATH, extraBinPaths);
 
   if (!allowRealHome) {
     const sandboxHome = sandboxHomePath(workspaceRootPath);

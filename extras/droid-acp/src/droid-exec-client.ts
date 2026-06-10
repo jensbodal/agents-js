@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { NDJSONLineBuffer } from "@agents-js/acp";
 import type { DroidStreamEvent } from "./types.ts";
 
 /**
@@ -52,41 +53,6 @@ export interface DroidExecClientOptions {
    * from byte 0, so any failure is logged at debug level without crashing.
    */
   onProtocolError?: (rawLine: string, error: unknown) => void;
-}
-
-/**
- * LF-delimited line buffer for NDJSON stdout. Strips an optional trailing
- * `\r` so CRLF-delivered streams remain decodable; splits only on LF.
- */
-class NDJSONLineBuffer {
-  private buffer = "";
-  private readonly decoder = new TextDecoder("utf-8");
-
-  push(chunk: Buffer | string): string[] {
-    const text = typeof chunk === "string" ? chunk : this.decoder.decode(chunk, { stream: true });
-    this.buffer += text;
-    const lines: string[] = [];
-    let newlineIndex = this.buffer.indexOf("\n");
-    while (newlineIndex !== -1) {
-      let line = this.buffer.slice(0, newlineIndex);
-      if (line.endsWith("\r")) {
-        line = line.slice(0, -1);
-      }
-      if (line.length > 0) {
-        lines.push(line);
-      }
-      this.buffer = this.buffer.slice(newlineIndex + 1);
-      newlineIndex = this.buffer.indexOf("\n");
-    }
-    return lines;
-  }
-
-  /** Return any residual (non-newline-terminated) bytes. Called on child exit. */
-  drain(): string {
-    const residual = this.buffer;
-    this.buffer = "";
-    return residual;
-  }
 }
 
 /** One spawned `droid exec` child. Represents a single ACP prompt turn. */

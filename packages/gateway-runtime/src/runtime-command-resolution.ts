@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mergeBinPaths } from "@agents-js/acp";
 import {
   DEFAULT_EXTRA_BIN_PATHS,
   type GatewayRuntimeDefinition,
@@ -11,6 +12,10 @@ import {
  * Merge {@link DEFAULT_EXTRA_BIN_PATHS} (plus any caller-supplied extras)
  * onto a base `PATH` string, de-duplicating while preserving order. Existing
  * entries keep their position; new entries append in list order.
+ *
+ * The de-dup/merge itself is the shared {@link mergeBinPaths} from
+ * `@agents-js/acp`; this wrapper layers the gateway's default bin paths (with
+ * `HOME` expanded) ahead of the caller's extras.
  */
 export function buildExtendedPath(
   basePath: string | undefined,
@@ -19,20 +24,7 @@ export function buildExtendedPath(
   // biome-ignore lint/style/noProcessEnv: HOME expansion intentionally reads the live process environment at runtime.
   const home = process.env.HOME ?? "";
   const resolvedDefaults = DEFAULT_EXTRA_BIN_PATHS.map((p) => p.replace(HOME_PLACEHOLDER, home));
-  const extraDirs = [...resolvedDefaults, ...(extraBinPaths ?? [])].filter(Boolean);
-  const ordered: string[] = [];
-  const seen = new Set<string>();
-  for (const dir of (basePath ?? "").split(":")) {
-    if (!dir || seen.has(dir)) continue;
-    seen.add(dir);
-    ordered.push(dir);
-  }
-  for (const dir of extraDirs) {
-    if (seen.has(dir)) continue;
-    seen.add(dir);
-    ordered.push(dir);
-  }
-  return ordered.join(":");
+  return mergeBinPaths(basePath, [...resolvedDefaults, ...(extraBinPaths ?? [])]);
 }
 
 export const defaultRuntimeCommandResolver: RuntimeCommandResolver = {

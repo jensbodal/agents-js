@@ -8,6 +8,52 @@
 import type { ChildProcess } from "node:child_process";
 
 /**
+ * LF-delimited line buffer for NDJSON process stdout.
+ *
+ * ACP-over-stdio adapters (Pi, Droid, …) read newline-delimited JSON from a
+ * child's stdout. The framing is strictly LF; an optional trailing `\r` is
+ * stripped so CRLF-delivered streams remain decodable. Splitting is done on LF
+ * only — deliberately NOT a Unicode-separator-aware splitter — so embedded
+ * U+2028/U+2029 inside JSON string values never fracture a line. Empty lines
+ * are dropped. Bytes are decoded as streaming UTF-8 so multi-byte runes split
+ * across chunk boundaries are not corrupted.
+ */
+export class NDJSONLineBuffer {
+  private buffer = "";
+  private readonly decoder = new TextDecoder("utf-8");
+
+  /** Feed a chunk; returns any complete (non-empty) lines it produced. */
+  push(chunk: Buffer | string): string[] {
+    const text = typeof chunk === "string" ? chunk : this.decoder.decode(chunk, { stream: true });
+    this.buffer += text;
+    const lines: string[] = [];
+    let newlineIndex = this.buffer.indexOf("\n");
+    while (newlineIndex !== -1) {
+      let line = this.buffer.slice(0, newlineIndex);
+      if (line.endsWith("\r")) {
+        line = line.slice(0, -1);
+      }
+      if (line.length > 0) {
+        lines.push(line);
+      }
+      this.buffer = this.buffer.slice(newlineIndex + 1);
+      newlineIndex = this.buffer.indexOf("\n");
+    }
+    return lines;
+  }
+
+  /**
+   * Return and clear any residual (non-newline-terminated) bytes. Call on child
+   * exit so a trailing partial line isn't silently lost in error reports.
+   */
+  drain(): string {
+    const residual = this.buffer;
+    this.buffer = "";
+    return residual;
+  }
+}
+
+/**
  * Handle for signalling errors into an error-aware readable stream.
  * Attach child-process event handlers that call `signal()` on failure.
  */
