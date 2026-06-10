@@ -682,6 +682,71 @@ describe("A2AClientProvider", () => {
     }
   });
 
+  test("idle poll timeout resets on progress — a long but advancing task completes", async () => {
+    // Each poll makes progress (growing agent text), so the idle deadline resets
+    // every iteration. With a per-poll interval well under the idle window, the
+    // turn never trips the timeout no matter how many steps it takes — the fix
+    // for the old wall-clock cap that killed healthy long-running responses.
+    const working = (n: number): Task =>
+      makeTask({
+        id: "task-prog",
+        contextId: "ctx-prog",
+        state: TaskState.TASK_STATE_WORKING,
+        history: [
+          makeMessage({
+            messageId: `m${n}`,
+            role: Role.ROLE_AGENT,
+            parts: [makeTextPart("x".repeat(n))],
+          }),
+        ],
+      });
+    const done = makeTask({
+      id: "task-prog",
+      contextId: "ctx-prog",
+      state: TaskState.TASK_STATE_COMPLETED,
+      history: [
+        makeMessage({
+          messageId: "mDone",
+          role: Role.ROLE_AGENT,
+          parts: [makeTextPart("final answer")],
+        }),
+      ],
+    });
+
+    const provider = new A2AClientProvider(
+      new MockTransport(
+        makeTask({ id: "task-prog", contextId: "ctx-prog", state: TaskState.TASK_STATE_WORKING }),
+        [working(1), working(2), working(3), working(4), working(5), done],
+      ),
+    );
+
+    const target = await provider.connect({ url: "http://127.0.0.1:55363" });
+    const result = await provider.sendTurn(target, "hi", { pollIntervalMs: 1, pollTimeoutMs: 20 });
+
+    expect("id" in result && result.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+  });
+
+  test("pollTimeoutMs 0 disables the idle timeout (polls until terminal)", async () => {
+    // No-progress polls would trip any positive idle timeout; 0 means unbounded,
+    // so the client waits through them until the task finally completes.
+    const stuck = makeTask({ id: "t0", contextId: "c0", state: TaskState.TASK_STATE_WORKING });
+    const done = makeTask({
+      id: "t0",
+      contextId: "c0",
+      state: TaskState.TASK_STATE_COMPLETED,
+      history: [
+        makeMessage({ messageId: "d", role: Role.ROLE_AGENT, parts: [makeTextPart("done")] }),
+      ],
+    });
+
+    const provider = new A2AClientProvider(new MockTransport(stuck, [stuck, stuck, stuck, done]));
+
+    const target = await provider.connect({ url: "http://127.0.0.1:55363" });
+    const result = await provider.sendTurn(target, "hi", { pollIntervalMs: 0, pollTimeoutMs: 0 });
+
+    expect("id" in result && result.status?.state).toBe(TaskState.TASK_STATE_COMPLETED);
+  });
+
   test("polling completes normally when task reaches terminal state within timeout", async () => {
     const provider = new A2AClientProvider(
       new MockTransport(

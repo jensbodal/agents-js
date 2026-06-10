@@ -36,7 +36,11 @@ import { randomUuid } from "./uuid.ts";
 
 const DEFAULT_HISTORY_LENGTH = 50;
 const DEFAULT_POLL_INTERVAL_MS = 750;
-const DEFAULT_POLL_TIMEOUT_MS = 30_000;
+// Idle timeout (see handleTaskResult): max time WITHOUT task progress before the
+// poll gives up. Generous because this is the non-streaming fallback — a healthy
+// agent emitting any intermediate update resets it; only sustained silence trips
+// it. Override per-call via `pollTimeoutMs` (0 = unbounded).
+const DEFAULT_POLL_TIMEOUT_MS = 300_000;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -782,8 +786,16 @@ export class A2AClientProvider {
       return currentTask;
     }
 
+    // Idle timeout, not a total-turn cap: `timeoutMs` is the maximum time the
+    // task may go WITHOUT progress (a state change or new agent text). Any
+    // progress resets the deadline, so a long-running agent that keeps advancing
+    // is never killed mid-turn — only genuine silence trips it. `timeoutMs <= 0`
+    // disables the timeout entirely (poll until terminal or aborted) for agents
+    // that can run a very long time with no intermediate signal.
     const timeoutMs = options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
-    const deadline = Date.now() + timeoutMs;
+    const idleTimeoutEnabled = timeoutMs > 0;
+    let deadline = Date.now() + timeoutMs;
+    let lastObservedState = currentTask.status?.state;
 
     while (!isTerminalTaskState(currentTask.status?.state)) {
       if (options.signal?.aborted) {
@@ -795,9 +807,9 @@ export class A2AClientProvider {
         });
         throw createAbortError(options.signal);
       }
-      if (Date.now() >= deadline) {
+      if (idleTimeoutEnabled && Date.now() >= deadline) {
         const error = new Error(
-          `[a2a-client] Polling timed out after ${timeoutMs}ms. Task "${currentTask.id}" is still in state "${currentTask.status?.state}".`,
+          `[a2a-client] Polling timed out after ${timeoutMs}ms with no task progress. Task "${currentTask.id}" is still in state "${currentTask.status?.state}".`,
         );
         this.emit({ type: "error", error: error.message, cause: error });
         throw error;
@@ -824,6 +836,15 @@ export class A2AClientProvider {
       this.emit({ type: "task.updated", task: currentTask });
 
       const nextText = extractLatestAgentText(currentTask);
+      // Progress = the task advanced state or produced new agent text. Reset the
+      // idle deadline so only true silence (a hung peer) ever times out.
+      const stateChanged = currentTask.status?.state !== lastObservedState;
+      const textGrew = Boolean(nextText && nextText !== lastText);
+      if (stateChanged || textGrew) {
+        deadline = Date.now() + timeoutMs;
+      }
+      lastObservedState = currentTask.status?.state;
+
       if (nextText && nextText !== lastText) {
         lastText = nextText;
         this.emit({
