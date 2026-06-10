@@ -69,9 +69,9 @@ export interface WaitForAgentReadyOptions {
   loadRecords: LoadRegistryRecords;
   /** Probe the record's `health_check_url` (falls back to the agent-card path). */
   probe: HealthProbe;
-  /** Monotonic-enough clock in ms (default `Date.now`). */
+  /** Monotonic-enough clock in ms; the CLI injects `Date.now`. */
   now: () => number;
-  /** Sleep between polls (default real `setTimeout`). */
+  /** Sleep between polls; the CLI injects real `setTimeout`. */
   sleep: (ms: number) => Promise<void>;
   /** Total budget before giving up. Default 30_000ms. */
   timeoutMs?: number;

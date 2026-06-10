@@ -57,7 +57,12 @@ export interface ClientCommandDependencies {
 }
 
 /** Native-fetch health probe (only the status is consulted). Injectable for tests. */
-const defaultProbe: HealthProbe = (url) => fetch(url).then((r) => ({ status: r.status }));
+const DEFAULT_HEALTH_PROBE_TIMEOUT_MS = 2_000;
+
+const defaultProbe: HealthProbe = (url) =>
+  fetch(url, { signal: AbortSignal.timeout(DEFAULT_HEALTH_PROBE_TIMEOUT_MS) }).then((r) => ({
+    status: r.status,
+  }));
 
 function parseHeader(raw: string): [string, string] {
   const separator = raw.indexOf(":");
@@ -410,6 +415,12 @@ export async function runClientCommand(
   if (parsed.help) {
     printClientUsage(output);
     return EXIT_OK;
+  }
+
+  if (parsed.wait && !parsed.agent) {
+    process.stderr.write("[agents-js] --wait requires --agent.\n");
+    printClientUsage(process.stderr);
+    return 64;
   }
 
   if ((parsed.url ? 1 : 0) + (parsed.card ? 1 : 0) + (parsed.agent ? 1 : 0) !== 1) {

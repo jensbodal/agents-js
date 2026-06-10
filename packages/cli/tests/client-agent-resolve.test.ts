@@ -147,8 +147,42 @@ describe("runClientCommand — --agent wiring", () => {
     expect(captured?.target.url).toBe("http://10.0.0.219:49622");
   });
 
+  test("--agent --wait default health probe passes an abort signal to fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    const signals: AbortSignal[] = [];
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      const init = args[1];
+      if (init?.signal) {
+        signals.push(init.signal);
+      }
+      return new Response("", { status: 200 });
+    }) as typeof fetch;
+    try {
+      const code = await runClientCommand(["--agent", "pi-a", "--wait"], {
+        loadRegistryRecords: async () => [rec({ name: "pi-a", url: "http://10.0.0.219:49622" })],
+        now: () => 0,
+        sleep: async () => {},
+        runApp: async () => 0,
+        output: { write: () => true },
+      });
+      expect(code).toBe(0);
+      expect(signals).toHaveLength(1);
+      expect(signals[0]).toBeInstanceOf(AbortSignal);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("rejects combining --agent with --url (exactly one target)", async () => {
     const code = await runClientCommand(["--agent", "pi-a", "--url", "http://x"], {
+      runApp: async () => 0,
+      output: { write: () => true },
+    });
+    expect(code).toBe(64);
+  });
+
+  test("rejects --wait without --agent instead of silently ignoring it", async () => {
+    const code = await runClientCommand(["--url", "http://10.0.0.219:49622", "--wait"], {
       runApp: async () => 0,
       output: { write: () => true },
     });
