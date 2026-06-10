@@ -12,7 +12,6 @@ import {
   buildAgentCard,
   buildAgentCardBaseUrl,
   buildStatusUpdate,
-  buildTerminalTask,
   CURRENT_A2A_PROTOCOL_VERSION,
   DEFAULT_MAX_REQUEST_BODY_SIZE,
   type ExecutionEventBus,
@@ -92,6 +91,13 @@ interface PendingPiTurn {
   reject(error: Error): void;
   resolve(text: string): void;
   textBuffer: string;
+  /**
+   * Streaming callback invoked with the CUMULATIVE accumulated text each time
+   * pi emits an incremental `text_delta`. The A2A executor uses it to publish
+   * progressive `WORKING` status updates so the client renders the response as
+   * it streams instead of waiting (and timing out) for the terminal task.
+   */
+  onDelta?: (cumulative: string) => void;
 }
 
 function isObject(input: unknown): input is Record<string, unknown> {
@@ -530,6 +536,9 @@ class NativePiTurnRunner {
       const delta = extractMessageUpdateDelta(event);
       if (delta && this.pending) {
         this.pending.textBuffer += delta;
+        // Forward the cumulative text so the A2A executor can emit a streaming
+        // status update for this chunk.
+        this.pending.onDelta?.(this.pending.textBuffer);
       }
     });
 
@@ -569,7 +578,11 @@ class NativePiTurnRunner {
     return this.pending !== null || this.agentActive;
   }
 
-  async runPrompt(text: string, signal?: AbortSignal): Promise<string> {
+  async runPrompt(
+    text: string,
+    signal?: AbortSignal,
+    onDelta?: (cumulative: string) => void,
+  ): Promise<string> {
     if (!this.pi.sendUserMessage) {
       throw new Error("Pi host does not expose sendUserMessage().");
     }
@@ -604,6 +617,7 @@ class NativePiTurnRunner {
 
       pending = {
         textBuffer: "",
+        onDelta,
         clear: () => {
           clearTimeout(timer);
           signal?.removeEventListener("abort", onAbort);
@@ -673,12 +687,23 @@ class NativePiExecutor implements InitializableExecutor {
       }),
     );
 
+    // One stable message id for the whole streamed turn, so the client computes
+    // incremental deltas against a single growing message (the WORKING deltas
+    // and the terminal message share it) instead of treating each chunk as a
+    // new message.
+    const streamMessageId = crypto.randomUUID();
+
     if (this.turnRunner.isBusy()) {
+      // A2A 1.0 streaming: the turn opened with an `AgentEvent.task` (SUBMITTED)
+      // above, so every later event MUST be a statusUpdate/artifactUpdate — a
+      // second `task` event is a stream-ordering violation. Terminate with a
+      // terminal-state statusUpdate (matches the host executor's pattern).
       eventBus.publish(
-        AgentEvent.task(
-          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(context.taskId, context.contextId, {
             state: TaskState.TASK_STATE_FAILED,
             text: "Native Pi session is busy; retry after the current turn finishes.",
+            messageId: streamMessageId,
           }),
         ),
       );
@@ -699,24 +724,37 @@ class NativePiExecutor implements InitializableExecutor {
 
     try {
       const prompt = getMessageText(userMessage);
-      const responseText = await this.turnRunner.runPrompt(prompt, controller.signal);
+      const onDelta = (cumulative: string) => {
+        eventBus.publish(
+          AgentEvent.statusUpdate(
+            buildStatusUpdate(context.taskId, context.contextId, {
+              state: TaskState.TASK_STATE_WORKING,
+              text: cumulative,
+              messageId: streamMessageId,
+            }),
+          ),
+        );
+      };
+      const responseText = await this.turnRunner.runPrompt(prompt, controller.signal, onDelta);
       eventBus.publish(
-        AgentEvent.task(
-          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(context.taskId, context.contextId, {
             state: controller.signal.aborted
               ? TaskState.TASK_STATE_CANCELED
               : TaskState.TASK_STATE_COMPLETED,
             text: responseText || "(no response)",
+            messageId: streamMessageId,
           }),
         ),
       );
     } catch (error) {
       eventBus.publish(
-        AgentEvent.task(
-          buildTerminalTask(context.taskId, context.contextId, userMessage, {
+        AgentEvent.statusUpdate(
+          buildStatusUpdate(context.taskId, context.contextId, {
             state: controller.signal.aborted
               ? TaskState.TASK_STATE_CANCELED
               : TaskState.TASK_STATE_FAILED,
+            messageId: streamMessageId,
             text: formatError(error),
           }),
         ),
@@ -840,7 +878,11 @@ export function installNativePeerBridge(
     description: `Native Pi TUI peer ${config.name}`,
     capabilities: {
       "text-to-text": {},
-      streaming: false,
+      // Streaming is the default across agents-js (ACP serves advertise it via
+      // mapCapabilities); the native-peer emits incremental WORKING status
+      // updates from pi's text deltas (see NativePiExecutor.execute), so the
+      // client streams the reply instead of polling for the terminal task.
+      streaming: true,
       extensions: [],
     },
   });

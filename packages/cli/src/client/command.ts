@@ -25,6 +25,8 @@ export interface ClientCommandArgs {
   help?: boolean;
   message?: string;
   poll: boolean;
+  /** Idle poll timeout in ms for the non-streaming fallback (0 = unbounded). */
+  pollTimeoutMs?: number;
   probe: boolean;
   raw: boolean;
   taskId?: string;
@@ -35,6 +37,7 @@ export interface ClientCommandArgs {
 export interface StartClientAppOptions {
   contextId?: string;
   poll: boolean;
+  pollTimeoutMs?: number;
   raw: boolean;
   target: AgentTargetInput;
   taskId?: string;
@@ -159,6 +162,22 @@ const CLIENT_ARG_SPEC: ArgSpec<ClientCommandArgs> = {
       a.poll = false;
     },
   },
+  // Idle timeout (seconds) for the non-streaming poll fallback: the max time
+  // WITHOUT task progress before giving up. `0` = wait indefinitely. Streaming
+  // agents (the default) never hit this path. Streaming-incapable agents that
+  // can run for many minutes should raise it or set 0.
+  "--poll-timeout": {
+    kind: "value",
+    assign: (a, v) => {
+      const seconds = Number(v);
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        throw new Error(
+          `[agents-js] --poll-timeout expects a non-negative number of seconds (got "${v}"). Use 0 for no timeout.`,
+        );
+      }
+      a.pollTimeoutMs = Math.round(seconds * 1000);
+    },
+  },
   "--message": { kind: "value", assign: setMessage },
   "-m": { kind: "value", assign: setMessage },
 };
@@ -198,6 +217,8 @@ export function printClientUsage(output: Pick<NodeJS.WriteStream, "write">): voi
       "  --message, -m <text>   Send a single message and print the response (no TUI)",
       "  --probe                Probe endpoints and print the results without launching the TUI",
       "  --no-poll              Send messages without polling task state to completion",
+      "  --poll-timeout <secs>  Idle timeout for the non-streaming poll fallback (0 = no",
+      "                         timeout). Resets on progress; streaming agents skip it.",
       "  --version, -v          Print version and exit",
       "  --help, -h             Show this message",
     ].join("\n")}\n`,
@@ -310,6 +331,7 @@ export async function startClientApp(
   const renderer = await (dependencies.createRenderer ?? createRenderer)();
   const app = createClientApp(renderer, controller, {
     poll: options.poll,
+    pollTimeoutMs: options.pollTimeoutMs,
     raw: options.raw,
   });
 
@@ -391,7 +413,10 @@ export async function runOneShotMessage(
       });
     });
 
-    await controller.sendTurn(parsed.message ?? "", { poll: parsed.poll });
+    await controller.sendTurn(parsed.message ?? "", {
+      poll: parsed.poll,
+      ...(parsed.pollTimeoutMs !== undefined ? { pollTimeoutMs: parsed.pollTimeoutMs } : {}),
+    });
 
     return await done;
   } finally {
@@ -495,6 +520,7 @@ export async function runClientCommand(
   return (dependencies.runApp ?? ((options) => startClientApp(options, dependencies)))({
     contextId: parsed.contextId,
     poll: parsed.poll,
+    pollTimeoutMs: parsed.pollTimeoutMs,
     raw: parsed.raw,
     target,
     taskId: parsed.taskId,

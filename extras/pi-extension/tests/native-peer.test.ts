@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { A2AClientProvider } from "@agents-js/a2a-client";
 import { installNativePeerBridge, type NativePiPeerHandle } from "../src/native-peer.ts";
 import type { PiCustomMessage, PiHost, PiToolRegistration } from "../src/types.ts";
 
@@ -17,7 +18,8 @@ type MockPiResponderResult =
   | string
   | Error
   | { kind: "hang" }
-  | { kind: "user_agent_error"; message: string };
+  | { kind: "user_agent_error"; message: string }
+  | { kind: "chunks"; parts: string[] };
 
 type MockPiResponder = (message: string) => MockPiResponderResult;
 
@@ -62,6 +64,26 @@ class MockPiHost implements PiHost {
         queueMicrotask(() => {
           void this.emit("agent_start", {}).then(() =>
             this.emit("agent_error", { message: response.message }),
+          );
+        });
+        return;
+      }
+      if (response.kind === "chunks") {
+        const parts = response.parts;
+        const full = parts.join("");
+        queueMicrotask(() => {
+          let chain = this.emit("agent_start", {});
+          for (const part of parts) {
+            chain = chain.then(() =>
+              this.emit("message_update", {
+                assistantMessageEvent: { type: "text_delta", delta: part },
+              }),
+            );
+          }
+          void chain.then(() =>
+            this.emit("agent_end", {
+              messages: [{ role: "assistant", content: [{ type: "text", text: full }] }],
+            }),
           );
         });
         return;
@@ -191,6 +213,38 @@ describe("native Pi peer mode", () => {
     const body = await sendMessage(url, "hello from a2a");
     expect(pi.userMessages).toEqual(["hello from a2a"]);
     expect(JSON.stringify(body)).toContain("answer for hello from a2a");
+  });
+
+  test("advertises streaming and streams incremental deltas to a subscribing client", async () => {
+    const { url } = await startPeer("pi-a", () => ({
+      kind: "chunks",
+      parts: ["Hello", " streaming", " world!"],
+    }));
+
+    const provider = new A2AClientProvider();
+    const deltas: string[] = [];
+    let completed = "";
+    const unsubscribe = provider.subscribe((event) => {
+      if (event.type === "message.delta") {
+        deltas.push(event.text);
+      } else if (event.type === "message.completed") {
+        completed = event.text;
+      }
+    });
+
+    try {
+      const target = await provider.connect({ url });
+      // The card now advertises streaming (was hardcoded false).
+      expect(target.capabilities.supportsStreaming).toBe(true);
+      await provider.sendTurn(target, "hi", { stream: true });
+    } finally {
+      unsubscribe();
+    }
+
+    // Progressive, cumulative deltas (not one final dump), then a completion.
+    expect(deltas.length).toBeGreaterThan(1);
+    expect(deltas.at(-1)).toBe("Hello streaming world!");
+    expect(completed).toBe("Hello streaming world!");
   });
 
   test("inbound A2A prompt calls sendUserMessage and resolves from agent_end", async () => {

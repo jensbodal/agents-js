@@ -2,9 +2,12 @@ import type { A2ASessionState, TranscriptEntry } from "@agents-js/a2a-client";
 import {
   BoxRenderable,
   type CliRenderer,
+  fg,
   ScrollBoxRenderable,
+  StyledText,
   TextRenderable,
 } from "@opentui/core";
+import { markdownToStyledText } from "./markdown.ts";
 
 export interface ClientTranscriptView {
   root: ScrollBoxRenderable;
@@ -22,11 +25,17 @@ function renderEntry(renderer: CliRenderer, entry: TranscriptEntry, index: numbe
     paddingTop: 0,
     paddingBottom: 0,
   });
+  const color = roleColor(entry.role);
+  // The role prefix stays plain; the body renders markdown (bold/bullets/code)
+  // so agent replies don't show raw `**markers**`.
+  const content = new StyledText([
+    fg(color)(`  ${entry.role}: `),
+    ...markdownToStyledText(entry.text, color).chunks,
+  ]);
   box.add(
     new TextRenderable(renderer, {
       id: `client-transcript-entry-text-${index}`,
-      content: `  ${entry.role}: ${entry.text}`,
-      fg: roleColor(entry.role),
+      content,
     }),
   );
   return box;

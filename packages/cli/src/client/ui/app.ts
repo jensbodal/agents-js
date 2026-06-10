@@ -15,6 +15,7 @@ export interface ClientApp {
 
 export interface ClientAppOptions {
   poll: boolean;
+  pollTimeoutMs?: number;
   raw: boolean;
 }
 
@@ -38,6 +39,7 @@ export function createClientApp(
     onSend: async (message) => {
       await controller.sendTurn(message, {
         poll: options.poll,
+        ...(options.pollTimeoutMs !== undefined ? { pollTimeoutMs: options.pollTimeoutMs } : {}),
       });
     },
     // Surface auth/elicitation/send failures into session state so the
