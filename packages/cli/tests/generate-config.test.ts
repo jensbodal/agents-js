@@ -274,3 +274,60 @@ describe("buildRawAgentEntry omits unset optional fields", () => {
     expect(entry.env_setup).toBe("export MATRIX_AGENT=a-id");
   });
 });
+
+// LT-8 ----------------------------------------------------------------------
+// Security regression (PR #182): the --matrix-agent value is interpolated
+// verbatim into the env_setup shell string. A shell-unsafe value (`&&`,
+// newline, `$`, `$(...)`, backtick, `;`) would smuggle a command into the
+// composed launch command, so generation must REJECT it before it is embedded
+// — non-zero exit, nothing on stdout — while a normal slug still succeeds.
+describe("generate-config — LT-8 rejects shell-unsafe --matrix-agent", () => {
+  const baseArgs = ["--name", "sec", "--harness", "pi", "--workspace", "/work"];
+
+  const hostileValues: Array<[label: string, value: string]> = [
+    ["command chaining with &&", "a && curl evil"],
+    ["embedded newline", "a\ncurl evil"],
+    ["bare $ variable expansion", "a$b"],
+    ["command substitution $(...)", "$(curl evil)"],
+    ["backtick command substitution", "`curl evil`"],
+    ["semicolon command separator", "a;b"],
+  ];
+
+  for (const [label, value] of hostileValues) {
+    test(`rejects ${label}`, async () => {
+      const { stdout, stderr, dependencies } = deps();
+      const code = await runGenerateConfigCommand(
+        [...baseArgs, "--matrix-agent", value],
+        dependencies,
+      );
+      expect(code).toBe(EXIT_ERROR);
+      // Nothing is emitted, so the hostile value never reaches a config file
+      // or the composed launch command.
+      expect(stdout.text).toBe("");
+      expect(stderr.text).toContain("refusing to emit");
+    });
+  }
+
+  test("a normal lowercase slug still generates and emits the export", async () => {
+    const { stdout, dependencies } = deps();
+    const code = await runGenerateConfigCommand(
+      [...baseArgs, "--matrix-agent", "sec-agent_0"],
+      dependencies,
+    );
+    expect(code).toBe(EXIT_OK);
+    const entry = JSON.parse(stdout.text).agents.sec;
+    expect(entry.env_setup).toBe("export MATRIX_AGENT=sec-agent_0");
+  });
+
+  test("buildRawAgentEntry throws on a shell-unsafe slug before interpolation", () => {
+    expect(() =>
+      buildRawAgentEntry({
+        name: "sec",
+        harness: "pi",
+        workspace: "/work",
+        matrixAgent: "a && curl evil",
+        dualWindow: false,
+      }),
+    ).toThrow();
+  });
+});

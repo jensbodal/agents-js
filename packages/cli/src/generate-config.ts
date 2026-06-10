@@ -48,6 +48,7 @@ import {
   resolveAgentEntry,
   resolveProviderCredEnvKeys,
 } from "@agents-js/agent-launch";
+import { validateGatewayRuntimeProfileName } from "@agents-js/gateway-runtime";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
 import { EXIT_ERROR, EXIT_OK, EXIT_USAGE } from "./exit-codes.ts";
 import { CLI_VERSION, handleVersionFlag } from "./version.ts";
@@ -311,8 +312,17 @@ export function printGenerateConfigUsage(output: Pick<NodeJS.WriteStream, "write
  */
 export function buildRawAgentEntry(args: GenerateConfigArgs): Record<string, unknown> {
   const harness = args.harness as string;
-  const envSetup =
-    args.matrixAgent !== undefined ? `export MATRIX_AGENT=${args.matrixAgent}` : undefined;
+  // The MATRIX_AGENT value is interpolated verbatim into the `env_setup` shell
+  // string, so it must be a shell-safe slug — never `&&`, `;`, newlines, `$`,
+  // backticks, or command substitution. Validate it through the SAME canonical
+  // agent-name slug validator (`/^[a-z0-9_-]+$/`) the serve/bridge/acp commands
+  // use for profile names, BEFORE it is ever embedded, so a hostile value is
+  // rejected here rather than smuggled into the composed launch command.
+  const matrixAgent =
+    args.matrixAgent !== undefined
+      ? validateGatewayRuntimeProfileName(args.matrixAgent)
+      : undefined;
+  const envSetup = matrixAgent !== undefined ? `export MATRIX_AGENT=${matrixAgent}` : undefined;
   const entry: Record<string, unknown> = {
     tmux_session: args.tmuxSession ?? args.name,
     harness,
@@ -382,7 +392,18 @@ export async function runGenerateConfigCommand(
   }
 
   const name = args.name as string;
-  const rawEntry = buildRawAgentEntry(args);
+  let rawEntry: Record<string, unknown>;
+  try {
+    rawEntry = buildRawAgentEntry(args);
+  } catch (error) {
+    // e.g. a shell-unsafe --matrix-agent slug rejected before it could be
+    // interpolated into env_setup. Surface it and refuse, like the other
+    // generation-time rejections below.
+    stderr.write(
+      `[agents-js] generate-config: refusing to emit — invalid flag value.\n  ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return EXIT_ERROR;
+  }
 
   // Assemble the config to validate + emit. For --merge, layer the new entry
   // onto the existing file's agents + top-level fields; otherwise emit a fresh
