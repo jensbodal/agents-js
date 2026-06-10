@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { captureProcessStreamToFile, runCommand, runForeground } from "../scripts/process-utils.ts";
+import {
+  captureProcessStreamToFile,
+  parsePgrepPids,
+  runCommand,
+  runForeground,
+} from "../scripts/process-utils.ts";
 
 const tempDirs: string[] = [];
 
@@ -13,6 +18,26 @@ afterEach(async () => {
       await rm(dir, { recursive: true, force: true }).catch(() => {});
     }
   }
+});
+
+describe("parsePgrepPids", () => {
+  test("parses newline-delimited pgrep output with a trailing newline", () => {
+    expect(parsePgrepPids("123\n456\n789\n")).toEqual([123, 456, 789]);
+  });
+
+  test("empty or whitespace-only stdout yields [] (not [NaN])", () => {
+    expect(parsePgrepPids("")).toEqual([]);
+    expect(parsePgrepPids("\n")).toEqual([]);
+    expect(parsePgrepPids("   \n  \t ")).toEqual([]);
+  });
+
+  test("tolerates leading/interior/trailing whitespace and blank lines", () => {
+    expect(parsePgrepPids("  123\n\n  456  \n")).toEqual([123, 456]);
+  });
+
+  test("drops non-positive and non-integer tokens defensively", () => {
+    expect(parsePgrepPids("0\n-1\nabc\n42\n")).toEqual([42]);
+  });
 });
 
 describe("captureProcessStreamToFile", () => {

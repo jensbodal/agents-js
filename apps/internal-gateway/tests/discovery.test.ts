@@ -3,6 +3,7 @@ import {
   buildGatewayDiscovery,
   formatGatewayDiscoveryLines,
   parseGatewayPort,
+  parseNonNegativeInteger,
   resolveGatewayPort,
   resolveGatewayPublicUrl,
 } from "../discovery.ts";
@@ -29,6 +30,32 @@ describe("parseGatewayPort", () => {
     expect(() => parseGatewayPort("3e2", "--port")).toThrow();
     expect(() => parseGatewayPort("", "--port")).toThrow();
     expect(() => parseGatewayPort("   ", "--port")).toThrow();
+  });
+});
+
+describe("parseNonNegativeInteger", () => {
+  test("accepts non-negative integers including 0 and large values", () => {
+    expect(parseNonNegativeInteger("0", "AGENTS_JS_SYNC_INTERVAL_MS")).toBe(0);
+    expect(parseNonNegativeInteger("300000", "AGENTS_JS_SYNC_INTERVAL_MS")).toBe(300_000);
+    expect(parseNonNegativeInteger("  60000  ", "AGENTS_JS_SYNC_INTERVAL_MS")).toBe(60_000);
+  });
+
+  test("rejects the Number()-permissive values the old call site accepted", () => {
+    // `Number("abc")` is NaN, `Number("Infinity")` is Infinity, `Number("1e6")`
+    // is 1_000_000 — all would have flowed into the registry-sync timer.
+    for (const bad of ["abc", "Infinity", "NaN", "1e6", "3.14", "-1", "+5", "0x10", "", "   "]) {
+      expect(() => parseNonNegativeInteger(bad, "AGENTS_JS_SYNC_INTERVAL_MS")).toThrow();
+    }
+  });
+
+  test("rejects values beyond the safe-integer range", () => {
+    expect(() => parseNonNegativeInteger("99999999999999999999", "label")).toThrow();
+  });
+
+  test("error message surfaces the label and the custom hint", () => {
+    expect(() => parseNonNegativeInteger("nope", "--interval", "an integer >= 0")).toThrow(
+      'Invalid --interval "nope". Expected an integer >= 0.',
+    );
   });
 });
 

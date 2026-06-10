@@ -266,6 +266,26 @@ export async function runForeground(
   return code;
 }
 
+/**
+ * Parse the stdout of `pgrep -P <pid>` into child PIDs.
+ *
+ * Safety contract: pgrep prints one PID per line and terminates the list with
+ * a trailing newline; an empty result set is an empty stdout. Splitting raw on
+ * `/\s+/` therefore yields a trailing (and, for whitespace-led output, leading)
+ * empty token, so we `.trim()` first and drop any remaining empties with
+ * `.filter(Boolean)` before parsing — that keeps blank/whitespace-only stdout
+ * mapping to `[]` rather than `[NaN]`. The final integer guard is retained as
+ * defense-in-depth against any non-numeric token a future pgrep flag could add.
+ */
+export function parsePgrepPids(stdout: string): number[] {
+  return stdout
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+}
+
 function listChildPids(parentPid: number): number[] {
   const pgrep = Bun.which("pgrep");
   if (!pgrep) {
@@ -281,11 +301,7 @@ function listChildPids(parentPid: number): number[] {
     return [];
   }
 
-  return new TextDecoder()
-    .decode(result.stdout)
-    .split(/\s+/)
-    .map((value) => Number.parseInt(value, 10))
-    .filter((value) => Number.isInteger(value) && value > 0);
+  return parsePgrepPids(new TextDecoder().decode(result.stdout));
 }
 
 function stopProcessTree(pid: number, signal: NodeJS.Signals, seen = new Set<number>()): void {
