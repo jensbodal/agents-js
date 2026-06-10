@@ -7,6 +7,7 @@ import { runClaudeReceiverCommand, runClaudeReceiverMcpSendCommand } from "./cla
 import { runClientCommand } from "./client/command.ts";
 import { runCodexReceiverCommand } from "./codex-receiver.ts";
 import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
+import { runGenerateConfigCommand } from "./generate-config.ts";
 import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
 import { runOnboardCommand } from "./onboard.ts";
@@ -35,6 +36,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  launch    Launch or attach to an agent's tmux session (claude-code | codex | pi)",
       "  claude-receiver  Poll gateway inbox rows into native Claude",
       "  claude-receiver-mcp-send  Send-only gateway MCP server for Claude receiver turns",
+      "  generate-config  Author a validated launch-config agent entry from flags",
       "  codex-receiver  Poll gateway inbox rows into native Codex",
       "  onboard   Onboard an agent onto the mesh (launch + provision)",
       "  skill     Print the installable agents-js SKILL.md document",
@@ -112,6 +114,10 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "claude-receiver-mcp-send") {
     return runClaudeReceiverMcpSendCommand(rest);
+  }
+
+  if (command === "generate-config") {
+    return runGenerateConfigCommand(rest);
   }
 
   if (command === "codex-receiver") {
