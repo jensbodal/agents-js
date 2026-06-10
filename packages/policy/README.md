@@ -81,6 +81,7 @@ bun add @agents-js/policy
 ## Dependencies
 
 - `@agentclientprotocol/sdk`
+- `@agents-js/shell-args`
 
 ## License
 

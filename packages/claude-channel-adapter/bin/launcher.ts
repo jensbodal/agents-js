@@ -39,7 +39,9 @@
  *   `$HOME/.local/state/agents-js/channel-cursor-<identity>.json`).
  * - `CH_EMIT_AFTER_MS` / `CH_EMIT_CONTENT` — optional transport-ping self-test.
  */
+
 import { appendFileSync } from "node:fs";
+import { tokenizeShellArgs } from "@agents-js/shell-args";
 import { selectFetchImpl } from "../src/curl-fetch.ts";
 import { FileCursorStore } from "../src/cursor-store.ts";
 import { type GatewayInboxClient, McpGatewayInboxClient } from "../src/gateway-inbox-client.ts";
@@ -95,11 +97,15 @@ function buildInboxClient(): GatewayInboxClient | null {
   let args: string[] = [];
   const rawArgs = Bun.env.CH_GATEWAY_MCP_ARGS;
   if (rawArgs) {
+    // Prefer a JSON array; fall back to quote-safe tokenization so a value like
+    // `--flag "with space"` survives as one argv entry instead of fracturing.
     try {
       const parsed = JSON.parse(rawArgs);
-      args = Array.isArray(parsed) ? parsed.map(String) : rawArgs.split(/\s+/).filter(Boolean);
+      args = Array.isArray(parsed)
+        ? parsed.map(String)
+        : tokenizeShellArgs(rawArgs).filter(Boolean);
     } catch {
-      args = rawArgs.split(/\s+/).filter(Boolean);
+      args = tokenizeShellArgs(rawArgs).filter(Boolean);
     }
   }
   let env: Record<string, string> | undefined;

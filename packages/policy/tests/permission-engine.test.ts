@@ -191,6 +191,16 @@ describe("extractShellCommandPathArgs", () => {
   test("returns empty when no args present", () => {
     expect(extractShellCommandPathArgs(makeRequest("ls"))).toEqual([]);
   });
+
+  test("keeps a quoted path with spaces as one inspectable token (not approved-through)", () => {
+    // Security: a quoted path containing whitespace must remain a single token
+    // so the workspace-boundary gate still receives the full path to verify —
+    // quote-aware tokenization must not fracture it into unrecognizable
+    // fragments nor drop it.
+    expect(extractShellCommandPathArgs(makeRequest('cat "/work space/secret.txt"'))).toEqual([
+      "/work space/secret.txt",
+    ]);
+  });
 });
 
 describe("extractResourceScope", () => {

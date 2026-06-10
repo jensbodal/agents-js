@@ -72,7 +72,7 @@ bun add @agents-js/tools
 - **`Confidence`** — Confidence classification for a source. - `responsible` — the current, canonical source of truth for this datum. - `supporting` — corroborating context, may be stale or derivative. Callers that wan...
 - **`FetchContextHint`** — Routing hint for `fetchContext`. `"both"` runs primitives in parallel and merges. Default routing picks a preference from query-shape heuristics.
 - **`ResolverResult`** — Discriminated union of {HandledResult} and {UnhandledResult}.
-- **`SigilKind`** — Discriminated union of all recognised sigil prefix categories. Three values, not four — `$keyword` and `$skill` are both `"dollar"` at parse time. See module docstring for rationale.
+- **`SigilKind`**
 - **`SigilResolver`** — A function that attempts to resolve a parsed sigil in the given context. Returns {UNHANDLED} to pass control to the next resolver in the chain.
 - **`SourceType`** — What kind of source a result came from. Kept narrow + explicit so the router + consumers can filter by source class without string parsing.
 - **`SpawnAgentHints`** — Re-export gateway hints for tool-layer callers.
@@ -95,6 +95,7 @@ bun add @agents-js/tools
 ## Dependencies
 
 - `@agents-js/gateway-runtime`
+- `@agents-js/shell-args`
 
 ## License
 

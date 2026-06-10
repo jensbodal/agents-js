@@ -143,6 +143,7 @@
     "@agents-js/policy": "workspace:*",
     "@agents-js/reporting": "workspace:*",
     "@agents-js/schema-utils": "workspace:*",
+    "@agents-js/shell-args": "workspace:*",
     "@agents-js/tools": "workspace:*",
     "@agents-js/trial-agent": "workspace:*",
     "@agents-js/ui-components": "workspace:*",

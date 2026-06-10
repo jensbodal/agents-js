@@ -1,26 +1,26 @@
 {
-  "name": "@agents-js/agent-launch",
+  "name": "@agents-js/shell-args",
   "version": "0.6.0",
   "type": "module",
   "sideEffects": false,
-  "description": "Typed launcher for agents-js-managed tmux/harness sessions. Phase-1 slice (AJS-141): config loader, claude-code fresh-mode plan builder, git+MATRIX_AGENT identity env composition, tmux execFile wrapper. Replaces the dot-cognee `scripts/agent-launch.sh` bash original in phased increments; bridge preflight stays in dot-cognee per non-goal.",
+  "description": "Quote-safe shell-style argument tokenizer (shlex-like). Splits a command/flags string into argv tokens honoring single/double quotes and backslash escapes, leniently (never throws).",
   "author": "Jens Bodal",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/jensbodal/agents-js.git",
-    "directory": "packages/agent-launch"
+    "directory": "packages/shell-args"
   },
   "homepage": "https://agents-js.bodal.dev/",
   "bugs": {
     "url": "https://github.com/jensbodal/agents-js/issues"
   },
   "keywords": [
-    "launch",
-    "tmux",
-    "harness",
-    "agents",
-    "cli"
+    "shell",
+    "shlex",
+    "tokenizer",
+    "argv",
+    "quote"
   ],
   "engines": {
     "node": ">=20.19.0",
@@ -39,19 +39,12 @@
   "files": [
     "dist",
     "src",
-    "package.json",
-    "LICENSE"
+    "package.json"
   ],
   "scripts": {
     "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
     "prepack": "bun run build",
     "test": "bun test tests"
-  },
-  "dependencies": {
-    "@agents-js/shell-args": "0.6.0"
-  },
-  "devDependencies": {
-    "@types/bun": "catalog:"
   },
   "publishConfig": {
     "access": "public"

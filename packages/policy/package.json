@@ -59,7 +59,8 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "catalog:"
+    "@agentclientprotocol/sdk": "catalog:",
+    "@agents-js/shell-args": "0.6.0"
   },
   "publishConfig": {
     "access": "public"

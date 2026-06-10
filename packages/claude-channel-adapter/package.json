@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@agents-js/gateway-inbox-runtime": "0.6.0",
+    "@agents-js/shell-args": "0.6.0",
     "@modelcontextprotocol/sdk": "catalog:"
   },
   "devDependencies": {
