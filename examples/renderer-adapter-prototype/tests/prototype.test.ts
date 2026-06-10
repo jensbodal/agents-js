@@ -41,9 +41,10 @@ describe("Full prototype adapter — lifecycle", () => {
     const captured = await adapter.capture?.();
     expect(captured?.kind).toBe("captured");
     if (captured?.kind === "captured") {
-      expect(captured.artifact.format).toBe("snapshot-text");
-      expect(captured.artifact.content).toContain("bg=#abc");
-      expect(captured.artifact.content).toContain("items=[a,b]");
+      const node = captured.artifact.canvas.nodes[0];
+      expect(node?.type).toBe("text");
+      expect(node?.text).toContain("a");
+      expect(node?.text).toContain("b");
     }
     adapter.dispose();
 
@@ -183,7 +184,7 @@ describe("Full prototype adapter — apply discriminated union", () => {
 // capture availability
 // ----------------------------------------------------------------------------
 
-describe("Full prototype adapter — capture", () => {
+describe("Full prototype adapter — capture binds canvas-model JSON Canvas", () => {
   test("capture before apply → unavailable", async () => {
     const adapter = createPrototypeAdapter();
     const target = createMockCanvasTarget();
@@ -196,20 +197,81 @@ describe("Full prototype adapter — capture", () => {
     }
   });
 
-  test("capture after apply → captured artifact", async () => {
+  test("capture after apply → a real JSON Canvas document, not a string", async () => {
+    const adapter = createPrototypeAdapter();
+    const target = createMockCanvasTarget();
+    await adapter.mount(target, { surfaceId: "demo-surface" });
+    adapter.resize?.({ width: 640, height: 480 });
+    await adapter.apply?.({
+      kind: "snapshot",
+      snapshot: { bgColor: "#444", items: ["Hello", "World"] },
+    });
+
+    const result = await adapter.capture?.();
+    expect(result?.kind).toBe("captured");
+    if (result?.kind !== "captured") return;
+
+    const artifact = result.artifact;
+    // The whole point of the binding: capture() emits a structured durable
+    // JSON Canvas document via @agents-js/canvas-model — NOT a text string.
+    expect(typeof artifact).toBe("object");
+    expect(Array.isArray(artifact.canvas.nodes)).toBe(true);
+    expect(artifact.canvas.nodes).toHaveLength(1);
+
+    const node = artifact.canvas.nodes[0];
+    expect(node?.type).toBe("text");
+    expect(node?.id).toBe("demo-surface");
+    // Geometry threaded from the adapter's resize() viewport.
+    expect(node?.width).toBe(640);
+    expect(node?.height).toBe(480);
+    // Item labels surface into the JSON Canvas preview text via canvas-model's
+    // TEXT_KEYS harvest (the `text` field on each component).
+    expect(node?.text).toContain("Hello");
+    expect(node?.text).toContain("World");
+  });
+
+  test("capture preserves canvas-model's lossy-export warning (honest durability)", async () => {
+    const adapter = createPrototypeAdapter();
+    const target = createMockCanvasTarget();
+    await adapter.mount(target, { surfaceId: "warn-surface" });
+    await adapter.apply?.({
+      kind: "snapshot",
+      snapshot: { bgColor: "#fff", items: ["x"] },
+    });
+
+    const result = await adapter.capture?.();
+    expect(result?.kind).toBe("captured");
+    if (result?.kind !== "captured") return;
+
+    // JSON Canvas export is preview-only; canvas-model flags the lossiness.
+    // We surface that warning verbatim rather than claiming lossless capture.
+    expect(result.artifact.warnings).toHaveLength(1);
+    expect(result.artifact.warnings[0]?.code).toBe("json-canvas-lossy-a2ui");
+    expect(result.artifact.warnings[0]?.nodeId).toBe("warn-surface");
+  });
+
+  test("capture reflects the latest applied delta state", async () => {
     const adapter = createPrototypeAdapter();
     const target = createMockCanvasTarget();
     await adapter.mount(target);
     await adapter.apply?.({
       kind: "snapshot",
-      snapshot: { bgColor: "#444", items: ["i1"] },
+      snapshot: { bgColor: "#fff", items: ["a", "b", "c"] },
     });
+    await adapter.apply?.({
+      kind: "delta",
+      update: { added: ["d"], removed: ["b"] },
+    });
+
     const result = await adapter.capture?.();
     expect(result?.kind).toBe("captured");
-    if (result?.kind === "captured") {
-      expect(result.artifact.content).toContain("frame1");
-      expect(result.artifact.content).toContain("items=[i1]");
-    }
+    if (result?.kind !== "captured") return;
+
+    const text = result.artifact.canvas.nodes[0]?.text ?? "";
+    expect(text).toContain("a");
+    expect(text).toContain("c");
+    expect(text).toContain("d");
+    expect(text).not.toContain("# warn"); // sanity: not the previous surface
   });
 });
 

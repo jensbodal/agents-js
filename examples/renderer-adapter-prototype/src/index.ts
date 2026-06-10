@@ -33,13 +33,20 @@
  *    last, mount-twice-error, methods-after-dispose-error) is
  *    behaviourally testable.
  * 4. dispose() idempotency works (calling twice is a no-op).
+ * 5. `capture()` emits a REAL durable artifact — a JSON Canvas document
+ *    produced by `@agents-js/canvas-model` — satisfying ADR-0009 slot-2
+ *    goal (b). This binding gives the canvas-model durable-export surface
+ *    its first live consumer through the renderer-controller boundary.
  *
  * **Critique-first reasoning**
  *
- * - **Boundary**: prototype consumes types only from `@agents-js/a2ui-host`.
- *   Does NOT depend on `@agents-js/host`, `@agents-js/gateway-runtime`,
- *   canvas-model, or any A2UI-specific package. The renderer-controller
- *   adapter is independent of those layers.
+ * - **Boundary**: the renderer-adapter type surface comes from
+ *   `@agents-js/a2ui-host`; the durable-artifact surface comes from
+ *   `@agents-js/canvas-model`. The prototype does NOT depend on
+ *   `@agents-js/host`, `@agents-js/gateway-runtime`, or any A2UI runtime
+ *   package — the renderer-controller adapter sits below those layers and
+ *   only reaches sideways to canvas-model at the `capture()` boundary, which
+ *   is exactly where ADR-0009 places the durable-export handoff.
  * - **Default**: prototype defaults to deny-state-machine: methods called
  *   in invalid order throw with a descriptive error. Better than silent
  *   no-op for a slot-2 validation prototype.
@@ -52,8 +59,10 @@
  *   is an error; callers ... should `dispose()` first and instantiate
  *   a fresh adapter").
  * - **Validation**: behavioural tests cover both minimal + full adapters,
- *   ordering errors, idempotent dispose, capture availability,
- *   stats-before-mount fallback to "unmounted" phase.
+ *   ordering errors, idempotent dispose, capture availability, the
+ *   captured JSON Canvas document shape (real structured artifact, not a
+ *   string) including the lossy-export warning, and stats-before-mount
+ *   fallback to "unmounted" phase.
  *
  * @packageDocumentation
  */
@@ -67,6 +76,11 @@ import type {
   RendererAdapterPhase,
   RendererAdapterStats,
 } from "@agents-js/a2ui-host";
+import {
+  createA2uiCanvasNode,
+  exportJsonCanvas,
+  type JsonCanvasExportResult,
+} from "@agents-js/canvas-model";
 
 // ============================================================================
 // Mock target (stands in for HTMLCanvasElement / OffscreenCanvas)
@@ -123,13 +137,15 @@ export interface SceneDelta {
 }
 
 /**
- * Captured artifact — production adapters would emit PNG bytes or a
- * JSON Canvas node; the prototype emits a structured snapshot string.
+ * Captured artifact type. The adapter's `capture()` binds to
+ * `@agents-js/canvas-model`: it emits a {@link JsonCanvasExportResult} — a
+ * real, structured JSON Canvas document (nodes + edges + lossy-export
+ * warnings) — NOT a hand-rolled string. This is the ADR-0009 slot-2 goal
+ * (b) ("renderer can emit JSON Canvas durable artifacts via the `capture()`
+ * method") made real: canvas-model's durable-export surface gets its first
+ * live consumer through the renderer-controller boundary.
  */
-export interface SceneArtifact {
-  readonly format: "snapshot-text";
-  readonly content: string;
-}
+export type SceneArtifact = JsonCanvasExportResult;
 
 // ============================================================================
 // Prototype adapter — full lifecycle implementation
@@ -143,6 +159,11 @@ export interface SceneArtifact {
  */
 export interface PrototypeMountOptions {
   readonly initialBgColor?: string;
+  /**
+   * Surface identity carried onto the captured JSON Canvas node id and the
+   * `stats()` `surface_id` join. Defaults to `"prototype"`.
+   */
+  readonly surfaceId?: string;
 }
 
 /**
@@ -165,6 +186,7 @@ export function createPrototypeAdapter(): RendererAdapter<
 > {
   let phase: InternalPhase = "unmounted";
   let target: MockCanvasTarget | null = null;
+  let surfaceId = "prototype";
   let bgColor = "#fff";
   let items: string[] = [];
   let frameCount = 0;
@@ -197,6 +219,7 @@ export function createPrototypeAdapter(): RendererAdapter<
       target = t;
       const proto = opts as PrototypeMountOptions | undefined;
       bgColor = proto?.initialBgColor ?? "#fff";
+      surfaceId = proto?.surfaceId ?? "prototype";
       items = [];
       frameCount = 0;
       target.ops.push(`mount bg=${bgColor}`);
@@ -244,15 +267,36 @@ export function createPrototypeAdapter(): RendererAdapter<
 
     capture(): RendererAdapterCaptureResult<SceneArtifact> {
       const t = ensureMounted("capture");
-      if (t.lastFrame === "") {
+      if (frameCount === 0) {
         return {
           kind: "unavailable",
           reason: "no frame applied yet",
         };
       }
+
+      // Reconstruct the current scene as an A2UI-surface-shaped payload, then
+      // hand it to canvas-model. `createA2uiCanvasNode` stores the payload
+      // inert and `exportJsonCanvas` produces a durable JSON Canvas document
+      // (with the lossy-preview warning canvas-model emits). Each item's
+      // `text` field is harvested into the JSON Canvas preview by
+      // canvas-model's TEXT_KEYS pass — so labels appear in the artifact.
+      const surface = {
+        id: surfaceId,
+        background: bgColor,
+        components: items.map((label, index) => ({
+          id: `${surfaceId}-c${index}`,
+          type: "text",
+          text: label,
+        })),
+      };
+      const node = createA2uiCanvasNode(surface, {
+        id: surfaceId,
+        title: `renderer capture (frame ${frameCount})`,
+        size: { width: t.width || 360, height: t.height || 240 },
+      });
       return {
         kind: "captured",
-        artifact: { format: "snapshot-text", content: t.lastFrame },
+        artifact: exportJsonCanvas([node]),
       };
     },
 
@@ -263,7 +307,7 @@ export function createPrototypeAdapter(): RendererAdapter<
         phase: renderedPhase,
         joins: {
           // joinable observability identifiers per ADR-0009
-          surface_id: "prototype",
+          surface_id: surfaceId,
           frame_count: String(frameCount),
         },
       };
