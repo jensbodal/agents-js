@@ -19,6 +19,13 @@ export const DEFAULT_CLAUDE_ARGS: readonly string[] = Object.freeze([
   "Read,Grep,Glob,mcp__agents_gateway__agents_send_message",
 ]);
 
+const ENFORCED_DISALLOWED_TOOLS = "Bash,Edit,Write,WebFetch";
+
+const ENFORCED_DISALLOWED_TOOLS_ARGS: readonly string[] = Object.freeze([
+  "--disallowedTools",
+  ENFORCED_DISALLOWED_TOOLS,
+]);
+
 export interface ClaudeSpawnRunnerOptions {
   readonly command?: string;
   readonly args?: readonly string[];
@@ -41,7 +48,7 @@ export class ClaudeSpawnRunner implements ClaudeRunner {
 
   constructor(private readonly options: ClaudeSpawnRunnerOptions) {
     this.command = options.command ?? "claude";
-    this.args = options.args ?? DEFAULT_CLAUDE_ARGS;
+    this.args = buildClaudeArgs(options.args);
     this.cwd = options.cwd;
     this.spawnImpl = options.spawnImpl ?? spawn;
   }
@@ -97,7 +104,32 @@ function spawnClaudeTurn(input: {
   });
 }
 
+function buildClaudeArgs(args: readonly string[] | undefined): readonly string[] {
+  const baseArgs = args ?? DEFAULT_CLAUDE_ARGS;
+  assertNoBypassPermissions(baseArgs);
+  return Object.freeze([...baseArgs, ...ENFORCED_DISALLOWED_TOOLS_ARGS]);
+}
+
 export function splitClaudeArgs(value: string | undefined): readonly string[] | undefined {
+  const args = splitArgs(value);
+  if (!args) return undefined;
+  assertNoBypassPermissions(args);
+  return args;
+}
+
+function splitArgs(value: string | undefined): readonly string[] | undefined {
   if (!value?.trim()) return undefined;
-  return value.trim().split(/\s+/).filter(Boolean);
+  return Object.freeze(value.trim().split(/\s+/).filter(Boolean));
+}
+
+function assertNoBypassPermissions(args: readonly string[]): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "bypassPermissions" || arg === "--permission-mode=bypassPermissions") {
+      throw new Error("bypassPermissions is not allowed for the Claude gateway inbox receiver.");
+    }
+    if (arg === "--permission-mode" && args[index + 1] === "bypassPermissions") {
+      throw new Error("bypassPermissions is not allowed for the Claude gateway inbox receiver.");
+    }
+  }
 }

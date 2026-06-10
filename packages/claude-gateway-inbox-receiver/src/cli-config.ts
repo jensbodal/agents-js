@@ -51,12 +51,13 @@ export function readClaudeReceiverCliConfig(
     fetchMode,
     fetchImpl: selectFetchImpl(fetchMode),
     claudeCommand: env("CW_CLAUDE_CMD"),
-    // CW_CLAUDE_ARGS is an explicit operator override. Supplying
-    // bypassPermissions here is a sandbox-only opt-in, not the default.
+    // CW_CLAUDE_ARGS can tune the spawned Claude turn, but never dissolve the
+    // receiver safety gate: splitClaudeArgs rejects bypassPermissions and the
+    // runner appends its source-owned disallowed-tools guard.
     claudeArgs: splitClaudeArgs(env("CW_CLAUDE_ARGS")),
     mcpConfigPath,
     mcpCommand: env("CW_GATEWAY_MCP_COMMAND"),
-    mcpArgs: splitClaudeArgs(env("CW_GATEWAY_MCP_ARGS")),
+    mcpArgs: splitArgs(env("CW_GATEWAY_MCP_ARGS")),
     senderAllowlist: parseSenderAllowlist(env("CW_SENDER_ALLOWLIST")),
   };
 }
@@ -76,4 +77,9 @@ function numberEnv(
     if (Number.isFinite(n)) return n;
   }
   return undefined;
+}
+
+function splitArgs(value: string | undefined): readonly string[] | undefined {
+  if (!value?.trim()) return undefined;
+  return Object.freeze(value.trim().split(/\s+/).filter(Boolean));
 }

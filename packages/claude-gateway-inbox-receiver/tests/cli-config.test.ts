@@ -13,7 +13,7 @@ describe("readClaudeReceiverCliConfig", () => {
         CH_GATEWAY_KEY_CMD: "bash keycmd.sh",
         CH_GATEWAY_FETCH: "curl",
         CW_WORKSPACE: "/work",
-        CW_CLAUDE_ARGS: "-p --permission-mode bypassPermissions",
+        CW_CLAUDE_ARGS: "-p --model claude-test",
         CW_SENDER_ALLOWLIST: "ajs-claude hostname-null-claude-0",
         CW_POLL_INTERVAL_MS: "15000",
       },
@@ -26,8 +26,19 @@ describe("readClaudeReceiverCliConfig", () => {
     expect(config.keyCommand).toBe("bash keycmd.sh");
     expect(config.fetchMode).toBe("curl");
     expect(config.workspace).toBe("/work");
-    expect(config.claudeArgs).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
+    expect(config.claudeArgs).toEqual(["-p", "--model", "claude-test"]);
     expect(config.intervalMs).toBe(15000);
     expect(config.mcpConfigPath).toBe("/work/.agents/hostname-null-claude-0/gateway-mcp.json");
+  });
+
+  test("rejects env-supplied bypassPermissions for receiver launches", () => {
+    expect(() =>
+      readClaudeReceiverCliConfig(
+        {
+          CW_CLAUDE_ARGS: "-p --permission-mode bypassPermissions",
+        },
+        "/cwd",
+      ),
+    ).toThrow("bypassPermissions is not allowed");
   });
 });
