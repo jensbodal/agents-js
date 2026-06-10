@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Slot-2 host-local Canvas2D-style prototype proving the RendererAdapter lifecycle types from @agents-js/a2ui-host (ADR-0009 slot-1). Demonstrates mount/apply/resize/capture/stats/dispose ordering against a mock canvas target.",
+  "description": "Slot-2 host-local prototype proving the RendererAdapter lifecycle types from @agents-js/a2ui-host (ADR-0009). Demonstrates mount/apply/resize/capture/stats/dispose ordering against a mock canvas target, and binds capture() to @agents-js/canvas-model so it emits a real JSON Canvas durable artifact (ADR-0009 slot-2 goal b).",
   "scripts": {
     "test": "bun test tests",
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-js/a2ui-host": "workspace:*"
+    "@agents-js/a2ui-host": "workspace:*",
+    "@agents-js/canvas-model": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
