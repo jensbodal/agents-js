@@ -11,26 +11,45 @@ export interface GatewayDiscovery {
   wsPort: number;
 }
 
-// `Number.parseInt` is permissive: it accepts leading `+`, decimals (truncating
-// "3.14" to 3), trailing garbage ("3000abc" to 3000), and `0x` hex prefixes
-// (parsing "0x10" as 0 because "x" terminates digit scanning under the
-// explicit `10` radix passed below; without that radix parseInt would
-// auto-detect hex and return 16). Port strings flow from user-supplied env
-// vars (e.g. GATEWAY_PORT) and CLI input, so we need exact-shape validation
-// before delegating to parseInt. The regex is the
-// most concise way to express "one or more ASCII digits, nothing else" — a
-// non-regex alternative (`[...trimmed].every(...)`) reads as more imperative
-// and adds an array allocation per call.
-const PORT_DIGIT_ONLY = /^\d+$/;
+// `Number.parseInt`/`Number` are permissive: they accept leading `+`, decimals
+// (truncating "3.14" to 3), trailing garbage ("3000abc" to 3000), `0x` hex
+// prefixes, scientific notation ("3e2"), and the non-finite words `NaN` /
+// `Infinity`. These integers flow from user-supplied env vars (e.g.
+// GATEWAY_PORT, AGENTS_JS_SYNC_INTERVAL_MS) and CLI input, so we need
+// exact-shape validation before delegating to parseInt. The regex is the most
+// concise way to express "one or more ASCII digits, nothing else" — a non-regex
+// alternative (`[...trimmed].every(...)`) reads as more imperative and adds an
+// array allocation per call.
+const DECIMAL_DIGITS_ONLY = /^\d+$/;
 
-export function parseGatewayPort(value: string, label: string): number {
+/**
+ * Validate that `value` is the exact shape of a non-negative decimal integer
+ * and return it. Rejects NaN/Infinity, signs, decimals, hex, scientific
+ * notation, and any value beyond the safe-integer range. `hint` customizes the
+ * expected-shape clause of the error so callers with a narrower domain (e.g. a
+ * port range) can surface their own bounds.
+ */
+export function parseNonNegativeInteger(
+  value: string,
+  label: string,
+  hint = "a non-negative integer",
+): number {
   const trimmed = value.trim();
-  if (!PORT_DIGIT_ONLY.test(trimmed)) {
-    throw new Error(`[Gateway] Invalid ${label} "${value}". Expected an integer 0-65535.`);
+  if (!DECIMAL_DIGITS_ONLY.test(trimmed)) {
+    throw new Error(`[Gateway] Invalid ${label} "${value}". Expected ${hint}.`);
   }
 
-  const port = Number.parseInt(trimmed, 10);
-  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`[Gateway] Invalid ${label} "${value}". Expected ${hint}.`);
+  }
+
+  return parsed;
+}
+
+export function parseGatewayPort(value: string, label: string): number {
+  const port = parseNonNegativeInteger(value, label, "an integer 0-65535");
+  if (port > 65_535) {
     throw new Error(`[Gateway] Invalid ${label} "${value}". Expected an integer 0-65535.`);
   }
 

@@ -42,6 +42,7 @@ import { type GatewayCliArgs, parseCliArgs } from "./cli-args.ts";
 import {
   buildGatewayDiscovery,
   formatGatewayDiscoveryLines,
+  parseNonNegativeInteger,
   resolveGatewayPort,
   resolveGatewayPublicUrl,
 } from "./discovery.ts";
@@ -358,7 +359,10 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     : 0;
   if (opts.cliArgs.registrySync) {
     const syncIntervalMs = process.env.AGENTS_JS_SYNC_INTERVAL_MS
-      ? Number(process.env.AGENTS_JS_SYNC_INTERVAL_MS)
+      ? parseNonNegativeInteger(
+          process.env.AGENTS_JS_SYNC_INTERVAL_MS,
+          "AGENTS_JS_SYNC_INTERVAL_MS",
+        )
       : undefined;
     registrySync = startRegistrySync({
       name: localName,
