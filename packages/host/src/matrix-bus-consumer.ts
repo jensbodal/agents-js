@@ -27,6 +27,7 @@
  * swap follow-up commits per the locked tests-first discipline.
  */
 
+import { parseDispatchDirective as parseStrictDispatchDirective } from "@agents-js/a2a-client";
 import type { DispatchFailureReason } from "@agents-js/policy";
 import {
   buildGatewayBusEvent,
@@ -267,20 +268,16 @@ export function startMatrixBusConsumer(
  * dispatch request without parsing runtime internals.
  */
 export function parseDispatchDirective(body: string): { target: string; message: string } {
-  // Strict format: `@@<target>` followed by whitespace then the rest.
-  // Leading whitespace is tolerated; trailing whitespace on the
-  // target token is the delimiter.
-  const trimmed = body.trimStart();
-  if (!trimmed.startsWith("@@")) return { target: "", message: body };
-  const afterPrefix = trimmed.slice(2);
-  const wsMatch = /\s/.exec(afterPrefix);
-  if (wsMatch === null) {
-    // Body is exactly `@@target` with no message. Empty message; target is the rest.
-    return { target: afterPrefix, message: "" };
-  }
-  const target = afterPrefix.slice(0, wsMatch.index);
-  const message = afterPrefix.slice(wsMatch.index + wsMatch[0].length);
-  return { target, message };
+  // Single source of truth for `@@agent-name` recognition: the strict
+  // alphanumeric-dash contract in `@agents-js/a2a-client`. This keeps the
+  // Matrix consumer and the host runtime agreeing on what counts as a dispatch
+  // (a name that isn't alphanumeric-dash is NOT a directive). The local
+  // `{ target, message }` shape is preserved for existing callers; when no
+  // directive is present we return the body verbatim as the (non-dispatch)
+  // message so audit subscribers still see it.
+  const directive = parseStrictDispatchDirective(body);
+  if (!directive) return { target: "", message: body };
+  return { target: directive.agentName, message: directive.payload };
 }
 
 function publishReply(args: {

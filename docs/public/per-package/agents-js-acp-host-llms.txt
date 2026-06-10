@@ -120,7 +120,7 @@ bun add @agents-js/acp-host
 - **`ActivitySurfaceState`**
 - **`AgentConfig`**
 - **`ApplyDefaultsResult`**
-- **`BuildMinimalEnvInput`**
+- **`BuildMinimalEnvInput`** — Merge a base PATH string with caller-supplied extra bin paths, preserving order and removing empty / duplicate segments. Inlined (rather than imported from a runtime-resolution package) so that `-j...
 - **`CodeDescriptor`** — A code block with language annotation
 - **`CompletedToolCallSnapshot`**
 - **`CompletedTurnSnapshot`**

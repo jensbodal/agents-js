@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import path from "node:path";
+import { NDJSONLineBuffer } from "@agents-js/acp";
 import type { PiRpcEvent, PiRpcMessage, PiRpcRequest, PiRpcResponse } from "./types.ts";
 
 /**
@@ -34,46 +35,6 @@ export interface PiRpcClientOptions {
    * surfacing but not crashing on.
    */
   onProtocolError?: (rawLine: string, error: unknown) => void;
-}
-
-/**
- * Minimal NDJSON line reader over a Readable. Pi's documented framing is
- * strictly LF-delimited (no CR); the reader strips an optional trailing `\r`
- * so Windows-produced streams remain decodable, consistent with the Pi docs.
- */
-class NDJSONLineBuffer {
-  private buffer = "";
-  private readonly decoder = new TextDecoder("utf-8");
-
-  push(chunk: Buffer | string): string[] {
-    const text = typeof chunk === "string" ? chunk : this.decoder.decode(chunk, { stream: true });
-    this.buffer += text;
-    const lines: string[] = [];
-    // Split on LF only — do NOT use a Unicode-separator-aware splitter.
-    let newlineIndex = this.buffer.indexOf("\n");
-    while (newlineIndex !== -1) {
-      let line = this.buffer.slice(0, newlineIndex);
-      if (line.endsWith("\r")) {
-        line = line.slice(0, -1);
-      }
-      if (line.length > 0) {
-        lines.push(line);
-      }
-      this.buffer = this.buffer.slice(newlineIndex + 1);
-      newlineIndex = this.buffer.indexOf("\n");
-    }
-    return lines;
-  }
-
-  /**
-   * Returns any residual (non-newline-terminated) bytes. Called on child
-   * exit so trailing partial lines aren't silently lost in error reports.
-   */
-  drain(): string {
-    const residual = this.buffer;
-    this.buffer = "";
-    return residual;
-  }
 }
 
 /** A spawned Pi RPC client. Represents one Pi child process. */
