@@ -54,6 +54,7 @@ bun add @agents-js/claude-channel-adapter
 ## Dependencies
 
 - `@agents-js/gateway-inbox-runtime`
+- `@agents-js/shell-args`
 - `@modelcontextprotocol/sdk`
 
 ## License

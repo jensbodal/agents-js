@@ -10,6 +10,7 @@
 
 import { posix } from "node:path";
 import type { RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
+import { tokenizeShellArgs } from "@agents-js/shell-args";
 import { closestParentFolder } from "./path-utils.ts";
 import type {
   PermissionEvaluationResult,
@@ -135,7 +136,12 @@ export function extractShellCommandPathArgs(request: RequestPermissionRequest): 
 
   const title = request.toolCall?.title ?? "";
   const cleaned = title.replace(/\s*\[[^\]]*\]\s*$/, "");
-  const tokens = cleaned.split(/\s+/).slice(1);
+  // Quote-safe tokenization: a quoted path that contains whitespace
+  // (`cat "/work space/secret"`) must stay a single token so the
+  // workspace-boundary gate downstream still SEES it, rather than being split
+  // into fragments the gate can't recognize as a path. `slice(1)` drops the
+  // command word; the filter drops empties and flag-style (`-x`/`--long`) args.
+  const tokens = tokenizeShellArgs(cleaned).slice(1);
   return tokens.filter((token) => token.length > 0 && !token.startsWith("-"));
 }
 

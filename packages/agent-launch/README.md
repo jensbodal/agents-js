@@ -82,6 +82,11 @@ bun add @agents-js/agent-launch
 - **`HARNESS_TOKENS`** — Short harness tokens used in the identity scheme (NOT the config harness kind).
 - **`PROVIDER_CRED_ENV`** — Provider → credential env-var NAMES. Declared ONCE here. `google` is empty by design — the gemini CLI self-authenticates (OAuth/gcloud) with no env passthrough.
 
+
+## Dependencies
+
+- `@agents-js/shell-args`
+
 ## License
 
 MIT

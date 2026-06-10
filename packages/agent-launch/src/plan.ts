@@ -33,6 +33,7 @@
  *   non-pi harness routes without touching pi env keys.
  */
 
+import { tokenizeShellArgs } from "@agents-js/shell-args";
 import type { AgentEntry } from "./config.ts";
 import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
 import { resolveProviderCredEnvKeys } from "./provider-registry.ts";
@@ -129,13 +130,12 @@ const BASE_SESSION_ENV_KEYS: readonly string[] = [
 ];
 
 function splitFlags(flags: string): readonly string[] {
-  // Whitespace split. A quoted-flag parser (for codex-cli's `launch_prompt`
-  // positional, which uses bash `printf %q`) is a follow-up.
-  const tokens = flags
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t.length > 0);
-  return tokens;
+  // Quote-safe tokenization (shlex-like). codex-cli's `launch_prompt`
+  // positional is produced with bash `printf %q`, so flags can carry quoted or
+  // backslash-escaped whitespace that a naive `split(/\s+/)` would fracture.
+  // `tokenizeShellArgs` already collapses unquoted whitespace; the
+  // length filter drops any explicit quoted-empty token.
+  return tokenizeShellArgs(flags).filter((t) => t.length > 0);
 }
 
 /**

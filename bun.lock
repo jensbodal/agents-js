@@ -25,6 +25,7 @@
         "@agents-js/policy": "workspace:*",
         "@agents-js/reporting": "workspace:*",
         "@agents-js/schema-utils": "workspace:*",
+        "@agents-js/shell-args": "workspace:*",
         "@agents-js/tools": "workspace:*",
         "@agents-js/trial-agent": "workspace:*",
         "@agents-js/ui-components": "workspace:*",
@@ -344,6 +345,9 @@
     "packages/agent-launch": {
       "name": "@agents-js/agent-launch",
       "version": "0.6.0",
+      "dependencies": {
+        "@agents-js/shell-args": "0.6.0",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
       },
@@ -367,6 +371,7 @@
       "version": "0.6.0",
       "dependencies": {
         "@agents-js/gateway-inbox-runtime": "0.6.0",
+        "@agents-js/shell-args": "0.6.0",
         "@modelcontextprotocol/sdk": "catalog:",
       },
       "devDependencies": {
@@ -500,10 +505,15 @@
       "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
+        "@agents-js/shell-args": "0.6.0",
       },
     },
     "packages/schema-utils": {
       "name": "@agents-js/schema-utils",
+      "version": "0.6.0",
+    },
+    "packages/shell-args": {
+      "name": "@agents-js/shell-args",
       "version": "0.6.0",
     },
     "packages/skills": {
@@ -514,7 +524,8 @@
       "name": "@agents-js/tools",
       "version": "0.6.0",
       "dependencies": {
-        "@agents-js/gateway-runtime": "0.5.1",
+        "@agents-js/gateway-runtime": "0.6.0",
+        "@agents-js/shell-args": "0.6.0",
       },
     },
     "packages/ui-components": {
@@ -727,6 +738,8 @@
     "@agents-js/reporting": ["@agents-js/reporting@workspace:extras/reporting"],
 
     "@agents-js/schema-utils": ["@agents-js/schema-utils@workspace:packages/schema-utils"],
+
+    "@agents-js/shell-args": ["@agents-js/shell-args@workspace:packages/shell-args"],
 
     "@agents-js/skills": ["@agents-js/skills@workspace:packages/skills"],
 

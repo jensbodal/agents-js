@@ -43,6 +43,8 @@
  * Three values, not four — `$keyword` and `$skill` are both `"dollar"` at
  * parse time. See module docstring for rationale.
  */
+import { tokenizeShellArgs } from "@agents-js/shell-args";
+
 export type SigilKind = "dollar" | "at-at" | "bang";
 
 /**
@@ -219,9 +221,11 @@ const SIGIL_PREFIX_AND_NAME = /^(@@|[$!])[^\s]*/;
 
 function extractArgs(input: string): string[] {
   const trimmed = input.trimStart();
-  // Remove the prefix (`@@`, `$`, or `!`) and the name token, then split remainder.
+  // Remove the prefix (`@@`, `$`, or `!`) and the name token, then tokenize the
+  // remainder quote-safely so a quoted arg (`$skill "two words"`) stays one
+  // token instead of fracturing on its internal whitespace.
   const afterPrefix = trimmed.replace(SIGIL_PREFIX_AND_NAME, "");
-  return afterPrefix.trim().split(/\s+/).filter(Boolean);
+  return tokenizeShellArgs(afterPrefix).filter(Boolean);
 }
 
 // ─── Built-in resolvers ───────────────────────────────────────────────────────

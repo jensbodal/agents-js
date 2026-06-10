@@ -27,6 +27,7 @@
       "@agents-js/policy/terminal-policy": ["./packages/policy/src/terminal-policy.ts"],
       "@agents-js/reporting": ["./extras/reporting/src/index.ts"],
       "@agents-js/schema-utils": ["./packages/schema-utils/src/index.ts"],
+      "@agents-js/shell-args": ["./packages/shell-args/src/index.ts"],
       "@agents-js/skills": ["./packages/skills/src/index.ts"],
       "@agents-js/ui-components": ["./packages/ui-components/src/index.ts"],
       "@agents-js/ui-components/connect-preferences": [
