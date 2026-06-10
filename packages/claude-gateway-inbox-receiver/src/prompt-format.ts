@@ -1,14 +1,14 @@
 import type { InboxMessage } from "@agents-js/gateway-inbox-runtime";
 import { replyTargetForRow } from "@agents-js/gateway-inbox-runtime";
 
-export interface FormattedInboxRow {
+export interface FormattedClaudeInboxRow {
   readonly prompt: string;
   readonly senderIdentity: string;
   readonly replyTo?: string;
 }
 
-/** Format one gateway inbox row as a Codex turn prompt with explicit evidence. */
-export function formatInboxRowForCodex(row: InboxMessage): FormattedInboxRow {
+/** Format one gateway row as a Claude prompt with explicit untrusted-body framing. */
+export function formatInboxRowForClaude(row: InboxMessage): FormattedClaudeInboxRow {
   const senderIdentity = row.matrix_origin?.sender ?? row.sender ?? "unknown";
   const replyTo = replyTargetForRow(row);
   const lines = [

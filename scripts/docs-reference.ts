@@ -61,6 +61,11 @@ const CLI_SUBCOMMAND_SECTIONS = [
   { argSpec: "MCP_SETUP_ARG_SPEC", module: "mcp", title: "`agents-js mcp setup`" },
   { argSpec: "MCP_BRIDGE_ARG_SPEC", module: "mcp", title: "`agents-js mcp bridge`" },
   { argSpec: "SEND_ARG_SPEC", module: "send", title: "`agents-js send`" },
+  {
+    argSpec: "GENERATE_CONFIG_ARG_SPEC",
+    module: "generate-config",
+    title: "`agents-js generate-config`",
+  },
 ] as const;
 
 const PARTIALS: PartialSpec[] = [

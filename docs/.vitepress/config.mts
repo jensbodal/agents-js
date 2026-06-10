@@ -143,6 +143,7 @@ export default withMermaid(
               { text: "Browser Entry Points", link: "/develop/browser-entry-points" },
               { text: "Dependencies", link: "/develop/dependencies" },
               { text: "Playground Smoke", link: "/develop/playground-smoke" },
+              { text: "Shared Utilities & Parsing", link: "/develop/shared-utilities" },
             ],
           },
         ],

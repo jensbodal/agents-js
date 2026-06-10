@@ -20,3 +20,8 @@ export {
   type ReceiverLogger,
   runCodexGatewayInboxReceiver,
 } from "./receiver.ts";
+export {
+  parseSenderAllowlist,
+  type SenderAllowlist,
+  senderAllowed,
+} from "./sender-allowlist.ts";

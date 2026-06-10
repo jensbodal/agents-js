@@ -1,4 +1,5 @@
 import { selectFetchImpl } from "@agents-js/gateway-inbox-runtime";
+import { parseSenderAllowlist, type SenderAllowlist } from "./sender-allowlist.ts";
 
 export interface ReceiverCliConfig {
   readonly identity?: string;
@@ -12,6 +13,7 @@ export interface ReceiverCliConfig {
   readonly replyTarget?: string;
   readonly skipGitRepoCheck: boolean;
   readonly fetchImpl?: typeof fetch;
+  readonly senderAllowlist: SenderAllowlist;
 }
 
 export function readReceiverCliConfig(
@@ -38,6 +40,9 @@ export function readReceiverCliConfig(
     replyTarget: env("CODEX_GATEWAY_REPLY_TARGET"),
     skipGitRepoCheck: env("CODEX_GATEWAY_SKIP_GIT_REPO_CHECK") === "true",
     fetchImpl: selectFetchImpl(env("CODEX_GATEWAY_FETCH")),
+    senderAllowlist: parseSenderAllowlist(
+      env("CODEX_GATEWAY_SENDER_ALLOWLIST", "AGENTS_GATEWAY_SENDER_ALLOWLIST"),
+    ),
   };
 }
 

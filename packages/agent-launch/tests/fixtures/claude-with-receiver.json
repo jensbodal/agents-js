@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "description": "Test fixture - Claude Code agent with gateway receiver env",
+  "agents": {
+    "hostname-null-claude-0": {
+      "tmux_session": "hostname-null-claude-0",
+      "harness": "claude-code",
+      "binary": "claude",
+      "workspace": "/Users/jensbodal/workspaces/agents/hostname-null-claude-0",
+      "fresh_flags": "--agent hostname-null-claude-0",
+      "env_setup": "export MATRIX_AGENT=hostname-null-claude-0",
+      "git_author_name": "hostname-null-claude-0",
+      "git_author_email": "hostname-null-claude-0@noreply.bodal.dev",
+      "channel_env": "export CH_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CH_GATEWAY_IDENTITY=hostname-null-claude-0 && export CH_GATEWAY_KEY_CMD='bash /Users/jensbodal/.config/agents-js/olthoi0-keycmd.sh' && export CH_GATEWAY_FETCH=curl && export CW_SENDER_ALLOWLIST='ajs-claude hostname-null-claude-0'"
+    }
+  }
+}

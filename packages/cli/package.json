@@ -61,6 +61,7 @@
     "@agents-js/acp-host": "0.6.0",
     "@agents-js/a2a": "0.6.0",
     "@agents-js/agent-launch": "0.6.0",
+    "@agents-js/claude-gateway-inbox-receiver": "0.6.0",
     "@agents-js/codex-gateway-inbox-receiver": "0.6.0",
     "@agents-js/gateway-runtime": "0.6.0",
     "@agents-js/host": "0.6.0",

@@ -29,5 +29,6 @@ await runCodexGatewayInboxReceiver({
   replyTarget: config.replyTarget,
   skipGitRepoCheck: config.skipGitRepoCheck,
   fetchImpl: config.fetchImpl,
+  senderAllowlist: config.senderAllowlist,
   signal: abort.signal,
 });

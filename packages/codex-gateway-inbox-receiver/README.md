@@ -22,11 +22,13 @@ bun add @agents-js/codex-gateway-inbox-receiver
 - **`deliverRow`**
 - **`formatInboxRowForCodex`** — Format one gateway inbox row as a Codex turn prompt with explicit evidence.
 - **`missingRequiredReceiverCliEnv`**
+- **`parseSenderAllowlist`**
 - **`proveAppServerRunner`**
 - **`readReceiverCliConfig`**
 - **`runCodexGatewayInboxReceiver`**
 - **`runKeyCommand`** — Run a shell command and return stdout exactly, preserving multiline PEMs.
 - **`selectCodexRunner`**
+- **`senderAllowed`**
 
 ### Interfaces
 
@@ -43,6 +45,7 @@ bun add @agents-js/codex-gateway-inbox-receiver
 
 ### Types
 
+- **`SenderAllowlist`**
 - **`SpawnImpl`**
 
 ### Exports

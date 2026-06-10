@@ -26,6 +26,11 @@ const CODEX_RECEIVER_FIXTURE_PATH = path.join(
   "../../agent-launch/tests/fixtures/codex-with-receiver.json",
 );
 
+const CLAUDE_RECEIVER_FIXTURE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../agent-launch/tests/fixtures/claude-with-receiver.json",
+);
+
 const CODEX_MISSING_RECEIVER_ENV_FIXTURE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../agent-launch/tests/fixtures/codex-missing-receiver-env.json",
@@ -200,6 +205,9 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(receiverCmd).toContain('export CODEX_GATEWAY_FETCH="curl"');
     expect(receiverCmd).toContain('export CODEX_GATEWAY_SKIP_GIT_REPO_CHECK="true"');
     expect(receiverCmd).toContain(
+      'export CODEX_GATEWAY_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"',
+    );
+    expect(receiverCmd).toContain(
       'export CODEX_GATEWAY_CURSOR_PATH="/Users/jensbodal/workspaces/agents/olthoi0-codex-0/.agents/olthoi0-codex-0/gateway-inbox-cursor.json"',
     );
 
@@ -216,6 +224,63 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
       "MATRIX_AGENT",
     ]);
     expect(calls.setEnvironment.map(([_, key]) => key)).not.toContain("CODEX_GATEWAY_KEY_CMD");
+  });
+
+  test("claude-code --with-receiver launches a source-owned Claude receiver companion", async () => {
+    const { runner, calls } = fakeRunner();
+    const out = captureOutput();
+    const code = await runLaunchCommand(
+      [
+        "hostname-null-claude-0",
+        "--with-receiver",
+        "--bg",
+        "--config",
+        CLAUDE_RECEIVER_FIXTURE_PATH,
+      ],
+      {
+        output: out,
+        env: { PATH: "/usr/bin" },
+        home: "/home/test",
+        cwd: "/tmp",
+        createRunner: () => runner,
+      },
+    );
+    expect(code).toBe(0);
+    expect(calls.newSessionDetached).toEqual([
+      ["hostname-null-claude-0", "/Users/jensbodal/workspaces/agents/hostname-null-claude-0"],
+      [
+        "hostname-null-claude-0-receiver",
+        "/Users/jensbodal/workspaces/agents/hostname-null-claude-0",
+      ],
+    ]);
+
+    const receiverCmd = calls.sendKeys[1]?.[1] ?? "";
+    expect(receiverCmd).toContain("agents-js claude-receiver");
+    expect(receiverCmd).toContain('export CW_IDENTITY="hostname-null-claude-0"');
+    expect(receiverCmd).toContain('export CH_GATEWAY_IDENTITY="hostname-null-claude-0"');
+    expect(receiverCmd).toContain('export CH_GATEWAY_URL="https://ajs-gateway.q4m.dev"');
+    expect(receiverCmd).toContain(
+      'export CH_GATEWAY_KEY_CMD="bash /Users/jensbodal/.config/agents-js/olthoi0-keycmd.sh"',
+    );
+    expect(receiverCmd).toContain('export CH_GATEWAY_FETCH="curl"');
+    expect(receiverCmd).toContain(
+      'export CW_CLAUDE_MCP_CONFIG="/Users/jensbodal/workspaces/agents/hostname-null-claude-0/.agents/hostname-null-claude-0/gateway-mcp.json"',
+    );
+    expect(receiverCmd).toContain('export CW_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"');
+    expect(receiverCmd).not.toContain("bypassPermissions");
+
+    const receiverSessionEnvKeys = calls.setEnvironment
+      .filter(([session]) => session === "hostname-null-claude-0-receiver")
+      .map(([_, key]) => key)
+      .sort();
+    expect(receiverSessionEnvKeys).toEqual([
+      "GIT_AUTHOR_EMAIL",
+      "GIT_AUTHOR_NAME",
+      "GIT_COMMITTER_EMAIL",
+      "GIT_COMMITTER_NAME",
+      "MATRIX_AGENT",
+    ]);
+    expect(calls.setEnvironment.map(([_, key]) => key)).not.toContain("CH_GATEWAY_KEY_CMD");
   });
 
   test("codex --with-receiver fails before tmux side effects when receiver env is missing", async () => {

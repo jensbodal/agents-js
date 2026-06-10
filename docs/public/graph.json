@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-09T21:24:34.533Z",
-  "package_count": 43,
-  "publishable_count": 29,
+  "generated_at": "2026-06-09T22:25:10.387Z",
+  "package_count": 44,
+  "publishable_count": 30,
   "packages": [
     {
       "name": "@agents-js/a2a",
@@ -175,6 +175,18 @@
       "exports_count": 0
     },
     {
+      "name": "@agents-js/claude-gateway-inbox-receiver",
+      "dir": "packages/claude-gateway-inbox-receiver",
+      "private": false,
+      "version": "0.6.0",
+      "internal_deps": [
+        "@agents-js/gateway-inbox-runtime"
+      ],
+      "external_deps": [],
+      "external_peer": [],
+      "exports_count": 0
+    },
+    {
       "name": "@agents-js/cli",
       "dir": "packages/cli",
       "private": false,
@@ -185,6 +197,7 @@
         "@agents-js/acp",
         "@agents-js/acp-host",
         "@agents-js/agent-launch",
+        "@agents-js/claude-gateway-inbox-receiver",
         "@agents-js/codex-gateway-inbox-receiver",
         "@agents-js/gateway-runtime",
         "@agents-js/host",
@@ -710,6 +723,9 @@
       "@agents-js/host",
       "@agents-js/web-ui"
     ],
+    "@agents-js/claude-gateway-inbox-receiver": [
+      "@agents-js/cli"
+    ],
     "@agents-js/a2ui-types": [
       "@agents-js/host",
       "@agents-js/ui-components",
@@ -720,6 +736,7 @@
     ],
     "@agents-js/gateway-inbox-runtime": [
       "@agents-js/claude-channel-adapter",
+      "@agents-js/claude-gateway-inbox-receiver",
       "@agents-js/codex-gateway-inbox-receiver"
     ],
     "@agents-js/gateway-runtime": [

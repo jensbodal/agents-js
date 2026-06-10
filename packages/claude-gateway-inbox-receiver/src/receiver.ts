@@ -6,9 +6,9 @@ import {
   type InboxMessage,
   runInboxPoller,
 } from "@agents-js/gateway-inbox-runtime";
-import { type CodexRunner, type JsonRpcClient, selectCodexRunner } from "./codex-runner.ts";
+import { type ClaudeRunner, ClaudeSpawnRunner } from "./claude-runner.ts";
 import { runKeyCommand } from "./key-command.ts";
-import { formatInboxRowForCodex } from "./prompt-format.ts";
+import { formatInboxRowForClaude } from "./prompt-format.ts";
 import { type SenderAllowlist, senderAllowed } from "./sender-allowlist.ts";
 
 export interface ReceiverLogger {
@@ -17,28 +17,30 @@ export interface ReceiverLogger {
   error(message: string): void;
 }
 
-export interface CodexGatewayInboxReceiverOptions {
+export interface ClaudeGatewayInboxReceiverOptions {
   readonly identity: string;
   readonly gatewayUrl: string;
   readonly workspace: string;
   readonly keyCommand: string;
   readonly client?: GatewayInboxClient;
-  readonly runner?: CodexRunner;
-  readonly appServerClient?: JsonRpcClient;
+  readonly runner?: ClaudeRunner;
   readonly fetchImpl?: typeof fetch;
+  readonly fetchMode?: string;
   readonly cursorPath?: string;
   readonly intervalMs?: number;
   readonly limit?: number;
-  readonly autoReply?: boolean;
-  readonly replyTarget?: string;
-  readonly skipGitRepoCheck?: boolean;
-  readonly senderAllowlist?: SenderAllowlist;
+  readonly claudeCommand?: string;
+  readonly claudeArgs?: readonly string[];
+  readonly mcpConfigPath: string;
+  readonly mcpCommand?: string;
+  readonly mcpArgs?: readonly string[];
+  readonly senderAllowlist: SenderAllowlist;
   readonly signal: AbortSignal;
   readonly logger?: ReceiverLogger;
 }
 
-export async function runCodexGatewayInboxReceiver(
-  options: CodexGatewayInboxReceiverOptions,
+export async function runClaudeGatewayInboxReceiver(
+  options: ClaudeGatewayInboxReceiverOptions,
 ): Promise<void> {
   const logger = options.logger ?? console;
   const client =
@@ -49,18 +51,23 @@ export async function runCodexGatewayInboxReceiver(
       getPrivateKeyPem: () => runKeyCommand(options.keyCommand),
       fetchImpl: options.fetchImpl,
     });
-  const runner = await selectCodexRunner({
-    explicitRunner: options.runner,
-    appServerClient: options.appServerClient,
-    execRunnerOptions: {
+  const runner =
+    options.runner ??
+    new ClaudeSpawnRunner({
+      command: options.claudeCommand,
+      args: options.claudeArgs,
       cwd: options.workspace,
-      skipGitRepoCheck: options.skipGitRepoCheck,
-    },
-    logger,
-  });
+      mcpConfigPath: options.mcpConfigPath,
+      identity: options.identity,
+      gatewayUrl: options.gatewayUrl,
+      keyCommand: options.keyCommand,
+      fetchMode: options.fetchMode,
+      mcpCommand: options.mcpCommand,
+      mcpArgs: options.mcpArgs,
+    });
   const cursorPath =
     options.cursorPath ??
-    join(options.workspace, ".agents", options.identity, "gateway-inbox-cursor.json");
+    join(options.workspace, ".agents", options.identity, "claude-gateway-inbox-cursor.json");
   try {
     await runInboxPoller({
       client,
@@ -74,11 +81,7 @@ export async function runCodexGatewayInboxReceiver(
         deliverRow({
           row,
           runner,
-          client,
-          identity: options.identity,
-          autoReply: options.autoReply ?? false,
-          replyTarget: options.replyTarget,
-          senderAllowlist: options.senderAllowlist ?? new Set(),
+          senderAllowlist: options.senderAllowlist,
           logger,
         }),
     });
@@ -87,19 +90,15 @@ export async function runCodexGatewayInboxReceiver(
   }
 }
 
-export interface DeliverRowOptions {
+export interface DeliverClaudeRowOptions {
   readonly row: InboxMessage;
-  readonly runner: CodexRunner;
-  readonly client: GatewayInboxClient;
-  readonly identity: string;
-  readonly autoReply: boolean;
-  readonly replyTarget?: string;
+  readonly runner: ClaudeRunner;
   readonly senderAllowlist: SenderAllowlist;
   readonly logger: ReceiverLogger;
 }
 
-export async function deliverRow(options: DeliverRowOptions): Promise<void> {
-  const formatted = formatInboxRowForCodex(options.row);
+export async function deliverRow(options: DeliverClaudeRowOptions): Promise<void> {
+  const formatted = formatInboxRowForClaude(options.row);
   if (!senderAllowed(formatted.senderIdentity, options.senderAllowlist)) {
     options.logger.warn(
       `sender-not-allowlisted message_id=${options.row.message_id} sender=${formatted.senderIdentity}`,
@@ -107,16 +106,5 @@ export async function deliverRow(options: DeliverRowOptions): Promise<void> {
     return;
   }
   options.logger.log(`delivering message_id=${options.row.message_id}`);
-  const result = await options.runner.run(formatted.prompt);
-  if (!options.autoReply || !result.reply?.trim()) return;
-  const target = formatted.replyTo ?? options.replyTarget;
-  if (!target) {
-    options.logger.warn(`no-routable-reply-target message_id=${options.row.message_id}`);
-    return;
-  }
-  await options.client.sendMessage({
-    target,
-    body: result.reply,
-    identity: options.identity,
-  });
+  await options.runner.run(formatted.prompt);
 }

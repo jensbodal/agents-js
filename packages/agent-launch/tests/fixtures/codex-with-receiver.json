@@ -11,7 +11,7 @@
       "env_setup": "export MATRIX_AGENT=olthoi0-codex-0 && export AGENTS_GATEWAY_SUB=olthoi0-codex-0",
       "git_author_name": "olthoi0-codex-0",
       "git_author_email": "olthoi0-codex-0@noreply.bodal.dev",
-      "channel_env": "export CODEX_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CODEX_GATEWAY_KEY_CMD='gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key' && export CODEX_GATEWAY_POLL_INTERVAL_MS=15000"
+      "channel_env": "export CODEX_GATEWAY_URL=https://ajs-gateway.q4m.dev && export CODEX_GATEWAY_KEY_CMD='gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key' && export CODEX_GATEWAY_POLL_INTERVAL_MS=15000 && export CODEX_GATEWAY_SENDER_ALLOWLIST='ajs-claude hostname-null-claude-0'"
     }
   }
 }
