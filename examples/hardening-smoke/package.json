@@ -1,0 +1,18 @@
+{
+  "name": "@agents-js/example-hardening-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hardening smoke example for @agents-js/host. Proves the HS256 JWT mint -> verify -> reject security loop end-to-end: a gateway-minted scoped token verifies against the correct signing key, and verification REJECTS wrong-key, byte-flipped/forged, and expired tokens.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/host": "workspace:*",
+    "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
