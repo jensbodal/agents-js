@@ -94,6 +94,16 @@
         "vite": "catalog:",
       },
     },
+    "examples/acp-runtime-smoke": {
+      "name": "@agents-js/example-acp-runtime-smoke",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/acp-host": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "examples/host-memory-pilot": {
       "name": "@agents-js/example-host-memory-pilot",
       "version": "0.0.0",
@@ -696,6 +706,8 @@
     "@agents-js/codex-gateway-inbox-receiver": ["@agents-js/codex-gateway-inbox-receiver@workspace:packages/codex-gateway-inbox-receiver"],
 
     "@agents-js/droid-acp": ["@agents-js/droid-acp@workspace:extras/droid-acp"],
+
+    "@agents-js/example-acp-runtime-smoke": ["@agents-js/example-acp-runtime-smoke@workspace:examples/acp-runtime-smoke"],
 
     "@agents-js/example-host-memory-pilot": ["@agents-js/example-host-memory-pilot@workspace:examples/host-memory-pilot"],
 

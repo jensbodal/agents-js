@@ -1,0 +1,17 @@
+{
+  "name": "@agents-js/example-acp-runtime-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for the ACP runtime contract. Drives the real tests/mock-acp-agent.cjs subprocess through ACPSessionController and proves the full initialize -> session -> streaming-prompt -> persisted-state cycle.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/acp-host": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
