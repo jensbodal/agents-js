@@ -133,8 +133,12 @@ function handleElicitationResponse(response) {
   }
   pendingElicitations.delete(String(response.id));
 
-  const action = response?.result?.action?.action;
-  const content = response?.result?.action?.content ?? {};
+  // The ACP `CreateElicitationResponse` is FLAT: the JSON-RPC `result` is
+  // `{ action: "accept" | "decline" | "cancel", content?: {...} }` — `content`
+  // is present only on the accept branch. Read `action`/`content` directly off
+  // `result`; do NOT nest under `result.action.*`.
+  const action = response?.result?.action;
+  const content = response?.result?.content ?? {};
   let text;
 
   if (action === "accept") {
