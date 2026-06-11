@@ -41,6 +41,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  codex-receiver  Poll gateway inbox rows into native Codex",
       "  onboard   Onboard an agent onto the mesh (launch + provision)",
       "  skill     Print the installable agents-js SKILL.md document",
+      "  run-logged  Run a child process, tee-ing its stderr to a logfile (TTY-safe)",
       "",
       "Global options:",
       "  --version, -v  Print version and exit",

@@ -407,9 +407,15 @@ export function createEventHub(): EventHub {
   return {
     broadcast(event) {
       // Snapshot so a subscriber that unsubscribes during dispatch
-      // doesn't mutate the set mid-iteration.
+      // doesn't mutate the set mid-iteration. Each subscriber is isolated:
+      // one throwing observer must not drop the event for the others (and,
+      // combined with the tee's catch, must not reach the real event bus).
       for (const fn of [...subscribers]) {
-        fn(event);
+        try {
+          fn(event);
+        } catch {
+          // Observe-only: a broken subscriber never interferes with delivery.
+        }
       }
     },
     subscribe(fn) {
@@ -427,16 +433,26 @@ export function createEventHub(): EventHub {
 /**
  * Wrap an {@link ExecutionEventBus} so every `publish(event)` is also
  * mirrored to the hub, transparently. All other methods (`finished`,
- * subscriptions, etc.) delegate to the real bus unchanged, so the SDK's
- * per-task lifecycle is byte-for-byte identical — the tee only observes.
+ * subscriptions, etc.) delegate to the real bus unchanged.
+ *
+ * **Isolation invariant.** The authoritative task lifecycle MUST advance
+ * unconditionally, so `publish` runs the REAL bus FIRST and captures its result;
+ * the `/events` mirror is then strictly best-effort, wrapped in try/catch. A
+ * throwing observer/subscriber (or a hub failure) can never stop the underlying
+ * `ExecutionEventBus.publish` or task completion — the firehose only observes.
  */
-function teeEventBus(bus: ExecutionEventBus, hub: EventHub): ExecutionEventBus {
+export function teeEventBus(bus: ExecutionEventBus, hub: EventHub): ExecutionEventBus {
   return new Proxy(bus, {
     get(target, prop, receiver) {
       if (prop === "publish") {
         return (event: AgentEvent) => {
-          hub.broadcast(event);
-          return target.publish(event);
+          const result = target.publish(event);
+          try {
+            hub.broadcast(event);
+          } catch {
+            // Swallow: the diagnostic mirror is non-interfering by contract.
+          }
+          return result;
         };
       }
       const value = Reflect.get(target, prop, receiver);

@@ -3,7 +3,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { A2AClientProvider } from "@agents-js/a2a-client";
-import { installNativePeerBridge, type NativePiPeerHandle } from "../src/native-peer.ts";
+import {
+  createEventHub,
+  installNativePeerBridge,
+  type NativePiPeerHandle,
+  teeEventBus,
+} from "../src/native-peer.ts";
 import type { PiCustomMessage, PiHost, PiToolRegistration } from "../src/types.ts";
 
 type PiHandler = (event: unknown, ctx: unknown) => unknown | Promise<unknown>;
@@ -545,5 +550,58 @@ describe("native Pi peer mode", () => {
     expect(body.error.code).toBe(-32600);
     expect(body.error.message).toBe("Request body too large");
     expect(body.error.data?.maxBytes).toBe(4 * 1024 * 1024);
+  });
+});
+
+/**
+ * Isolation invariant for the /events firehose (PR #211 review BLOCK, raised by
+ * cognee-codex, fix per cognee-claude). The diagnostic event mirror must never
+ * interfere with the authoritative A2A task lifecycle: a throwing /events
+ * observer (or any hub failure) cannot stop `ExecutionEventBus.publish` and thus
+ * cannot halt task completion. Tested at the tee level (not just the hub) per
+ * the review's "load-bearing regression" request.
+ */
+describe("teeEventBus / event hub — observer isolation", () => {
+  // WHAT: an event published through the teed bus still reaches the REAL bus
+  // even when an /events subscriber throws.
+  // WHY: the firehose is observe-only; a broken SSE observer must not stop the
+  // authoritative publish (which advances/finishes the task).
+  test("a throwing /events subscriber does not stop the real bus publish", () => {
+    const published: unknown[] = [];
+    const realBus = {
+      publish: (event: unknown) => {
+        published.push(event);
+      },
+      finished() {},
+    };
+    const hub = createEventHub();
+    hub.subscribe(() => {
+      throw new Error("observer boom");
+    });
+    // The fake satisfies the only members the tee touches (publish + delegated).
+    const teed = teeEventBus(realBus as unknown as Parameters<typeof teeEventBus>[0], hub);
+
+    const event = { kind: "task", marker: 1 } as never;
+    // The teed publish must not throw, AND the authoritative bus must have run.
+    expect(() => teed.publish(event)).not.toThrow();
+    expect(published).toEqual([event]);
+  });
+
+  // WHAT: one throwing subscriber does not deprive the others of the event.
+  // WHY: per-subscriber isolation in broadcast() — defense in depth alongside
+  // the tee's catch.
+  test("createEventHub.broadcast isolates a throwing subscriber from the rest", () => {
+    const hub = createEventHub();
+    const delivered: unknown[] = [];
+    hub.subscribe(() => {
+      throw new Error("boom");
+    });
+    hub.subscribe((event) => {
+      delivered.push(event);
+    });
+
+    const event = { kind: "statusUpdate" };
+    expect(() => hub.broadcast(event)).not.toThrow();
+    expect(delivered).toEqual([event]);
   });
 });
