@@ -4,9 +4,7 @@
     "cli": {
       "title": "CLI",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/cli"
-      ],
+      "packages": ["@agents-js/cli"],
       "evidence": [
         {
           "kind": "run",
@@ -19,11 +17,7 @@
     "federation-registry": {
       "title": "Federation / agent registry",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/gateway-runtime",
-        "@agents-js/host",
-        "@agents-js/a2a-client"
-      ],
+      "packages": ["@agents-js/gateway-runtime", "@agents-js/host", "@agents-js/a2a-client"],
       "evidence": [
         {
           "kind": "run",
@@ -41,11 +35,7 @@
     "memory": {
       "title": "Memory substrate",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/memory",
-        "@agents-js/memory-local",
-        "@agents-js/memory-postgres"
-      ],
+      "packages": ["@agents-js/memory", "@agents-js/memory-local", "@agents-js/memory-postgres"],
       "evidence": [
         {
           "kind": "run",
@@ -63,9 +53,7 @@
     "permissions": {
       "title": "Permissions / ACL",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/policy"
-      ],
+      "packages": ["@agents-js/policy"],
       "evidence": [
         {
           "kind": "run",
@@ -83,10 +71,7 @@
     "acp-runtime": {
       "title": "ACP runtime contract",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/acp",
-        "@agents-js/acp-host"
-      ],
+      "packages": ["@agents-js/acp", "@agents-js/acp-host"],
       "evidence": [
         {
           "kind": "test",
@@ -123,9 +108,7 @@
     "hardening": {
       "title": "Hardening track (signing / JWT / trust-manifest)",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/host"
-      ],
+      "packages": ["@agents-js/host"],
       "evidence": [
         {
           "kind": "test",
@@ -172,9 +155,7 @@
     "ag-ui": {
       "title": "AG-UI streaming transport",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/agui-types"
-      ],
+      "packages": ["@agents-js/agui-types"],
       "evidence": [
         {
           "kind": "test",
@@ -192,9 +173,7 @@
     "ack-reply-routing": {
       "title": "ACK / reply-target routing",
       "tier": "undemonstrated",
-      "packages": [
-        "@agents-js/claude-channel-adapter"
-      ],
+      "packages": ["@agents-js/claude-channel-adapter"],
       "evidence": [
         {
           "kind": "test",
@@ -207,9 +186,7 @@
     "agent-launch": {
       "title": "agent-launch (harness/tmux launcher)",
       "tier": "undemonstrated",
-      "packages": [
-        "@agents-js/agent-launch"
-      ],
+      "packages": ["@agents-js/agent-launch"],
       "evidence": [
         {
           "kind": "run",
@@ -222,11 +199,7 @@
     "browser-ux": {
       "title": "Browser/operator experience",
       "tier": "demonstrated",
-      "packages": [
-        "@agents-js/web-ui",
-        "@agents-js/gateway",
-        "@agents-js/browser-runtime"
-      ],
+      "packages": ["@agents-js/web-ui", "@agents-js/gateway", "@agents-js/browser-runtime"],
       "evidence": [
         {
           "kind": "doc",
@@ -249,9 +222,7 @@
     "ch-gateway-propagation": {
       "title": "Channel-env (CH_GATEWAY_*) propagation",
       "tier": "missing",
-      "packages": [
-        "@agents-js/agent-launch"
-      ],
+      "packages": ["@agents-js/agent-launch"],
       "evidence": [
         {
           "kind": "doc",
