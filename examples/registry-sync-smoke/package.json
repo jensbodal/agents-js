@@ -1,0 +1,18 @@
+{
+  "name": "@agents-js/example-registry-sync-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for cross-gateway registry sync. Stands up two real createGatewayTestServer gateways backed by tests/mock-acp-agent.cjs, enables A2A peer-sync between them via startRegistrySync + createSyncEndpointHandler, and proves gateway A discovers gateway B's (name, url) record through the real pull-merge path — then confirms the synced URL points at a reachable gateway by fetching B's agent card.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/a2a-client": "workspace:*",
+    "@agents-js/host": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
