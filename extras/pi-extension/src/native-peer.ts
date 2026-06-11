@@ -30,10 +30,17 @@ import {
   stripMention,
 } from "@agents-js/a2a-client";
 import {
+  type AutoRegisterHeartbeatHandle,
   autoRegister,
   readAgentRegistryRecords,
   resolveSharedAgentRegistryPath,
+  startAutoRegisterHeartbeat,
 } from "@agents-js/a2a-client/node";
+import {
+  type HostnameSource,
+  type NetworkInterfacesSource,
+  resolveLanAdvertiseHost,
+} from "@agents-js/agent-launch";
 import pkg from "../package.json";
 import type { PiCustomMessage, PiHost } from "./types.ts";
 
@@ -41,6 +48,11 @@ const NATIVE_MESSAGE_TYPE = "agents-js.native-pi";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 0;
 const DEFAULT_TURN_TIMEOUT_MS = 5 * 60 * 1000;
+// Native pi re-advertises its address on this cadence so the peer survives a
+// host LAN-IP change without a relaunch. 30s (vs the gateway's 60s) because an
+// IP change is a hard reachability outage for pi, so faster mesh re-convergence
+// matters; the per-tick cost is one interface read + one small registry write.
+const DEFAULT_PI_HEARTBEAT_INTERVAL_MS = 30_000;
 const EXTENSION_PROMPT_MARK_LIMIT = 64;
 const JSON_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -63,6 +75,21 @@ type Logger = Pick<Console, "error" | "log" | "warn">;
 export interface NativePiPeerOptions {
   env?: Record<string, string | undefined>;
   logger?: Logger;
+  /**
+   * Test seam: source of network interfaces for re-detecting the advertised
+   * LAN host on each heartbeat tick. Defaults to `os.networkInterfaces`.
+   */
+  interfacesSource?: NetworkInterfacesSource;
+  /** Test seam: source of the host short-name for the FQDN advertise path. */
+  hostnameSource?: HostnameSource;
+  /**
+   * Test seam: scheduler for the re-advertise heartbeat. Defaults to
+   * `setTimeout`/`clearTimeout`; injected so tests can drive ticks deterministically.
+   */
+  scheduler?: {
+    setTimeout: (cb: () => void, ms: number) => unknown;
+    clearTimeout: (handle: unknown) => void;
+  };
 }
 
 export interface NativePiPeerHandle {
@@ -73,7 +100,14 @@ export interface NativePiPeerHandle {
 }
 
 interface NativePiPeerConfig {
-  host: string;
+  /** Host published in the agent-card/registry (peers connect here). */
+  advertiseHost: string;
+  /** Host the socket binds to (0.0.0.0 for LAN advertise — survives IP churn). */
+  bindHost: string;
+  /** Re-advertise cadence (ms); 0 disables periodic re-advertise. */
+  heartbeatIntervalMs: number;
+  /** Optional LAN domain → advertise a stable `<host>.<domain>` FQDN (off by default). */
+  lanDomain?: string;
   name: string;
   port: number;
   registryPath: string;
@@ -133,8 +167,31 @@ function readNativeConfig(env: Record<string, string | undefined>): NativePiPeer
     throw new Error(`Invalid AGENTS_JS_PI_TURN_TIMEOUT_MS: ${rawTimeout}`);
   }
 
+  const advertiseHost = env.AGENTS_JS_PI_HOST?.trim() || DEFAULT_HOST;
+  // Bind the ADVERTISED host by default — NOT 0.0.0.0. A native pi's inbound
+  // A2A is not yet authenticated, so defaulting to all-interfaces would silently
+  // widen that unauth surface from one LAN segment to every host interface incl.
+  // the tailnet (security review, PR #216). To survive a host IP change, either
+  // advertise a STABLE address (an FQDN via AGENTS_JS_PI_LAN_DOMAIN, or a tailnet
+  // IP that doesn't rotate) or set AGENTS_JS_PI_BIND_HOST=0.0.0.0 explicitly,
+  // accepting the wider exposure. Enforcing signed-peer auth on the inbound
+  // handler (which would make 0.0.0.0 safe) is a separate follow-up.
+  const bindHost = env.AGENTS_JS_PI_BIND_HOST?.trim() || advertiseHost;
+
+  const rawHeartbeat = env.AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS?.trim();
+  const heartbeatIntervalMs =
+    rawHeartbeat === undefined || rawHeartbeat === ""
+      ? DEFAULT_PI_HEARTBEAT_INTERVAL_MS
+      : Number.parseInt(rawHeartbeat, 10);
+  if (!Number.isInteger(heartbeatIntervalMs) || heartbeatIntervalMs < 0) {
+    throw new Error(`Invalid AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: ${rawHeartbeat}`);
+  }
+
   return {
-    host: env.AGENTS_JS_PI_HOST?.trim() || DEFAULT_HOST,
+    advertiseHost,
+    bindHost,
+    heartbeatIntervalMs,
+    lanDomain: env.AGENTS_JS_PI_LAN_DOMAIN?.trim() || undefined,
     name,
     port,
     registryPath: resolveSharedAgentRegistryPath({
@@ -503,9 +560,10 @@ function writeEventsStream(
 }
 
 async function startNativeA2AServer(options: {
+  advertiseHost: string;
+  bindHost: string;
   card: AgentCard;
   executor: InitializableExecutor;
-  host: string;
   hub: EventHub;
   logger: Logger;
   port: number;
@@ -576,10 +634,10 @@ async function startNativeA2AServer(options: {
     }
   });
 
-  const { port, host } = options;
+  const { port, bindHost, advertiseHost } = options;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, host, () => {
+    server.listen(port, bindHost, () => {
       server.off("error", reject);
       resolve();
     });
@@ -587,7 +645,7 @@ async function startNativeA2AServer(options: {
 
   const address = server.address();
   const actualPort = isObject(address) && typeof address.port === "number" ? address.port : port;
-  const url = buildAgentCardBaseUrl(actualPort, host);
+  const url = buildAgentCardBaseUrl(actualPort, advertiseHost);
   // A2A 1.0 moved the bind URL into `supportedInterfaces[].url`.
   const iface = options.card.supportedInterfaces[0];
   if (iface) {
@@ -1027,6 +1085,25 @@ export function installNativePeerBridge(
   });
 
   let serverHandle: NativeServerHandle | null = null;
+  let heartbeat: AutoRegisterHeartbeatHandle | null = null;
+
+  // Host to advertise right now. Loopback advertise stays static (single
+  // machine; never sniff interfaces). Otherwise re-detect the current LAN
+  // address each call so the peer survives a host IP change — reusing the same
+  // detection the launcher used at boot. `lanDomain`, when set, yields a stable
+  // `<host>.<domain>` FQDN (the bridge to the DNS self-update lane).
+  const isLoopbackHost = (h: string): boolean =>
+    h === "127.0.0.1" || h === "localhost" || h === "::1";
+  const resolveCurrentAdvertiseHost = (): string => {
+    if (isLoopbackHost(config.advertiseHost)) return config.advertiseHost;
+    return (
+      resolveLanAdvertiseHost({
+        lanDomain: config.lanDomain,
+        interfacesSource: options.interfacesSource,
+        hostnameSource: options.hostnameSource,
+      }) ?? config.advertiseHost
+    );
+  };
 
   pi.on("session_start", async () => {
     if (serverHandle) {
@@ -1034,22 +1111,55 @@ export function installNativePeerBridge(
     }
     try {
       serverHandle = await startNativeA2AServer({
+        advertiseHost: config.advertiseHost,
+        bindHost: config.bindHost,
         card,
         executor,
-        host: config.host,
         hub: eventHub,
         logger,
         port: config.port,
       });
-      await autoRegister({
+      const serverPort = serverHandle.port;
+      // Recompute the advertised URL (re-detecting the host) and refresh the
+      // served agent-card in lockstep with the registry record below.
+      const computeUrl = (): string => {
+        const url = buildAgentCardBaseUrl(serverPort, resolveCurrentAdvertiseHost());
+        const iface = card.supportedInterfaces[0];
+        if (iface) {
+          iface.url = url;
+        }
+        return url;
+      };
+      const registerCurrent = (url: string): Promise<unknown> =>
+        autoRegister({
+          name: config.name,
+          kind: "a2a",
+          url,
+          configPath: config.registryPath,
+          gatewayId: osHostname(),
+          protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
+          description: card.description,
+          healthCheckUrl: `${url}/.well-known/agent-card.json`,
+        });
+      // Boot registration is awaited so a reader right after session_start sees
+      // the record; the heartbeat then re-publishes the (possibly changed) URL
+      // on each tick, keeping the registry + served card fresh across IP changes.
+      await registerCurrent(computeUrl());
+      heartbeat = startAutoRegisterHeartbeat({
         name: config.name,
-        kind: "a2a",
-        url: serverHandle.url,
+        url: computeUrl,
         configPath: config.registryPath,
         gatewayId: osHostname(),
-        protocolVersion: CURRENT_A2A_PROTOCOL_VERSION,
-        description: card.description,
-        healthCheckUrl: `${serverHandle.url}/.well-known/agent-card.json`,
+        intervalMs: config.heartbeatIntervalMs,
+        logger,
+        registerFn: (opts) => {
+          const url =
+            typeof (opts as { url?: unknown }).url === "string"
+              ? (opts as { url: string }).url
+              : (serverHandle?.url ?? "");
+          return registerCurrent(url);
+        },
+        ...(options.scheduler ? { scheduler: options.scheduler } : {}),
       });
       await displayPiMessage(
         pi,
@@ -1154,6 +1264,10 @@ export function installNativePeerBridge(
   });
 
   pi.on("session_shutdown", async () => {
+    // Cancel the next re-advertise tick before closing the socket so a tick
+    // can't race a closing server.
+    heartbeat?.stop();
+    heartbeat = null;
     if (!serverHandle) {
       return;
     }
@@ -1169,6 +1283,8 @@ export function installNativePeerBridge(
     name: config.name,
     getUrl: () => serverHandle?.url ?? null,
     async stop() {
+      heartbeat?.stop();
+      heartbeat = null;
       if (serverHandle) {
         await serverHandle.stop();
         serverHandle = null;
