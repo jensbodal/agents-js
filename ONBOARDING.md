@@ -71,6 +71,54 @@ it applies to both modes.
    curl -s http://127.0.0.1:3197/.well-known/agent-card.json
    ```
 
+## Cockpit launch (runtime + tui + acp + logs)
+
+A native pi can launch as an interactive agent *and* an A2A peer in one step.
+Set `dual_window: true` on the pi config entry (name kept for back-compat); plain
+`agents-js launch <name>` opens one tmux session with a four-window cockpit
+(ADR 0011, extends ADR 0010):
+
+- `:0` **runtime** — the native pi (its embedded A2A endpoint is the surface);
+  the **default landing window** on attach.
+- `:1` **tui** — `agents-js client --agent <name> --wait` (the chat client you
+  drive; resolves the peer URL from `~/.agents-js/registry.json` by name and
+  waits for health).
+- `:2` **acp** — `agents-js client --agent <name> --wait --observe` — read-only
+  raw **pre-transport agent-event** diagnostic stream tapped from the peer's
+  `/events` firehose (the SDK's internal `AgentEvent`s, not the JSON-RPC wire shape).
+- `:3` **logs** — `tail -F` of the runtime's captured stderr (the `:0` process is
+  wrapped in `agents-js run-logged`, which tees stderr to a logfile without
+  disturbing the interactive TTY).
+
+`--bg` builds all windows and connects them without attaching. The runtime binds
+the resolved LAN host (`AGENTS_JS_PI_HOST`); if the host's IP changes, the bound
+socket points at the old address and the peer goes unreachable until you
+**relaunch** so it re-binds.
+
+> The launcher delivers each window's command via tmux `send-keys`, which feeds
+> the shell in canonical mode (line input truncates at ~1024 bytes). The runtime
+> startup is therefore sent as separate short lines — one `export` per env var,
+> then the command — so a long `fresh_flags` can't be truncated mid-command.
+> Still prefer the short session-resume forms below over a long absolute
+> `--fork <path>`.
+
+## Resume a prior session
+
+pi persists each session as a JSONL transcript under
+`~/.pi/agent/sessions/<workspace-slug>/`, keyed by the **workspace path**. To
+bring a pi up on an existing session, add one of these to `fresh_flags`:
+
+- `--continue` (`-c`) — resume the most recent session in the current workspace.
+- `--session <path|id>` — resume a specific session file or partial UUID.
+- `--fork <path|id>` — fork a session into a new one (keeps the original).
+
+To resume a session that was recorded in a **different** workspace (e.g. moving
+an agent into its own dedicated workspace), copy that session's JSONL into the
+new workspace's `sessions/<slug>/` directory and launch with `--continue` — this
+avoids a long absolute `--fork` path that the `send-keys` limit above can
+truncate. Confirm the resume took by checking the runtime's context-usage
+indicator is non-trivial (a blank session starts near 0%).
+
 ## Provision skills
 
 Skills are authored once in a [skills-js](https://github.com/jensbodal/skills-js)
@@ -122,6 +170,34 @@ gateway/infra state. The split (confirmed across the fleet/infra owners):
 
 A future `--apply-infra` operator handoff may shell out to the infra apply step,
 but it is not the default path.
+
+### Native-only vs full signed peer
+
+A native pi runs in one of two states. The first is fully self-serve; the second
+layers on three items agents-js **cannot self-mint** — they are provisioned by
+the fleet/operator:
+
+| State | Capabilities | What it needs |
+| --- | --- | --- |
+| **native-only** | interactive TUI + local A2A peer (registry-routable on this host) | config entry, workspace, definition, port — self-serve |
+| **full signed peer** | the above **plus** cross-host dispatch, signed gateway inbox, and Matrix participation | the three items below |
+
+1. **Matrix account** `<agent>@<homeserver>` + access token (Matrix/bridge owner).
+2. **Gateway signing keypair** in the secret store at
+   `services/agents-js/identity/<agent>/{key,pubkey}` (gateway-mint). The entry's
+   `channel_env` `CH_GATEWAY_KEY_CMD` reads the private key at runtime.
+3. **Trust-manifest peer-record install** at the gateway — identity + pubkey +
+   the dispatch `{kind:"a2a", url}`. `agents-js onboard` emits the dispatch entry
+   (requires a fixed `pi_port` + a resolvable advertise host); the gateway
+   operator installs it.
+
+A `channel_env` export only defines the key-read **command** — it does not run
+it — so an agent launches cleanly in native-only mode before the keypair exists.
+Items (1) and (2) let the agent **hold and sign with its own identity** while
+still native-only; item (3) — the gateway trust-manifest peer-record install —
+is what makes the gateway trust it and cross-host-route to it. It becomes a full
+signed peer only once **(1), (2), and (3)** are provisioned (relaunch to pick up
+the keypair).
 
 ## Not yet (tracked follow-ups)
 
