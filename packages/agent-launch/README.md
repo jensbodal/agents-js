@@ -33,6 +33,7 @@ bun add @agents-js/agent-launch
 - **`detectLanHost`** — Pick the host's primary LAN-reachable IPv4 address (first non-internal IPv4), or `undefined` when none exists. `source` is injectable for deterministic tests; production callers use the default `no...
 - **`extractMatrixAgent`** — Best-effort extraction of an entry's exported MATRIX_AGENT value from its `env_setup` snippet. Permissive by design — returns `undefined` (never throws) for an absent, empty, or shell-expanded valu...
 - **`injectIdentityEnv`** — Layer git identity + MATRIX_AGENT (from envSetup) onto `baseEnv` and return a fresh frozen env record. Caller passes `process.env` as baseEnv in production; tests inject a controlled record.
+- **`loadHarnessDefaults`** — Load harness defaults from `defaults/<harness>.json`. Returns empty defaults when the file does not exist (non-harness-specific callers should not need to know which harnesses have defaults). Throw...
 - **`loadLaunchConfig`** — Load + parse + validate the launch config at `path`. Throws {LaunchConfigError} for any structural failure; filesystem failures propagate as-is from `readFile`.
 - **`parseAgentIdentity`** — Parse a numbered-scheme identity name. Returns `null` for any name that does not match the grammar (legacy free-form profiles), so callers can branch on `parsed === null` to keep the legacy path.
 - **`parseEnvSetup`** — Parse the per-agent `env_setup` string into a typed env record. Splits on newlines + `&&`; each segment must parse as an `export` line. Empty segments are skipped.
@@ -50,6 +51,7 @@ bun add @agents-js/agent-launch
 - **`BuildLaunchPlanOptions`**
 - **`ChannelEnvOptions`** — Options for {deriveChannelEnv}. `keyCmd` is **caller-supplied** — the gopass-path convention for an identity's private key lives in the fleet package (dot-cognee), not here: hardcoding an operator-...
 - **`DeriveLaunchProfileOptions`**
+- **`HarnessDefaults`** — Parsed shape of a harness defaults file.
 - **`InterfaceAddressInfo`** — Minimal shape of a `node:os` interface address — kept local so the detector can be unit-tested with an injected interfaces source.
 - **`LaunchCommandSpec`** — The command an executor runs, by launch mode.
 - **`LaunchConfig`** — Top-level config shape. **Lazy normalization** (PR #99 cognee-codex review fix): `agents` holds RAW entries (`unknown`), not normalized {AgentEntry}s. Per-entry validation happens in {resolveAgentE...
@@ -76,6 +78,7 @@ bun add @agents-js/agent-launch
 
 ### Constants
 
+- **`DEFAULTS_DIR`** — Resolved directory holding defaults JSON files (sibling of src/).
 - **`HARNESS_NATIVE_BINARY`** — Native binary name per harness token (the direct, non-fronted harness CLI).
 - **`HARNESS_PROVIDER_ENV`** — Provider env var read directly by a harness (no adapter/LiteLLM in the path). Pi supports Zai natively via `ZAI_API_KEY`. Harnesses absent from this map manage provider auth by other means (e.g. cl...
 - **`HARNESS_TOKEN_TO_KIND`** — Map a scheme harness token to the `agent-launch-config.json` harness kind consumed by {buildLaunchPlan}. Only `claude` is launch-supported today (Phase 1); the rest map their kinds for forward use.
