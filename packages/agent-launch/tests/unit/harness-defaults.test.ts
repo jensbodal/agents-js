@@ -158,14 +158,14 @@ describe("buildLaunchPlan — AGENT_ACP_MODE derived from agent name", () => {
     expect(plan.env.AGENT_ACP_MODE).toBe("false");
   });
 
-  test("tmux-wired name → ACP_MODE=false", () => {
+  test("legacy name (unparseable) → ACP_MODE=false", () => {
     const plan = buildLaunchPlan(
       {
-        tmuxSession: "hostname-null-tmux-pi-0",
-        harness: "pi",
-        binary: "pi",
+        tmuxSession: "cognee-claude",
+        harness: "claude-code",
+        binary: "claude",
         workspace: "/tmp",
-        freshFlags: "",
+        freshFlags: "--agent cognee-claude",
         extra: {},
       },
       { baseEnv: {} },
@@ -220,19 +220,19 @@ describe("buildLaunchPlan — AGENT_PROFILE derived from agent name", () => {
     expect(plan.env.AGENT_PROFILE).toBe("native");
   });
 
-  test("tmux-wired name → profile=tmux-wired", () => {
+  test("legacy name (unparseable) → profile=native", () => {
     const plan = buildLaunchPlan(
       {
-        tmuxSession: "hostname-null-tmux-pi-0",
-        harness: "pi",
-        binary: "pi",
+        tmuxSession: "cognee-claude",
+        harness: "claude-code",
+        binary: "claude",
         workspace: "/tmp",
-        freshFlags: "",
+        freshFlags: "--agent cognee-claude",
         extra: {},
       },
       { baseEnv: {} },
     );
-    expect(plan.env.AGENT_PROFILE).toBe("tmux-wired");
+    expect(plan.env.AGENT_PROFILE).toBe("native");
   });
 
   test("AGENT_PROFILE is in sessionEnv", () => {

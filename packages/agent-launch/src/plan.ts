@@ -37,6 +37,7 @@ import { tokenizeShellArgs } from "@agents-js/shell-args";
 import type { AgentEntry } from "./config.ts";
 import { loadHarnessDefaults } from "./harness-defaults.ts";
 import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
+import { parseAgentIdentity } from "./identity-scheme.ts";
 import { resolveProviderCredEnvKeys } from "./provider-registry.ts";
 
 /**
@@ -233,14 +234,14 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
   });
 
   // Identity-derived env — not harness-intrinsic, not operator-configurable.
-  // Derived from the agent name convention: `-ajs-` → ajs-fronted (ACP),
-  // `-tmux-` → tmux-wired, otherwise native.
+  // Derived from the canonical identity parser (segment-precise), not raw
+  // substring. Legacy names (parser returns null) default to native/no-ACP.
   const agentName = entry.tmuxSession;
-  const isAjs = agentName.includes("-ajs-");
-  const isTmux = agentName.includes("-tmux-");
+  const parsed = parseAgentIdentity(agentName);
+  const ajsFronted = parsed?.ajsFronted ?? false;
   const identityEnv: LaunchEnv = Object.freeze({
-    AGENT_ACP_MODE: isAjs ? "true" : "false",
-    AGENT_PROFILE: isAjs ? "ajs-fronted" : isTmux ? "tmux-wired" : "native",
+    AGENT_ACP_MODE: ajsFronted ? "true" : "false",
+    AGENT_PROFILE: ajsFronted ? "ajs-fronted" : "native",
   });
   const envWithIdentity = Object.freeze({ ...built.env, ...identityEnv });
 
