@@ -386,7 +386,9 @@ function buildClaudeCodeInvocation({ entry, baseEnv }: HarnessBuildContext): Har
 /** codex: native Codex CLI fresh session using operator-provided flags. */
 function buildCodexInvocation({ entry, baseEnv }: HarnessBuildContext): HarnessInvocation {
   const args = splitFlags(entry.freshFlags);
-  return { command: entry.binary, args, env: baseEnv, allowedTools: [] };
+  const defaults = loadHarnessDefaults("codex");
+  const env: LaunchEnv = Object.freeze({ ...defaults.env, ...baseEnv });
+  return { command: entry.binary, args, env, allowedTools: [] };
 }
 
 /**

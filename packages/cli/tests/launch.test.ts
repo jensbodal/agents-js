@@ -112,9 +112,13 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
     expect(calls.newSessionDetached).toEqual([
       ["cognee-claude", "/Users/jensbodal/workspace/dot-cognee"],
     ]);
-    // Identity env pushed onto session
+    // Identity + harness-default env pushed onto session
     const envKeys = calls.setEnvironment.map(([_, k]) => k).sort();
     expect(envKeys).toEqual([
+      "AGENT_ACP_MODE",
+      "AGENT_HARNESS",
+      "AGENT_PROFILE",
+      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
       "GIT_AUTHOR_EMAIL",
       "GIT_AUTHOR_NAME",
       "GIT_COMMITTER_EMAIL",
@@ -217,6 +221,9 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
       .sort();
     expect(receiverSessionEnvKeys).toEqual([
       "AGENTS_GATEWAY_SUB",
+      "AGENT_ACP_MODE",
+      "AGENT_HARNESS",
+      "AGENT_PROFILE",
       "GIT_AUTHOR_EMAIL",
       "GIT_AUTHOR_NAME",
       "GIT_COMMITTER_EMAIL",
@@ -274,6 +281,10 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
       .map(([_, key]) => key)
       .sort();
     expect(receiverSessionEnvKeys).toEqual([
+      "AGENT_ACP_MODE",
+      "AGENT_HARNESS",
+      "AGENT_PROFILE",
+      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
       "GIT_AUTHOR_EMAIL",
       "GIT_AUTHOR_NAME",
       "GIT_COMMITTER_EMAIL",
