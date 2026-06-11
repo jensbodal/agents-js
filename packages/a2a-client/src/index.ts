@@ -90,7 +90,7 @@ export {
 } from "./transports/agui.ts";
 export { AguiToA2ATransportAdapter } from "./transports/agui-a2a-adapter.ts";
 export { AGUIStreamError, AGUIUnsupportedOperationError } from "./transports/agui-errors.ts";
-export { parseAguiSseStream } from "./transports/agui-sse-parser.ts";
+export { parseAguiSseStream, splitAguiSseFrames } from "./transports/agui-sse-parser.ts";
 export type {
   A2AAbortSendEvent,
   A2AAbortStreamEvent,

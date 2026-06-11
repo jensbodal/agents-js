@@ -63,14 +63,11 @@ export async function* parseAguiSseStream(
         );
       }
 
-      // Split on blank line separators. SSE permits both "\n\n" and "\r\n\r\n".
-      while (true) {
-        const boundary = findFrameBoundary(buffer);
-        if (boundary === -1) {
-          break;
-        }
-        const rawFrame = buffer.slice(0, boundary.end);
-        buffer = buffer.slice(boundary.end + boundary.skip);
+      // Drain every complete frame the buffer now holds, keeping the
+      // unterminated tail for the next chunk.
+      const { frames, rest } = splitAguiSseFrames(buffer);
+      buffer = rest;
+      for (const rawFrame of frames) {
         const event = parseFrame(rawFrame);
         if (event !== undefined) {
           yield event;
@@ -85,6 +82,36 @@ export async function* parseAguiSseStream(
       // Reader may already be released if the stream errored.
     }
   }
+}
+
+/**
+ * Pure SSE frame-boundary splitter. Given an accumulated decoded text
+ * `buffer`, return every complete frame (the bytes before each blank-line
+ * separator) plus the unterminated `rest` to carry into the next chunk.
+ *
+ * Blank-line separators per the SSE spec are `\n\n` or `\r\n\r\n`; the
+ * separator itself is dropped from both the emitted frame and the tail.
+ *
+ * This is the boundary half of the parser, deliberately free of any
+ * AG-UI schema validation, so callers that only need the raw wire frames
+ * (e.g. transport smokes asserting on the wire format) can reuse it
+ * without pulling in {@link validateAguiEvent}.
+ */
+export function splitAguiSseFrames(buffer: string): {
+  frames: string[];
+  rest: string;
+} {
+  const frames: string[] = [];
+  let rest = buffer;
+  while (true) {
+    const boundary = findFrameBoundary(rest);
+    if (boundary === -1) {
+      break;
+    }
+    frames.push(rest.slice(0, boundary.end));
+    rest = rest.slice(boundary.end + boundary.skip);
+  }
+  return { frames, rest };
 }
 
 interface FrameBoundary {

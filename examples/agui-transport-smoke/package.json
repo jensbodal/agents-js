@@ -10,6 +10,7 @@
     "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@agents-js/a2a-client": "workspace:*",
     "@agents-js/agui-types": "workspace:*",
     "@agents-js/host": "workspace:*"
   },
