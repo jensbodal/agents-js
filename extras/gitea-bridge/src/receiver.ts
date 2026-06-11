@@ -286,8 +286,13 @@ function extractEventFields(input: {
     case "pull_request": {
       const pr = payload.pull_request as Record<string, unknown> | undefined;
       const head = pr?.head as Record<string, unknown> | undefined;
+      // Gitea sends action="closed" with pull_request.merged=true on a merge.
+      // Surface "merged" so consumers can distinguish a merge from a
+      // close-without-merge (a closed PR may have been rejected, not merged).
+      const effectiveAction = action === "closed" && pr?.merged === true ? "merged" : action;
       return {
         ...base,
+        ...(effectiveAction !== undefined ? { action: effectiveAction } : {}),
         ...(typeof pr?.html_url === "string" ? { target_url: pr.html_url } : {}),
         ...(typeof head?.sha === "string" ? { commit_sha: head.sha } : {}),
         ...(typeof pr?.title === "string" ? { title: pr.title } : {}),

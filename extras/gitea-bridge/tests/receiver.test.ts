@@ -368,6 +368,62 @@ describe("createGiteaWebhookHandler — bus envelope shape", () => {
     expect(env.sourcePrincipal?.id).toBe("gitea:jensbodal/agents-js:ajs-claude");
   });
 
+  test("surfaces action=merged when a PR is closed with pull_request.merged=true", async () => {
+    // Gitea sends action="closed" with merged=true on a merge; consumers must
+    // be able to distinguish a merge from a close-without-merge.
+    const bus = createGatewayBus();
+    const received: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((event) => received.push(event));
+
+    const handler = createGiteaWebhookHandler({ bus, secret: SECRET });
+    const body = pullRequestPayload({
+      action: "closed",
+      pull_request: {
+        title: "feat: merged change",
+        html_url: "https://gitea.q4m.dev/jensbodal/agents-js/pulls/42",
+        head: { sha: "abc123def456" },
+        merged: true,
+      },
+    });
+    const req = makeRequest({
+      body,
+      signature: sign(SECRET, body),
+      event: "pull_request",
+      delivery: randomUUID(),
+    });
+
+    await handler(req);
+    const env = received[0] as GatewayBusEvent<Record<string, unknown>>;
+    expect(env.payload.action).toBe("merged");
+  });
+
+  test("keeps action=closed when a PR is closed without a merge", async () => {
+    const bus = createGatewayBus();
+    const received: GatewayBusEvent<unknown>[] = [];
+    bus.subscribe((event) => received.push(event));
+
+    const handler = createGiteaWebhookHandler({ bus, secret: SECRET });
+    const body = pullRequestPayload({
+      action: "closed",
+      pull_request: {
+        title: "feat: rejected change",
+        html_url: "https://gitea.q4m.dev/jensbodal/agents-js/pulls/42",
+        head: { sha: "abc123def456" },
+        merged: false,
+      },
+    });
+    const req = makeRequest({
+      body,
+      signature: sign(SECRET, body),
+      event: "pull_request",
+      delivery: randomUUID(),
+    });
+
+    await handler(req);
+    const env = received[0] as GatewayBusEvent<Record<string, unknown>>;
+    expect(env.payload.action).toBe("closed");
+  });
+
   test("extracts push event fields (commit_sha from `after`, target_url from `compare_url`)", async () => {
     const bus = createGatewayBus();
     const received: GatewayBusEvent<unknown>[] = [];
