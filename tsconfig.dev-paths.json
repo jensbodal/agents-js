@@ -17,6 +17,7 @@
       "@agents-js/acp": ["./packages/acp/src/index.ts"],
       "@agents-js/canvas-model": ["./packages/canvas-model/src/index.ts"],
       "@agents-js/cli": ["./packages/cli/src/index.ts"],
+      "@agents-js/gateway-inbox-runtime": ["./packages/gateway-inbox-runtime/src/index.ts"],
       "@agents-js/gateway-runtime": ["./packages/gateway-runtime/src/index.ts"],
       "@agents-js/mcp-bridge": ["./packages/mcp-bridge/src/index.ts"],
       "@agents-js/memory": ["./packages/memory/src/index.ts"],

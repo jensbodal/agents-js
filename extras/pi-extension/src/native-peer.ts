@@ -42,6 +42,7 @@ import {
   resolveLanAdvertiseHost,
 } from "@agents-js/agent-launch";
 import pkg from "../package.json";
+import { type PiInboxPollerHandle, startPiInboxPoller } from "./inbox-poller.ts";
 import type { PiCustomMessage, PiHost } from "./types.ts";
 
 const NATIVE_MESSAGE_TYPE = "agents-js.native-pi";
@@ -1086,6 +1087,10 @@ export function installNativePeerBridge(
 
   let serverHandle: NativeServerHandle | null = null;
   let heartbeat: AutoRegisterHeartbeatHandle | null = null;
+  // Background gateway durable-inbox poller — started alongside the A2A server on
+  // session_start, stopped in BOTH teardown paths. A no-op stopped handle when
+  // the gateway env is absent (native-only agents have no signed inbox).
+  let inboxPoller: PiInboxPollerHandle | null = null;
 
   // Host to advertise right now. Loopback advertise stays static (single
   // machine; never sniff interfaces). Otherwise re-detect the current LAN
@@ -1108,6 +1113,12 @@ export function installNativePeerBridge(
   pi.on("session_start", async () => {
     if (serverHandle) {
       return;
+    }
+    if (!inboxPoller) {
+      inboxPoller = startPiInboxPoller(pi, {
+        ...(options.env ? { env: options.env } : {}),
+        logger,
+      });
     }
     try {
       serverHandle = await startNativeA2AServer({
@@ -1264,6 +1275,10 @@ export function installNativePeerBridge(
   });
 
   pi.on("session_shutdown", async () => {
+    if (inboxPoller) {
+      await inboxPoller.stop();
+      inboxPoller = null;
+    }
     // Cancel the next re-advertise tick before closing the socket so a tick
     // can't race a closing server.
     heartbeat?.stop();
@@ -1283,6 +1298,10 @@ export function installNativePeerBridge(
     name: config.name,
     getUrl: () => serverHandle?.url ?? null,
     async stop() {
+      if (inboxPoller) {
+        await inboxPoller.stop();
+        inboxPoller = null;
+      }
       heartbeat?.stop();
       heartbeat = null;
       if (serverHandle) {
