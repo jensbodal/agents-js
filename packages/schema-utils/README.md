@@ -15,14 +15,47 @@ bun add @agents-js/schema-utils
 ### Functions
 
 - **`extractOneOf`**
+- **`hasExactKeys`** — Strict key-set equality: the object's keys must be EXACTLY `allowed` — no unknown keys (which would let a projection/authority field leak in) and no missing keys. This is what makes the "enforced b...
+- **`isContextBundle`** — Type guard: true iff `value` is a structurally-valid `ContextBundleV0`.
+- **`isDocsOnlyGuardResult`** — Type guard: true iff `value` is a structurally-valid `DocsOnlyGuardResult`.
+- **`isNonEmptyString`** — True when `value` is a non-empty string.
+- **`isOneOf`** — Membership test against a readonly enum tuple.
+- **`isPacificIso8601`** — True when `value` is an ISO-8601 timestamp carrying an explicit Pacific offset (`-07:00` PDT or `-08:00` PST) — the fleet's accepted standup convention. A bare `Z`, a naive timestamp, or any non-Pa...
+- **`isPlainObject`** — True for a non-null, non-array object literal.
+- **`isPrefixedUlid`** — True when `value` is a prefixed ULID of the form `<prefix>_<26 Crockford base32 chars>` (e.g. `run_01J9Z3K8...`). ID generation is the runtime writer's concern; the schema only validates the format.
+- **`isRedactionRecord`** — Type guard: true iff `value` is a structurally-valid `RedactionRecord`.
+- **`isRunLedgerRecord`** — Type guard: true iff `value` is a structurally-valid `RunLedgerRecordV0`.
+- **`isSha256Ref`** — True when `value` is a `sha256:<64 lowercase hex>` digest reference.
+- **`isStringArray`** — True when `value` is an array whose every element is a string.
+- **`parseContextBundle`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
+- **`parseDocsOnlyGuardResult`** — Parse-or-throw. Returns the validated `DocsOnlyGuardResult`; throws `TypeError` with the first failing constraint when `value` is invalid.
+- **`parseRedactionRecord`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
+- **`parseRunLedgerRecord`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
 - **`toFieldMetas`**
 
 ### Interfaces
 
+- **`BundleFile`** — One file in the reviewer payload (distinct from the guard's path lists).
+- **`BundleSubject`** — What's under review: a repo and a base..head range.
+- **`ContextBundleV0`** — `context-bundle.v0` — the deterministic, bounded packet handed to the read-only code-reviewer. The bundle is ADVISORY by schema shape: `advisory_only` is a required literal `true`, and there is no ...
+- **`DocsOnlyGuardResult`** — Deterministic docs-only path-guard output — the locked M1 §4.7 seam contract. This is the SINGLE source of the guard-output type for the whole M1 surface. The guard in `-js/policy` produces values ...
 - **`ElicitationSchema`** — Shape of the schema prop — matches ACPA2AElicitationSchema from a2a-client.
+- **`EvidenceRef`** — Outbound reference to an artifact, by digest — never an inline blob.
 - **`FieldMeta`** — Parsed field metadata used internally for rendering and validation.
 - **`OneOfEntry`**
+- **`RedactionRecord`** — Shared redaction rule for both M1 sidecar schemas (`run-ledger.v0` and `context-bundle.v0`). A redaction is RECORDED, never silent: the secret is removed at write time and replaced by this `{path, ...
+- **`RunLedgerRecordV0`** — `run-ledger.v0` — one append-only record of an agent/command run. The ledger is the ordered set of these records and is AUTHORITATIVE by construction: `prev_digest` + `record_digest` form a tamper-...
 - **`SchemaProperty`** — Schema property definition shape used for field rendering. Mirrors the inner values of ACPA2AElicitationSchema.properties.
+
+### Constants
+
+- **`DOCS_ONLY_GUARD_ID`** — The guard's versioned discriminant literal.
+- **`EVIDENCE_KINDS`** — Evidence-kind vocabulary (shared with `capability-status.json`).
+- **`FILE_CHANGES`** — File-change vocabulary.
+- **`GUARD_LANES`** — The ratified two-lane vocabulary.
+- **`GUARD_RESULTS`** — The guard-result vocabulary.
+- **`REDACTION_REASONS`** — The v0 redaction-reason vocabulary.
+- **`RUN_STATUSES`** — Lifecycle status vocabulary.
 
 ## License
 
