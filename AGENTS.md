@@ -11,6 +11,11 @@
 - Biome for linting and formatting.
 - VitePress for docs.
 
+## Architecture
+
+- `packages/` — publishable `@agents-js/*` (synchronized version). `apps/` — `internal-gateway` (= `@agents-js/gateway`) + `web-ui`. `extras/` — optional integration adapters, `private:true`, NOT part of the npm surface. `examples/` — runnable proofs (incl. `*-smoke` learning tests).
+- Dependency layers (lower depends on nothing above): **L0** dep-free foundation (`*-types`, `schema-utils`, `shell-args`, `skills`, `memory`, `gateway-inbox-runtime`, `canvas-model`) → **L1–L2** protocol/runtime (`acp`, `a2a`, `a2a-client`, `acp-host`, `gateway-runtime`, `policy`, `a2ui-*`, `mcp-bridge`) → **L3** `host` (the integrator: gateway tools, JWT/mint, WS bridge, ACP↔A2A executor, the `@agents-js/host/testing` barrel) → **L4** `cli` (broadest consumer; `parseArgv` in `packages/cli/src/argv-parser.ts` is the canonical option parser, internal to cli).
+
 ## Working Rules
 
 - **First-time setup on a fresh checkout: run `bun run setup`.** This sets `git config core.hooksPath .githooks` (so the pre-commit / pre-push hooks at `.githooks/` actually fire) and runs `bun scripts/build.ts` (so `dist/index.d.mts` is populated for every workspace package). Skipping this step puts the workspace in a half-bootstrapped state where commits silently bypass validation AND `bunx tsgo --noEmit` emits hundreds of `Cannot find module '@agents-js/*'` errors against the unbuilt source — both of which look like real problems but are pure setup omissions. See `mise.toml` for the cross-package resolution rationale.
@@ -36,12 +41,15 @@
 - `bun run browser:smoke` for the canonical mock browser proof.
 - `bun run e2e:runtime -- --runtime <runtime>` for real-runtime ACP/A2A proof.
 - `bun run e2e:web:live -- --runtime <runtime>` for live browser E2E.
+- `bun run test:examples` runs every runnable example under `examples/` (incl. `*-smoke` learning tests). The set is DERIVED by scanning `examples/*/package.json` (`scripts/run-example-scripts.ts`) — adding an example does NOT require editing root `package.json`.
+- Learning tests reuse the shared `@agents-js/host/testing` barrel (`createGatewayTestServer` + its `additionalFetchFactory` seam, `createMockAcpController`, `mintTestJwt`, `waitFor`). Don't re-implement gateway/JWT/controller scaffolding inline.
 
 ## Review Priorities
 
 - Generated docs are load-bearing. Do not leave `docs/api` drift behind after API or docs-surface changes.
 - Package-boundary rules are mandatory review points: no wildcard re-exports across first-party package boundaries and no first-party namespace imports across package boundaries; use named bindings explicitly.
 - Keep reusable fixes in `agents-js` instead of burying them in downstream adapters or host-specific consumers.
+- The capability ledger (`scripts/capability-status.json` source → generated `docs/public/capability-status.json`) is the "what's demonstrated" scoreboard. When a learning test newly proves a capability end-to-end, flip its tier and add the test as evidence.
 
 ## Trackers
 
