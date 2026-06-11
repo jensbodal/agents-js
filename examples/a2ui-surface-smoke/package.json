@@ -1,0 +1,22 @@
+{
+  "name": "@agents-js/example-a2ui-surface-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Learning test for A2UI declarative surfaces. Drives the CreateSurface -> UpdateComponents -> UpdateDataModel lifecycle through @agents-js/a2ui-host (A2uiHost) + @agents-js/a2ui-renderer (renderSurface) into a happy-dom DOM, asserts the rendered surface contains real component nodes, then dispatches a user surface_event and proves it round-trips to the host's sendSurfaceEvent sink.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/a2ui-host": "workspace:*",
+    "@agents-js/a2ui-renderer": "workspace:*",
+    "@agents-js/a2ui-types": "workspace:*",
+    "@agents-js/web-ui": "workspace:*",
+    "lit": "catalog:"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "20.10.2",
+    "@types/bun": "catalog:"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.workspace.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"]
+  },
+  "include": ["tests", "happydom.ts"]
+}
