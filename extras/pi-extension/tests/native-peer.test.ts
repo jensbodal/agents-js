@@ -823,3 +823,55 @@ describe("native peer — bind/advertise decouple + IP-change self-rebind", () =
     expect(await readRegistryUrl("pi-teardown")).toBe(before);
   });
 });
+
+describe("native peer — inbound poller mutual exclusion (#218 gate)", () => {
+  // A pollerFactory test double: records each call and returns a handle whose
+  // `enabled` reflects whether that path would actually deliver. The gate must
+  // ensure the direct-Matrix fallback only starts when the gateway inbox poller
+  // is NOT enabled, so a single room mention can never double-inject.
+  function recordingFactory(enabled: boolean) {
+    let calls = 0;
+    const factory = () => {
+      calls += 1;
+      return { enabled, async stop() {} };
+    };
+    return { factory, calls: () => calls };
+  }
+
+  async function startWithPollers(
+    name: string,
+    inboxEnabled: boolean,
+  ): Promise<{ inboxCalls: () => number; matrixCalls: () => number }> {
+    const inbox = recordingFactory(inboxEnabled);
+    const matrix = recordingFactory(true);
+    const pi = new MockPiHost(() => "ok");
+    const handle = installNativePeerBridge(pi, {
+      env: nativeEnv(name),
+      logger: silentLogger,
+      startInboxPoller: inbox.factory as Parameters<
+        typeof installNativePeerBridge
+      >[1]["startInboxPoller"],
+      startMatrixRoomPoller: matrix.factory as Parameters<
+        typeof installNativePeerBridge
+      >[1]["startMatrixRoomPoller"],
+    });
+    handles.push(handle);
+    await pi.emit("session_start", { reason: "startup" });
+    if (!handle.getUrl()) {
+      throw new Error(`peer ${name} did not start`);
+    }
+    return { inboxCalls: inbox.calls, matrixCalls: matrix.calls };
+  }
+
+  test("gateway inbox poller LIVE → direct-Matrix poller is NOT started (no double-inject)", async () => {
+    const { inboxCalls, matrixCalls } = await startWithPollers("pi-gw-live", true);
+    expect(inboxCalls()).toBe(1);
+    expect(matrixCalls()).toBe(0);
+  });
+
+  test("gateway inbox poller absent → direct-Matrix poller starts as the fallback", async () => {
+    const { inboxCalls, matrixCalls } = await startWithPollers("pi-gw-off", false);
+    expect(inboxCalls()).toBe(1);
+    expect(matrixCalls()).toBe(1);
+  });
+});

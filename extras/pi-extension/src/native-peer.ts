@@ -92,6 +92,14 @@ export interface NativePiPeerOptions {
     setTimeout: (cb: () => void, ms: number) => unknown;
     clearTimeout: (handle: unknown) => void;
   };
+  /**
+   * Test seams: inbound-poller factories. Default to the real gateway-inbox and
+   * direct-Matrix pollers; injected so tests can assert the mutual-exclusion
+   * gate — the direct-Matrix poller must NOT start when the gateway inbox
+   * poller is already live (otherwise a room mention double-injects).
+   */
+  startInboxPoller?: typeof startPiInboxPoller;
+  startMatrixRoomPoller?: typeof startPiMatrixRoomPoller;
 }
 
 export interface NativePiPeerHandle {
@@ -1121,13 +1129,19 @@ export function installNativePeerBridge(
       return;
     }
     if (!inboxPoller) {
-      inboxPoller = startPiInboxPoller(pi, {
+      inboxPoller = (options.startInboxPoller ?? startPiInboxPoller)(pi, {
         ...(options.env ? { env: options.env } : {}),
         logger,
       });
     }
-    if (!matrixPoller) {
-      matrixPoller = startPiMatrixRoomPoller(pi, {
+    // Mutual exclusion: the direct-Matrix poller is an interim FALLBACK for when
+    // the gateway-inbox bridge fanout doesn't yet deliver room mentions to this
+    // agent. If the gateway inbox poller is live, it already fans the same room
+    // mentions into the session, so starting the direct poller too would
+    // double-inject every mention. Only start the fallback when the gateway
+    // path is NOT active.
+    if (!matrixPoller && !inboxPoller.enabled) {
+      matrixPoller = (options.startMatrixRoomPoller ?? startPiMatrixRoomPoller)(pi, {
         ...(options.env ? { env: options.env } : {}),
         logger,
       });
