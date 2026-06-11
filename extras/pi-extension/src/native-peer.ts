@@ -43,6 +43,7 @@ import {
 } from "@agents-js/agent-launch";
 import pkg from "../package.json";
 import { type PiInboxPollerHandle, startPiInboxPoller } from "./inbox-poller.ts";
+import { type PiMatrixRoomPollerHandle, startPiMatrixRoomPoller } from "./matrix-room-poller.ts";
 import type { PiCustomMessage, PiHost } from "./types.ts";
 
 const NATIVE_MESSAGE_TYPE = "agents-js.native-pi";
@@ -1091,6 +1092,11 @@ export function installNativePeerBridge(
   // session_start, stopped in BOTH teardown paths. A no-op stopped handle when
   // the gateway env is absent (native-only agents have no signed inbox).
   let inboxPoller: PiInboxPollerHandle | null = null;
+  // Interim direct-Matrix inbound receiver. Opt-in (AGENTS_JS_PI_MATRIX_DIRECT);
+  // reads room mentions via the agent's OWN Matrix token when the gateway-inbox
+  // bridge fanout doesn't yet deliver to this agent. No-op stopped handle unless
+  // explicitly enabled. Superseded by the matrix-bus-consumer (E4.0-b) fanout.
+  let matrixPoller: PiMatrixRoomPollerHandle | null = null;
 
   // Host to advertise right now. Loopback advertise stays static (single
   // machine; never sniff interfaces). Otherwise re-detect the current LAN
@@ -1116,6 +1122,12 @@ export function installNativePeerBridge(
     }
     if (!inboxPoller) {
       inboxPoller = startPiInboxPoller(pi, {
+        ...(options.env ? { env: options.env } : {}),
+        logger,
+      });
+    }
+    if (!matrixPoller) {
+      matrixPoller = startPiMatrixRoomPoller(pi, {
         ...(options.env ? { env: options.env } : {}),
         logger,
       });
@@ -1279,6 +1291,10 @@ export function installNativePeerBridge(
       await inboxPoller.stop();
       inboxPoller = null;
     }
+    if (matrixPoller) {
+      await matrixPoller.stop();
+      matrixPoller = null;
+    }
     // Cancel the next re-advertise tick before closing the socket so a tick
     // can't race a closing server.
     heartbeat?.stop();
@@ -1301,6 +1317,10 @@ export function installNativePeerBridge(
       if (inboxPoller) {
         await inboxPoller.stop();
         inboxPoller = null;
+      }
+      if (matrixPoller) {
+        await matrixPoller.stop();
+        matrixPoller = null;
       }
       heartbeat?.stop();
       heartbeat = null;
