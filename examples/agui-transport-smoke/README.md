@@ -8,7 +8,7 @@ Demonstrates:
 - Standing up the real gateway stack (`ACPSessionController` +
   `HostA2AExecutor` + `UniversalA2AServer`) against the deterministic
   mock ACP agent via `createGatewayTestServer`, with the AG-UI endpoint
-  mounted on the server's `additionalFetch` hook (`mountAguiEndpoint: true`).
+  mounted via the server's `additionalFetchFactory` hook.
 - A live `POST /agent` over `Accept: text/event-stream`, decoding the
   SSE wire into AG-UI events: `RUN_STARTED` → interior → `RUN_FINISHED`.
 - The single-active-run gate: a second concurrent `POST /agent` while a
@@ -16,9 +16,10 @@ Demonstrates:
   second SSE stream opens.
 
 The SSE body is parsed by a small in-package frame reader
-(`src/sse-frames.ts`) that mirrors the production parser in
-`packages/a2a-client/src/transports/agui-sse-parser.ts`, so the smoke
-exercises the raw wire format directly.
+(`src/sse-frames.ts`) that reuses the production frame-boundary splitter
+(`splitAguiSseFrames` from `@agents-js/a2a-client`) but keeps its own
+validation-free decoding, so the smoke exercises the raw wire format
+directly without pulling in the client's AG-UI schema check.
 
 ## Run
 

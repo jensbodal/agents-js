@@ -134,6 +134,7 @@
       "name": "@agents-js/example-agui-transport-smoke",
       "version": "0.0.0",
       "dependencies": {
+        "@agents-js/a2a-client": "workspace:*",
         "@agents-js/agui-types": "workspace:*",
         "@agents-js/host": "workspace:*",
       },
@@ -214,6 +215,17 @@
       "dependencies": {
         "@agents-js/a2a-client": "workspace:*",
         "@agents-js/host": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
+    "examples/renderer-adapter-prototype": {
+      "name": "@agents-js/example-renderer-adapter-prototype",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/a2ui-host": "workspace:*",
+        "@agents-js/canvas-model": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -823,6 +835,8 @@
     "@agents-js/example-mint-redeem-smoke": ["@agents-js/example-mint-redeem-smoke@workspace:examples/mint-redeem-smoke"],
 
     "@agents-js/example-registry-sync-smoke": ["@agents-js/example-registry-sync-smoke@workspace:examples/registry-sync-smoke"],
+
+    "@agents-js/example-renderer-adapter-prototype": ["@agents-js/example-renderer-adapter-prototype@workspace:examples/renderer-adapter-prototype"],
 
     "@agents-js/example-ws-bridge-smoke": ["@agents-js/example-ws-bridge-smoke@workspace:examples/ws-bridge-smoke"],
 
