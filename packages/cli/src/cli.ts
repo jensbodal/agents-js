@@ -12,6 +12,7 @@ import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
 import { runOnboardCommand } from "./onboard.ts";
 import { runRegistryCommand } from "./registry.ts";
+import { runRunLoggedCommand } from "./run-logged.ts";
 import { runSendCommand } from "./send.ts";
 import { runServeCommand } from "./serve.ts";
 import { runSkillCommand } from "./skill.ts";
@@ -40,6 +41,7 @@ function printHelp(output: Pick<NodeJS.WriteStream, "write"> = process.stdout): 
       "  codex-receiver  Poll gateway inbox rows into native Codex",
       "  onboard   Onboard an agent onto the mesh (launch + provision)",
       "  skill     Print the installable agents-js SKILL.md document",
+      "  run-logged  Run a child process, tee-ing its stderr to a logfile (TTY-safe)",
       "",
       "Global options:",
       "  --version, -v  Print version and exit",
@@ -131,6 +133,10 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "skill") {
     return runSkillCommand(rest);
+  }
+
+  if (command === "run-logged") {
+    return runRunLoggedCommand(rest);
   }
 
   // EXIT_USAGE = 64 — unknown command. Print top-level usage to stderr

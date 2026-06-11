@@ -3,7 +3,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { A2AClientProvider } from "@agents-js/a2a-client";
-import { installNativePeerBridge, type NativePiPeerHandle } from "../src/native-peer.ts";
+import {
+  createEventHub,
+  installNativePeerBridge,
+  type NativePiPeerHandle,
+  teeEventBus,
+} from "../src/native-peer.ts";
 import type { PiCustomMessage, PiHost, PiToolRegistration } from "../src/types.ts";
 
 type PiHandler = (event: unknown, ctx: unknown) => unknown | Promise<unknown>;
@@ -430,6 +435,88 @@ describe("native Pi peer mode", () => {
     expect(JSON.stringify(followRes)).not.toContain("busy");
   });
 
+  test("GET /events tees a task's published events to a subscriber", async () => {
+    const { url } = await startPeer("pi-a", (message) => `events: ${message}`);
+
+    const controller = new AbortController();
+    const eventsRes = await fetch(`${url}/events`, { signal: controller.signal });
+    expect(eventsRes.status).toBe(200);
+    expect(eventsRes.headers.get("content-type")).toContain("text/event-stream");
+
+    const reader = (eventsRes.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    const frames: string[] = [];
+
+    // Read frames until we see a terminal status update or time out.
+    const readUntilComplete = (async () => {
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let nl = buffer.indexOf("\n");
+        while (nl >= 0) {
+          const line = buffer.slice(0, nl).trimEnd();
+          buffer = buffer.slice(nl + 1);
+          nl = buffer.indexOf("\n");
+          if (line.startsWith("data:")) {
+            frames.push(line.slice(5).trim());
+          }
+        }
+        // The firehose carries the raw SDK AgentEvent; the terminal status
+        // is the numeric COMPLETED enum (3), not the wire string vocabulary.
+        if (frames.some((f) => f.includes('"kind":"statusUpdate"') && f.includes('"state":3')))
+          return;
+      }
+    })();
+
+    // Drive a turn through the JSON-RPC path; its eventBus publishes must
+    // also reach the /events subscriber.
+    await sendMessage(url, "hello firehose");
+    await Promise.race([readUntilComplete, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    controller.abort();
+    await readUntilComplete.catch(() => {});
+
+    // The submitted task event and the working/completed status updates
+    // should all be visible on the firehose. Each `data:` line is exactly
+    // `JSON.stringify(<raw AgentEvent>)`.
+    const frame = (predicate: (f: string) => boolean): unknown =>
+      JSON.parse(frames.find(predicate) ?? "null");
+    const taskFrame = frame((f) => f.includes('"kind":"task"')) as {
+      kind?: string;
+      data?: { status?: { state?: number } };
+    } | null;
+    expect(taskFrame?.kind).toBe("task");
+    expect(taskFrame?.data?.status?.state).toBe(1); // SUBMITTED
+    const joined = frames.join("\n");
+    expect(joined).toContain('"state":3'); // COMPLETED
+    expect(joined).toContain("events: hello firehose");
+  });
+
+  test("GET /events removes the subscriber on disconnect", async () => {
+    const { handle, url } = await startPeer("pi-a");
+
+    const controller = new AbortController();
+    const eventsRes = await fetch(`${url}/events`, { signal: controller.signal });
+    expect(eventsRes.status).toBe(200);
+    // Begin draining so the connection is established server-side.
+    const reader = (eventsRes.body as ReadableStream<Uint8Array>).getReader();
+    void reader.read();
+
+    // Give the server a moment to register the subscriber.
+    await new Promise((r) => setTimeout(r, 50));
+
+    controller.abort();
+    await reader.cancel().catch(() => {});
+
+    // After disconnect, a subsequent turn must still succeed (no dangling
+    // subscriber writing to a closed socket) and stop() must close cleanly.
+    await new Promise((r) => setTimeout(r, 50));
+    const body = await sendMessage(url, "after disconnect");
+    expect(JSON.stringify(body)).not.toContain("busy");
+    await handle.stop();
+  });
+
   test("source no longer hardcodes the version literal", async () => {
     const src = await readFile(new URL("../src/native-peer.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/version:\s*"\d+\.\d+\.\d+/);
@@ -463,5 +550,58 @@ describe("native Pi peer mode", () => {
     expect(body.error.code).toBe(-32600);
     expect(body.error.message).toBe("Request body too large");
     expect(body.error.data?.maxBytes).toBe(4 * 1024 * 1024);
+  });
+});
+
+/**
+ * Isolation invariant for the /events firehose (PR #211 review BLOCK, raised by
+ * cognee-codex, fix per cognee-claude). The diagnostic event mirror must never
+ * interfere with the authoritative A2A task lifecycle: a throwing /events
+ * observer (or any hub failure) cannot stop `ExecutionEventBus.publish` and thus
+ * cannot halt task completion. Tested at the tee level (not just the hub) per
+ * the review's "load-bearing regression" request.
+ */
+describe("teeEventBus / event hub — observer isolation", () => {
+  // WHAT: an event published through the teed bus still reaches the REAL bus
+  // even when an /events subscriber throws.
+  // WHY: the firehose is observe-only; a broken SSE observer must not stop the
+  // authoritative publish (which advances/finishes the task).
+  test("a throwing /events subscriber does not stop the real bus publish", () => {
+    const published: unknown[] = [];
+    const realBus = {
+      publish: (event: unknown) => {
+        published.push(event);
+      },
+      finished() {},
+    };
+    const hub = createEventHub();
+    hub.subscribe(() => {
+      throw new Error("observer boom");
+    });
+    // The fake satisfies the only members the tee touches (publish + delegated).
+    const teed = teeEventBus(realBus as unknown as Parameters<typeof teeEventBus>[0], hub);
+
+    const event = { kind: "task", marker: 1 } as never;
+    // The teed publish must not throw, AND the authoritative bus must have run.
+    expect(() => teed.publish(event)).not.toThrow();
+    expect(published).toEqual([event]);
+  });
+
+  // WHAT: one throwing subscriber does not deprive the others of the event.
+  // WHY: per-subscriber isolation in broadcast() — defense in depth alongside
+  // the tee's catch.
+  test("createEventHub.broadcast isolates a throwing subscriber from the rest", () => {
+    const hub = createEventHub();
+    const delivered: unknown[] = [];
+    hub.subscribe(() => {
+      throw new Error("boom");
+    });
+    hub.subscribe((event) => {
+      delivered.push(event);
+    });
+
+    const event = { kind: "statusUpdate" };
+    expect(() => hub.broadcast(event)).not.toThrow();
+    expect(delivered).toEqual([event]);
   });
 });

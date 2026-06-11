@@ -128,10 +128,12 @@ export interface AgentEntry {
    */
   readonly provider?: string;
   /**
-   * Open the agent as a dual-window launch: the interactive TUI in tmux window
-   * `:0` (auto-connected via `agents-js client --agent <name> --wait`) and the
-   * runtime in `:1`. pi-harness only in this increment; the plan build rejects
-   * it on other harnesses. When unset/false the launch stays single-window.
+   * Open the agent as a cockpit launch: the runtime in tmux window `:0` (the
+   * landing window), the interactive TUI in `:1` (`agents-js client --agent
+   * <name> --wait`), a read-only raw ACP stream in `:2`, and a log tail in `:3`.
+   * pi-harness only in this increment; the plan build rejects it on other
+   * harnesses. When unset/false the launch stays single-window. (The field name
+   * `dual_window` is retained for back-compat; the layout grew past two windows.)
    */
   readonly dualWindow?: boolean;
   /** Unrecognized fields preserved as-is for later-phase promotion. */

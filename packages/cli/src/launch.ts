@@ -369,23 +369,32 @@ function startSession(
 }
 
 /**
- * Dual-window launch (pi `dual_window`): the interactive TUI in tmux window `:0`
- * (auto-connected via `agents-js client --agent <name> --wait`) and the runtime
- * in `:1` (the pi process, whose embedded A2A endpoint IS the ACP surface).
+ * Cockpit launch (pi `dual_window`): a multi-window tmux session that lands you
+ * on the runtime and surrounds it with the client TUI, a raw ACP stream, and a
+ * log tail. Windows:
+ *   :0 runtime — the pi process (its embedded A2A endpoint IS the ACP surface),
+ *                wrapped in `agents-js run-logged` so its stderr tees to the
+ *                logfile :3 follows. The default/landing window.
+ *   :1 tui     — `agents-js client --agent <name> --wait` (drive the agent).
+ *   :2 acp     — `agents-js client --agent <name> --wait --observe` (read-only
+ *                raw A2A/ACP event stream).
+ *   :3 logs    — `tail -F <logfile>` (the runtime stderr captured by run-logged).
  *
  * Mirrors {@link startSession}'s contract — idempotent (no-op if the session
  * exists), identity vars via `set-environment`, secrets via the send-keys export
- * (never `set-environment`) — but splits the work across two windows through the
- * composable window-ops seam. The `:0`/`:1` split is forced regardless of the
- * operator's tmux `base-index`. Returns false when the session already exists.
+ * (never `set-environment`) — but splits the work across windows through the
+ * composable window-ops seam. The layout is forced regardless of the operator's
+ * tmux `base-index`. Returns false when the session already exists.
+ *
+ * `dual_window` stays the config trigger (back-compat); the layout it opens grew
+ * from two windows to this cockpit.
  */
 /**
- * Agent names that are safe to interpolate into the `:0` window's
- * `agents-js client --agent <name> --wait` send-keys command. The name is
- * trusted launch-config/identity data (a slug-like fleet id), but the value
- * reaches a shell via send-keys, so we fail closed on anything outside a
- * conservative slug charset rather than risk an injection through a malformed
- * config. Matches the registry/identity naming already in use.
+ * Agent names that are safe to interpolate into the client send-keys commands
+ * (:1 tui and :2 acp). The name is trusted launch-config/identity data (a
+ * slug-like fleet id), but the value reaches a shell via send-keys, so we fail
+ * closed on anything outside a conservative slug charset rather than risk an
+ * injection through a malformed config. Matches the registry/identity naming.
  */
 const SAFE_AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -393,11 +402,40 @@ export function isSafeAgentName(name: string): boolean {
   return SAFE_AGENT_NAME.test(name);
 }
 
-function startDualWindowSession(
+/**
+ * Send the `:0` runtime startup to its window as SEPARATE short send-keys
+ * lines — one `export` per env var, then the `cd … && run-logged … -- <cmd>`
+ * line. A single combined line can exceed the terminal's canonical-mode input
+ * limit (~1024 bytes on macOS/BSD), which silently truncates the command and the
+ * runtime never starts. Per-line keeps every payload well under the limit while
+ * the exports still land in the same interactive shell that runs the command.
+ * The runtime binary is wrapped in `agents-js run-logged` so its stderr tees to
+ * `logPath` (followed by the cockpit's :3 window) while stdin/stdout stay
+ * inherited — the interactive :0 runtime keeps the terminal.
+ */
+function sendRuntimeStartup(
+  windows: TmuxWindowOps,
+  session: string,
+  plan: LaunchPlan,
+  env: LaunchEnv,
+  logPath: string,
+): void {
+  for (const [k, v] of Object.entries(env)) {
+    windows.sendKeysToWindow(session, 0, `export ${k}=${JSON.stringify(v)}`);
+  }
+  windows.sendKeysToWindow(
+    session,
+    0,
+    `cd ${JSON.stringify(plan.cwd)} && agents-js run-logged --log ${JSON.stringify(logPath)} -- ${plan.command} ${plan.args.join(" ")}`,
+  );
+}
+
+function startCockpitSession(
   runner: TmuxRunner,
   windows: TmuxWindowOps,
   plan: LaunchPlan,
   agentName: string,
+  logPath: string,
   output: Pick<NodeJS.WriteStream, "write">,
 ): boolean {
   const session = plan.tmuxSession;
@@ -410,26 +448,32 @@ function startDualWindowSession(
     runner.setEnvironment(session, k, v);
   }
   windows.normalizeFirstWindowToZero(session);
-  // :1 = runtime. The full env (sessionEnv + channelEnv, incl. provider creds)
-  // rides the send-keys export, exactly like the single-window launch.
-  windows.newWindow(session, 1, "runtime", plan.cwd);
-  windows.sendKeysToWindow(
+  // Satellite windows are created detached (-d) so focus stays on :0 = runtime.
+  windows.newWindow(session, 1, "tui", plan.cwd);
+  windows.newWindow(session, 2, "acp", plan.cwd);
+  windows.newWindow(session, 3, "logs", plan.cwd);
+  // :0 = runtime (default landing window). The full env (sessionEnv +
+  // channelEnv, incl. provider creds) rides the send-keys export — sent as
+  // per-line exports so no single send-keys payload risks the terminal's
+  // canonical-mode truncation (see {@link sendRuntimeStartup}).
+  sendRuntimeStartup(
+    windows,
     session,
-    1,
-    renderCommandLine(
-      plan.cwd,
-      plan.command,
-      plan.args,
-      Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
-    ),
+    plan,
+    Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
+    logPath,
   );
-  // :0 = TUI. Connect by registered NAME — the runtime self-registers its
-  // (possibly ephemeral) url, so the client resolves + waits for it. The name is
-  // validated by the caller (see isSafeAgentName) before reaching this send-keys.
-  windows.sendKeysToWindow(session, 0, `agents-js client --agent ${agentName} --wait`);
+  // :1 = interactive client TUI. Connect by registered NAME — the runtime
+  // self-registers its (possibly ephemeral) url, so the client resolves + waits.
+  // The name is validated by the caller (isSafeAgentName) before send-keys.
+  windows.sendKeysToWindow(session, 1, `agents-js client --agent ${agentName} --wait`);
+  // :2 = read-only raw ACP/A2A event stream (passive observer; never sends).
+  windows.sendKeysToWindow(session, 2, `agents-js client --agent ${agentName} --wait --observe`);
+  // :3 = follow the runtime logfile (-F retries across create/rotate).
+  windows.sendKeysToWindow(session, 3, `tail -n +1 -F ${JSON.stringify(logPath)}`);
   windows.selectWindow(session, 0);
   output.write(
-    `[agents-js] launch: dual-window session "${session}" created (:0 tui, :1 runtime)\n`,
+    `[agents-js] launch: cockpit session "${session}" created (:0 runtime, :1 tui, :2 acp, :3 logs)\n`,
   );
   return true;
 }
@@ -546,28 +590,31 @@ export async function runLaunchCommand(
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();
 
-  // Dual-window (pi): split TUI :0 / runtime :1 and auto-attach in the
-  // foreground. --with-receiver is a codex-only companion-session feature and
-  // does not combine with dual_window (rejected at plan build for non-pi).
+  // Cockpit (pi `dual_window`): :0 runtime / :1 tui / :2 acp / :3 logs, then
+  // auto-attach (landing on :0) in the foreground. --with-receiver is a
+  // codex-only companion-session feature and does not combine with dual_window
+  // (rejected at plan build for non-pi).
   if (plan.dualWindow) {
-    // The TUI window connects by registered name; validate it before it reaches
-    // the `:0` send-keys command (fail closed on a malformed config name).
+    // The client windows connect by registered name; validate it before it
+    // reaches the send-keys commands (fail closed on a malformed config name).
     const agentName = plan.sessionEnv.AGENTS_JS_PI_NAME ?? plan.tmuxSession;
     if (!isSafeAgentName(agentName)) {
       process.stderr.write(
-        `[agents-js launch] refusing dual-window: agent name "${agentName}" is not a safe slug (expected [A-Za-z0-9][A-Za-z0-9._-]*)\n`,
+        `[agents-js launch] refusing cockpit launch: agent name "${agentName}" is not a safe slug (expected [A-Za-z0-9][A-Za-z0-9._-]*)\n`,
       );
       return EXIT_DATAERR;
     }
+    const logPath = path.join(home, ".agents-js", "logs", `${agentName}.log`);
     const windows = dependencies.createWindowOps
       ? dependencies.createWindowOps()
       : createTmuxWindowOps({ insideTmux: Boolean(env.TMUX) });
-    startDualWindowSession(runner, windows, plan, agentName, output);
+    startCockpitSession(runner, windows, plan, agentName, logPath, output);
     if (parsed.bg) {
       return EXIT_OK;
     }
-    // Foreground: hand the terminal to the TUI window (switch-client when
-    // already inside tmux, else attach-session). Blocks until the user detaches.
+    // Foreground: hand the terminal to the session (lands on :0 = runtime;
+    // switch-client when already inside tmux, else attach-session). Blocks until
+    // the user detaches.
     windows.attachOrSwitch(plan.tmuxSession);
     return EXIT_OK;
   }

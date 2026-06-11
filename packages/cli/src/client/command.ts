@@ -24,6 +24,7 @@ export interface ClientCommandArgs {
   headers: Record<string, string>;
   help?: boolean;
   message?: string;
+  observe: boolean;
   poll: boolean;
   /** Idle poll timeout in ms for the non-streaming fallback (0 = unbounded). */
   pollTimeoutMs?: number;
@@ -57,6 +58,16 @@ export interface ClientCommandDependencies {
   now?: () => number;
   /** Sleep between `--wait` polls. Defaults to real `setTimeout`. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * SSE source for `--observe`. Yields the raw lines of a
+   * `text/event-stream` body (one per `\n`). Defaults to a native-fetch
+   * reader of `${base}/events`. Injectable so tests drive the observe
+   * loop without a live server.
+   */
+  openEventStream?: (
+    url: string,
+    headers: Record<string, string>,
+  ) => AsyncIterable<string> | Promise<AsyncIterable<string>>;
 }
 
 /** Native-fetch health probe (only the status is consulted). Injectable for tests. */
@@ -156,6 +167,12 @@ const CLIENT_ARG_SPEC: ArgSpec<ClientCommandArgs> = {
       a.probe = true;
     },
   },
+  "--observe": {
+    kind: "flag",
+    assign: (a) => {
+      a.observe = true;
+    },
+  },
   "--no-poll": {
     kind: "flag",
     assign: (a) => {
@@ -190,6 +207,7 @@ export function parseClientCommandArgs(argv: string[]): ClientCommandArgs {
     subcommandName: "client",
     defaults: {
       headers: {},
+      observe: false,
       poll: true,
       probe: false,
       raw: false,
@@ -216,6 +234,7 @@ export function printClientUsage(output: Pick<NodeJS.WriteStream, "write">): voi
       "  --raw                  Show raw JSON in the inspector",
       "  --message, -m <text>   Send a single message and print the response (no TUI)",
       "  --probe                Probe endpoints and print the results without launching the TUI",
+      "  --observe              Stream the agent's /events firehose (read-only, prints JSON frames)",
       "  --no-poll              Send messages without polling task state to completion",
       "  --poll-timeout <secs>  Idle timeout for the non-streaming poll fallback (0 = no",
       "                         timeout). Resets on progress; streaming agents skip it.",
@@ -426,6 +445,81 @@ export async function runOneShotMessage(
   }
 }
 
+/**
+ * Default `--observe` SSE source: fetch `${base}/events` and yield the
+ * decoded body line-by-line. The caller splits `data:`/comment lines.
+ */
+async function* defaultOpenEventStream(
+  url: string,
+  headers: Record<string, string>,
+): AsyncIterable<string> {
+  const response = await fetch(url, {
+    headers: { Accept: "text/event-stream", ...headers },
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`[agents-js] /events request failed with status ${response.status}.`);
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  // The Web ReadableStream from fetch is async-iterable under Bun/Node 18+.
+  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      yield buffer.slice(0, newline).replace(/\r$/, "");
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf("\n");
+    }
+  }
+  if (buffer.length > 0) {
+    yield buffer;
+  }
+}
+
+/**
+ * Resolve the `/events` base URL for the chosen target. `--card` is a
+ * full agent-card URL, so strip the card path back to its origin+base;
+ * `--url`/`--agent` are already base URLs.
+ */
+function resolveEventsUrl(parsed: ClientCommandArgs, resolvedAgentUrl?: string): string {
+  let base: string;
+  if (parsed.card) {
+    const cardUrl = new URL(parsed.card);
+    // Strip the well-known card suffix back to the serving base.
+    cardUrl.pathname = cardUrl.pathname.replace(/\/?\.well-known\/agent-card\.json$/, "");
+    base = cardUrl.toString();
+  } else {
+    base = resolvedAgentUrl ?? parsed.url ?? "";
+  }
+  return `${base.replace(/\/$/, "")}/events`;
+}
+
+export async function runObserveStream(
+  eventsUrl: string,
+  headers: Record<string, string>,
+  output: Pick<NodeJS.WriteStream, "write">,
+  dependencies: Pick<ClientCommandDependencies, "openEventStream"> = {},
+): Promise<number> {
+  const open = dependencies.openEventStream ?? defaultOpenEventStream;
+  const lines = await open(eventsUrl, headers);
+  for await (const line of lines) {
+    // Comment frames (`:` prefix, including the keep-alive ping) carry no
+    // data; only `data:` payloads are forwarded verbatim.
+    if (line.startsWith(":")) {
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      // Strip the `data:` prefix and a single optional leading space (per
+      // the SSE grammar) so the printed line is the raw JSON frame.
+      const payload = line.slice(5).replace(/^ /, "");
+      output.write(`${payload}\n`);
+    }
+  }
+  process.stderr.write("[agents-js] /events stream closed\n");
+  return EXIT_OK;
+}
+
 export async function runClientCommand(
   argv: string[],
   dependencies: ClientCommandDependencies = {},
@@ -440,6 +534,16 @@ export async function runClientCommand(
   if (parsed.help) {
     printClientUsage(output);
     return EXIT_OK;
+  }
+
+  if (parsed.observe && (parsed.message !== undefined || parsed.probe)) {
+    // --observe is a read-only stream; it cannot also send a message or
+    // run the probe flow.
+    process.stderr.write(
+      "[agents-js] --observe cannot be combined with --message/-m or --probe.\n",
+    );
+    printClientUsage(process.stderr);
+    return 64;
   }
 
   if (parsed.wait && !parsed.agent) {
@@ -491,6 +595,18 @@ export async function runClientCommand(
       headers: parsed.headers,
       mode: parsed.card ? "card" : "base",
     };
+  }
+
+  if (parsed.observe) {
+    // `target.url` is the resolved base for --url/--agent; --card needs the
+    // card suffix stripped back to the serving base.
+    const eventsUrl = resolveEventsUrl(parsed, parsed.agent ? target.url : undefined);
+    try {
+      return await runObserveStream(eventsUrl, parsed.headers, output, dependencies);
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return EXIT_ERROR;
+    }
   }
 
   if (parsed.probe) {
