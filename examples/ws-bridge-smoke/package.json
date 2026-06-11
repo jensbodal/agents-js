@@ -1,0 +1,19 @@
+{
+  "name": "@agents-js/example-ws-bridge-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for the gateway WebSocket bridge. Connects a real HostWSClient to createWSBridge over a live socket, proves the initial state snapshot, round-trips a controller gate (elicitation) browser <-> controller, and flips the runtime card via set_runtime — backed by the mock ACP agent subprocess.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/acp-host": "workspace:*",
+    "@agents-js/host": "workspace:*",
+    "@agents-js/ui-components": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

@@ -118,3 +118,21 @@ export type {
   WorkflowSurfaceSeverity,
   WorkflowSurfaceTranscriptState,
 } from "./workflow-surface.ts";
+export {
+  HostWSClient,
+  type HostWSClientOptions,
+} from "./ws-client.ts";
+export type {
+  ElicitationResolution,
+  HostState,
+  HostStateListener,
+  PendingElicitationInfo,
+  PendingPermissionInfo,
+  PendingWriteGateInfo,
+  PermissionOptionInfo,
+  PermissionResolution,
+  RuntimeInfo,
+  RuntimeSwitchOrigin,
+  RuntimeSwitchState,
+  WriteGateResolution,
+} from "./ws-types.ts";
