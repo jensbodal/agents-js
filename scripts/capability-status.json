@@ -4,7 +4,9 @@
     "cli": {
       "title": "CLI",
       "tier": "demonstrated",
-      "packages": ["@agents-js/cli"],
+      "packages": [
+        "@agents-js/cli"
+      ],
       "evidence": [
         {
           "kind": "run",
@@ -17,54 +19,87 @@
     "federation-registry": {
       "title": "Federation / agent registry",
       "tier": "demonstrated",
-      "packages": ["@agents-js/gateway-runtime", "@agents-js/host", "@agents-js/a2a-client"],
+      "packages": [
+        "@agents-js/gateway-runtime",
+        "@agents-js/host",
+        "@agents-js/a2a-client"
+      ],
       "evidence": [
         {
           "kind": "run",
           "ref": "agents-js registry list",
           "note": "Showed 3 live registered A2A gateways in ~/.agents-js/registry.json — real dogfooding state."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/registry-sync-smoke",
+          "note": "LT-10: two gateways; B syncs into A's registry over real fetch+merge (source=sync) + reachable card-fetch."
         }
       ],
-      "notes": "Cross-gateway peer sync (--registry-sync) remains undemonstrated."
+      "notes": "Cross-gateway peer sync now exercised (LT-10)."
     },
     "memory": {
       "title": "Memory substrate",
       "tier": "demonstrated",
-      "packages": ["@agents-js/memory", "@agents-js/memory-local", "@agents-js/memory-postgres"],
+      "packages": [
+        "@agents-js/memory",
+        "@agents-js/memory-local",
+        "@agents-js/memory-postgres"
+      ],
       "evidence": [
         {
           "kind": "run",
           "ref": "examples/memory-local-smoke",
           "note": "Ran: save→update→delete with revisions on real sqlite."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/memory-postgres-smoke",
+          "note": "LT-11: Postgres save->update->delete + ACL deny (live when POSTGRES_TEST_URL set; clean skip otherwise)."
         }
       ],
-      "notes": "Postgres backend not exercised first-hand."
+      "notes": "SQLite + Postgres backends both exercised."
     },
     "permissions": {
       "title": "Permissions / ACL",
       "tier": "demonstrated",
-      "packages": ["@agents-js/policy"],
+      "packages": [
+        "@agents-js/policy"
+      ],
       "evidence": [
         {
           "kind": "run",
           "ref": "examples/memory-local-smoke",
           "note": "ACL deny path raised MemoryAclError — a real permission demonstration."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/agents-mcp-smoke",
+          "note": "LT-5: identity-bound send->get round-trip + scope-ACL denials (403/401)."
         }
       ],
       "notes": "Pure-function policy evaluation."
     },
     "acp-runtime": {
       "title": "ACP runtime contract",
-      "tier": "undemonstrated",
-      "packages": ["@agents-js/acp", "@agents-js/acp-host"],
+      "tier": "demonstrated",
+      "packages": [
+        "@agents-js/acp",
+        "@agents-js/acp-host"
+      ],
       "evidence": [
         {
           "kind": "test",
           "ref": "packages/acp + packages/acp-host tests",
           "note": "Adapters tested; no captured side-by-side harness session."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/acp-runtime-smoke",
+          "note": "LT-1: real ACPSessionController init->turn->stream->cross-turn state persistence vs mock-acp subprocess."
         }
       ],
-      "notes": "Every harness adapter speaks ACP as its local-boundary contract."
+      "notes": "ACP local-boundary contract captured end-to-end (acp-runtime-smoke)."
     },
     "wake-system": {
       "title": "Wake system",
@@ -87,20 +122,32 @@
     },
     "hardening": {
       "title": "Hardening track (signing / JWT / trust-manifest)",
-      "tier": "undemonstrated",
-      "packages": ["@agents-js/host"],
+      "tier": "demonstrated",
+      "packages": [
+        "@agents-js/host"
+      ],
       "evidence": [
         {
           "kind": "test",
           "ref": "packages/host/src ed25519, peer-record, mint-redeem-flow, load-trust-manifest",
           "note": "10 impl files, tested; zero operator walkthrough."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/hardening-smoke",
+          "note": "LT-2: HS256 JWT mint->verify->reject (wrong-key/forged/expired/HS512-alg-substitution)."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/mint-redeem-smoke",
+          "note": "LT-6: AJS-55 ed25519 challenge mint->redeem exact-scope, single-use 401, rate-limit 429."
         }
       ],
       "notes": "Gated behind AGENTS_MCP_JWT_SIGNING_KEY. Built, not aspirational — but invisible."
     },
     "a2ui": {
       "title": "A2UI declarative surfaces",
-      "tier": "undemonstrated",
+      "tier": "demonstrated",
       "packages": [
         "@agents-js/a2ui-renderer",
         "@agents-js/a2ui-host",
@@ -113,19 +160,31 @@
           "kind": "story",
           "ref": "packages/ui-components/stories",
           "note": "Histoire stories + renderer-adapter-prototype exist; visual hydration not captured."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/a2ui-surface-smoke",
+          "note": "LT-4: A2UI msgs render real DOM (happy-dom) + surface_event round-trips to host sink."
         }
       ],
       "notes": "This ecosystem map dogfoods the A2UI/ui-components surface."
     },
     "ag-ui": {
       "title": "AG-UI streaming transport",
-      "tier": "undemonstrated",
-      "packages": ["@agents-js/agui-types"],
+      "tier": "demonstrated",
+      "packages": [
+        "@agents-js/agui-types"
+      ],
       "evidence": [
         {
           "kind": "test",
           "ref": "packages/agui-types tests",
           "note": "Types/helpers/stream layer (infrastructure); no standalone demonstrable surface."
+        },
+        {
+          "kind": "run",
+          "ref": "examples/agui-transport-smoke",
+          "note": "LT-3: POST /agent SSE RUN_STARTED->RUN_FINISHED + 409 single-active-run gate."
         }
       ],
       "notes": "Shows up only inside a consuming UI."
@@ -133,7 +192,9 @@
     "ack-reply-routing": {
       "title": "ACK / reply-target routing",
       "tier": "undemonstrated",
-      "packages": ["@agents-js/claude-channel-adapter"],
+      "packages": [
+        "@agents-js/claude-channel-adapter"
+      ],
       "evidence": [
         {
           "kind": "test",
@@ -146,7 +207,9 @@
     "agent-launch": {
       "title": "agent-launch (harness/tmux launcher)",
       "tier": "undemonstrated",
-      "packages": ["@agents-js/agent-launch"],
+      "packages": [
+        "@agents-js/agent-launch"
+      ],
       "evidence": [
         {
           "kind": "run",
@@ -158,21 +221,37 @@
     },
     "browser-ux": {
       "title": "Browser/operator experience",
-      "tier": "over-claimed",
-      "packages": ["@agents-js/web-ui", "@agents-js/gateway", "@agents-js/browser-runtime"],
+      "tier": "demonstrated",
+      "packages": [
+        "@agents-js/web-ui",
+        "@agents-js/gateway",
+        "@agents-js/browser-runtime"
+      ],
       "evidence": [
         {
           "kind": "doc",
           "ref": "docs/getting-started.md, docs/surfaces.md",
           "note": "Flagship 'bun run dev → Connect → Hello' path documented but never captured."
+        },
+        {
+          "kind": "run",
+          "ref": "scripts/browser-smoke.ts (bun run browser:smoke)",
+          "note": "LT-8: real Chromium Connect->Hello->streamed-reply (DOM-asserted+screenshots) vs mock gateway."
+        },
+        {
+          "kind": "test",
+          "ref": "examples/ws-bridge-smoke",
+          "note": "LT-7: WS bridge live-state snapshot + permission round-trip + set_runtime."
         }
       ],
-      "notes": "browser-runtime docs meta-agent is prototype/experimental."
+      "notes": "Browser-UX quickstart captured (LT-8, mock gateway). Tier-2 live-runtime go/no-go (bun run dev + real runtime + real inbox) remains deeper proof: e2e:web:live / web-ui Tier-2 follow-up."
     },
     "ch-gateway-propagation": {
       "title": "Channel-env (CH_GATEWAY_*) propagation",
       "tier": "missing",
-      "packages": ["@agents-js/agent-launch"],
+      "packages": [
+        "@agents-js/agent-launch"
+      ],
       "evidence": [
         {
           "kind": "doc",
