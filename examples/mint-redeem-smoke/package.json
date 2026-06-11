@@ -1,0 +1,19 @@
+{
+  "name": "@agents-js/example-mint-redeem-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for the AJS-55 challenge-mint flow. Drives the real gateway mount handler end-to-end: fetch challenge -> ed25519-sign canonical payload -> redeem -> JWT with exactly the requested scopes; replay rejection (single-use); per-IP rate-limit 429.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/gateway": "workspace:*",
+    "@agents-js/host": "workspace:*",
+    "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
