@@ -15,7 +15,11 @@
  */
 
 import type { MemoryActor, SaveMemoryInput } from "@agents-js/memory";
-import { LocalMemoryProvider, MemoryAclError, type MemoryPolicyGate } from "@agents-js/memory-local";
+import {
+  LocalMemoryProvider,
+  MemoryAclError,
+  type MemoryPolicyGate,
+} from "@agents-js/memory-local";
 import { PostgresStorage } from "@agents-js/memory-postgres";
 
 const actor: MemoryActor = { kind: "agent", actorId: "smoke-agent" };

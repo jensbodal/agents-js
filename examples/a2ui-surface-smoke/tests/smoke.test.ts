@@ -200,7 +200,8 @@ describe("A2UI user surface_event round-trips to the host sink", () => {
       expect(surface.mount.querySelector("acp-message")).not.toBeNull();
       // Sanity: the reused payload is the landing surface, not some other id.
       const first = buildLandingMessages()[0];
-      const landingId = first && "createSurface" in first ? first.createSurface.surfaceId : undefined;
+      const landingId =
+        first && "createSurface" in first ? first.createSurface.surfaceId : undefined;
       expect(landingId).toBe(LANDING_SURFACE_ID);
     } finally {
       surface.destroy();
