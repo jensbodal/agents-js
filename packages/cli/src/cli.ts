@@ -12,6 +12,7 @@ import { runLaunchCommand } from "./launch.ts";
 import { runMcpCommand } from "./mcp.ts";
 import { runOnboardCommand } from "./onboard.ts";
 import { runRegistryCommand } from "./registry.ts";
+import { runRunLoggedCommand } from "./run-logged.ts";
 import { runSendCommand } from "./send.ts";
 import { runServeCommand } from "./serve.ts";
 import { runSkillCommand } from "./skill.ts";
@@ -131,6 +132,10 @@ export async function runAgentsJsCli(argv: string[]): Promise<number> {
 
   if (command === "skill") {
     return runSkillCommand(rest);
+  }
+
+  if (command === "run-logged") {
+    return runRunLoggedCommand(rest);
   }
 
   // EXIT_USAGE = 64 — unknown command. Print top-level usage to stderr

@@ -430,6 +430,88 @@ describe("native Pi peer mode", () => {
     expect(JSON.stringify(followRes)).not.toContain("busy");
   });
 
+  test("GET /events tees a task's published events to a subscriber", async () => {
+    const { url } = await startPeer("pi-a", (message) => `events: ${message}`);
+
+    const controller = new AbortController();
+    const eventsRes = await fetch(`${url}/events`, { signal: controller.signal });
+    expect(eventsRes.status).toBe(200);
+    expect(eventsRes.headers.get("content-type")).toContain("text/event-stream");
+
+    const reader = (eventsRes.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    const frames: string[] = [];
+
+    // Read frames until we see a terminal status update or time out.
+    const readUntilComplete = (async () => {
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let nl = buffer.indexOf("\n");
+        while (nl >= 0) {
+          const line = buffer.slice(0, nl).trimEnd();
+          buffer = buffer.slice(nl + 1);
+          nl = buffer.indexOf("\n");
+          if (line.startsWith("data:")) {
+            frames.push(line.slice(5).trim());
+          }
+        }
+        // The firehose carries the raw SDK AgentEvent; the terminal status
+        // is the numeric COMPLETED enum (3), not the wire string vocabulary.
+        if (frames.some((f) => f.includes('"kind":"statusUpdate"') && f.includes('"state":3')))
+          return;
+      }
+    })();
+
+    // Drive a turn through the JSON-RPC path; its eventBus publishes must
+    // also reach the /events subscriber.
+    await sendMessage(url, "hello firehose");
+    await Promise.race([readUntilComplete, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    controller.abort();
+    await readUntilComplete.catch(() => {});
+
+    // The submitted task event and the working/completed status updates
+    // should all be visible on the firehose. Each `data:` line is exactly
+    // `JSON.stringify(<raw AgentEvent>)`.
+    const frame = (predicate: (f: string) => boolean): unknown =>
+      JSON.parse(frames.find(predicate) ?? "null");
+    const taskFrame = frame((f) => f.includes('"kind":"task"')) as {
+      kind?: string;
+      data?: { status?: { state?: number } };
+    } | null;
+    expect(taskFrame?.kind).toBe("task");
+    expect(taskFrame?.data?.status?.state).toBe(1); // SUBMITTED
+    const joined = frames.join("\n");
+    expect(joined).toContain('"state":3'); // COMPLETED
+    expect(joined).toContain("events: hello firehose");
+  });
+
+  test("GET /events removes the subscriber on disconnect", async () => {
+    const { handle, url } = await startPeer("pi-a");
+
+    const controller = new AbortController();
+    const eventsRes = await fetch(`${url}/events`, { signal: controller.signal });
+    expect(eventsRes.status).toBe(200);
+    // Begin draining so the connection is established server-side.
+    const reader = (eventsRes.body as ReadableStream<Uint8Array>).getReader();
+    void reader.read();
+
+    // Give the server a moment to register the subscriber.
+    await new Promise((r) => setTimeout(r, 50));
+
+    controller.abort();
+    await reader.cancel().catch(() => {});
+
+    // After disconnect, a subsequent turn must still succeed (no dangling
+    // subscriber writing to a closed socket) and stop() must close cleanly.
+    await new Promise((r) => setTimeout(r, 50));
+    const body = await sendMessage(url, "after disconnect");
+    expect(JSON.stringify(body)).not.toContain("busy");
+    await handle.stop();
+  });
+
   test("source no longer hardcodes the version literal", async () => {
     const src = await readFile(new URL("../src/native-peer.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/version:\s*"\d+\.\d+\.\d+/);

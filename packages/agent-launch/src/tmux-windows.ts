@@ -1,7 +1,7 @@
 /**
  * Composable tmux **window** operations for in-session multi-window launches
- * (e.g. the pi dual-window layout: interactive TUI in window :0, runtime/ACP
- * surface in window :1).
+ * (e.g. the pi cockpit layout: runtime/ACP surface in window :0, interactive
+ * TUI in :1, raw ACP stream in :2, log tail in :3).
  *
  * **Why a separate module from {@link ./tmux.ts}.** PR #176 established that
  * companion topologies (the codex `--with-receiver` receiver) are CLI-level
@@ -12,9 +12,9 @@
  *
  * **Base-index normalization.** The operator's tmux may set `base-index 1`, so a
  * freshly created session's first window is NOT guaranteed to be `:0`. We detect
- * the first window index and, if needed, move it to `:0`, then create the second
- * window at `:1`. This yields a deterministic `:0`=TUI / `:1`=runtime layout
- * regardless of the operator's `base-index` (verified across base-index 0 and 1).
+ * the first window index and, if needed, move it to `:0`, then create the
+ * remaining windows. This yields a deterministic `:0`=runtime layout regardless
+ * of the operator's `base-index` (verified across base-index 0 and 1).
  *
  * **Safety.** Every token is an explicit argv item passed to `spawnSync` /
  * `execFileSync` — tmux commands are NEVER concatenated through a shell, so
@@ -143,7 +143,7 @@ export function createTmuxWindowOps(options: TmuxWindowOpsOptions = {}): TmuxWin
 
     newWindow(session, index, name, cwd) {
       // `-d`: create detached so focus stays where the caller wants it; the
-      // caller selects the TUI window (:0) explicitly afterwards.
+      // caller selects the default window (:0 = runtime) explicitly afterwards.
       expectZeroOrThrow("new-window", [
         "new-window",
         "-d",

@@ -386,10 +386,111 @@ async function writeSse(res: ServerResponse, stream: AsyncGenerator<unknown>): P
   }
 }
 
+const EVENTS_KEEPALIVE_MS = 15_000;
+
+/**
+ * In-process broadcast hub. The executor TEEs every AgentEvent it
+ * publishes through {@link EventHub.broadcast}; the `GET /events` route
+ * registers one {@link EventHub.subscribe} callback per connected
+ * observer. Subscribers are decoupled from the per-task A2A event bus so
+ * a read-only observer never participates in (and cannot perturb) the
+ * real JSON-RPC turn lifecycle.
+ */
+export interface EventHub {
+  broadcast(event: unknown): void;
+  subscribe(fn: (event: unknown) => void): () => void;
+  subscriberCount(): number;
+}
+
+export function createEventHub(): EventHub {
+  const subscribers = new Set<(event: unknown) => void>();
+  return {
+    broadcast(event) {
+      // Snapshot so a subscriber that unsubscribes during dispatch
+      // doesn't mutate the set mid-iteration.
+      for (const fn of [...subscribers]) {
+        fn(event);
+      }
+    },
+    subscribe(fn) {
+      subscribers.add(fn);
+      return () => {
+        subscribers.delete(fn);
+      };
+    },
+    subscriberCount() {
+      return subscribers.size;
+    },
+  };
+}
+
+/**
+ * Wrap an {@link ExecutionEventBus} so every `publish(event)` is also
+ * mirrored to the hub, transparently. All other methods (`finished`,
+ * subscriptions, etc.) delegate to the real bus unchanged, so the SDK's
+ * per-task lifecycle is byte-for-byte identical — the tee only observes.
+ */
+function teeEventBus(bus: ExecutionEventBus, hub: EventHub): ExecutionEventBus {
+  return new Proxy(bus, {
+    get(target, prop, receiver) {
+      if (prop === "publish") {
+        return (event: AgentEvent) => {
+          hub.broadcast(event);
+          return target.publish(event);
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+function writeEventsStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  hub: EventHub,
+  active: Set<() => void>,
+): void {
+  res.writeHead(200, SSE_HEADERS);
+  res.write(": connected\n\n");
+
+  let closed = false;
+  const safeWrite = (chunk: string): void => {
+    if (closed) {
+      return;
+    }
+    res.write(chunk);
+  };
+
+  const unsubscribe = hub.subscribe((event) => {
+    safeWrite(`data: ${JSON.stringify(event)}\n\n`);
+  });
+
+  const keepAlive = setInterval(() => {
+    safeWrite(": ping\n\n");
+  }, EVENTS_KEEPALIVE_MS);
+
+  const close = (): void => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    clearInterval(keepAlive);
+    unsubscribe();
+    active.delete(close);
+    res.end();
+  };
+
+  active.add(close);
+  req.on("close", close);
+  res.on("close", close);
+}
+
 async function startNativeA2AServer(options: {
   card: AgentCard;
   executor: InitializableExecutor;
   host: string;
+  hub: EventHub;
   logger: Logger;
   port: number;
 }): Promise<NativeServerHandle> {
@@ -400,6 +501,9 @@ async function startNativeA2AServer(options: {
     options.executor,
   );
   const transportHandler = new JsonRpcTransportHandler(requestHandler);
+  // Active `GET /events` stream closers, ended on stop() so a long-lived
+  // SSE observer doesn't keep `server.close()` from resolving.
+  const activeEventStreams = new Set<() => void>();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
@@ -411,6 +515,11 @@ async function startNativeA2AServer(options: {
 
     if (req.method === "GET" && url.pathname === "/.well-known/agent-card.json") {
       writeJson(res, 200, options.card);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/events") {
+      writeEventsStream(req, res, options.hub, activeEventStreams);
       return;
     }
 
@@ -473,6 +582,11 @@ async function startNativeA2AServer(options: {
     port: actualPort,
     url,
     async stop() {
+      // End every open /events stream first (clears its keep-alive timer
+      // and unsubscribes from the hub) so server.close() can resolve.
+      for (const close of [...activeEventStreams]) {
+        close();
+      }
       await closeServer(server);
     },
   };
@@ -653,6 +767,7 @@ class NativePiExecutor implements InitializableExecutor {
   constructor(
     private readonly name: string,
     private readonly turnRunner: NativePiTurnRunner,
+    private readonly hub: EventHub,
   ) {}
 
   async initialize() {
@@ -670,7 +785,11 @@ class NativePiExecutor implements InitializableExecutor {
     };
   }
 
-  async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+  async execute(context: RequestContext, rawEventBus: ExecutionEventBus): Promise<void> {
+    // TEE every published AgentEvent into the broadcast hub. The proxy is
+    // transparent: it forwards publish() to the real bus (preserving order
+    // and count) and delegates all other methods unchanged.
+    const eventBus = teeEventBus(rawEventBus, this.hub);
     const userMessage = context.userMessage;
     eventBus.publish(
       AgentEvent.task({
@@ -765,7 +884,8 @@ class NativePiExecutor implements InitializableExecutor {
     }
   }
 
-  async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {
+  async cancelTask(taskId: string, rawEventBus: ExecutionEventBus): Promise<void> {
+    const eventBus = teeEventBus(rawEventBus, this.hub);
     const entry = this.inflight.get(taskId);
     if (entry) {
       entry.controller.abort();
@@ -872,7 +992,10 @@ export function installNativePeerBridge(
   const turnRunner = new NativePiTurnRunner(pi, config.timeoutMs);
   turnRunner.attach();
   const dispatcher = new NativeDispatchClient(config.registryPath);
-  const executor = new NativePiExecutor(config.name, turnRunner);
+  // Shared broadcast hub: the executor tees its A2A events into it and the
+  // `GET /events` route subscribes observers to it.
+  const eventHub = createEventHub();
+  const executor = new NativePiExecutor(config.name, turnRunner, eventHub);
   const card = buildAgentCard({
     name: config.name,
     description: `Native Pi TUI peer ${config.name}`,
@@ -898,6 +1021,7 @@ export function installNativePeerBridge(
         card,
         executor,
         host: config.host,
+        hub: eventHub,
         logger,
         port: config.port,
       });

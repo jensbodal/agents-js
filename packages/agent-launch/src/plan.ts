@@ -89,10 +89,11 @@ export interface LaunchPlan {
   /** Mode — Phase 1 always `"fresh"`. */
   readonly mode: LaunchMode;
   /**
-   * When true, the CLI opens a dual-window layout — interactive TUI in tmux
-   * window `:0` (auto-connected) and this runtime in `:1`. The launcher owns the
-   * window orchestration + the `agents-js client` command; the plan only carries
-   * the intent. pi-harness only (validated in {@link buildLaunchPlan}).
+   * When true, the CLI opens a cockpit layout — this runtime in tmux window
+   * `:0` (the landing window), the interactive TUI in `:1`, a raw ACP stream in
+   * `:2`, and a log tail in `:3`. The launcher owns the window orchestration +
+   * the `agents-js client`/`run-logged` commands; the plan only carries the
+   * intent. pi-harness only (validated in {@link buildLaunchPlan}).
    */
   readonly dualWindow: boolean;
 }

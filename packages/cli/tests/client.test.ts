@@ -544,6 +544,7 @@ describe("client command", () => {
       { url: "http://stub.test", mode: "base" },
       {
         headers: {},
+        observe: false,
         poll: false,
         probe: false,
         raw: false,
@@ -602,6 +603,7 @@ describe("client command", () => {
       { url: "http://stub.test", mode: "base" },
       {
         headers: {},
+        observe: false,
         poll: false,
         probe: false,
         raw: false,
@@ -618,6 +620,71 @@ describe("client command", () => {
     // `finally` must clear pending timers / target input regardless of
     // how the promise resolved.
     expect(cleared).toBe(true);
+  });
+
+  test("--observe parses as a flag", () => {
+    const parsed = parseClientCommandArgs(["--url", "http://x.test", "--observe"]);
+    expect(parsed.observe).toBe(true);
+  });
+
+  test("--observe + -m is a usage error (64)", async () => {
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (() => true) as typeof process.stderr.write;
+    try {
+      const exitCode = await runClientCommand(["--url", "http://x.test", "--observe", "-m", "hi"], {
+        output: { write: () => true },
+      });
+      expect(exitCode).toBe(64);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+  });
+
+  test("--observe + --probe is a usage error (64)", async () => {
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (() => true) as typeof process.stderr.write;
+    try {
+      const exitCode = await runClientCommand(["--url", "http://x.test", "--observe", "--probe"], {
+        output: { write: () => true },
+      });
+      expect(exitCode).toBe(64);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+  });
+
+  test("--observe prints raw data frames and ignores comment lines", async () => {
+    const output: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (() => true) as typeof process.stderr.write;
+    let observedUrl = "";
+    try {
+      const exitCode = await runClientCommand(["--url", "http://127.0.0.1:9999", "--observe"], {
+        output: {
+          write(chunk: string) {
+            output.push(chunk);
+            return true;
+          },
+        },
+        // Injected SSE source: a comment line plus two data frames.
+        openEventStream: async function* (url) {
+          observedUrl = url;
+          yield ": connected";
+          yield 'data: {"kind":"task","data":{"id":"t1"}}';
+          yield ": ping";
+          yield 'data: {"kind":"statusUpdate","data":{"state":3}}';
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(observedUrl).toBe("http://127.0.0.1:9999/events");
+      // Exactly the two JSON frames, raw, one per line; comments dropped.
+      expect(output.join("")).toBe(
+        '{"kind":"task","data":{"id":"t1"}}\n{"kind":"statusUpdate","data":{"state":3}}\n',
+      );
+    } finally {
+      process.stderr.write = origWrite;
+    }
   });
 
   test("transcript renders interruption prompts even without prior transcript entries", async () => {

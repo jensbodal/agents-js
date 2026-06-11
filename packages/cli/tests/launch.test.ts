@@ -485,9 +485,10 @@ function fakeWindowOps(): { windows: TmuxWindowOps; wcalls: WindowCalls } {
   return { windows, wcalls };
 }
 
-describe("runLaunchCommand — pi dual_window orchestration", () => {
-  // LT-5 + dual-window argv (runtime :1, TUI :0), --bg (no attach).
-  test("--bg dual_window splits :0 TUI / :1 runtime; channel secret rides send-keys, not set-env", async () => {
+describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
+  // Cockpit argv: :0 runtime (run-logged-wrapped) / :1 tui / :2 acp / :3 logs,
+  // --bg (no attach). LT-5: the channel secret rides send-keys, not set-env.
+  test("--bg dual_window builds :0 runtime / :1 tui / :2 acp / :3 logs; channel secret rides send-keys, not set-env", async () => {
     const { runner, calls } = fakeRunner();
     const { windows, wcalls } = fakeWindowOps();
     const out = captureOutput();
@@ -503,14 +504,29 @@ describe("runLaunchCommand — pi dual_window orchestration", () => {
     expect(calls.newSessionDetached).toEqual([["pi-dual", "/tmp/pi-ws"]]);
     expect(wcalls.normalize).toEqual(["pi-dual"]);
 
-    // :1 = runtime (pi process) with the env export carrying the channel secret.
-    const runtime = wcalls.sendKeys.find(([, i]) => i === 1);
+    const logPath = "/home/test/.agents-js/logs/pi-dual.log";
+
+    // :0 = runtime (pi process), wrapped in run-logged (stderr tees to :3's
+    // logfile), env export carrying the channel secret.
+    const runtime = wcalls.sendKeys.find(([, i]) => i === 0);
+    expect(runtime?.[2]).toContain(`agents-js run-logged --log "${logPath}" --`);
     expect(runtime?.[2]).toContain("pi -e @agents-js/pi-extension");
     expect(runtime?.[2]).toContain("CH_GATEWAY_KEY_CMD");
 
-    // :0 = TUI auto-connecting by registered name (MATRIX_AGENT = pi-dual).
-    const tui = wcalls.sendKeys.find(([, i]) => i === 0);
+    // :1 = interactive TUI auto-connecting by registered name (= pi-dual).
+    const tui = wcalls.sendKeys.find(([, i]) => i === 1);
     expect(tui?.[2]).toBe("agents-js client --agent pi-dual --wait");
+
+    // :2 = read-only raw ACP/A2A observer.
+    const acp = wcalls.sendKeys.find(([, i]) => i === 2);
+    expect(acp?.[2]).toBe("agents-js client --agent pi-dual --wait --observe");
+
+    // :3 = tail of the runtime logfile.
+    const logs = wcalls.sendKeys.find(([, i]) => i === 3);
+    expect(logs?.[2]).toBe(`tail -n +1 -F "${logPath}"`);
+
+    // Three satellite windows created; focus lands on :0 = runtime.
+    expect(wcalls.newWindow.map(([, i]) => i)).toEqual([1, 2, 3]);
     expect(wcalls.selectWindow).toEqual([["pi-dual", 0]]);
 
     // LT-5: channel_env secret must NOT be pushed via tmux set-environment.
@@ -520,8 +536,8 @@ describe("runLaunchCommand — pi dual_window orchestration", () => {
     expect(wcalls.attach).toEqual([]);
   });
 
-  // LT-9: foreground auto-attaches after building both windows.
-  test("foreground dual_window auto-attaches the TUI", async () => {
+  // LT-9: foreground auto-attaches after building all cockpit windows.
+  test("foreground dual_window builds all four windows and auto-attaches (lands on :0 runtime)", async () => {
     const { runner } = fakeRunner();
     const { windows, wcalls } = fakeWindowOps();
     const code = await runLaunchCommand(["pi-dual", "--config", PI_FIXTURE_PATH], {
@@ -533,7 +549,7 @@ describe("runLaunchCommand — pi dual_window orchestration", () => {
       createWindowOps: () => windows,
     });
     expect(code).toBe(0);
-    expect(wcalls.newWindow).toHaveLength(1);
+    expect(wcalls.newWindow).toHaveLength(3);
     expect(wcalls.attach).toEqual(["pi-dual"]);
   });
 
