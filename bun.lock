@@ -104,6 +104,17 @@
         "@types/bun": "catalog:",
       },
     },
+    "examples/agents-mcp-smoke": {
+      "name": "@agents-js/example-agents-mcp-smoke",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/host": "workspace:*",
+        "jose": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "examples/agui-transport-smoke": {
       "name": "@agents-js/example-agui-transport-smoke",
       "version": "0.0.0",
@@ -742,6 +753,8 @@
     "@agents-js/droid-acp": ["@agents-js/droid-acp@workspace:extras/droid-acp"],
 
     "@agents-js/example-acp-runtime-smoke": ["@agents-js/example-acp-runtime-smoke@workspace:examples/acp-runtime-smoke"],
+
+    "@agents-js/example-agents-mcp-smoke": ["@agents-js/example-agents-mcp-smoke@workspace:examples/agents-mcp-smoke"],
 
     "@agents-js/example-agui-transport-smoke": ["@agents-js/example-agui-transport-smoke@workspace:examples/agui-transport-smoke"],
 

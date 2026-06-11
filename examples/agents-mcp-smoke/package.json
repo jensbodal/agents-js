@@ -1,0 +1,18 @@
+{
+  "name": "@agents-js/example-agents-mcp-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for the @agents-js/host agents-MCP dispatch surface. Mints a scoped HS256 JWT, dispatches agents.send_message through a recording inbox tool, reads it back via agents.get_messages, and proves the scope-ACL (403) + missing-bearer (401) denials.",
+  "scripts": {
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/host": "workspace:*",
+    "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
