@@ -19,6 +19,8 @@ bun add @agents-js/codex-gateway-inbox-receiver
 
 ### Functions
 
+- **`assertNoCodexSandboxBypass`** — Throw if argv carries a dangerous sandbox bypass or full-access mode.
+- **`buildEnforcedCodexExecArgs`** — Build the enforced `codex exec` argv with `--sandbox <mode>` placed before `resume`. Frozen so callers cannot mutate the gate out.
 - **`deliverRow`**
 - **`formatInboxRowForCodex`** — Format one gateway inbox row as a Codex turn prompt with explicit evidence.
 - **`missingRequiredReceiverCliEnv`**
@@ -45,6 +47,7 @@ bun add @agents-js/codex-gateway-inbox-receiver
 
 ### Types
 
+- **`EnforcedCodexSandboxMode`** — Source-owned sandbox modes the receiver may run untrusted gateway-inbox turns under. `danger-full-access` is deliberately NOT assignable here — see #92.
 - **`SenderAllowlist`**
 - **`SpawnImpl`**
 
