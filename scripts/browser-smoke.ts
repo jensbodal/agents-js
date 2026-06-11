@@ -1,5 +1,41 @@
 #!/usr/bin/env bun
 
+/**
+ * Learning test (LT-8): the browser/operator UX flagship, captured end-to-end.
+ *
+ * This harness is the headline proof for the documented quickstart claim in
+ * `docs/getting-started.md`: "a connect dialog -> press `Connect` -> send
+ * `Hello` -> reply streams into a transcript". It drives a real Chromium
+ * browser (isolated repo-owned Playwright CLI) against the reference web UI
+ * (`apps/web-ui`) and proves the operator-facing flow:
+ *
+ *   1. The web UI boots and renders the connect dialog.
+ *   2. Connecting reaches a live A2A gateway and renders the chat shell.
+ *   3. Sending "Hello" round-trips a turn; the agent's reply (delivered as
+ *      `agent_message_chunk` stream updates by the mock ACP agent) renders in
+ *      the transcript. A DOM assertion confirms both the user prompt and the
+ *      agent reply text are present.
+ *   4. Screenshots are captured at each step as a durable visual artifact.
+ *
+ * On "streams": the mock ACP agent (`tests/mock-acp-agent.cjs`) emits the
+ * reply as incremental `agent_message_chunk` updates over the live ACP/A2A
+ * transport — the reply genuinely streams. This harness asserts the *rendered
+ * result* (the agent bubble contains the reply text), which is the plain
+ * reading of "reply streams into a transcript". It does not assert per-chunk
+ * incremental paints.
+ *
+ * Boundary: this flow runs against a deterministic mock gateway with the
+ * web-ui dev server pointed at it via `?target=`. The literal `bun run dev`
+ * launcher + a live coding runtime (the exact command in
+ * `docs/getting-started.md`) is the companion learning test
+ * `scripts/web-ui-live-e2e.ts` (`bun run e2e:web:live`), which is
+ * runtime-gated. See `docs/develop/browser-ux-smoke.md`.
+ *
+ * Run it: `bun run browser:smoke`. This is intentionally NOT part of the
+ * `check` / `test:examples` gate (it needs a real browser + dev server);
+ * `scripts/e2e-deterministic.ts` documents that exclusion.
+ */
+
 import { mkdir, rm as removePath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {

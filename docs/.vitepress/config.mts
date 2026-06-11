@@ -142,6 +142,7 @@ export default withMermaid(
               { text: "Contribute", link: "/develop/contribute" },
               { text: "Browser Entry Points", link: "/develop/browser-entry-points" },
               { text: "Dependencies", link: "/develop/dependencies" },
+              { text: "Browser UX Smoke", link: "/develop/browser-ux-smoke" },
               { text: "Playground Smoke", link: "/develop/playground-smoke" },
               { text: "Shared Utilities & Parsing", link: "/develop/shared-utilities" },
             ],
