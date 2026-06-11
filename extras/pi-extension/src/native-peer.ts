@@ -168,13 +168,15 @@ function readNativeConfig(env: Record<string, string | undefined>): NativePiPeer
   }
 
   const advertiseHost = env.AGENTS_JS_PI_HOST?.trim() || DEFAULT_HOST;
-  const isLoopback =
-    advertiseHost === "127.0.0.1" || advertiseHost === "localhost" || advertiseHost === "::1";
-  // Bind to all interfaces for a LAN-advertised peer so the socket survives an
-  // IP change; keep loopback bind when the advertise host is loopback (don't
-  // silently expose a single-machine agent on the LAN). AGENTS_JS_PI_BIND_HOST
-  // overrides (e.g. to pin a single NIC).
-  const bindHost = env.AGENTS_JS_PI_BIND_HOST?.trim() || (isLoopback ? advertiseHost : "0.0.0.0");
+  // Bind the ADVERTISED host by default — NOT 0.0.0.0. A native pi's inbound
+  // A2A is not yet authenticated, so defaulting to all-interfaces would silently
+  // widen that unauth surface from one LAN segment to every host interface incl.
+  // the tailnet (security review, PR #216). To survive a host IP change, either
+  // advertise a STABLE address (an FQDN via AGENTS_JS_PI_LAN_DOMAIN, or a tailnet
+  // IP that doesn't rotate) or set AGENTS_JS_PI_BIND_HOST=0.0.0.0 explicitly,
+  // accepting the wider exposure. Enforcing signed-peer auth on the inbound
+  // handler (which would make 0.0.0.0 safe) is a separate follow-up.
+  const bindHost = env.AGENTS_JS_PI_BIND_HOST?.trim() || advertiseHost;
 
   const rawHeartbeat = env.AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS?.trim();
   const heartbeatIntervalMs =

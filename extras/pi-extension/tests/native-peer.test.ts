@@ -714,14 +714,14 @@ describe("native peer — bind/advertise decouple + IP-change self-rebind", () =
     return handle;
   }
 
-  // (a) Decouple: an explicit non-loopback advertise host is published, while
-  // the socket binds all-interfaces — proven by the card still being fetchable
-  // over loopback at the same port.
-  test("(a) advertises a non-loopback host but binds all-interfaces (card reachable via loopback)", async () => {
+  // (a) Decouple: with an EXPLICIT opt-in to all-interface bind
+  // (AGENTS_JS_PI_BIND_HOST=0.0.0.0), the peer advertises the LAN host while the
+  // socket binds 0.0.0.0 — proven by the card still being fetchable over loopback.
+  test("(a) explicit AGENTS_JS_PI_BIND_HOST=0.0.0.0 binds all-interfaces while advertising the LAN host", async () => {
     const ifaces = mutableInterfaces("192.168.50.10");
     const handle = await startSeamed(
       "pi-decouple",
-      { AGENTS_JS_PI_HOST: "192.168.50.10" },
+      { AGENTS_JS_PI_HOST: "192.168.50.10", AGENTS_JS_PI_BIND_HOST: "0.0.0.0" },
       { interfacesSource: ifaces.source },
     );
     const url = handle.getUrl() as string;
@@ -732,6 +732,23 @@ describe("native peer — bind/advertise decouple + IP-change self-rebind", () =
     expect(await readRegistryUrl("pi-decouple")).toContain("192.168.50.10");
   });
 
+  // (a2) SECURITY regression (PR #216 review): a non-loopback advertise host does
+  // NOT silently fall back to 0.0.0.0. Without an explicit AGENTS_JS_PI_BIND_HOST
+  // the server binds the advertise host itself — so binding a host that lacks that
+  // exact interface FAILS (proving it did not widen exposure to all interfaces;
+  // had it defaulted to 0.0.0.0 the server would have started fine).
+  test("(a2) does NOT default to 0.0.0.0 — binds the advertise host (no silent all-interface exposure)", async () => {
+    const pi = new MockPiHost(() => "ok");
+    // 192.0.2.1 = TEST-NET-1 (RFC 5737); never a real interface on the test host.
+    const handle = installNativePeerBridge(pi, {
+      env: { ...nativeEnv("pi-noexpose"), AGENTS_JS_PI_HOST: "192.0.2.1" },
+      logger: silentLogger,
+    });
+    handles.push(handle);
+    await pi.emit("session_start", { reason: "startup" });
+    expect(handle.getUrl()).toBeNull(); // bind to the (absent) advertise iface failed → no 0.0.0.0 fallback
+  });
+
   // (b) THE load-bearing test: when the host IP changes, the next heartbeat tick
   // re-detects it and the registry record AND the served card update in lockstep.
   test("(b) re-advertises the new IP on the next heartbeat tick (registry + card in lockstep)", async () => {
@@ -739,7 +756,11 @@ describe("native peer — bind/advertise decouple + IP-change self-rebind", () =
     const sched = makeScheduler();
     const handle = await startSeamed(
       "pi-roam",
-      { AGENTS_JS_PI_HOST: "10.0.0.5", AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000" },
+      {
+        AGENTS_JS_PI_HOST: "10.0.0.5",
+        AGENTS_JS_PI_BIND_HOST: "0.0.0.0",
+        AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000",
+      },
       { interfacesSource: ifaces.source, scheduler: sched.scheduler },
     );
     const url = handle.getUrl() as string;
@@ -782,7 +803,11 @@ describe("native peer — bind/advertise decouple + IP-change self-rebind", () =
     const sched = makeScheduler();
     const handle = await startSeamed(
       "pi-teardown",
-      { AGENTS_JS_PI_HOST: "10.0.0.5", AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000" },
+      {
+        AGENTS_JS_PI_HOST: "10.0.0.5",
+        AGENTS_JS_PI_BIND_HOST: "0.0.0.0",
+        AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000",
+      },
       { interfacesSource: ifaces.source, scheduler: sched.scheduler },
     );
     // The boot tick schedules the next tick asynchronously (after its registry
