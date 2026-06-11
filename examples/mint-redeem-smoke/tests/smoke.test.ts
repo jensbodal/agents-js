@@ -34,12 +34,13 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync, sign as nodeSign } from "node:crypto";
 import { type AgentsMcpEnvConfig, setupAgentsMcpMount } from "@agents-js/gateway/agents-mcp-mount";
+import { createTestAgentsMcpConfig } from "@agents-js/gateway/testing";
 import {
   buildChallengeMintSignedBytes,
   createIpRateLimiter,
-  type MatrixTool,
   type PeerKeyDirectory,
 } from "@agents-js/host";
+import { makeRecordingMatrixTool } from "@agents-js/host/testing";
 import { jwtVerify } from "jose";
 
 // HS256 signing key for the gateway's minted JWTs. ≥32 bytes (RFC 7518
@@ -49,26 +50,15 @@ const ISSUER = "mint-redeem-smoke-gateway";
 const AUDIENCE = "agents-js-mcp";
 const SIGNING_KEY = new TextEncoder().encode(SIGNING_KEY_TEXT);
 
-/** Minimal gateway config for the mount; mint endpoints only need crypto wiring. */
+/** Minimal gateway config for the mount, pinned to this smoke's crypto wiring. */
 function baseConfig(overrides: Partial<AgentsMcpEnvConfig> = {}): AgentsMcpEnvConfig {
-  return {
+  return createTestAgentsMcpConfig({
     signingKey: SIGNING_KEY,
     issuer: ISSUER,
     audience: AUDIENCE,
     sendScript: "/unused-in-smoke",
-    targets: {},
-    jwtTtlSeconds: 900,
     ...overrides,
-  };
-}
-
-/** Recording Matrix tool — the mount requires a sender, unused by the mint path. */
-function makeRecordingMatrixTool(): MatrixTool {
-  return {
-    async send() {
-      return { event_id: "$unused" };
-    },
-  };
+  });
 }
 
 /**

@@ -1,58 +1,30 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import type { ACPSessionController } from "@agents-js/acp-host";
 import {
-  ACPSessionController,
-  createNodeFileAdapters,
-  PermissionEngine,
-  PermissionStore,
-} from "@agents-js/acp-host";
+  createMockAcpController,
+  LEARNING_TEST_TIMEOUT_MS,
+  type MockAcpControllerHandle,
+} from "@agents-js/host/testing";
 
-// The real external mock ACP agent — a JSON-RPC subprocess that speaks the
-// ACP protocol over stdio/NDJSON (see tests/mock-acp-agent.cjs). It is spawned
-// as a genuine child process here; nothing in this test stubs the controller's
-// transport. From this file (examples/acp-runtime-smoke/tests) the repo-root
-// `tests/` dir is three levels up.
-const MOCK_AGENT = resolve(import.meta.dir, "../../../tests/mock-acp-agent.cjs");
-
-// Real subprocess spawn + ACP handshake is slower than the bun:test 5s default.
-const TEST_TIMEOUT_MS = 20_000;
+// The controller is backed by the real external mock ACP agent — a JSON-RPC
+// subprocess that speaks the ACP protocol over stdio/NDJSON (see
+// tests/mock-acp-agent.cjs), spawned as a genuine child process. Nothing here
+// stubs the controller's transport.
 
 describe("acp-runtime-smoke", () => {
+  let handle: MockAcpControllerHandle;
   let controller: ACPSessionController;
-  let workspacePath: string;
 
   beforeEach(async () => {
-    workspacePath = await mkdtemp(join(tmpdir(), "acp-runtime-smoke-"));
-    controller = new ACPSessionController();
-    await controller.start({
-      agentConfig: {
-        name: "acp-runtime-smoke",
-        command: "node",
-        args: [MOCK_AGENT],
-        env: {},
-        authHints: [],
-        workspacePolicy: "workspace-root-only",
-        // Mirror createGatewayTestServer: the mock resolves `node` from the
-        // real PATH, so the spawn must not run under a sandboxed home.
-        allowRealHome: true,
-      },
-      workspacePath,
-      fileAdapters: createNodeFileAdapters(workspacePath),
-      permissionEngine: new PermissionEngine(),
-      permissionStore: new PermissionStore(),
-      clientInfo: { name: "acp-runtime-smoke", version: "0.1.0" },
+    handle = await createMockAcpController({
+      name: "acp-runtime-smoke",
+      permissionMode: "bypassPermissions",
     });
-    await controller.setPermissionMode("bypassPermissions");
+    controller = handle.controller;
   });
 
   afterEach(async () => {
-    // Destroy kills the spawned subprocess; without it the child leaks and the
-    // test runner can hang on teardown.
-    controller.destroy();
-    // Remove the temp workspace so repeated runs don't accumulate dirs.
-    await rm(workspacePath, { recursive: true, force: true });
+    await handle.cleanup();
   });
 
   // Intent: prove the complete ACP request-response cycle end-to-end against a
@@ -103,6 +75,6 @@ describe("acp-runtime-smoke", () => {
       if (!probeTurn) throw new Error("expected a completed turn after the probe prompt");
       expect(probeTurn.textChunks.join("")).toBe("__PROMPT_COUNT__:2");
     },
-    TEST_TIMEOUT_MS,
+    LEARNING_TEST_TIMEOUT_MS,
   );
 });

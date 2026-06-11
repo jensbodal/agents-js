@@ -25,9 +25,8 @@ import type {
   InboxDeliverArgs,
   InboxMessage,
   InboxReadArgs,
-  MatrixSendArgs,
-  MatrixTool,
 } from "@agents-js/host";
+import { makeRecordingMatrixTool, mintTestJwt as mintSharedJwt } from "@agents-js/host/testing";
 import { SignJWT } from "jose";
 import {
   type AgentsMcpEnvConfig,
@@ -39,6 +38,7 @@ import {
   readAgentsMcpEnv,
   setupAgentsMcpMount,
 } from "../agents-mcp-mount.ts";
+import { createTestAgentsMcpConfig } from "../testing.ts";
 
 const SIGNING_KEY_TEXT = "test-signing-key-32bytes-or-more-abcdef";
 const ISSUER = "test-gateway";
@@ -46,11 +46,10 @@ const AUDIENCE = "agents-js-mcp";
 const ADMIN_TOKEN = "test-admin-secret";
 
 function baseConfig(overrides: Partial<AgentsMcpEnvConfig> = {}): AgentsMcpEnvConfig {
-  return {
+  return createTestAgentsMcpConfig({
     signingKey: new TextEncoder().encode(SIGNING_KEY_TEXT),
     issuer: ISSUER,
     audience: AUDIENCE,
-    sendScript: "/unused-in-tests",
     targets: {
       "ajs-claude": { matrix: { room: "!ajs:matrix.example" }, inbox: { session: "ajs-claude" } },
       "cognee-codex": {
@@ -58,20 +57,8 @@ function baseConfig(overrides: Partial<AgentsMcpEnvConfig> = {}): AgentsMcpEnvCo
         inbox: { session: "cognee-codex" },
       },
     },
-    jwtTtlSeconds: 900,
     ...overrides,
-  };
-}
-
-function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
-  const calls: MatrixSendArgs[] = [];
-  return {
-    calls,
-    async send(args) {
-      calls.push(args);
-      return { event_id: `$evt-${calls.length}` };
-    },
-  };
+  });
 }
 
 function makeRecordingInboxTool(opts?: {
@@ -93,21 +80,17 @@ function makeRecordingInboxTool(opts?: {
   };
 }
 
+/** Mint an HS256 JWT pinned to this suite's signing key + default sub/issuer/audience. */
 async function mintTestJwt(
   overrides: { sub?: string; scopes?: string[]; cid?: string; aud?: string; iss?: string } = {},
 ): Promise<string> {
-  const nowSec = Math.floor(Date.now() / 1000);
-  return await new SignJWT({
-    scopes: overrides.scopes ?? ["matrix.send_message", "matrix.read"],
-    cid: overrides.cid ?? "cid-test-001",
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(overrides.sub ?? "codex-hostname-null")
-    .setIssuer(overrides.iss ?? ISSUER)
-    .setAudience(overrides.aud ?? AUDIENCE)
-    .setIssuedAt(nowSec)
-    .setExpirationTime(nowSec + 900)
-    .sign(new TextEncoder().encode(SIGNING_KEY_TEXT));
+  return mintSharedJwt({
+    sub: "codex-hostname-null",
+    iss: ISSUER,
+    aud: AUDIENCE,
+    key: new TextEncoder().encode(SIGNING_KEY_TEXT),
+    ...overrides,
+  });
 }
 
 describe("apps/internal-gateway/tests/agents-mcp-mount.test.ts", () => {

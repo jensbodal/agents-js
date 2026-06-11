@@ -1,14 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import {
-  ACPSessionController,
-  createNodeFileAdapters,
-  PermissionEngine,
-  PermissionStore,
-} from "@agents-js/acp-host";
+import type { ACPSessionController } from "@agents-js/acp-host";
 import { createWSBridge, type WSBridgeHandle } from "@agents-js/host";
+import {
+  createMockAcpController,
+  LEARNING_TEST_TIMEOUT_MS,
+  type MockAcpControllerHandle,
+  waitFor,
+} from "@agents-js/host/testing";
 import { type HostState, HostWSClient } from "@agents-js/ui-components";
 
 /**
@@ -50,59 +48,25 @@ import { type HostState, HostWSClient } from "@agents-js/ui-components";
  * `HostWSClient` (the GOAL's reuse target) for the raw socket used there.
  */
 
-// Repo-root mock ACP agent fixture (../../../tests from this example dir).
-const MOCK_AGENT = resolve(import.meta.dir, "../../../tests/mock-acp-agent.cjs");
-
-// Real subprocess spawn + ACP handshake + a live WebSocket round-trip is
-// slower than the bun:test 5s default.
-const TEST_TIMEOUT_MS = 20_000;
-
 const INITIAL_RUNTIME = { id: "opencode", displayName: "OpenCode ACP" };
 const SWAPPED_RUNTIME = { id: "claude", displayName: "Claude ACP" };
 
-/** Poll `predicate` until it holds or the timeout elapses. */
-async function waitFor(predicate: () => boolean, timeoutMs = 5_000, stepMs = 10): Promise<void> {
-  const startedAt = Date.now();
-  while (!predicate()) {
-    if (Date.now() - startedAt > timeoutMs) {
-      throw new Error(`Timed out after ${timeoutMs}ms waiting for condition`);
-    }
-    await Bun.sleep(stepMs);
-  }
-}
-
 describe("ws-bridge-smoke", () => {
+  let handle: MockAcpControllerHandle;
   let controller: ACPSessionController;
   let bridge: WSBridgeHandle;
   let client: HostWSClient;
-  let workspacePath: string;
   // Latest HostState pushed by the client's subscription, for assertions.
   let latest: HostState = {};
 
   beforeEach(async () => {
-    workspacePath = await mkdtemp(join(tmpdir(), "ws-bridge-smoke-"));
-    controller = new ACPSessionController();
-    await controller.start({
-      agentConfig: {
-        name: "ws-bridge-smoke",
-        command: "node",
-        args: [MOCK_AGENT],
-        env: {},
-        authHints: [],
-        workspacePolicy: "workspace-root-only",
-        // The mock resolves `node` from the real PATH, so the spawn must not
-        // run under a sandboxed home (mirrors createGatewayTestServer).
-        allowRealHome: true,
-      },
-      workspacePath,
-      fileAdapters: createNodeFileAdapters(workspacePath),
-      permissionEngine: new PermissionEngine(),
-      permissionStore: new PermissionStore(),
-      clientInfo: { name: "ws-bridge-smoke", version: "0.1.0" },
-    });
     // "default" (not "bypassPermissions") so controller gates actually fire
     // and round-trip through the bridge rather than auto-resolving.
-    await controller.setPermissionMode("default");
+    handle = await createMockAcpController({
+      name: "ws-bridge-smoke",
+      permissionMode: "default",
+    });
+    controller = handle.controller;
 
     bridge = createWSBridge({
       controller,
@@ -126,12 +90,11 @@ describe("ws-bridge-smoke", () => {
   });
 
   afterEach(async () => {
+    // Tear down the bridge/client (built on the controller) BEFORE cleanup()
+    // destroys the controller and removes its workspace.
     client.disconnect();
     bridge.stop();
-    // Destroy kills the spawned subprocess; without it the child leaks and the
-    // runner can hang on teardown.
-    controller.destroy();
-    await rm(workspacePath, { recursive: true, force: true });
+    await handle.cleanup();
   });
 
   // Intent: the live-state snapshot + gate round-trip, end-to-end. The browser
@@ -200,7 +163,7 @@ describe("ws-bridge-smoke", () => {
       // pending gate in HostState too.
       await waitFor(() => (latest.pendingElicitation ?? null) === null);
     },
-    TEST_TIMEOUT_MS,
+    LEARNING_TEST_TIMEOUT_MS,
   );
 
   // Intent: a `set_runtime` message flips the lane/card end-to-end. The client
@@ -220,6 +183,6 @@ describe("ws-bridge-smoke", () => {
       expect(latest.runtimeSwitchState?.status).toBe("runtimeApplied");
       expect(latest.runtimeSwitchState?.requestedRuntimeId).toBe(SWAPPED_RUNTIME.id);
     },
-    TEST_TIMEOUT_MS,
+    LEARNING_TEST_TIMEOUT_MS,
   );
 });

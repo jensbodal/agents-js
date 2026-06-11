@@ -8,7 +8,8 @@
     "agents-js-gateway": "./cli.ts"
   },
   "exports": {
-    "./agents-mcp-mount": "./agents-mcp-mount.ts"
+    "./agents-mcp-mount": "./agents-mcp-mount.ts",
+    "./testing": "./testing.ts"
   },
   "scripts": {
     "dev": "bun cli.ts",

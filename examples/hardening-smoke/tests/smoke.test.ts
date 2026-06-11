@@ -24,6 +24,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { extractBearerToken, verifyJwt } from "@agents-js/host";
+import { mintTestJwt } from "@agents-js/host/testing";
 import { SignJWT } from "jose";
 
 const SIGNING_KEY = new TextEncoder().encode("hardening-smoke-hs256-key-32bytes-01");
@@ -32,9 +33,9 @@ const ISSUER = "hardening-smoke-gateway";
 const AUDIENCE = "agents-js-mcp";
 
 /**
- * Mint a JWT the way the gateway-side minter does. Overrides let each
- * test stress one dimension (wrong key, past exp, ...) without
- * rebuilding the whole payload.
+ * Mint a JWT the way the gateway-side minter does, pinned to this smoke's
+ * key/issuer/audience/cid. Delegates to the shared {@link mintTestJwt}
+ * helper; per-test overrides (wrong key, past exp, ...) flow through.
  */
 async function mintScopedJwt(
   overrides: {
@@ -47,18 +48,14 @@ async function mintScopedJwt(
     key?: Uint8Array;
   } = {},
 ): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({
-    scopes: overrides.scopes ?? ["matrix.send_message", "matrix.read"],
-    cid: overrides.cid ?? "cid-hardening-001",
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(overrides.sub ?? "smoke-agent")
-    .setIssuer(overrides.iss ?? ISSUER)
-    .setAudience(overrides.aud ?? AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + (overrides.expSecondsFromNow ?? 900))
-    .sign(overrides.key ?? SIGNING_KEY);
+  return mintTestJwt({
+    sub: "smoke-agent",
+    cid: "cid-hardening-001",
+    iss: ISSUER,
+    aud: AUDIENCE,
+    key: SIGNING_KEY,
+    ...overrides,
+  });
 }
 
 describe("hardening-smoke — HS256 mint → verify → reject loop via @agents-js/host", () => {
