@@ -1,0 +1,19 @@
+{
+  "name": "@agents-js/example-agui-transport-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for the native AG-UI streaming transport. Stands up a real gateway (HostA2AExecutor + mock ACP agent) with the AG-UI endpoint mounted, POSTs /agent over SSE, and proves RUN_STARTED → RUN_FINISHED ordering plus the single-active-run 409 gate.",
+  "scripts": {
+    "smoke": "bun run src/smoke.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/agui-types": "workspace:*",
+    "@agents-js/host": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

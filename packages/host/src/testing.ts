@@ -20,6 +20,8 @@ import {
   PermissionStore,
 } from "@agents-js/acp-host";
 import type { AgentRegistryMap } from "./agent-registry.ts";
+import { createAguiFetchHandler } from "./agui-endpoint.ts";
+import type { AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { HostA2AExecutor } from "./host-executor.ts";
 
 export interface GatewayTestServerOptions {
@@ -52,6 +54,21 @@ export interface GatewayTestServerOptions {
    * code path.
    */
   enablePerLaneControllers?: boolean;
+  /**
+   * When `true`, mount the native AG-UI endpoint (`POST /agent`) on the
+   * same port via the server's `additionalFetch` hook, wired to the
+   * factory-owned controller. Mirrors how `apps/internal-gateway/main.ts`
+   * composes the AG-UI handler into the gateway. Defaults to `false` so
+   * existing callers keep a pure A2A server with no AG-UI surface.
+   */
+  mountAguiEndpoint?: boolean;
+  /**
+   * Optional run coordinator for the mounted AG-UI endpoint. Only used
+   * when `mountAguiEndpoint` is `true`. Pass an explicit instance to
+   * inspect or share the single-active-run gate; otherwise the endpoint
+   * creates its own fresh coordinator.
+   */
+  aguiCoordinator?: AguiRunCoordinator;
 }
 
 export interface GatewayTestServerHandle {
@@ -196,7 +213,23 @@ export async function createGatewayTestServer(
     capabilities: { extensions: [], "text-to-text": {} },
   });
 
-  const a2aServer = new UniversalA2AServer(executor, agentCard);
+  // Optionally mount the native AG-UI endpoint against the factory-owned
+  // controller, so callers can exercise the real SSE run surface
+  // (RUN_STARTED → interior → RUN_FINISHED) and the single-active-run gate
+  // end-to-end against the mock ACP agent.
+  const additionalFetch = options.mountAguiEndpoint
+    ? createAguiFetchHandler({
+        controller,
+        ...(options.aguiCoordinator ? { coordinator: options.aguiCoordinator } : {}),
+      })
+    : undefined;
+
+  const a2aServer = new UniversalA2AServer(
+    executor,
+    agentCard,
+    undefined,
+    additionalFetch ? { additionalFetch } : undefined,
+  );
   let server: Awaited<ReturnType<UniversalA2AServer["start"]>>;
   try {
     server = await a2aServer.start({ port, cors: true });
