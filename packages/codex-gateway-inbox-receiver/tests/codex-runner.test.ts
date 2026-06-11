@@ -3,6 +3,8 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import {
   AppServerCodexRunner,
+  assertNoCodexSandboxBypass,
+  buildEnforcedCodexExecArgs,
   ExecResumeCodexRunner,
   type JsonRpcClient,
   proveAppServerRunner,
@@ -149,8 +151,109 @@ describe("ExecResumeCodexRunner", () => {
     await expect(promise).resolves.toEqual({ reply: "done" });
     expect(captured).toEqual({
       command: "codex",
-      args: ["exec", "resume", "--last", "--skip-git-repo-check", "--json", "-"],
+      args: [
+        "exec",
+        "--sandbox",
+        "read-only",
+        "resume",
+        "--last",
+        "--skip-git-repo-check",
+        "--json",
+        "-",
+      ],
       cwd: "/agent-workspace",
     });
+  });
+});
+
+describe("ExecResumeCodexRunner #92 sandbox gate", () => {
+  test("default argv enforces --sandbox read-only before resume", () => {
+    const args = buildEnforcedCodexExecArgs();
+    expect(args).toEqual(["exec", "--sandbox", "read-only", "resume", "--last", "--json", "-"]);
+    // --sandbox must precede resume (codex rejects it after resume)
+    expect(args.indexOf("--sandbox")).toBeLessThan(args.indexOf("resume"));
+  });
+
+  test("workspace-write is an explicit source-owned mode", () => {
+    const args = buildEnforcedCodexExecArgs({
+      sandboxMode: "workspace-write",
+      skipGitRepoCheck: true,
+    });
+    expect(args).toEqual([
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "resume",
+      "--last",
+      "--skip-git-repo-check",
+      "--json",
+      "-",
+    ]);
+  });
+
+  test("assertNoCodexSandboxBypass rejects the dangerous bypass flag", () => {
+    expect(() =>
+      assertNoCodexSandboxBypass(["exec", "--dangerously-bypass-approvals-and-sandbox", "resume"]),
+    ).toThrow(/refusing --dangerously-bypass-approvals-and-sandbox/);
+  });
+
+  test("assertNoCodexSandboxBypass rejects danger-full-access (spaced and joined)", () => {
+    expect(() => assertNoCodexSandboxBypass(["--sandbox", "danger-full-access"])).toThrow(
+      /danger-full-access/,
+    );
+    expect(() => assertNoCodexSandboxBypass(["--sandbox=danger-full-access"])).toThrow(
+      /danger-full-access/,
+    );
+  });
+
+  test("explicit args without --sandbox are refused (gate cannot be dissolved)", () => {
+    expect(
+      () => new ExecResumeCodexRunner({ args: ["exec", "resume", "--last", "--json", "-"] }),
+    ).toThrow(/must pin --sandbox/);
+  });
+
+  test("explicit args carrying the bypass are refused", () => {
+    expect(
+      () =>
+        new ExecResumeCodexRunner({
+          args: [
+            "exec",
+            "--sandbox",
+            "read-only",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "resume",
+          ],
+        }),
+    ).toThrow(/refusing --dangerously-bypass-approvals-and-sandbox/);
+  });
+
+  test("explicit args with a non-dangerous sandbox are accepted", () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    let captured: string[] | undefined;
+    const spawnImpl = ((_c: string, args: string[]) => {
+      captured = args;
+      return child;
+    }) as never;
+    void new ExecResumeCodexRunner({
+      args: ["exec", "--sandbox", "workspace-write", "resume", "--last", "--json", "-"],
+      spawnImpl,
+    }).run("hi");
+    child.emit("close", 0);
+    expect(captured).toEqual([
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "resume",
+      "--last",
+      "--json",
+      "-",
+    ]);
   });
 });

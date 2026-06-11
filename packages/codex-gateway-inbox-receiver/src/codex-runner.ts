@@ -11,12 +11,90 @@ export interface CodexRunner {
 
 export type SpawnImpl = typeof spawn;
 
+/**
+ * Source-owned sandbox modes the receiver may run untrusted gateway-inbox turns
+ * under. `danger-full-access` is deliberately NOT assignable here — see #92.
+ */
+export type EnforcedCodexSandboxMode = "read-only" | "workspace-write";
+
 export interface ExecResumeCodexRunnerOptions {
   readonly command?: string;
   readonly args?: string[];
   readonly cwd?: string;
   readonly skipGitRepoCheck?: boolean;
   readonly spawnImpl?: SpawnImpl;
+  /**
+   * #92 gate: sandbox the resumed `codex exec` runs under. Defaults to
+   * `read-only` (least privilege for untrusted peer content). Set to
+   * `workspace-write` ONLY as an explicit source-owned decision — never from an
+   * env override. `danger-full-access` is not representable.
+   */
+  readonly sandboxMode?: EnforcedCodexSandboxMode;
+}
+
+/**
+ * #92 — the codex inbox receiver runs UNTRUSTED peer content through
+ * `codex exec`. Without an enforced sandbox it inherits the host's
+ * `~/.codex/config.toml` default (commonly `workspace-write`), letting untrusted
+ * input run write-capable codex. This enforces a sandbox the way the claude
+ * receiver enforces `--disallowedTools`: always present, env-invariant, and
+ * refusing the dangerous bypass. `--sandbox` MUST precede `resume` (codex
+ * accepts it at the exec level and rejects it after `resume`).
+ */
+const DANGEROUS_SANDBOX_MODE = "danger-full-access";
+const DANGEROUS_BYPASS_FLAG = "--dangerously-bypass-approvals-and-sandbox";
+
+/** Throw if argv carries a dangerous sandbox bypass or full-access mode. */
+export function assertNoCodexSandboxBypass(args: readonly string[]): void {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === DANGEROUS_BYPASS_FLAG) {
+      throw new Error(
+        `codex-receiver: refusing ${DANGEROUS_BYPASS_FLAG} for untrusted gateway-inbox execution (#92)`,
+      );
+    }
+    if ((a === "--sandbox" || a === "-s") && args[i + 1] === DANGEROUS_SANDBOX_MODE) {
+      throw new Error(
+        `codex-receiver: refusing --sandbox ${DANGEROUS_SANDBOX_MODE} for untrusted gateway-inbox execution (#92)`,
+      );
+    }
+    if (a === `--sandbox=${DANGEROUS_SANDBOX_MODE}` || a === `-s=${DANGEROUS_SANDBOX_MODE}`) {
+      throw new Error(`codex-receiver: refusing ${a} for untrusted gateway-inbox execution (#92)`);
+    }
+  }
+}
+
+/** True if argv already pins a sandbox in any accepted form. */
+function hasSandboxFlag(args: readonly string[]): boolean {
+  return args.some(
+    (a) => a === "--sandbox" || a === "-s" || a.startsWith("--sandbox=") || a.startsWith("-s="),
+  );
+}
+
+/**
+ * Build the enforced `codex exec` argv with `--sandbox <mode>` placed before
+ * `resume`. Frozen so callers cannot mutate the gate out.
+ */
+export function buildEnforcedCodexExecArgs(
+  options: { sandboxMode?: EnforcedCodexSandboxMode; skipGitRepoCheck?: boolean } = {},
+): readonly string[] {
+  const mode = options.sandboxMode ?? "read-only";
+  // Defense in depth against a cast past the union.
+  if ((mode as string) === DANGEROUS_SANDBOX_MODE) {
+    throw new Error(
+      `codex-receiver: ${DANGEROUS_SANDBOX_MODE} is not an allowed sandbox mode (#92)`,
+    );
+  }
+  return Object.freeze([
+    "exec",
+    "--sandbox",
+    mode,
+    "resume",
+    "--last",
+    ...(options.skipGitRepoCheck ? ["--skip-git-repo-check"] : []),
+    "--json",
+    "-",
+  ]);
 }
 
 /**
@@ -28,20 +106,28 @@ export interface ExecResumeCodexRunnerOptions {
  */
 export class ExecResumeCodexRunner implements CodexRunner {
   private readonly command: string;
-  private readonly args: string[];
+  private readonly args: readonly string[];
   private readonly cwd?: string;
   private readonly spawnImpl: SpawnImpl;
 
   constructor(options: ExecResumeCodexRunnerOptions = {}) {
     this.command = options.command ?? "codex";
-    this.args = options.args ?? [
-      "exec",
-      "resume",
-      "--last",
-      ...(options.skipGitRepoCheck ? ["--skip-git-repo-check"] : []),
-      "--json",
-      "-",
-    ];
+    if (options.args) {
+      // Explicit argv (test / advanced seam) cannot dissolve the #92 gate: it
+      // must pin a sandbox and must not carry a dangerous bypass.
+      assertNoCodexSandboxBypass(options.args);
+      if (!hasSandboxFlag(options.args)) {
+        throw new Error(
+          "codex-receiver: explicit args must pin --sandbox; the #92 gate cannot be dissolved",
+        );
+      }
+      this.args = Object.freeze([...options.args]);
+    } else {
+      this.args = buildEnforcedCodexExecArgs({
+        sandboxMode: options.sandboxMode,
+        skipGitRepoCheck: options.skipGitRepoCheck,
+      });
+    }
     this.cwd = options.cwd;
     this.spawnImpl = options.spawnImpl ?? spawn;
   }
