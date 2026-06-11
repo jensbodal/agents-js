@@ -106,6 +106,39 @@ agents-js client --url http://127.0.0.1:3197
 The client is an A2A TUI; it works against any agents-js gateway or native
 endpoint.
 
+## Unattended restart (trust persistence)
+
+A self-exposing harness that prompts for a one-time trust grant on first launch
+will **hang on that interactive prompt when restarted unattended** (idle-wake,
+crash recovery, scheduled relaunch) — there is no human present to approve it.
+Two complementary mechanisms keep unattended restart from wedging; keep **both**
+(defense-in-depth — do not drop the safety net once trust-persist is the default):
+
+1. **Structural fix — auto-approve + persisted trust.** For `pi`, put `--approve`
+   in the agent's `fresh_flags`. `--approve` runs pi in non-interactive trust
+   mode: it auto-grants trust on first run **and writes** the grant to
+   `~/.pi/agent/trust.json` — a JSON map of trusted workspace roots → `true`
+   (e.g. `{"/path/to/workspace": true}`) that pi reads at startup to skip the
+   prompt thereafter. Because `--approve` writes the trust file itself, **the
+   file need not pre-exist**. The trusted root must equal the directory pi
+   launches in (the agent's workspace root).
+
+   ```json
+   "fresh_flags": "--approve"
+   ```
+
+   Belt-and-suspenders (what the proven canary runs): **both** `--approve` in
+   `fresh_flags` **and** a pre-seeded `~/.pi/agent/trust.json` keyed to the
+   workspace root, so an unattended restart never blocks even on the very first
+   run. Verified live on a pi canary (2026-06-10).
+
+2. **Safety net — probe-abort + retry-until-budget.** For harnesses that do
+   **not** persist trust (or where a prompt can still surface), the launcher's
+   readiness probe aborts a hung start and retries until a budget is exhausted
+   (the `#181` probe-abort path), so one bad start does not wedge the agent. This
+   remains the backstop even after trust-persist is the default: it covers the
+   non-persisting case and any regression in the structural fix.
+
 ## Mesh-join boundary
 
 agents-js **emits** the machine-readable mesh-join artifacts; it does not mutate
