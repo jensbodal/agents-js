@@ -28,15 +28,15 @@ Demonstrates:
   asserting `200` + B's card name — proving A learned a live gateway it can
   reach, not just that a row copied between two files.
 
-## Boundary
+## Wire path
 
-`createGatewayTestServer` only exposes an `additionalFetch` hook for the AG-UI
-endpoint, not for the registry-sync handler. Rather than edit shared host test
-infra, each gateway's `createSyncEndpointHandler` is served on a small sidecar
-`Bun.serve`. The sync protocol is agnostic about which port the well-known
-endpoint lives on, so this is the same wire path the production gateway mounts
-via `composeAdditionalFetch` in `apps/internal-gateway/main.ts` — only the port
-differs. The gateways themselves are real and load-bearing.
+Each gateway mounts its `createSyncEndpointHandler` on its **own** A2A port via
+`createGatewayTestServer`'s `additionalFetchFactory` seam, backed by its own
+registry file. The handler returns `null` for non-sync requests, so they fall
+through to the A2A server's own routing (`/.well-known/agent-card.json` still
+answers). This is exactly how `apps/internal-gateway/main.ts` mounts the sync
+endpoint via `composeAdditionalFetch` — the well-known sync endpoint and the
+A2A server share one port. The gateways themselves are real and load-bearing.
 
 ## Test
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { EventType } from "@agents-js/agui-types";
+import { createAguiFetchHandler } from "@agents-js/host";
 import {
   createGatewayTestServer,
   type GatewayTestServerHandle,
@@ -63,8 +64,8 @@ describe("agui-transport-smoke", () => {
       acpArgs: [mockAgentPath],
       ...(acpEnv ? { acpEnv } : {}),
       // Mount the native AG-UI endpoint against the factory-owned
-      // controller so POST /agent streams a real run.
-      mountAguiEndpoint: true,
+      // controller so POST /agent streams a real run on the gateway's port.
+      additionalFetchFactory: ({ controller }) => createAguiFetchHandler({ controller }),
     });
   }
 

@@ -22,8 +22,6 @@ import {
 import { SignJWT } from "jose";
 import type { AgentRegistryMap } from "./agent-registry.ts";
 import type { MatrixSendArgs, MatrixTool } from "./agents-tool-surface.ts";
-import { createAguiFetchHandler } from "./agui-endpoint.ts";
-import type { AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { HostA2AExecutor } from "./host-executor.ts";
 
 /**
@@ -206,27 +204,46 @@ export interface GatewayTestServerOptions {
    */
   enablePerLaneControllers?: boolean;
   /**
-   * When `true`, mount the native AG-UI endpoint (`POST /agent`) on the
-   * same port via the server's `additionalFetch` hook, wired to the
-   * factory-owned controller. Mirrors how `apps/internal-gateway/main.ts`
-   * composes the AG-UI handler into the gateway. Defaults to `false` so
-   * existing callers keep a pure A2A server with no AG-UI surface.
+   * Generic extension seam for mounting additional HTTP surfaces on the
+   * gateway's own port via the A2A server's `additionalFetch` hook. Called
+   * once with the factory-owned controller; the returned handler (or
+   * handlers) are chained into `additionalFetch` in order, and the first
+   * one to return a non-`null` `Response` wins (later handlers are not
+   * consulted). A handler returning `null` means "not my request" — the
+   * chain falls through to the next handler, then to the A2A server's own
+   * routing (JSON-RPC, 404).
+   *
+   * This is the principled replacement for one-off flags: callers mount
+   * the AG-UI endpoint (`createAguiFetchHandler`), the registry-sync
+   * endpoint (`createSyncEndpointHandler`), or any other host surface on
+   * the same wire path `apps/internal-gateway/main.ts` uses via
+   * `composeAdditionalFetch` — only the composition site differs.
    */
-  mountAguiEndpoint?: boolean;
-  /**
-   * Optional run coordinator for the mounted AG-UI endpoint. Only used
-   * when `mountAguiEndpoint` is `true`. Pass an explicit instance to
-   * inspect or share the single-active-run gate; otherwise the endpoint
-   * creates its own fresh coordinator.
-   */
-  aguiCoordinator?: AguiRunCoordinator;
+  additionalFetchFactory?: (ctx: {
+    controller: ACPSessionController;
+  }) => GatewayAdditionalFetchHandler | GatewayAdditionalFetchHandler[];
 }
+
+/**
+ * A single `additionalFetch` handler: returns a `Response` when it owns the
+ * request, or `null` to fall through to the next handler / the A2A server's
+ * own routing. Matches `UniversalA2AServerOptions.additionalFetch`.
+ */
+export type GatewayAdditionalFetchHandler = (req: Request) => Promise<Response | null>;
 
 export interface GatewayTestServerHandle {
   /** Base URL for the A2A server (e.g. "http://127.0.0.1:51234") */
   url: string;
   /** The actual port the server is listening on */
   port: number;
+  /**
+   * The factory-owned primary `ACPSessionController`. Exposed so callers
+   * that need lower-level controller access (e.g. attaching a WebSocket
+   * bridge) can reuse the started controller instead of rebuilding one.
+   * Owned by the factory — `stop()` destroys it; callers must not destroy
+   * it themselves.
+   */
+  controller: ACPSessionController;
   /** Shut down the server, kill the ACP process, destroy the controller */
   stop(): Promise<void>;
 }
@@ -364,16 +381,25 @@ export async function createGatewayTestServer(
     capabilities: { extensions: [], "text-to-text": {} },
   });
 
-  // Optionally mount the native AG-UI endpoint against the factory-owned
-  // controller, so callers can exercise the real SSE run surface
-  // (RUN_STARTED → interior → RUN_FINISHED) and the single-active-run gate
-  // end-to-end against the mock ACP agent.
-  const additionalFetch = options.mountAguiEndpoint
-    ? createAguiFetchHandler({
-        controller,
-        ...(options.aguiCoordinator ? { coordinator: options.aguiCoordinator } : {}),
-      })
-    : undefined;
+  // Optionally mount additional HTTP surfaces (AG-UI endpoint, registry-sync
+  // endpoint, ...) on the gateway's own port. The factory hands the caller
+  // the factory-owned controller and chains the returned handlers into the
+  // A2A server's `additionalFetch` — first non-null Response wins; a `null`
+  // falls through to the next handler, then to the server's own routing.
+  let additionalFetch: GatewayAdditionalFetchHandler | undefined;
+  if (options.additionalFetchFactory) {
+    const produced = options.additionalFetchFactory({ controller });
+    const handlers = Array.isArray(produced) ? produced : [produced];
+    if (handlers.length > 0) {
+      additionalFetch = async (req: Request): Promise<Response | null> => {
+        for (const handler of handlers) {
+          const response = await handler(req);
+          if (response !== null) return response;
+        }
+        return null;
+      };
+    }
+  }
 
   const a2aServer = new UniversalA2AServer(
     executor,
@@ -407,6 +433,7 @@ export async function createGatewayTestServer(
   return {
     url,
     port: boundPort,
+    controller,
     stop,
   };
 }
