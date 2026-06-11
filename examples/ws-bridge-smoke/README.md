@@ -45,12 +45,14 @@ wire-shape-skewed. The turn completing is itself the proof the resolution
 round-tripped — the mock only sends its prompt reply from inside its
 elicitation-response handler.
 
-## Why not `createGatewayTestServer`
+## Controller source
 
-This example builds the controller + bridge directly rather than via
-`createGatewayTestServer`. That factory does not expose its controller (the
-bridge needs it directly) and defaults to `bypassPermissions` — which would
-auto-resolve the very gate we want to round-trip. The direct construction
+The controller comes from `createGatewayTestServer`, which exposes its
+factory-owned `controller` on the returned handle. The bridge attaches to that
+controller directly; the factory's A2A server stays idle (no A2A requests are
+made here). The factory is invoked with `permissionMode: "default"` (not the
+`bypassPermissions` test default) so the elicitation gate actually fires and
+round-trips through the bridge rather than auto-resolving. The bridge wiring
 mirrors `packages/host/tests/ws-bridge.test.ts`'s `createLiveBridgeHarness`
 (the established WS-bridge test pattern) while swapping in the real browser
 `HostWSClient` for the raw socket used there.

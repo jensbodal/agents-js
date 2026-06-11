@@ -28,16 +28,14 @@
  * B's card name. That converts "a record propagated" into "A discovered a
  * live gateway it can reach."
  *
- * BOUNDARY (documented, not faked): `createGatewayTestServer` only exposes an
- * `additionalFetch` hook for the AG-UI endpoint, not for the registry-sync
- * handler. Rather than edit shared host test infra (which every sibling LT
- * example depends on), each gateway's `createSyncEndpointHandler` is served on
- * a small sidecar `Bun.serve` on its own OS-assigned port. The sync protocol
- * is transport-agnostic about which port the well-known endpoint lives on, so
- * this is the same wire path the production gateway mounts via `composeAdditionalFetch`
- * in apps/internal-gateway/main.ts — only the port differs. The gateways
- * themselves are real and load-bearing: B's advertised `url` is B's running
- * A2A server, and the card fetch proves it.
+ * Wire path: each gateway mounts its `createSyncEndpointHandler` on its OWN
+ * A2A port via `createGatewayTestServer`'s `additionalFetchFactory` seam —
+ * the registry-sync handler returns `null` for non-sync requests and falls
+ * through to the A2A server's own routing (so `/.well-known/agent-card.json`
+ * still answers). This is exactly how `apps/internal-gateway/main.ts` mounts
+ * it via `composeAdditionalFetch`: the well-known sync endpoint and the A2A
+ * server share one port. B's advertised `url` is B's running gateway, the
+ * sync endpoint lives on that same url, and the card fetch proves it.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -66,23 +64,6 @@ const GATEWAY_A_ID = "registry-sync-smoke-gateway-a";
 const GATEWAY_B_ID = "registry-sync-smoke-gateway-b";
 const GATEWAY_B_AGENT_NAME = "gateway-b-agent";
 
-/** Sidecar HTTP server serving a gateway's registry-sync well-known endpoint. */
-function serveSyncEndpoint(configPath: string): { url: string; stop: () => void } {
-  const handler = createSyncEndpointHandler({ configPath });
-  const server = Bun.serve({
-    port: 0,
-    async fetch(req) {
-      // Fall through to 404 for anything that isn't the well-known sync path,
-      // mirroring how the gateway's additionalFetch chain returns null then
-      // lets the host server 404. Keeps the sidecar honest: only the sync
-      // endpoint is reachable here.
-      const res = await handler(req);
-      return res ?? new Response("Not Found", { status: 404 });
-    },
-  });
-  return { url: `http://127.0.0.1:${server.port}`, stop: () => server.stop(true) };
-}
-
 /**
  * Poll `regA` until B's record is present (or the deadline passes). Bounded by
  * a real wall-clock deadline rather than a fixed sleep so the test is neither
@@ -106,8 +87,6 @@ async function waitForPeerRecord(
 describe("registry-sync-smoke", () => {
   let gatewayA: GatewayTestServerHandle;
   let gatewayB: GatewayTestServerHandle;
-  let syncSidecarA: { url: string; stop: () => void };
-  let syncSidecarB: { url: string; stop: () => void };
   let registrySync: { stop: () => void } | undefined;
   let tmpRoot: string;
   let registryA: string;
@@ -119,24 +98,29 @@ describe("registry-sync-smoke", () => {
     registryB = join(tmpRoot, "registry-b.json");
 
     // Two real gateways, each spawning the mock ACP agent as a child process.
+    // Each mounts its own registry-sync well-known endpoint on its OWN A2A
+    // port via the `additionalFetchFactory` seam, backed by its own registry
+    // file — the same one-port wire path production uses.
     [gatewayA, gatewayB] = await Promise.all([
-      createGatewayTestServer({ acpCommand: "node", acpArgs: [MOCK_AGENT] }),
-      createGatewayTestServer({ acpCommand: "node", acpArgs: [MOCK_AGENT] }),
+      createGatewayTestServer({
+        acpCommand: "node",
+        acpArgs: [MOCK_AGENT],
+        additionalFetchFactory: () => createSyncEndpointHandler({ configPath: registryA }),
+      }),
+      createGatewayTestServer({
+        acpCommand: "node",
+        acpArgs: [MOCK_AGENT],
+        additionalFetchFactory: () => createSyncEndpointHandler({ configPath: registryB }),
+      }),
     ]);
-
-    // Each gateway serves its sync endpoint from its own registry file on a
-    // sidecar port (see BOUNDARY note in the file header).
-    syncSidecarA = serveSyncEndpoint(registryA);
-    syncSidecarB = serveSyncEndpoint(registryB);
   });
 
   afterEach(async () => {
     // Order matters: stop the periodic pull first so no sync fires mid-teardown
-    // against an already-closed sidecar. Then sidecars, then the gateways
-    // (which kill their ACP children), then remove tmp files.
+    // against an already-closed gateway. Then the gateways (which kill their
+    // ACP children and the sync endpoints mounted on them), then remove tmp
+    // files.
     registrySync?.stop();
-    syncSidecarA?.stop();
-    syncSidecarB?.stop();
     await Promise.all([gatewayA?.stop(), gatewayB?.stop()]);
     await rm(tmpRoot, { recursive: true, force: true });
   });
@@ -161,24 +145,27 @@ describe("registry-sync-smoke", () => {
       expect(bRecord.url).toBe(gatewayB.url);
 
       // Sanity: B's sync endpoint serves exactly B's own record. This is the
-      // payload A will pull. (Proves the served side independently of the pull.)
+      // payload A will pull. (Proves the served side independently of the
+      // pull.) The endpoint lives on B's own A2A port via additionalFetch.
       const served = (await (
-        await fetch(`${syncSidecarB.url}/.well-known/agents-js-registry.json`)
+        await fetch(`${gatewayB.url}/.well-known/agents-js-registry.json`)
       ).json()) as { version: number; records: { name: string }[] };
       expect(served.version).toBe(2);
       expect(served.records.map((r) => r.name)).toEqual([GATEWAY_B_AGENT_NAME]);
 
       // --- A learns about B as a peer. startRegistrySync's periodic pull only
       // contacts peers already present as a2a records in A's registry, so seed
-      // B's SYNC-ENDPOINT url here. (`syncFromPeer` appends the well-known path
-      // to this base.) This is the "enable sync between them" wiring: A knows
-      // where B's registry lives; it does not yet know B's agent record. ------
+      // B's sync-endpoint url here — which is now just B's gateway url, since
+      // the sync endpoint shares B's A2A port. (`syncFromPeer` appends the
+      // well-known path to this base.) This is the "enable sync between them"
+      // wiring: A knows where B's registry lives; it does not yet know B's
+      // agent record. ------------------------------------------------------
       await autoRegister({
         configPath: registryA,
         gatewayId: GATEWAY_B_ID,
         name: "gateway-b-peer",
         kind: "a2a",
-        url: syncSidecarB.url,
+        url: gatewayB.url,
       });
 
       // --- Enable registry-sync on A through the PRODUCTION wrapper. Short
@@ -201,7 +188,8 @@ describe("registry-sync-smoke", () => {
       if (!learned) throw new Error("gateway A never learned gateway B's record within the bound");
 
       // Provenance + payload: A adopted B's record over the wire (source=sync),
-      // attributed to B's gateway, carrying B's real url — not the seed peer.
+      // attributed to B's gateway, under B's agent name (distinct from the
+      // `gateway-b-peer` seed row), carrying B's real url.
       expect(learned.kind).toBe("a2a");
       expect(learned.source).toBe("sync");
       expect(learned.gateway_id).toBe(GATEWAY_B_ID);

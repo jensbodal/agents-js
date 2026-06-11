@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ACPSessionController } from "@agents-js/acp-host";
 import { createWSBridge, type WSBridgeHandle } from "@agents-js/host";
 import {
-  createMockAcpController,
+  createGatewayTestServer,
+  type GatewayTestServerHandle,
+  getMockAgentPath,
   LEARNING_TEST_TIMEOUT_MS,
-  type MockAcpControllerHandle,
   waitFor,
 } from "@agents-js/host/testing";
 import { type HostState, HostWSClient } from "@agents-js/ui-components";
@@ -39,20 +40,22 @@ import { type HostState, HostWSClient } from "@agents-js/ui-components";
  * emits a gate event, the bridge forwards it, the client resolves it, and
  * the resolution reaches the controller.
  *
- * NOTE: this example builds the controller + bridge directly rather than via
- * `createGatewayTestServer`. That factory does not expose its controller
- * (the bridge needs it) and defaults to `bypassPermissions` (which would
- * auto-resolve the very gate we want to round-trip). The direct construction
- * mirrors `packages/host/tests/ws-bridge.test.ts`'s `createLiveBridgeHarness`,
- * the established WS-bridge test pattern, while swapping in the real browser
- * `HostWSClient` (the GOAL's reuse target) for the raw socket used there.
+ * The controller comes from `createGatewayTestServer`, which now exposes its
+ * factory-owned `controller` on the handle. The bridge attaches to that
+ * controller directly; the factory's A2A server stays idle (no A2A requests
+ * are made here). The factory is invoked with `permissionMode: "default"`
+ * (not the `bypassPermissions` test default) so the elicitation gate actually
+ * fires and round-trips through the bridge rather than auto-resolving. The
+ * bridge wiring mirrors `packages/host/tests/ws-bridge.test.ts`'s
+ * `createLiveBridgeHarness`, swapping in the real browser `HostWSClient` (the
+ * GOAL's reuse target) for the raw socket used there.
  */
 
 const INITIAL_RUNTIME = { id: "opencode", displayName: "OpenCode ACP" };
 const SWAPPED_RUNTIME = { id: "claude", displayName: "Claude ACP" };
 
 describe("ws-bridge-smoke", () => {
-  let handle: MockAcpControllerHandle;
+  let gateway: GatewayTestServerHandle;
   let controller: ACPSessionController;
   let bridge: WSBridgeHandle;
   let client: HostWSClient;
@@ -61,12 +64,14 @@ describe("ws-bridge-smoke", () => {
 
   beforeEach(async () => {
     // "default" (not "bypassPermissions") so controller gates actually fire
-    // and round-trip through the bridge rather than auto-resolving.
-    handle = await createMockAcpController({
-      name: "ws-bridge-smoke",
+    // and round-trip through the bridge rather than auto-resolving. The
+    // bridge attaches to the factory-owned controller exposed on the handle.
+    gateway = await createGatewayTestServer({
+      acpCommand: "node",
+      acpArgs: [getMockAgentPath()],
       permissionMode: "default",
     });
-    controller = handle.controller;
+    controller = gateway.controller;
 
     bridge = createWSBridge({
       controller,
@@ -90,11 +95,12 @@ describe("ws-bridge-smoke", () => {
   });
 
   afterEach(async () => {
-    // Tear down the bridge/client (built on the controller) BEFORE cleanup()
-    // destroys the controller and removes its workspace.
+    // Tear down the bridge/client (built on the controller) BEFORE the gateway
+    // stops — gateway.stop() destroys the factory-owned controller and removes
+    // its workspace.
     client.disconnect();
     bridge.stop();
-    await handle.cleanup();
+    await gateway.stop();
   });
 
   // Intent: the live-state snapshot + gate round-trip, end-to-end. The browser

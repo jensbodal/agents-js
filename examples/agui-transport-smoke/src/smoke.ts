@@ -16,6 +16,7 @@
 
 import path from "node:path";
 import { EventType } from "@agents-js/agui-types";
+import { createAguiFetchHandler } from "@agents-js/host";
 import { createGatewayTestServer } from "@agents-js/host/testing";
 import { buildRunAgentInput } from "./run-input.ts";
 import { readAguiSseFrames } from "./sse-frames.ts";
@@ -38,7 +39,9 @@ async function main(): Promise<void> {
     acpCommand: "node",
     acpArgs: [mockAgentPath],
     acpEnv: { MOCK_ACP_PROMPT_DELAY_MS: "400" },
-    mountAguiEndpoint: true,
+    // Mount the native AG-UI endpoint against the factory-owned controller so
+    // POST /agent streams a real run on the gateway's own port.
+    additionalFetchFactory: ({ controller }) => createAguiFetchHandler({ controller }),
   });
   console.log(`[smoke] gateway up at ${gateway.url}`);
 
