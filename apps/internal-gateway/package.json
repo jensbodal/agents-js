@@ -7,6 +7,9 @@
   "bin": {
     "agents-js-gateway": "./cli.ts"
   },
+  "exports": {
+    "./agents-mcp-mount": "./agents-mcp-mount.ts"
+  },
   "scripts": {
     "dev": "bun cli.ts",
     "check:runtime": "bun cli.ts --check --runtime claude",

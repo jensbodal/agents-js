@@ -30,6 +30,7 @@
     "examples/acp-runtime-smoke",
     "examples/host-memory-pilot",
     "examples/hardening-smoke",
+    "examples/mint-redeem-smoke",
     "tests/trial-agent"
   ],
   "catalog": {
@@ -109,11 +110,11 @@
     "build": "vp run -w repo:build && cd packages/cli && bun link",
     "test": "bun scripts/build.ts && bun test --max-concurrency=1 --retry=1 ./tests ./packages ./apps ./docs && bun run test:examples",
     "test:random": "bun scripts/build.ts && bun test --randomize --max-concurrency=1 --retry=1 ./tests ./packages ./apps ./docs && bun run test:examples",
-    "test:examples": "bun run --cwd examples/memory-provider-pilot test && bun run --cwd examples/host-memory-pilot test && bun run --cwd examples/renderer-adapter-prototype test && bun run --cwd examples/acp-runtime-smoke test && bun run --cwd examples/hardening-smoke test",
+    "test:examples": "bun run --cwd examples/memory-provider-pilot test && bun run --cwd examples/host-memory-pilot test && bun run --cwd examples/renderer-adapter-prototype test && bun run --cwd examples/acp-runtime-smoke test && bun run --cwd examples/hardening-smoke test && bun run --cwd examples/mint-redeem-smoke test",
     "check": "bun run release:preflight && bun scripts/validate-build-graph.ts && vp run -w repo:build && bun run --cwd packages/validation generate:acp:check && bun run docs:generated:check && bun run docs:markdown:check && bun run bundle:size:check && bun run typecheck && bunx biome check . --error-on-warnings && bun run check:operator-strings && bun run docs:api && bun run docs:smoke && bun run docs:consistency && bun run test:examples",
     "check:operator-strings": "bun scripts/check-operator-strings.ts",
     "typecheck": "bunx tsgo --noEmit && bun run --cwd packages/ui-components typecheck && bun run --cwd packages/a2ui-renderer typecheck && bun run --cwd packages/a2ui-host typecheck && bun run typecheck:examples",
-    "typecheck:examples": "bun run --cwd examples/memory-provider-pilot typecheck && bun run --cwd examples/host-memory-pilot typecheck && bun run --cwd examples/renderer-adapter-prototype typecheck && bun run --cwd examples/acp-runtime-smoke typecheck && bun run --cwd examples/hardening-smoke typecheck",
+    "typecheck:examples": "bun run --cwd examples/memory-provider-pilot typecheck && bun run --cwd examples/host-memory-pilot typecheck && bun run --cwd examples/renderer-adapter-prototype typecheck && bun run --cwd examples/acp-runtime-smoke typecheck && bun run --cwd examples/hardening-smoke typecheck && bun run --cwd examples/mint-redeem-smoke typecheck",
     "lint": "bunx biome lint .",
     "lint:fix": "bunx biome check --write .",
     "format": "bunx biome format --write .",
