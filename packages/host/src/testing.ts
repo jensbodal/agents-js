@@ -10,7 +10,7 @@
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { buildAgentCard, UniversalA2AServer } from "@agents-js/a2a";
 import {
   ACPSessionController,
@@ -19,10 +19,161 @@ import {
   type PermissionMode,
   PermissionStore,
 } from "@agents-js/acp-host";
+import { SignJWT } from "jose";
 import type { AgentRegistryMap } from "./agent-registry.ts";
+import type { MatrixSendArgs, MatrixTool } from "./agents-tool-surface.ts";
 import { createAguiFetchHandler } from "./agui-endpoint.ts";
 import type { AguiRunCoordinator } from "./agui-run-coordinator.ts";
 import { HostA2AExecutor } from "./host-executor.ts";
+
+/**
+ * Shared timeout (ms) for the learning-test suites that spawn a real
+ * `tests/mock-acp-agent.cjs` subprocess and complete an ACP handshake —
+ * slower than the bun:test 5s default. Centralized here so every
+ * subprocess-backed example pins the same value.
+ */
+export const LEARNING_TEST_TIMEOUT_MS = 20_000;
+
+/**
+ * Absolute path to the repo-root `tests/mock-acp-agent.cjs` fixture — the
+ * JSON-RPC/NDJSON mock ACP agent spawned as a real `node` subprocess by the
+ * runtime smokes. Resolved relative to this module so callers in
+ * `examples/<x>-smoke/tests/` don't each hard-code a `../../../tests` hop.
+ */
+export function getMockAgentPath(): string {
+  return resolve(import.meta.dir, "../../../tests/mock-acp-agent.cjs");
+}
+
+/**
+ * Mint an HS256 JWT the way the gateway-side minter does (jose `SignJWT`).
+ * Callers pass their OWN signing key via `overrides.key`; the remaining
+ * fields default to sensible smoke values so each test only overrides the
+ * dimension it stresses (wrong key, past `exp`, specific scopes, ...).
+ *
+ * Unifies the previously-duplicated `mintScopedJwt` / `mintJwt` /
+ * `mintTestJwt` helpers across the hardening, agents-mcp, and
+ * internal-gateway suites.
+ */
+export async function mintTestJwt(
+  overrides: {
+    sub?: string;
+    scopes?: readonly string[];
+    cid?: string;
+    iss?: string;
+    aud?: string;
+    expSecondsFromNow?: number;
+    key?: Uint8Array;
+  } = {},
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  return await new SignJWT({
+    scopes: overrides.scopes ?? ["matrix.send_message", "matrix.read"],
+    cid: overrides.cid ?? "cid-test-001",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(overrides.sub ?? "smoke-agent")
+    .setIssuer(overrides.iss ?? "test-gateway")
+    .setAudience(overrides.aud ?? "agents-js-mcp")
+    .setIssuedAt(now)
+    .setExpirationTime(now + (overrides.expSecondsFromNow ?? 900))
+    .sign(overrides.key ?? new TextEncoder().encode("test-signing-key-32bytes-or-more"));
+}
+
+/**
+ * Recording {@link MatrixTool} double — captures every `send` call in
+ * `calls` and returns a synthetic `event_id`. The agents-MCP dispatcher
+ * requires a Matrix sender even on inbox-only paths; tests assert on
+ * `calls` to prove (or disprove) that a target reached Matrix.
+ */
+export function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
+  const calls: MatrixSendArgs[] = [];
+  return {
+    calls,
+    async send(args) {
+      calls.push(args);
+      return { event_id: `$evt-${calls.length}` };
+    },
+  };
+}
+
+/** Return shape for {@link createMockAcpController}. */
+export interface MockAcpControllerHandle {
+  /** A started controller backed by a real mock-ACP subprocess. */
+  controller: ACPSessionController;
+  /** The temp workspace created for the controller. */
+  workspacePath: string;
+  /** Destroy the controller (kills the subprocess) and remove the workspace. */
+  cleanup(): Promise<void>;
+}
+
+/**
+ * Build a started {@link ACPSessionController} wired to the repo-root mock
+ * ACP agent, packaging the temp-workspace + Node file adapters + empty
+ * permission engine/store + `start()` + permission-mode steps the runtime
+ * smokes all repeat in `beforeEach`. The only axis the smokes differ on is
+ * `permissionMode` ("default" lets gates fire and round-trip; "bypassPermissions"
+ * auto-resolves them).
+ *
+ * `cleanup()` destroys the controller (killing the subprocess so the runner
+ * does not hang on teardown) and removes the temp workspace. Callers holding
+ * additional resources (a bridge/client) must tear those down BEFORE calling
+ * `cleanup()`.
+ */
+export async function createMockAcpController(
+  opts: { name?: string; permissionMode?: PermissionMode; mockAgentPath?: string } = {},
+): Promise<MockAcpControllerHandle> {
+  const name = opts.name ?? "mock-acp-controller";
+  const mockAgentPath = opts.mockAgentPath ?? getMockAgentPath();
+  const workspacePath = await mkdtemp(join(tmpdir(), `${name}-`));
+  const controller = new ACPSessionController();
+  await controller.start({
+    agentConfig: {
+      name,
+      command: "node",
+      args: [mockAgentPath],
+      env: {},
+      authHints: [],
+      workspacePolicy: "workspace-root-only",
+      // The mock resolves `node` from the real PATH, so the spawn must not
+      // run under a sandboxed home (mirrors createGatewayTestServer).
+      allowRealHome: true,
+    },
+    workspacePath,
+    fileAdapters: createNodeFileAdapters(workspacePath),
+    permissionEngine: new PermissionEngine(),
+    permissionStore: new PermissionStore(),
+    clientInfo: { name, version: "0.1.0" },
+  });
+  await controller.setPermissionMode(opts.permissionMode ?? "bypassPermissions");
+
+  return {
+    controller,
+    workspacePath,
+    async cleanup() {
+      controller.destroy();
+      await rm(workspacePath, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * Poll `predicate` until it holds or the timeout elapses, throwing on
+ * timeout. The generic async poller the live-state smokes use to wait for
+ * a bridge snapshot / gate event to propagate.
+ */
+export async function waitFor(
+  predicate: () => boolean,
+  timeoutMs = 5_000,
+  stepMs = 10,
+): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for condition`);
+    }
+    await Bun.sleep(stepMs);
+  }
+}
 
 export interface GatewayTestServerOptions {
   /** Command to spawn for the ACP agent (e.g. "node") */

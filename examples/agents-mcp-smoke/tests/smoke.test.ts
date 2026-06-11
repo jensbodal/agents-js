@@ -31,14 +31,12 @@ import {
   type InboxDeliverArgs,
   type InboxMessage,
   type InboxReadArgs,
-  type MatrixSendArgs,
-  type MatrixTool,
   type SendMessageArgs,
   type SendMessageResult,
   type TargetDirectory,
   verifyJwt,
 } from "@agents-js/host";
-import { SignJWT } from "jose";
+import { makeRecordingMatrixTool, mintTestJwt } from "@agents-js/host/testing";
 
 const SIGNING_KEY_TEXT = "lt5-smoke-signing-key-32bytes-or-more";
 const ISSUER = "lt5-smoke-gateway";
@@ -104,33 +102,19 @@ function makeStatefulInboxTool(): AgentInboxTool & {
   };
 }
 
-/** Matrix tool double — never called on inbox-only targets; here to satisfy the dispatcher contract. */
-function makeRecordingMatrixTool(): MatrixTool & { calls: MatrixSendArgs[] } {
-  const calls: MatrixSendArgs[] = [];
-  return {
-    calls,
-    async send(args) {
-      calls.push(args);
-      return { event_id: `$evt-${calls.length}` };
-    },
-  };
-}
-
+/** Mint an HS256 JWT pinned to this smoke's key/issuer/audience + default agent. */
 async function mintJwt(
   overrides: { sub?: string; scopes?: string[]; cid?: string } = {},
 ): Promise<string> {
-  const nowSec = Math.floor(Date.now() / 1000);
-  return await new SignJWT({
-    scopes: overrides.scopes ?? ["inbox.deliver", "inbox.read"],
-    cid: overrides.cid ?? "cid-lt5-001",
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(overrides.sub ?? AGENT)
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
-    .setIssuedAt(nowSec)
-    .setExpirationTime(nowSec + 900)
-    .sign(SIGNING_KEY);
+  return mintTestJwt({
+    sub: AGENT,
+    scopes: ["inbox.deliver", "inbox.read"],
+    cid: "cid-lt5-001",
+    iss: ISSUER,
+    aud: AUDIENCE,
+    key: SIGNING_KEY,
+    ...overrides,
+  });
 }
 
 /**
