@@ -30,6 +30,7 @@
     "@agents-js/a2a": "0.6.0",
     "@agents-js/a2a-client": "0.6.0",
     "@agents-js/a2ui-types": "0.6.0",
+    "@agents-js/agent-launch": "0.6.0",
     "@sinclair/typebox": "catalog:"
   },
   "devDependencies": {

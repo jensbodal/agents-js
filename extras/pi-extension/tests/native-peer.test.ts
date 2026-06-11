@@ -605,3 +605,196 @@ describe("teeEventBus / event hub — observer isolation", () => {
     expect(delivered).toEqual([event]);
   });
 });
+
+/**
+ * Self-rebind / re-advertise on host LAN-IP change. A native pi binds its socket
+ * to a specific IP and advertises it once; when the host's Wi-Fi/DHCP IP rotates
+ * the socket dies and the advertised record goes stale. These tests lock in the
+ * fix: bind all-interfaces (0.0.0.0) for a LAN-advertised peer so the socket
+ * survives, and re-publish the (re-detected) URL on a heartbeat so the registry
+ * record + served agent-card track the current address.
+ */
+describe("native peer — bind/advertise decouple + IP-change self-rebind", () => {
+  // A controllable scheduler: the heartbeat schedules one tick at a time via
+  // setTimeout, so capturing the pending callback lets a test drive ticks
+  // deterministically (no wall-clock) and assert teardown cancels them.
+  function makeScheduler() {
+    let pending: (() => void) | null = null;
+    let cleared = 0;
+    return {
+      scheduler: {
+        setTimeout: (cb: () => void, _ms: number) => {
+          pending = cb;
+          return { unref() {} };
+        },
+        clearTimeout: (_handle: unknown) => {
+          cleared += 1;
+          pending = null;
+        },
+      },
+      hasPending: () => pending !== null,
+      clearedCount: () => cleared,
+      async fireNext() {
+        const cb = pending;
+        pending = null;
+        if (cb) cb();
+        // Let the async tick (re-detect + registry file write) settle.
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      },
+    };
+  }
+
+  // Interfaces source whose IP can be flipped between ticks (DHCP roam).
+  function mutableInterfaces(initial: string): {
+    source: () => Record<string, readonly { address: string; family: string; internal: boolean }[]>;
+    set: (ip: string) => void;
+    calls: () => number;
+  } {
+    let ip = initial;
+    let calls = 0;
+    return {
+      source: () => {
+        calls += 1;
+        return { en0: [{ address: ip, family: "IPv4", internal: false }] };
+      },
+      set: (next: string) => {
+        ip = next;
+      },
+      calls: () => calls,
+    };
+  }
+
+  async function readRegistryUrl(name: string): Promise<string> {
+    const data = JSON.parse(await readFile(registryPath, "utf8")) as {
+      agents?: Record<string, { url?: string }>;
+    };
+    return data.agents?.[name]?.url ?? "";
+  }
+
+  // Poll the registry until its record url reflects the expected host fragment
+  // (the async file write may lag the tick by a few ms).
+  async function waitRegistryUrlContains(name: string, frag: string, timeoutMs = 1000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const url = await readRegistryUrl(name).catch(() => "");
+      if (url.includes(frag)) return url;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error(`registry url for ${name} never contained "${frag}"`);
+  }
+
+  // Fetch the SERVED agent-card via loopback (always reachable when bind=0.0.0.0)
+  // and return its advertised interface url — which carries the (fake) LAN host.
+  async function fetchCardIfaceUrl(advertisedUrl: string): Promise<string> {
+    const port = new URL(advertisedUrl).port;
+    const res = await fetch(`http://127.0.0.1:${port}/.well-known/agent-card.json`);
+    const card = (await res.json()) as { supportedInterfaces?: { url?: string }[] };
+    return card.supportedInterfaces?.[0]?.url ?? "";
+  }
+
+  async function startSeamed(
+    name: string,
+    extraEnv: Record<string, string>,
+    opts: Pick<
+      Parameters<typeof installNativePeerBridge>[1] & object,
+      "interfacesSource" | "scheduler"
+    >,
+  ): Promise<NativePiPeerHandle> {
+    const pi = new MockPiHost(() => "ok");
+    const handle = installNativePeerBridge(pi, {
+      env: { ...nativeEnv(name), ...extraEnv },
+      logger: silentLogger,
+      ...opts,
+    });
+    handles.push(handle);
+    await pi.emit("session_start", { reason: "startup" });
+    if (!handle.getUrl()) {
+      throw new Error(`peer ${name} did not start`);
+    }
+    return handle;
+  }
+
+  // (a) Decouple: an explicit non-loopback advertise host is published, while
+  // the socket binds all-interfaces — proven by the card still being fetchable
+  // over loopback at the same port.
+  test("(a) advertises a non-loopback host but binds all-interfaces (card reachable via loopback)", async () => {
+    const ifaces = mutableInterfaces("192.168.50.10");
+    const handle = await startSeamed(
+      "pi-decouple",
+      { AGENTS_JS_PI_HOST: "192.168.50.10" },
+      { interfacesSource: ifaces.source },
+    );
+    const url = handle.getUrl() as string;
+    expect(url).toContain("192.168.50.10"); // advertised host
+    // bind=0.0.0.0 → fetchable over loopback at the advertised port:
+    const iface = await fetchCardIfaceUrl(url);
+    expect(iface).toContain("192.168.50.10");
+    expect(await readRegistryUrl("pi-decouple")).toContain("192.168.50.10");
+  });
+
+  // (b) THE load-bearing test: when the host IP changes, the next heartbeat tick
+  // re-detects it and the registry record AND the served card update in lockstep.
+  test("(b) re-advertises the new IP on the next heartbeat tick (registry + card in lockstep)", async () => {
+    const ifaces = mutableInterfaces("10.0.0.5");
+    const sched = makeScheduler();
+    const handle = await startSeamed(
+      "pi-roam",
+      { AGENTS_JS_PI_HOST: "10.0.0.5", AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000" },
+      { interfacesSource: ifaces.source, scheduler: sched.scheduler },
+    );
+    const url = handle.getUrl() as string;
+    // Boot: IP-A everywhere.
+    expect(await readRegistryUrl("pi-roam")).toContain("10.0.0.5");
+    expect(await fetchCardIfaceUrl(url)).toContain("10.0.0.5");
+
+    // The host's Wi-Fi IP rotates; drive one heartbeat tick.
+    ifaces.set("10.0.9.99");
+    expect(sched.hasPending()).toBe(true);
+    await sched.fireNext();
+
+    // Both the registry record and the freshly-served card now carry IP-B.
+    expect(await waitRegistryUrlContains("pi-roam", "10.0.9.99")).toContain("10.0.9.99");
+    expect(await fetchCardIfaceUrl(url)).toContain("10.0.9.99");
+  });
+
+  // (c) Loopback/default advertise stays static and never sniffs interfaces — no
+  // accidental LAN exposure, no wasted work.
+  test("(c) loopback advertise stays static; interfaces are never sniffed", async () => {
+    const ifaces = mutableInterfaces("192.168.50.10");
+    const sched = makeScheduler();
+    const handle = await startSeamed(
+      "pi-loop",
+      { AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000" }, // no AGENTS_JS_PI_HOST → 127.0.0.1
+      { interfacesSource: ifaces.source, scheduler: sched.scheduler },
+    );
+    const url = handle.getUrl() as string;
+    expect(url).toContain("127.0.0.1");
+    ifaces.set("192.168.50.99");
+    await sched.fireNext();
+    expect(handle.getUrl()).toContain("127.0.0.1"); // unchanged
+    expect(await readRegistryUrl("pi-loop")).toContain("127.0.0.1");
+    expect(ifaces.calls()).toBe(0); // never sniffed interfaces
+  });
+
+  // (d) Teardown cancels the heartbeat — no leaked timer, no post-stop ticks.
+  test("(d) stop() cancels the re-advertise heartbeat (no further ticks)", async () => {
+    const ifaces = mutableInterfaces("10.0.0.5");
+    const sched = makeScheduler();
+    const handle = await startSeamed(
+      "pi-teardown",
+      { AGENTS_JS_PI_HOST: "10.0.0.5", AGENTS_JS_PI_HEARTBEAT_INTERVAL_MS: "30000" },
+      { interfacesSource: ifaces.source, scheduler: sched.scheduler },
+    );
+    // The boot tick schedules the next tick asynchronously (after its registry
+    // write); let it settle so there is a pending tick for stop() to cancel.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(sched.hasPending()).toBe(true);
+    await handle.stop();
+    expect(sched.clearedCount()).toBeGreaterThanOrEqual(1);
+    expect(sched.hasPending()).toBe(false);
+    // A would-be tick after stop must not re-register.
+    const before = await readRegistryUrl("pi-teardown");
+    await sched.fireNext();
+    expect(await readRegistryUrl("pi-teardown")).toBe(before);
+  });
+});
