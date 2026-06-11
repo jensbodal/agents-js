@@ -77,6 +77,22 @@ interface PiInboxPollerConfig {
   readonly cursorPath: string;
   readonly intervalMs?: number;
   readonly limit?: number;
+  readonly scopes: string[];
+}
+
+// Least-privilege for an INBOUND-ONLY poller: read the inbox + ack delivery, no
+// outbound. (The runtime default also requests `matrix.send_message`, which an
+// inbound-only pi never uses.) Override per-agent with CH_GATEWAY_SCOPES (comma
+// -separated) so the requested scopes match exactly what the agent's signed
+// peer-record grants — a mismatch fails mint with `invalid-scope`.
+const DEFAULT_PI_INBOX_SCOPES = ["inbox.read", "inbox.deliver"];
+
+function parseScopes(value: string | undefined): string[] {
+  const scopes = (value ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return scopes.length > 0 ? scopes : DEFAULT_PI_INBOX_SCOPES;
 }
 
 const STOPPED_HANDLE: PiInboxPollerHandle = {
@@ -140,6 +156,7 @@ export function readPiInboxConfig(
     cursorPath,
     intervalMs: numberEnv(env.CH_POLL_INTERVAL_MS),
     limit: numberEnv(env.CH_POLL_LIMIT),
+    scopes: parseScopes(env.CH_GATEWAY_SCOPES),
   };
 }
 
@@ -208,6 +225,7 @@ export function startPiInboxPoller(
       baseUrl: config.gatewayUrl,
       entity: config.identity,
       getPrivateKeyPem: () => runKeyCommand(config.keyCommand),
+      scopes: config.scopes,
     });
   const cursorStore = options.cursorStore ?? new FileCursorStore(config.cursorPath);
 
