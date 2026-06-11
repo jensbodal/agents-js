@@ -35,6 +35,7 @@
 
 import { tokenizeShellArgs } from "@agents-js/shell-args";
 import type { AgentEntry } from "./config.ts";
+import { loadHarnessDefaults } from "./harness-defaults.ts";
 import { injectIdentityEnv, type LaunchEnv, parseEnvSetup } from "./identity.ts";
 import { resolveProviderCredEnvKeys } from "./provider-registry.ts";
 
@@ -231,6 +232,18 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     resolveLanHost: options.resolveLanHost,
   });
 
+  // Identity-derived env — not harness-intrinsic, not operator-configurable.
+  // Derived from the agent name convention: `-ajs-` → ajs-fronted (ACP),
+  // `-tmux-` → tmux-wired, otherwise native.
+  const agentName = entry.tmuxSession;
+  const isAjs = agentName.includes("-ajs-");
+  const isTmux = agentName.includes("-tmux-");
+  const identityEnv: LaunchEnv = Object.freeze({
+    AGENT_ACP_MODE: isAjs ? "true" : "false",
+    AGENT_PROFILE: isAjs ? "ajs-fronted" : isTmux ? "tmux-wired" : "native",
+  });
+  const envWithIdentity = Object.freeze({ ...built.env, ...identityEnv });
+
   // Provider-credential derivation. The agent declares its provider; the cred
   // env-var NAMES come from the shared provider registry. Fail closed: a
   // declared provider whose cred var is absent from the env aborts the build
@@ -247,13 +260,19 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     );
   }
 
+  // Identity-derived keys lifted into sessionEnv alongside provider creds.
+  const identitySessionEnvKeys: readonly string[] = ["AGENT_ACP_MODE", "AGENT_PROFILE"];
+
   return {
     tmuxSession: entry.tmuxSession,
     cwd: entry.workspace,
     command: built.command,
     args: built.args,
-    env: built.env,
-    sessionEnv: pickSessionEnv(built.env, harness, providerCredKeys),
+    env: envWithIdentity,
+    sessionEnv: pickSessionEnv(envWithIdentity, harness, [
+      ...providerCredKeys,
+      ...identitySessionEnvKeys,
+    ]),
     channelEnv,
     allowedTools: built.allowedTools,
     harness,
@@ -305,7 +324,12 @@ const DEFAULT_PI_EXTENSION = "@agents-js/pi-extension";
  * {@link HARNESS_LAUNCHERS} because the registry literal references it at
  * module-load time.
  */
-const PI_SESSION_ENV_KEYS: readonly string[] = [
+/**
+ * agents-js A2A mesh integration keys injected by the pi builder. These are
+ * NOT harness defaults — they are agents-js infrastructure computed dynamically
+ * at launch time.
+ */
+const PI_A2A_SESSION_ENV_KEYS: readonly string[] = [
   "AGENTS_JS_PI_NATIVE",
   "AGENTS_JS_PI_NAME",
   "AGENTS_JS_PI_PORT",
@@ -320,15 +344,29 @@ const PI_SESSION_ENV_KEYS: readonly string[] = [
  * grows a per-harness branch.
  */
 const HARNESS_LAUNCHERS: Readonly<Record<SupportedHarness, HarnessLauncher>> = Object.freeze({
-  "claude-code": { build: buildClaudeCodeInvocation },
-  codex: { build: buildCodexInvocation, sessionEnvKeys: ["AGENTS_GATEWAY_SUB"] },
-  pi: { build: buildPiInvocation, sessionEnvKeys: PI_SESSION_ENV_KEYS },
+  "claude-code": {
+    build: buildClaudeCodeInvocation,
+    sessionEnvKeys: loadHarnessDefaults("claude-code").sessionEnvKeys,
+  },
+  codex: {
+    build: buildCodexInvocation,
+    sessionEnvKeys: loadHarnessDefaults("codex").sessionEnvKeys,
+  },
+  pi: {
+    build: buildPiInvocation,
+    // Harness defaults (AGENT_HARNESS) + agents-js A2A mesh keys.
+    sessionEnvKeys: [...loadHarnessDefaults("pi").sessionEnvKeys, ...PI_A2A_SESSION_ENV_KEYS],
+  },
 });
 
 /** Launchable harness kinds — derived from the registry, never hand-maintained. */
 const SUPPORTED_HARNESSES: ReadonlySet<string> = new Set(Object.keys(HARNESS_LAUNCHERS));
 
-/** claude-code: operator fresh_flags + optional `--allowedTools`. */
+/**
+ * claude-code: operator fresh_flags + optional `--allowedTools`.
+ * Harness defaults (e.g. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`) are merged
+ * under the operator's baseEnv — operator wins on conflict.
+ */
 function buildClaudeCodeInvocation({ entry, baseEnv }: HarnessBuildContext): HarnessInvocation {
   const flagArgs = splitFlags(entry.freshFlags);
   if (flagArgs.length === 0) {
@@ -340,7 +378,9 @@ function buildClaudeCodeInvocation({ entry, baseEnv }: HarnessBuildContext): Har
   const allowedTools = entry.allowedTools ?? [];
   const args =
     allowedTools.length > 0 ? [...flagArgs, "--allowedTools", allowedTools.join(",")] : flagArgs;
-  return { command: entry.binary, args, env: baseEnv, allowedTools };
+  const defaults = loadHarnessDefaults("claude-code");
+  const env: LaunchEnv = Object.freeze({ ...defaults.env, ...baseEnv });
+  return { command: entry.binary, args, env, allowedTools };
 }
 
 /** codex: native Codex CLI fresh session using operator-provided flags. */
@@ -367,7 +407,11 @@ function buildPiInvocation({
   const args: readonly string[] = ["-e", extension, ...flagArgs];
   const piName = baseEnv.MATRIX_AGENT ?? entry.tmuxSession;
   const host = resolvePiHost(entry.piHost, resolveLanHost);
+  // Harness defaults (AGENT_HARNESS) layered under baseEnv, then agents-js
+  // A2A mesh keys on top. Operator baseEnv wins over defaults.
+  const defaults = loadHarnessDefaults("pi");
   const env: LaunchEnv = Object.freeze({
+    ...defaults.env,
     ...baseEnv,
     AGENTS_JS_PI_NATIVE: "1",
     AGENTS_JS_PI_NAME: piName,

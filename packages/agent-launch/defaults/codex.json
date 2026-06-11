@@ -1,0 +1,7 @@
+{
+  "env": {
+    "AGENT_HARNESS": "codex",
+    "AGENTS_GATEWAY_SUB": "1"
+  },
+  "sessionEnvKeys": ["AGENT_HARNESS", "AGENTS_GATEWAY_SUB"]
+}

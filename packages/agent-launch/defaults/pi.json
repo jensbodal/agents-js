@@ -1,0 +1,6 @@
+{
+  "env": {
+    "AGENT_HARNESS": "pi"
+  },
+  "sessionEnvKeys": ["AGENT_HARNESS"]
+}
