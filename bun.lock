@@ -159,6 +159,18 @@
         "@types/bun": "catalog:",
       },
     },
+    "examples/memory-postgres-smoke": {
+      "name": "@agents-js/example-memory-postgres-smoke",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agents-js/memory": "workspace:*",
+        "@agents-js/memory-local": "workspace:*",
+        "@agents-js/memory-postgres": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "examples/memory-provider-pilot": {
       "name": "@agents-js/example-memory-provider-pilot",
       "version": "0.0.0",
@@ -566,15 +578,15 @@
       "name": "@agents-js/memory-local",
       "version": "0.6.0",
       "dependencies": {
-        "@agents-js/memory": "0.5.1",
+        "@agents-js/memory": "0.6.0",
       },
     },
     "packages/memory-postgres": {
       "name": "@agents-js/memory-postgres",
       "version": "0.6.0",
       "dependencies": {
-        "@agents-js/memory": "0.5.1",
-        "@agents-js/memory-local": "0.5.1",
+        "@agents-js/memory": "0.6.0",
+        "@agents-js/memory-local": "0.6.0",
         "postgres": "^3.4.5",
       },
     },
@@ -786,6 +798,8 @@
     "@agents-js/example-host-memory-pilot": ["@agents-js/example-host-memory-pilot@workspace:examples/host-memory-pilot"],
 
     "@agents-js/example-memory-local-smoke": ["@agents-js/example-memory-local-smoke@workspace:examples/memory-local-smoke"],
+
+    "@agents-js/example-memory-postgres-smoke": ["@agents-js/example-memory-postgres-smoke@workspace:examples/memory-postgres-smoke"],
 
     "@agents-js/example-memory-provider-pilot": ["@agents-js/example-memory-provider-pilot@workspace:examples/memory-provider-pilot"],
 
