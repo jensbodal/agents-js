@@ -1,0 +1,20 @@
+{
+  "name": "@agents-js/example-memory-postgres-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke example for @agents-js/memory-postgres. Mirrors memory-local-smoke against the Postgres-backed Storage seam: policy-gate deny (always-on) plus a save/update/delete round-trip that runs live when POSTGRES_TEST_URL/DATABASE_URL is set and cleanly skips otherwise.",
+  "scripts": {
+    "smoke": "bun run src/smoke.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-js/memory": "workspace:*",
+    "@agents-js/memory-local": "workspace:*",
+    "@agents-js/memory-postgres": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}
