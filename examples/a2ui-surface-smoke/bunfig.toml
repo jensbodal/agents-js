@@ -1,0 +1,5 @@
+[test]
+# Install the happy-dom global DOM before any test module evaluates, so Lit's
+# render() and the acp-* custom elements have document / customElements
+# available. See happydom.ts for why this must be a preload, not an import.
+preload = ["./happydom.ts"]
