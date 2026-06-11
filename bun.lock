@@ -623,6 +623,7 @@
       "version": "0.6.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "catalog:",
+        "@agents-js/schema-utils": "0.6.0",
         "@agents-js/shell-args": "0.6.0",
       },
     },
