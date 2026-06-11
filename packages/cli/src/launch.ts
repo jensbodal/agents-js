@@ -403,22 +403,31 @@ export function isSafeAgentName(name: string): boolean {
 }
 
 /**
- * Like {@link renderCommandLine} but wraps the runtime binary in
- * `agents-js run-logged --log <path> -- …` so its stderr tees to `logPath`
- * (followed by the cockpit's :3 window) while stdin/stdout stay inherited — the
- * interactive :0 runtime keeps the terminal.
+ * Send the `:0` runtime startup to its window as SEPARATE short send-keys
+ * lines — one `export` per env var, then the `cd … && run-logged … -- <cmd>`
+ * line. A single combined line can exceed the terminal's canonical-mode input
+ * limit (~1024 bytes on macOS/BSD), which silently truncates the command and the
+ * runtime never starts. Per-line keeps every payload well under the limit while
+ * the exports still land in the same interactive shell that runs the command.
+ * The runtime binary is wrapped in `agents-js run-logged` so its stderr tees to
+ * `logPath` (followed by the cockpit's :3 window) while stdin/stdout stay
+ * inherited — the interactive :0 runtime keeps the terminal.
  */
-function renderRuntimeCommandLine(
-  cwd: string,
-  command: string,
-  args: readonly string[],
+function sendRuntimeStartup(
+  windows: TmuxWindowOps,
+  session: string,
+  plan: LaunchPlan,
   env: LaunchEnv,
   logPath: string,
-): string {
-  const envExports = Object.entries(env)
-    .map(([k, v]) => `export ${k}=${JSON.stringify(v)}`)
-    .join(" && ");
-  return `${envExports ? `${envExports} && ` : ""}cd ${JSON.stringify(cwd)} && agents-js run-logged --log ${JSON.stringify(logPath)} -- ${command} ${args.join(" ")}`;
+): void {
+  for (const [k, v] of Object.entries(env)) {
+    windows.sendKeysToWindow(session, 0, `export ${k}=${JSON.stringify(v)}`);
+  }
+  windows.sendKeysToWindow(
+    session,
+    0,
+    `cd ${JSON.stringify(plan.cwd)} && agents-js run-logged --log ${JSON.stringify(logPath)} -- ${plan.command} ${plan.args.join(" ")}`,
+  );
 }
 
 function startCockpitSession(
@@ -444,18 +453,15 @@ function startCockpitSession(
   windows.newWindow(session, 2, "acp", plan.cwd);
   windows.newWindow(session, 3, "logs", plan.cwd);
   // :0 = runtime (default landing window). The full env (sessionEnv +
-  // channelEnv, incl. provider creds) rides the send-keys export; the runtime
-  // binary is wrapped in `run-logged` so its stderr tees to the :3 logfile.
-  windows.sendKeysToWindow(
+  // channelEnv, incl. provider creds) rides the send-keys export — sent as
+  // per-line exports so no single send-keys payload risks the terminal's
+  // canonical-mode truncation (see {@link sendRuntimeStartup}).
+  sendRuntimeStartup(
+    windows,
     session,
-    0,
-    renderRuntimeCommandLine(
-      plan.cwd,
-      plan.command,
-      plan.args,
-      Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
-      logPath,
-    ),
+    plan,
+    Object.freeze({ ...plan.sessionEnv, ...plan.channelEnv }),
+    logPath,
   );
   // :1 = interactive client TUI. Connect by registered NAME — the runtime
   // self-registers its (possibly ephemeral) url, so the client resolves + waits.

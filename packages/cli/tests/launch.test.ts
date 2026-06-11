@@ -506,12 +506,31 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
 
     const logPath = "/home/test/.agents-js/logs/pi-dual.log";
 
-    // :0 = runtime (pi process), wrapped in run-logged (stderr tees to :3's
-    // logfile), env export carrying the channel secret.
-    const runtime = wcalls.sendKeys.find(([, i]) => i === 0);
-    expect(runtime?.[2]).toContain(`agents-js run-logged --log "${logPath}" --`);
-    expect(runtime?.[2]).toContain("pi -e @agents-js/pi-extension");
-    expect(runtime?.[2]).toContain("CH_GATEWAY_KEY_CMD");
+    // :0 = runtime. The startup is split across separate send-keys lines — one
+    // `export` per env var, then a final `cd … && run-logged … -- <cmd>` line —
+    // so no single payload approaches the terminal's ~1024-byte canonical-mode
+    // input limit. A combined single line truncated pi's launch in the field
+    // (the run-logged wrapper tipped the command past the limit); these
+    // assertions lock in the per-line split that fixes it.
+    const win0 = wcalls.sendKeys.filter(([, i]) => i === 0).map(([, , p]) => p);
+
+    // The runtime command line wraps pi in run-logged (stderr -> :3 logfile) and
+    // is JUST the command — the env is NOT concatenated onto it.
+    const cmdLine = win0.find((p) => p.includes("agents-js run-logged"));
+    expect(cmdLine).toBeDefined();
+    expect(cmdLine).toContain(`agents-js run-logged --log "${logPath}" --`);
+    expect(cmdLine).toContain("pi -e @agents-js/pi-extension");
+    expect(cmdLine?.startsWith("cd ")).toBe(true);
+    expect(cmdLine).not.toContain("export ");
+
+    // The channel secret rides its OWN export line (still send-keys, never set-env).
+    expect(win0.some((p) => p.startsWith("export CH_GATEWAY_KEY_CMD="))).toBe(true);
+
+    // Regression guard: every :0 payload stays well under the canonical-mode
+    // limit, so a long config can't silently truncate the launch again.
+    for (const payload of win0) {
+      expect(payload.length).toBeLessThan(1024);
+    }
 
     // :1 = interactive TUI auto-connecting by registered name (= pi-dual).
     const tui = wcalls.sendKeys.find(([, i]) => i === 1);
