@@ -16,6 +16,7 @@ bun add @agents-js/schema-utils
 
 - **`extractOneOf`**
 - **`hasExactKeys`** — Strict key-set equality: the object's keys must be EXACTLY `allowed` — no unknown keys (which would let a projection/authority field leak in) and no missing keys. This is what makes the "enforced b...
+- **`isArtifactEvidence`** — Type guard: true iff `value` is a structurally-valid `ArtifactEvidenceV0`.
 - **`isContextBundle`** — Type guard: true iff `value` is a structurally-valid `ContextBundleV0`.
 - **`isDocsOnlyGuardResult`** — Type guard: true iff `value` is a structurally-valid `DocsOnlyGuardResult`.
 - **`isNonEmptyString`** — True when `value` is a non-empty string.
@@ -27,14 +28,17 @@ bun add @agents-js/schema-utils
 - **`isRunLedgerRecord`** — Type guard: true iff `value` is a structurally-valid `RunLedgerRecordV0`.
 - **`isSha256Ref`** — True when `value` is a `sha256:<64 lowercase hex>` digest reference.
 - **`isStringArray`** — True when `value` is an array whose every element is a string.
+- **`parseArtifactEvidence`** — Strict parse: returns the validated payload or throws with the reason.
 - **`parseContextBundle`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
 - **`parseDocsOnlyGuardResult`** — Parse-or-throw. Returns the validated `DocsOnlyGuardResult`; throws `TypeError` with the first failing constraint when `value` is invalid.
 - **`parseRedactionRecord`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
 - **`parseRunLedgerRecord`** — Parse-or-throw; throws `TypeError` with the first failing constraint.
+- **`readArtifactEvidence`** — Lenient reader for the artifact-evidence slot of an A2A metadata object. Returns the validated payload, or `null` when the metadata is absent, the slot is missing, or the slot is present-but-malfor...
 - **`toFieldMetas`**
 
 ### Interfaces
 
+- **`ArtifactEvidenceV0`**
 - **`BundleFile`** — One file in the reviewer payload (distinct from the guard's path lists).
 - **`BundleSubject`** — What's under review: a repo and a base..head range.
 - **`ContextBundleV0`** — `context-bundle.v0` — the deterministic, bounded packet handed to the read-only code-reviewer. The bundle is ADVISORY by schema shape: `advisory_only` is a required literal `true`, and there is no ...
@@ -49,6 +53,7 @@ bun add @agents-js/schema-utils
 
 ### Constants
 
+- **`ARTIFACT_EVIDENCE_EXTENSION_URI`** — Extension URI keying the artifact-evidence payload inside an A2A `TaskArtifactUpdateEvent.metadata` (or `Artifact.metadata`) slot. Follows the `agents-js/<namespace>` identifier convention (cf. `ag...
 - **`DOCS_ONLY_GUARD_ID`** — The guard's versioned discriminant literal.
 - **`EVIDENCE_KINDS`** — Evidence-kind vocabulary (shared with `capability-status.json`).
 - **`FILE_CHANGES`** — File-change vocabulary.

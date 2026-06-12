@@ -1,3 +1,10 @@
+export type { ArtifactEvidenceV0 } from "./artifact-evidence.ts";
+export {
+  ARTIFACT_EVIDENCE_EXTENSION_URI,
+  isArtifactEvidence,
+  parseArtifactEvidence,
+  readArtifactEvidence,
+} from "./artifact-evidence.ts";
 export type { BundleFile, BundleSubject, ContextBundleV0 } from "./context-bundle.ts";
 export {
   FILE_CHANGES,
