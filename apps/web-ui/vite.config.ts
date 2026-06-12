@@ -52,8 +52,9 @@ export default defineConfig({
   build: {
     // The reference UI ships as a multi-entry bundle of independent surfaces:
     // the root A2UI/canvas landing (index.html / src/main.ts), the chat app
-    // (chat.html / src/chat.ts), and the AJS-85 agent inbox browser
-    // (inbox.html / src/inbox.ts).
+    // (chat.html / src/chat.ts), the AJS-85 agent inbox browser
+    // (inbox.html / src/inbox.ts), and the gateway dashboard
+    // (dashboard.html / src/dashboard.ts).
     // Keep the warning budget aligned with the current bundled workspace deps.
     chunkSizeWarningLimit: 1_200,
     rollupOptions: {
@@ -61,6 +62,7 @@ export default defineConfig({
         main: resolve(configDir, "index.html"),
         chat: resolve(configDir, "chat.html"),
         inbox: resolve(configDir, "inbox.html"),
+        dashboard: resolve(configDir, "dashboard.html"),
       },
     },
   },
