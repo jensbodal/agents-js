@@ -56,6 +56,12 @@ export interface MatrixRoomClient {
     signal: AbortSignal,
   ): Promise<{ nextBatch: string; events: MatrixTimelineEvent[] }>;
   whoami(signal: AbortSignal): Promise<string>;
+  /**
+   * Post a plain-text `m.room.message` back to the configured room. Used by the
+   * outbound echo path so a native pi can reply INTO the room that mentioned it.
+   * No abort signal: a fire-and-complete PUT; callers await it directly.
+   */
+  send(body: string): Promise<void>;
 }
 
 export interface PiMatrixRoomPollerOptions {
@@ -75,6 +81,14 @@ export interface PiMatrixRoomPollerOptions {
   cursorStore?: CursorStore;
   /** Sleep override (fake clocks in tests). */
   sleepImpl?: (ms: number, signal: AbortSignal) => Promise<void>;
+  /**
+   * Outbound-echo correlation hook. Invoked SYNCHRONOUSLY just before a matched
+   * room mention is injected into the live pi session via `sendUserMessage`. The
+   * native peer uses it to set a "room-reply-pending" flag so the NEXT completed
+   * pi turn (which is the response to this injection) is echoed back to the
+   * room. Not called for any other input. Safe to omit.
+   */
+  onMentionInjected?: () => void;
 }
 
 export interface PiMatrixRoomPollerHandle {
@@ -82,6 +96,12 @@ export interface PiMatrixRoomPollerHandle {
   readonly enabled: boolean;
   /** Stop the loop. Idempotent. */
   stop(): Promise<void>;
+  /**
+   * Post a plain-text message back to the configured room. No-op (resolves
+   * without sending) when the poller is disabled. The outbound echo path uses
+   * this to reply INTO the room that mentioned the agent.
+   */
+  send(body: string): Promise<void>;
 }
 
 export interface PiMatrixRoomConfig {
@@ -105,6 +125,8 @@ export interface PiMatrixRoomConfig {
 const STOPPED_HANDLE: PiMatrixRoomPollerHandle = {
   enabled: false,
   async stop() {},
+  // Disabled poller never posts: outbound echo is silently dropped.
+  async send() {},
 };
 
 // Text-like message subtypes we inject. `undefined` is treated as text because
@@ -192,9 +214,18 @@ export function formatMatrixEventForPi(event: MatrixTimelineEvent, roomId: strin
   ].join("\n");
 }
 
-/** Default CS-API client. Constructed only when no client seam is injected. */
-class HttpMatrixRoomClient implements MatrixRoomClient {
+/**
+ * Default CS-API client. Constructed only when no client seam is injected.
+ * Exported so the outbound `send()` PUT can be unit-tested with a stub fetch
+ * (asserting room id, bearer auth, txnId, and that the injected transport — not
+ * the global `fetch` — is used).
+ */
+export class HttpMatrixRoomClient implements MatrixRoomClient {
   private readonly fetchImpl: typeof fetch;
+  // Monotonic transaction counter for idempotent PUT /send. A per-client counter
+  // (no Math.random/Date.now) keeps every send txnId unique within the process
+  // without depending on globals that may be TCC-blocked alongside fetch (BL-64).
+  private txnCounter = 0;
 
   constructor(
     private readonly homeserver: string,
@@ -249,6 +280,28 @@ class HttpMatrixRoomClient implements MatrixRoomClient {
   async whoami(signal: AbortSignal): Promise<string> {
     const json = await this.get("/_matrix/client/v3/account/whoami", signal);
     return String(json.user_id);
+  }
+
+  async send(body: string): Promise<void> {
+    // Unique-per-process txnId: prefix + monotonic counter. Matrix requires a
+    // transaction id on PUT /send for idempotency; the counter suffices because
+    // the poller posts one reply at a time (sequential turn processing).
+    const txnId = `ajs-pi-${this.txnCounter++}`;
+    const path = `/_matrix/client/v3/rooms/${encodeURIComponent(
+      this.roomId,
+    )}/send/m.room.message/${encodeURIComponent(txnId)}`;
+    const response = await this.fetchImpl(`${this.homeserver}${path}`, {
+      method: "PUT",
+      headers: {
+        Authorization: await this.authHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ msgtype: "m.text", body }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`matrix PUT ${path} -> ${response.status}: ${text.slice(0, 200)}`);
+    }
   }
 }
 
@@ -351,6 +404,11 @@ export function startPiMatrixRoomPoller(
             if (event.sender === selfMxid) continue;
             if (config.mentionsOnly && !mentionsSelf(event, selfMxid)) continue;
             logger.log(`[agents-js/pi-matrix] injecting event_id=${event.event_id}`);
+            // Correlate this injection with its forthcoming reply so the peer can
+            // echo that reply back to the room. Set BEFORE injecting; pi
+            // processes one turn at a time, so the next non-A2A turn completion
+            // is this mention's response.
+            options.onMentionInjected?.();
             await sendUserMessage(formatMatrixEventForPi(event, config.roomId));
           }
         }
@@ -384,6 +442,11 @@ export function startPiMatrixRoomPoller(
       stopped = true;
       controller.abort();
       await loop;
+    },
+    // Outbound echo: post the assistant's reply back to the room. Delegates to
+    // the same client (same token/transport) used for /sync.
+    send(body: string) {
+      return client.send(body);
     },
   };
 }

@@ -705,11 +705,36 @@ class RequestTooLargeError extends Error {
 class NativePiTurnRunner {
   private agentActive = false;
   private pending: PendingPiTurn | null = null;
+  // Outbound room-echo correlation. Set by the direct-Matrix poller (via
+  // `markRoomReplyPending`) immediately before it injects a room mention into
+  // the live session. The next pi turn that completes WITHOUT an A2A `pending`
+  // is that mention's reply, so we echo its final text back to the room and
+  // clear the flag. EDGE CASE / ASSUMPTION: pi processes one turn at a time and
+  // the poller injects sequentially, so a single boolean is a sufficient
+  // correlation — there is never more than one in-flight room-mention reply.
+  private roomReplyPending = false;
+  // Sink that posts the echoed reply to the room. Wired at startup to the
+  // direct-Matrix poller's `send(...)`. Absent => no echo (e.g. poller off).
+  private roomReplySink: ((text: string) => void) | null = null;
 
   constructor(
     private readonly pi: PiHost,
     private readonly timeoutMs: number,
   ) {}
+
+  /** Wire the outbound room-echo sink (the direct-Matrix poller's send). */
+  setRoomReplySink(sink: (text: string) => void): void {
+    this.roomReplySink = sink;
+  }
+
+  /**
+   * Mark that the NEXT non-A2A pi turn is the reply to a freshly injected room
+   * mention and should be echoed back to the room. Called by the poller right
+   * before it injects the mention.
+   */
+  markRoomReplyPending(): void {
+    this.roomReplyPending = true;
+  }
 
   attach(): void {
     const failPendingTurn = (event: unknown) => {
@@ -757,8 +782,21 @@ class NativePiTurnRunner {
       this.agentActive = false;
       const pending = this.pending;
       if (!pending) {
+        // No A2A turn in flight. The ONLY non-A2A turn we echo to the room is
+        // one we injected for a room mention — gated by `roomReplyPending`. Any
+        // other turn (user-typed, etc.) leaves the flag unset and is dropped, so
+        // we never spam the room with unrelated output.
+        if (this.roomReplyPending) {
+          this.roomReplyPending = false;
+          const finalText = extractAssistantTextFromAgentEnd(event).trim();
+          if (finalText.length > 0) {
+            this.roomReplySink?.(finalText);
+          }
+        }
         return;
       }
+      // A2A turn: resolve the pending caller; NEVER echo to the room (an A2A
+      // turn has no room-reply correlation even if the flag were somehow set).
       this.pending = null;
       pending.clear();
       const finalText = pending.textBuffer || extractAssistantTextFromAgentEnd(event);
@@ -1144,7 +1182,22 @@ export function installNativePeerBridge(
       matrixPoller = (options.startMatrixRoomPoller ?? startPiMatrixRoomPoller)(pi, {
         ...(options.env ? { env: options.env } : {}),
         logger,
+        // Outbound echo wiring: when the poller injects a room mention, flag the
+        // turn so its reply is echoed back to the room via the poller's send().
+        onMentionInjected: () => turnRunner.markRoomReplyPending(),
       });
+      if (matrixPoller.enabled) {
+        turnRunner.setRoomReplySink((text) => {
+          // matrixPoller is non-null here; capture for the closure.
+          void matrixPoller?.send(text).catch((error: unknown) => {
+            logger.error(
+              `[agents-js/pi-matrix] outbound room echo failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
+        });
+      }
     }
     try {
       serverHandle = await startNativeA2AServer({

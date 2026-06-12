@@ -833,7 +833,7 @@ describe("native peer — inbound poller mutual exclusion (#218 gate)", () => {
     let calls = 0;
     const factory = () => {
       calls += 1;
-      return { enabled, async stop() {} };
+      return { enabled, async stop() {}, async send() {} };
     };
     return { factory, calls: () => calls };
   }
@@ -873,5 +873,99 @@ describe("native peer — inbound poller mutual exclusion (#218 gate)", () => {
     const { inboxCalls, matrixCalls } = await startWithPollers("pi-gw-off", false);
     expect(inboxCalls()).toBe(1);
     expect(matrixCalls()).toBe(1);
+  });
+});
+
+describe("native peer — outbound room-mention echo gating", () => {
+  // Spy matrix poller: captures the onMentionInjected hook the peer wires in,
+  // and records every send() the peer's room-reply sink makes. The peer only
+  // wires the sink when the handle is enabled, mirroring production.
+  function spyMatrixFactory() {
+    const posted: string[] = [];
+    let onMentionInjected: (() => void) | undefined;
+    const factory = (_pi: unknown, options: { onMentionInjected?: () => void }) => {
+      onMentionInjected = options.onMentionInjected;
+      return {
+        enabled: true,
+        async stop() {},
+        async send(body: string) {
+          posted.push(body);
+        },
+      };
+    };
+    return {
+      factory,
+      posted,
+      // Simulate a room mention: fire the correlation hook, then inject the
+      // message into the live session exactly as the real poller does.
+      async injectMention(pi: MockPiHost, body: string) {
+        onMentionInjected?.();
+        await pi.sendUserMessage(body);
+      },
+    };
+  }
+
+  async function startPeerWithSpyMatrix(
+    name: string,
+    responder: MockPiResponder,
+  ): Promise<{ pi: MockPiHost; url: string; spy: ReturnType<typeof spyMatrixFactory> }> {
+    const spy = spyMatrixFactory();
+    const pi = new MockPiHost(responder);
+    const handle = installNativePeerBridge(pi, {
+      env: nativeEnv(name),
+      logger: silentLogger,
+      // gateway inbox OFF so the direct-Matrix fallback (our spy) starts.
+      startInboxPoller: (() => ({
+        enabled: false,
+        async stop() {},
+      })) as Parameters<typeof installNativePeerBridge>[1]["startInboxPoller"],
+      startMatrixRoomPoller: spy.factory as Parameters<
+        typeof installNativePeerBridge
+      >[1]["startMatrixRoomPoller"],
+    });
+    handles.push(handle);
+    await pi.emit("session_start", { reason: "startup" });
+    const url = handle.getUrl();
+    if (!url) throw new Error(`peer ${name} did not start`);
+    return { pi, url, spy };
+  }
+
+  // The mock host queues the agent_start→message_update→agent_end chain via
+  // queueMicrotask; a short real-timer settle lets it run to completion.
+  const settle = () => new Promise((r) => setTimeout(r, 25));
+
+  test("room-mention-injected turn echoes the assistant reply back to the room", async () => {
+    const { pi, spy } = await startPeerWithSpyMatrix("pi-echo", () => "pong from pi");
+    await spy.injectMention(pi, "ping @pi");
+    await settle();
+    expect(spy.posted).toEqual(["pong from pi"]);
+  });
+
+  test("A2A turn (with pending) does NOT echo to the room", async () => {
+    const { url, spy } = await startPeerWithSpyMatrix("pi-a2a", (m) => `a2a: ${m}`);
+    const body = await sendMessage(url, "do work");
+    // The A2A caller still gets its reply...
+    expect(JSON.stringify(body)).toContain("a2a: do work");
+    // ...but nothing is posted to the room (no room-reply correlation).
+    expect(spy.posted).toEqual([]);
+  });
+
+  test("a turn with NO room-reply-pending flag does NOT echo to the room", async () => {
+    const { pi, spy } = await startPeerWithSpyMatrix("pi-noflag", () => "stray output");
+    // Inject WITHOUT firing onMentionInjected — e.g. a user-typed turn. The
+    // flag is never set, so agent_end drops the output instead of room-posting.
+    await pi.sendUserMessage("just typing locally");
+    await settle();
+    expect(spy.posted).toEqual([]);
+  });
+
+  test("the flag is single-shot: a second non-mention turn does NOT re-echo", async () => {
+    const { pi, spy } = await startPeerWithSpyMatrix("pi-once", () => "reply");
+    await spy.injectMention(pi, "mention 1");
+    await settle();
+    // A follow-up local turn with no fresh mention must NOT echo again.
+    await pi.sendUserMessage("local follow-up");
+    await settle();
+    expect(spy.posted).toEqual(["reply"]);
   });
 });

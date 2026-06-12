@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { curlFetch, MemoryCursorStore } from "@agents-js/gateway-inbox-runtime";
 import {
+  HttpMatrixRoomClient,
   type MatrixRoomClient,
   type MatrixTimelineEvent,
   readMatrixRoomConfig,
@@ -57,6 +58,11 @@ class MockMatrixClient implements MatrixRoomClient {
   async whoami(): Promise<string> {
     this.whoamiCalls += 1;
     return this.self;
+  }
+
+  sentBodies: string[] = [];
+  async send(body: string): Promise<void> {
+    this.sentBodies.push(body);
   }
 }
 
@@ -516,5 +522,141 @@ describe("startPiMatrixRoomPoller", () => {
 
     // stop() is idempotent.
     await handle.stop();
+  });
+
+  // Purpose: when a mention is injected, the poller fires onMentionInjected
+  // BEFORE the injection so the native peer can correlate the forthcoming reply.
+  test("calls onMentionInjected before injecting a matched mention", async () => {
+    const pi = new MockPiHost();
+    const events: string[] = [];
+    // Override sendUserMessage to record ordering relative to the hook.
+    pi.sendUserMessage = async (content) => {
+      events.push(`inject:${typeof content === "string" ? content.includes("$m1") : false}`);
+    };
+    const client = new MockMatrixClient("@pi-test-0:matrix.example.test", [
+      { nextBatch: "b1", events: [] }, // priming
+      {
+        nextBatch: "b2",
+        events: [
+          msg({
+            event_id: "$m1",
+            sender: "@peer:matrix.example.test",
+            content: { body: "hey pi" },
+          }),
+        ],
+      },
+    ]);
+    const paced = pacedSleep();
+
+    const handle = startPiMatrixRoomPoller(pi, {
+      env: DIRECT_ENV,
+      logger: silentLogger,
+      client,
+      cursorStore: new MemoryCursorStore(),
+      sleepImpl: paced.sleepImpl,
+      onMentionInjected: () => events.push("hook"),
+    });
+
+    await paced.waitForPolls(2);
+    await handle.stop();
+
+    // Hook fires immediately before the injection it correlates with.
+    expect(events).toEqual(["hook", "inject:true"]);
+  });
+
+  // Purpose: the enabled handle exposes send(), delegating to the client.
+  test("handle.send() delegates to the client send", async () => {
+    const pi = new MockPiHost();
+    const client = new MockMatrixClient("@pi-test-0:matrix.example.test", [
+      { nextBatch: "b1", events: [] },
+    ]);
+    const paced = pacedSleep();
+    const handle = startPiMatrixRoomPoller(pi, {
+      env: DIRECT_ENV,
+      logger: silentLogger,
+      client,
+      cursorStore: new MemoryCursorStore(),
+      sleepImpl: paced.sleepImpl,
+    });
+    await paced.waitForPolls(1);
+    await handle.send("echoed reply");
+    await handle.stop();
+    expect(client.sentBodies).toEqual(["echoed reply"]);
+  });
+});
+
+describe("HttpMatrixRoomClient.send", () => {
+  // Purpose: send() issues a PUT to the room's send endpoint, with bearer auth,
+  // an m.text body, and ROUTES THROUGH THE INJECTED fetchImpl — never the global
+  // fetch (the BL-64 TCC-blocked path).
+  test("PUTs m.room.message with room id + bearer auth via the injected fetchImpl", async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    let globalFetchCalls = 0;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      globalFetchCalls += 1;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    const injected = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({ event_id: "$sent" }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const client = new HttpMatrixRoomClient(
+        "https://matrix.example.test",
+        "!room:matrix.example.test",
+        "echo my-secret-token",
+        injected,
+      );
+      await client.send("hello room");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    // The global fetch is never touched — the injected transport owns the PUT.
+    expect(globalFetchCalls).toBe(0);
+    expect(calls).toHaveLength(1);
+    const call = calls[0];
+    if (!call) throw new Error("no fetch call recorded");
+    expect(call.init.method).toBe("PUT");
+    // URL: rooms/{roomId}/send/m.room.message/{txnId}.
+    expect(call.url).toContain("https://matrix.example.test/_matrix/client/v3/rooms/");
+    expect(call.url).toContain(encodeURIComponent("!room:matrix.example.test"));
+    expect(call.url).toContain("/send/m.room.message/");
+    // Bearer auth from the token command (do not assert the secret value verbatim
+    // beyond confirming the command output is wired through).
+    const headers = call.init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer my-secret-token");
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(String(call.init.body))).toEqual({
+      msgtype: "m.text",
+      body: "hello room",
+    });
+  });
+
+  // Purpose: each send() uses a fresh, unique txnId (monotonic counter) so two
+  // posts are not collapsed by Matrix idempotency.
+  test("uses a unique txnId per send", async () => {
+    const urls: string[] = [];
+    const injected = (async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    const client = new HttpMatrixRoomClient("https://h", "!r:h", "echo t", injected);
+    await client.send("one");
+    await client.send("two");
+    const txn = (u: string) => u.slice(u.lastIndexOf("/") + 1);
+    expect(urls).toHaveLength(2);
+    expect(txn(urls[0] ?? "")).not.toBe(txn(urls[1] ?? ""));
+  });
+
+  // Purpose: a non-2xx response surfaces as an error (so the echo failure is
+  // logged, not silently swallowed).
+  test("throws on a non-ok response", async () => {
+    const injected = (async () => new Response("forbidden", { status: 403 })) as typeof fetch;
+    const client = new HttpMatrixRoomClient("https://h", "!r:h", "echo t", injected);
+    await expect(client.send("nope")).rejects.toThrow(/403/);
   });
 });
