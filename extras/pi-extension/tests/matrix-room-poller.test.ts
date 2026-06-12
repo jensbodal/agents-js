@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MemoryCursorStore } from "@agents-js/gateway-inbox-runtime";
+import { curlFetch, MemoryCursorStore } from "@agents-js/gateway-inbox-runtime";
 import {
   type MatrixRoomClient,
   type MatrixTimelineEvent,
@@ -161,6 +161,36 @@ describe("readMatrixRoomConfig", () => {
     const { CH_GATEWAY_IDENTITY, ...rest } = DIRECT_ENV;
     const config = readMatrixRoomConfig({ ...rest, AGENTS_JS_PI_NAME: "pi-fallback-0" });
     expect(config?.identity).toBe("pi-fallback-0");
+  });
+
+  // Purpose: native fetch by default — no curl override when the selector env
+  // is unset (BL-64 fix is strictly opt-in).
+  test("leaves fetchImpl undefined when no fetch selector env is set", () => {
+    expect(readMatrixRoomConfig(DIRECT_ENV)?.fetchImpl).toBeUndefined();
+  });
+
+  // Purpose: CH_MATRIX_FETCH=curl selects the curl-backed transport (BL-64).
+  test("selects curlFetch when CH_MATRIX_FETCH=curl", () => {
+    const config = readMatrixRoomConfig({ ...DIRECT_ENV, CH_MATRIX_FETCH: "curl" });
+    expect(config?.fetchImpl).toBe(curlFetch);
+  });
+
+  // Purpose: CH_GATEWAY_FETCH=curl is honored as the shared fallback selector
+  // so a single env flips both the gateway and direct-matrix pollers to curl.
+  test("falls back to CH_GATEWAY_FETCH=curl for the curl transport", () => {
+    const config = readMatrixRoomConfig({ ...DIRECT_ENV, CH_GATEWAY_FETCH: "curl" });
+    expect(config?.fetchImpl).toBe(curlFetch);
+  });
+
+  // Purpose: CH_MATRIX_FETCH takes precedence over CH_GATEWAY_FETCH.
+  test("CH_MATRIX_FETCH overrides CH_GATEWAY_FETCH", () => {
+    const config = readMatrixRoomConfig({
+      ...DIRECT_ENV,
+      CH_MATRIX_FETCH: "fetch",
+      CH_GATEWAY_FETCH: "curl",
+    });
+    // CH_MATRIX_FETCH=fetch (not "curl") → native, ignoring CH_GATEWAY_FETCH.
+    expect(config?.fetchImpl).toBeUndefined();
   });
 });
 
@@ -387,6 +417,73 @@ describe("startPiMatrixRoomPoller", () => {
     expect(cursor.load().seen).toEqual(["b3"]);
     // The since arg advances: first sync undefined, then b1, then b2.
     expect(client.syncSinceArgs.slice(0, 3)).toEqual([undefined, "b1", "b2"]);
+  });
+
+  // Purpose: when NO client seam is injected, the default HTTP client routes
+  // through the global `fetch` by default (native transport, BL-64 opt-out).
+  test("default HTTP client uses global fetch when no curl override", async () => {
+    const pi = new MockPiHost();
+    const paced = pacedSleep();
+    let globalFetchCalls = 0;
+    const realFetch = globalThis.fetch;
+    // Stub the global so the real /sync never hits the network.
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      globalFetchCalls += 1;
+      const path = String(url);
+      const body = path.includes("/whoami")
+        ? { user_id: "@pi-test-0:matrix.example.test" }
+        : { next_batch: "b1", rooms: { join: {} } };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const handle = startPiMatrixRoomPoller(pi, {
+        env: DIRECT_ENV, // no CH_MATRIX_FETCH → native fetch
+        logger: silentLogger,
+        cursorStore: new MemoryCursorStore(),
+        sleepImpl: paced.sleepImpl,
+      });
+      expect(handle.enabled).toBe(true);
+      await paced.waitForPolls(1);
+      await handle.stop();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    // The default client hit the global fetch (whoami + at least one sync).
+    expect(globalFetchCalls).toBeGreaterThan(0);
+  });
+
+  // Purpose: with CH_MATRIX_FETCH=curl the default client routes through the
+  // curl transport, NOT the global `fetch` (the BL-64 TCC-blocked path). We
+  // assert the global stub is never touched; curlFetch attempts a real curl,
+  // which errors against the fake host and is swallowed by the loop's retry.
+  test("CH_MATRIX_FETCH=curl bypasses global fetch for the default client", async () => {
+    const pi = new MockPiHost();
+    const paced = pacedSleep();
+    let globalFetchCalls = 0;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      globalFetchCalls += 1;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const handle = startPiMatrixRoomPoller(pi, {
+        env: { ...DIRECT_ENV, CH_MATRIX_FETCH: "curl" },
+        logger: silentLogger,
+        cursorStore: new MemoryCursorStore(),
+        sleepImpl: paced.sleepImpl,
+      });
+      expect(handle.enabled).toBe(true);
+      await paced.waitForPolls(1);
+      await handle.stop();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    // curl owns the transport; the global fetch must never be invoked.
+    expect(globalFetchCalls).toBe(0);
   });
 
   // Purpose: stop() halts the loop — after stop, advancing the fake clock

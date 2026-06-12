@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  curlFetch,
   type GatewayInboxClient,
   type GetMessagesResult,
   type InboxMessage,
@@ -122,6 +123,23 @@ describe("readPiInboxConfig", () => {
   // configured.
   test("returns null when AGENTS_JS_PI_INBOX_ENABLED=0", () => {
     expect(readPiInboxConfig({ ...GATEWAY_ENV, AGENTS_JS_PI_INBOX_ENABLED: "0" })).toBeNull();
+  });
+
+  // Purpose: native fetch by default — the curl transport is strictly opt-in.
+  test("leaves fetchImpl undefined when no fetch selector env is set", () => {
+    expect(readPiInboxConfig(GATEWAY_ENV)?.fetchImpl).toBeUndefined();
+  });
+
+  // Purpose: CH_GATEWAY_FETCH=curl selects the curl-backed transport (BL-64).
+  test("selects curlFetch when CH_GATEWAY_FETCH=curl", () => {
+    const config = readPiInboxConfig({ ...GATEWAY_ENV, CH_GATEWAY_FETCH: "curl" });
+    expect(config?.fetchImpl).toBe(curlFetch);
+  });
+
+  // Purpose: AGENTS_GATEWAY_FETCH=curl is honored as the fallback selector.
+  test("falls back to AGENTS_GATEWAY_FETCH=curl for the curl transport", () => {
+    const config = readPiInboxConfig({ ...GATEWAY_ENV, AGENTS_GATEWAY_FETCH: "curl" });
+    expect(config?.fetchImpl).toBe(curlFetch);
   });
 });
 

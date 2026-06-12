@@ -29,7 +29,11 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type CursorStore, FileCursorStore } from "@agents-js/gateway-inbox-runtime";
+import {
+  type CursorStore,
+  FileCursorStore,
+  selectFetchImpl,
+} from "@agents-js/gateway-inbox-runtime";
 import type { PiHost } from "./types.ts";
 
 type Logger = Pick<Console, "error" | "log" | "warn">;
@@ -89,6 +93,13 @@ export interface PiMatrixRoomConfig {
   readonly selfMxid?: string;
   readonly intervalMs: number;
   readonly mentionsOnly: boolean;
+  /**
+   * Optional fetch transport override. Resolved to {@link curlFetch} when
+   * `CH_MATRIX_FETCH` (falling back to `CH_GATEWAY_FETCH`) equals `curl`, so the
+   * direct-Matrix `/sync` poller can reach the network on a host where the
+   * native bun `fetch` is TCC-blocked (BL-64). `undefined` keeps native `fetch`.
+   */
+  readonly fetchImpl?: typeof fetch;
 }
 
 const STOPPED_HANDLE: PiMatrixRoomPollerHandle = {
@@ -154,6 +165,9 @@ export function readMatrixRoomConfig(
     selfMxid: env.CH_MATRIX_SELF_MXID?.trim(),
     intervalMs: Number(env.CH_MATRIX_POLL_INTERVAL_MS) || 15000,
     mentionsOnly: env.CH_MATRIX_MENTIONS_ONLY === "1" || env.CH_MATRIX_MENTIONS_ONLY === "true",
+    // Opt into the curl-backed transport via CH_MATRIX_FETCH (falling back to
+    // the shared CH_GATEWAY_FETCH selector). `undefined` keeps native fetch.
+    fetchImpl: selectFetchImpl(env.CH_MATRIX_FETCH?.trim() || env.CH_GATEWAY_FETCH?.trim()),
   };
 }
 
@@ -180,11 +194,16 @@ export function formatMatrixEventForPi(event: MatrixTimelineEvent, roomId: strin
 
 /** Default CS-API client. Constructed only when no client seam is injected. */
 class HttpMatrixRoomClient implements MatrixRoomClient {
+  private readonly fetchImpl: typeof fetch;
+
   constructor(
     private readonly homeserver: string,
     private readonly roomId: string,
     private readonly tokenCommand: string,
-  ) {}
+    fetchImpl?: typeof fetch,
+  ) {
+    this.fetchImpl = fetchImpl ?? fetch;
+  }
 
   private async authHeader(): Promise<string> {
     // Resolve the token FRESH each request — access tokens may rotate.
@@ -192,7 +211,7 @@ class HttpMatrixRoomClient implements MatrixRoomClient {
   }
 
   private async get(path: string, signal: AbortSignal): Promise<Record<string, unknown>> {
-    const response = await fetch(`${this.homeserver}${path}`, {
+    const response = await this.fetchImpl(`${this.homeserver}${path}`, {
       headers: { Authorization: await this.authHeader() },
       signal,
     });
@@ -284,7 +303,12 @@ export function startPiMatrixRoomPoller(
 
   const client =
     options.client ??
-    new HttpMatrixRoomClient(config.homeserver, config.roomId, config.tokenCommand);
+    new HttpMatrixRoomClient(
+      config.homeserver,
+      config.roomId,
+      config.tokenCommand,
+      config.fetchImpl,
+    );
   const cursorStore = options.cursorStore ?? new FileCursorStore(config.cursorPath);
   const sleep = options.sleepImpl ?? defaultSleep;
 

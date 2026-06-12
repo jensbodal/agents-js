@@ -38,6 +38,7 @@ import {
   type InboxMessage,
   replyTargetForRow,
   runInboxPoller,
+  selectFetchImpl,
 } from "@agents-js/gateway-inbox-runtime";
 import type { PiHost } from "./types.ts";
 
@@ -78,6 +79,14 @@ interface PiInboxPollerConfig {
   readonly intervalMs?: number;
   readonly limit?: number;
   readonly scopes: string[];
+  /**
+   * Optional fetch transport override for the gateway client. Resolved to
+   * {@link curlFetch} when `CH_GATEWAY_FETCH` (falling back to
+   * `AGENTS_GATEWAY_FETCH`) equals `curl`, so the gateway poller can reach the
+   * network on a host where native bun `fetch` is TCC-blocked (BL-64).
+   * `undefined` keeps the client's default native `fetch`.
+   */
+  readonly fetchImpl?: typeof fetch;
 }
 
 // Least-privilege for an INBOUND-ONLY poller: read the inbox + ack delivery, no
@@ -157,6 +166,9 @@ export function readPiInboxConfig(
     intervalMs: numberEnv(env.CH_POLL_INTERVAL_MS),
     limit: numberEnv(env.CH_POLL_LIMIT),
     scopes: parseScopes(env.CH_GATEWAY_SCOPES),
+    // Opt into the curl-backed transport via CH_GATEWAY_FETCH (falling back to
+    // AGENTS_GATEWAY_FETCH). `undefined` keeps the client's native fetch.
+    fetchImpl: selectFetchImpl(env.CH_GATEWAY_FETCH?.trim() || env.AGENTS_GATEWAY_FETCH?.trim()),
   };
 }
 
@@ -226,6 +238,7 @@ export function startPiInboxPoller(
       entity: config.identity,
       getPrivateKeyPem: () => runKeyCommand(config.keyCommand),
       scopes: config.scopes,
+      ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
     });
   const cursorStore = options.cursorStore ?? new FileCursorStore(config.cursorPath);
 
