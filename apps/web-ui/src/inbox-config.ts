@@ -3,7 +3,7 @@
  *
  * Extracted from the entry module so it is unit-testable without the DOM
  * side effects (`registerAllComponents`, `#app` mount) that `inbox.ts` runs
- * on import — mirrors the `landing-surface.ts` ↔ `main.ts` split.
+ * on import — mirrors the `dashboard-data.ts` ↔ `dashboard-root.ts` split.
  *
  * Error handling here is a LOCAL typed error (`InboxConfigError`: a stable
  * machine-readable `code` + a human `message`), replacing the prior bare

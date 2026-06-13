@@ -472,7 +472,7 @@ const releaseGapLanguagePattern =
 
 const RELEASE_GAP_LANGUAGE_SCAN_PATHS = [
   "apps/web-ui/src/a2ui-demo.ts",
-  "apps/web-ui/src/main.ts",
+  "apps/web-ui/src/dashboard-root.ts",
   "apps/web-ui/src/chat.ts",
   "docs/architecture.md",
   "docs/develop/playground-smoke.md",

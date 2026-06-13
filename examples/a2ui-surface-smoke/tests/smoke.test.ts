@@ -16,9 +16,9 @@
  *      arriving with the surface id, the bound action name, and the payload
  *      intact.
  *
- * The render-tree leg reuses the ready-made demo sequences
- * (`buildDemoMessages` / `buildLandingMessages` from `apps/web-ui`) so this
- * test exercises the exact payload shapes the live web-ui demo pushes. Those
+ * The render-tree leg reuses the web-ui demo sequence (`buildDemoMessages`
+ * from `apps/web-ui`) plus a local pure-display landing fixture, so this test
+ * exercises the same payload shapes the live web-ui demo pushes. Those
  * sequences only render an `AcpMessage` (no interactive component), so the
  * event leg authors an `AcpChatApp` + `AcpPromptInput` surface — `submit`
  * is the action name that surfaces as the round-tripped `actionName`.
@@ -34,7 +34,30 @@ import { A2uiBridge, type SurfaceEventSink } from "@agents-js/a2ui-host";
 import { renderSurface } from "@agents-js/a2ui-renderer";
 import { type A2uiMessage, ACP_CATALOG_ID } from "@agents-js/a2ui-types";
 import { buildDemoMessages } from "@agents-js/web-ui/src/a2ui-demo.ts";
-import { buildLandingMessages, LANDING_SURFACE_ID } from "@agents-js/web-ui/src/landing-surface.ts";
+
+// Local pure-display landing fixture. The web-ui's `landing-surface.ts` was
+// retired when the root route became the gateway dashboard; this inlines the
+// same `CreateSurface -> UpdateComponents` shape (a single role=agent
+// `AcpMessage`) so this learning test keeps exercising a non-interactive
+// surface independently of the app's routing.
+const LANDING_SURFACE_ID = "landing";
+function buildLandingMessages(): readonly A2uiMessage[] {
+  return [
+    {
+      version: "v0.9",
+      createSurface: { surfaceId: LANDING_SURFACE_ID, catalogId: ACP_CATALOG_ID },
+    },
+    {
+      version: "v0.9",
+      updateComponents: {
+        surfaceId: LANDING_SURFACE_ID,
+        components: [
+          { component: "AcpMessage", id: "welcome", role: "agent", body: "Welcome to agents-js." },
+        ],
+      },
+    },
+  ];
+}
 
 /** Flush queued microtasks so the host's coalesced render settles. */
 const flushRender = (): Promise<void> => new Promise((resolve) => queueMicrotask(resolve));

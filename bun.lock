@@ -88,6 +88,7 @@
         "@agents-js/agui-types": "workspace:*",
         "@agents-js/ui-components": "workspace:*",
         "@agents-js/validation": "workspace:*",
+        "@q4m/wasm-canvas-renderer": "^0.0.1",
         "lit": "catalog:",
       },
       "devDependencies": {
@@ -1328,6 +1329,8 @@
     "@polka/url": ["@polka/url@1.0.0-next.29", "", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
 
     "@preact/signals-core": ["@preact/signals-core@1.14.1", "", {}, "sha512-vxPpfXqrwUe9lpjqfYNjAF/0RF/eFGeLgdJzdmIIZjpOnTmGmAB4BjWone562mJGMRP4frU6iZ6ei3PDsu52Ng=="],
+
+    "@q4m/wasm-canvas-renderer": ["@q4m/wasm-canvas-renderer@0.0.1", "https://registry.q4m.dev/nexus/repository/npm-hosted/@q4m/wasm-canvas-renderer/-/wasm-canvas-renderer-0.0.1.tgz", { "peerDependencies": { "@agents-js/a2ui-host": "*" } }, "sha512-+LQMWTW4FTYfKv2HnCgYoGcXSQkfN+xFjT9Iqi6ZBqnOe95JjSE5Ev4mZtw+mQ1hvch+Kf1/kbYqf9iqIJN4Tw=="],
 
     "@quansync/fs": ["@quansync/fs@1.0.0", "", { "dependencies": { "quansync": "^1.0.0" } }, "sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ=="],
 

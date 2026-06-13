@@ -19,6 +19,7 @@
     "@agents-js/agui-types": "workspace:*",
     "@agents-js/ui-components": "workspace:*",
     "@agents-js/validation": "workspace:*",
+    "@q4m/wasm-canvas-renderer": "^0.0.1",
     "lit": "catalog:"
   },
   "devDependencies": {

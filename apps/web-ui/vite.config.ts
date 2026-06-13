@@ -30,6 +30,15 @@ const webUiGlueSrc = resolve(configDir, "../../packages/ui-components/src/web-ui
 const uiComponentsSrcDir = resolve(configDir, "../../packages/ui-components/src");
 // biome-ignore lint/style/noProcessEnv: Vite evaluates this config in Node, not Bun.
 const defaultTargetProxy = process.env.VITE_AGENTS_DEFAULT_TARGET_URL;
+// Local-dev source consume of the wasm-canvas renderer (sibling repo, not a
+// workspace package). When WASM_CANVAS_SRC points at the wasm-canvas checkout,
+// `@q4m/wasm-canvas-renderer` resolves to its TypeScript source so the dashboard
+// canvas can be proven before the package is published to Nexus. Unset in
+// deployed builds, where the real `@q4m/wasm-canvas-renderer` dep resolves from
+// node_modules — so this committed config stays deploy-safe.
+// biome-ignore lint/style/noProcessEnv: Vite evaluates this config in Node, not Bun.
+const wasmCanvasRepo = process.env.WASM_CANVAS_SRC;
+const wasmCanvasSrc = wasmCanvasRepo ? resolve(wasmCanvasRepo, "src/index.ts") : undefined;
 const workspaceAliases = loadWorkspaceSourceAliases([
   "@agents-js/a2a-client",
   "@agents-js/a2ui-host",
@@ -51,10 +60,11 @@ function normalizeTransformId(id: string): string {
 export default defineConfig({
   build: {
     // The reference UI ships as a multi-entry bundle of independent surfaces:
-    // the root A2UI/canvas landing (index.html / src/main.ts), the chat app
-    // (chat.html / src/chat.ts), the AJS-85 agent inbox browser
-    // (inbox.html / src/inbox.ts), and the gateway dashboard
-    // (dashboard.html / src/dashboard.ts).
+    // the root gateway dashboard (index.html / src/dashboard-root.ts — live
+    // fleet via the Lit renderer + an embedded wasm canvas viz panel), the chat
+    // app (chat.html / src/chat.ts), and the AJS-85 agent inbox browser
+    // (inbox.html / src/inbox.ts). The dashboard is the front door at `/`; there
+    // is no separate `/dashboard` route.
     // Keep the warning budget aligned with the current bundled workspace deps.
     chunkSizeWarningLimit: 1_200,
     rollupOptions: {
@@ -62,7 +72,6 @@ export default defineConfig({
         main: resolve(configDir, "index.html"),
         chat: resolve(configDir, "chat.html"),
         inbox: resolve(configDir, "inbox.html"),
-        dashboard: resolve(configDir, "dashboard.html"),
       },
     },
   },
@@ -96,6 +105,7 @@ export default defineConfig({
       { find: "@agents-js/ui-components/connect-preferences", replacement: connectPreferencesSrc },
       { find: "@agents-js/ui-components/web-ui-glue", replacement: webUiGlueSrc },
       ...Object.entries(workspaceAliases).map(([find, replacement]) => ({ find, replacement })),
+      ...(wasmCanvasSrc ? [{ find: "@q4m/wasm-canvas-renderer", replacement: wasmCanvasSrc }] : []),
     ],
   },
   server: {
@@ -103,10 +113,18 @@ export default defineConfig({
     // Allow non-localhost hostnames for reference UI runs behind a gateway or
     // reverse proxy. Operators can tighten this in their own deployment config.
     allowedHosts: true,
+    // When source-consuming the wasm-canvas renderer from a sibling repo, vite
+    // must be allowed to serve files (incl. the `.wasm` asset) from outside the
+    // app root. No-op in deployed builds (WASM_CANVAS_SRC unset).
+    ...(wasmCanvasRepo ? { fs: { allow: [resolve(configDir, "../.."), wasmCanvasRepo] } } : {}),
     proxy: defaultTargetProxy
       ? {
           "/.well-known": defaultTargetProxy,
           "/jsonrpc": defaultTargetProxy,
+          // The dashboard subscribes to the gateway event bus over SSE; proxy it
+          // same-origin so the browser's EventSource needs no CORS/auth dance.
+          // `ws:false` keeps it an HTTP stream (SSE, not a websocket upgrade).
+          "/events": { target: defaultTargetProxy, ws: false },
         }
       : undefined,
   },

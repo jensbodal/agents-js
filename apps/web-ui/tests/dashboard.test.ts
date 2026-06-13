@@ -1,33 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { mountDashboardSurface } from "../src/dashboard-controller.ts";
-import { buildDashboardSurface, DASHBOARD_SURFACE_ID } from "../src/dashboard-surface.ts";
-
-// ── dashboard-surface: the empty dashboard A2UI payload (mirrors landing-surface) ──
-describe("gateway dashboard surface", () => {
-  test("creates a single dashboard surface that starts empty (M0)", () => {
-    const messages = buildDashboardSurface();
-
-    const create = messages.find((m) => "createSurface" in m);
-    expect(create?.createSurface?.surfaceId).toBe(DASHBOARD_SURFACE_ID);
-
-    // "Empty" per Jens's M0: the initial surface carries only an empty-state
-    // marker — no agent/registry/health content yet (that's layered on later).
-    const update = messages.find((m) => "updateComponents" in m);
-    expect(update?.updateComponents?.surfaceId).toBe(DASHBOARD_SURFACE_ID);
-    const components = update?.updateComponents?.components ?? [];
-    expect(components.length).toBe(1);
-  });
-
-  test("every message targets the same surface id", () => {
-    for (const message of buildDashboardSurface()) {
-      const id = message.createSurface?.surfaceId ?? message.updateComponents?.surfaceId ?? null;
-      expect(id).toBe(DASHBOARD_SURFACE_ID);
-    }
-  });
-});
 
 // ── dashboard-controller: renderer-agnostic RendererAdapter mount orchestration ──
-// The seam the wasm-canvas adapter (or any RendererAdapter) plugs into.
+// The seam the wasm-canvas viz panel (or any ADR-0009 RendererAdapter) plugs
+// into. The dashboard's connected-agent surface + the wasm activity feed are
+// covered by `dashboard-data.test.ts` (pure mappers).
 
 function makeRecordingAdapter() {
   const calls: string[] = [];
