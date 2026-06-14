@@ -677,6 +677,10 @@
         "zod": "^3",
       },
     },
+    "packages/voice": {
+      "name": "@agents-js/voice",
+      "version": "0.6.0",
+    },
     "packages/wake-channel-bridge": {
       "name": "@agents-js/wake-channel-bridge",
       "version": "0.6.0",
@@ -891,6 +895,8 @@
     "@agents-js/ui-components": ["@agents-js/ui-components@workspace:packages/ui-components"],
 
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
+
+    "@agents-js/voice": ["@agents-js/voice@workspace:packages/voice"],
 
     "@agents-js/wake-channel-bridge": ["@agents-js/wake-channel-bridge@workspace:packages/wake-channel-bridge"],
 
