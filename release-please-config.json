@@ -160,6 +160,41 @@
           "type": "json",
           "path": "packages/wake-types/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/claude-gateway-inbox-receiver/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/codex-gateway-inbox-receiver/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/gateway-inbox-runtime/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/shell-args/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-bus-bridge/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/reporting/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/wake-channel-bridge/package.json",
+          "jsonpath": "$.version"
         }
       ]
     }

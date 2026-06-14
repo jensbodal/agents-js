@@ -74,7 +74,7 @@
         "packages/acp-host/src/process.ts",
         "packages/acp-host/src/terminal-manager.ts",
         "packages/acp/src/connection.ts",
-        "extras/reporting/src/runtime.ts",
+        "packages/reporting/src/runtime.ts",
         "packages/gateway-runtime/src/subprocess.ts",
         "apps/internal-gateway/cli.ts",
         "apps/internal-gateway/main.ts",
@@ -91,6 +91,32 @@
         "rules": {
           "style": {
             "noProcessEnv": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/**",
+        "!packages/mcp-bus-bridge/**",
+        "!packages/reporting/**",
+        "!packages/wake-channel-bridge/**",
+        "!packages/**/tests/**",
+        "!packages/**/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@agents-js/mcp-bus-bridge": "Required-core packages must not import the optional shipped lib @agents-js/mcp-bus-bridge. Optional libs are pluggable defaults that core must stay free of so they remain droppable — wire it in from an app/operator instead.",
+                  "@agents-js/reporting": "Required-core packages must not import the optional shipped lib @agents-js/reporting. Optional libs are pluggable defaults that core must stay free of so they remain droppable — wire it in from an app/operator instead.",
+                  "@agents-js/wake-channel-bridge": "Required-core packages must not import the optional shipped lib @agents-js/wake-channel-bridge. Optional libs are pluggable defaults that core must stay free of so they remain droppable — wire it in from an app/operator instead."
+                }
+              }
+            }
           }
         }
       }

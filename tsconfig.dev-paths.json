@@ -26,7 +26,7 @@
       "@agents-js/policy": ["./packages/policy/src/index.ts"],
       "@agents-js/policy/permission-types": ["./packages/policy/src/permission-types.ts"],
       "@agents-js/policy/terminal-policy": ["./packages/policy/src/terminal-policy.ts"],
-      "@agents-js/reporting": ["./extras/reporting/src/index.ts"],
+      "@agents-js/reporting": ["./packages/reporting/src/index.ts"],
       "@agents-js/schema-utils": ["./packages/schema-utils/src/index.ts"],
       "@agents-js/shell-args": ["./packages/shell-args/src/index.ts"],
       "@agents-js/skills": ["./packages/skills/src/index.ts"],

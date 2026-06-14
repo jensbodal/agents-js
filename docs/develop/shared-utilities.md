@@ -66,7 +66,7 @@ Known sites awaiting migration to the shared tokenizer:
 `agent-launch/src/plan.ts` (`splitFlags`), `claude-channel-adapter/bin/launcher.ts`
 (MCP args fallback), `tools/src/primitives/sigil-registry.ts` (`extractArgs`),
 `policy/src/permission-engine.ts` (`extractShellCommandPathArgs` — security-adjacent),
-`extras/reporting/src/cli.ts`.
+`reporting/src/cli.ts`.
 
 ## RegEx policy
 
@@ -104,7 +104,7 @@ shell-arg tokenizer and reuse of the surfaces above.
 | med | `claude-channel-adapter/bin/launcher.ts` | MCP-args `split(/\s+/)` fallback |
 | med | `tools/src/primitives/sigil-registry.ts` `extractArgs` | naive shell-arg `split(/\s+/)` |
 | med | `policy/src/permission-engine.ts` `extractShellCommandPathArgs` | shell-arg `split(/\s+/)` (security-adjacent path checks) |
-| med | `extras/reporting/src/cli.ts` | hand-rolled `parseArgs` |
+| med | `reporting/src/cli.ts` | hand-rolled `parseArgs` |
 
 Duplicated logic tracked for consolidation: shell-operator split
 (`agent-launch/identity.ts` + `matrix-agent-uniqueness.ts`), `buildExtendedPath`

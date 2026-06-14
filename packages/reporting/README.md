@@ -14,68 +14,65 @@ bun add @agents-js/reporting
 
 ### Functions
 
-- **`validateWorkerEnvelope`**
-- **`validateCanvasDoc`**
-- **`buildRepoSnapshot`**
-- **`getProfileDescription`**
 - **`buildCanvas`**
-- **`runWorkers`**
+- **`buildRepoSnapshot`**
 - **`buildWorkerPrompt`**
+- **`ensureParentDir`**
+- **`extractLastAgentMessage`**
+- **`findingsBySeverity`**
 - **`generateReport`**
 - **`generateReportWithDeps`**
-- **`renderFindingsMarkdown`**
-- **`findingsBySeverity`**
+- **`getProfileDescription`**
+- **`mergeFindings`**
+- **`normalizeText`**
 - **`parseJsonlEvents`**
-- **`extractLastAgentMessage`**
+- **`renderFindingsMarkdown`**
+- **`runWorkers`**
 - **`sha256`**
 - **`stableStringify`**
-- **`normalizeText`**
-- **`ensureParentDir`**
+- **`validateCanvasDoc`**
+- **`validateWorkerEnvelope`**
 
 ### Interfaces
 
-- **`JsonlEvent`**
+- **`CanvasDoc`**
+- **`CanvasEdge`**
+- **`CanvasTextNode`**
+- **`Citation`**
+- **`CommandSnapshot`**
+- **`ComponentNote`**
+- **`Finding`**
 - **`GenerateReportOptions`**
 - **`GenerateReportResult`**
-- **`Finding`**
-- **`WorkerFinding`**
-- **`ComponentNote`**
-- **`Citation`**
-- **`WorkerEnvelope`**
-- **`WorkerResult`**
+- **`JsonlEvent`**
 - **`RepoComponent`**
-- **`SourceSnapshot`**
-- **`CommandSnapshot`**
-- **`RepoSnapshot`**
-- **`CanvasTextNode`**
-- **`CanvasEdge`**
-- **`CanvasDoc`**
 - **`ReportingDeps`**
+- **`RepoSnapshot`**
+- **`SourceSnapshot`**
 - **`WorkerDefinition`**
+- **`WorkerEnvelope`**
+- **`WorkerFinding`**
+- **`WorkerResult`**
 
 ### Types
 
+- **`ReportProfileId`**
 - **`RunCommandOptions`**
 - **`RunCommandResult`**
 - **`Severity`**
 - **`WorkerId`**
-- **`ReportProfileId`**
 
 ### Constants
 
-- **`defaultDeps`**
-- **`DEFAULT_MODEL`**
 - **`DEFAULT_MAX_CONCURRENCY`**
+- **`DEFAULT_MODEL`**
 - **`DEFAULT_OUT_DIR`**
-- **`SEVERITY_ORDER`**
-- **`WORKERS`**
-- **`WEB_ALLOWLIST_SOURCES`**
+- **`defaultDeps`**
 - **`PROFILE_DESCRIPTIONS`**
+- **`SEVERITY_ORDER`**
 - **`SNAPSHOT_COMMANDS`**
-
-### Exports
-
-- **`mergeFindings`**
+- **`WEB_ALLOWLIST_SOURCES`**
+- **`WORKERS`**
 
 
 ## Dependencies

@@ -1,7 +1,6 @@
 {
   "name": "@agents-js/mcp-bus-bridge",
   "version": "0.6.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "MCP bridge consumer for the gateway bus. Subscribes to /events SSE and emits each event as an MCP server-initiated notification, so MCP-speaking clients (Claude Code, Claude Desktop) receive gateway-bus events in-context.",

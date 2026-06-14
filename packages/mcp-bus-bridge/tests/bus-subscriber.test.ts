@@ -50,7 +50,10 @@ describe("runBusSubscriber", () => {
     const received: GatewayBusEvent<unknown>[] = [];
 
     let fetchCalls = 0;
-    const mockFetch: typeof fetch = async (_input, _init) => {
+    const mockFetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      _init?: Parameters<typeof fetch>[1],
+    ) => {
       fetchCalls += 1;
       if (fetchCalls === 1) {
         return buildSseResponse(sent);
@@ -58,7 +61,7 @@ describe("runBusSubscriber", () => {
       // After the SSE stream ends, abort so the subscriber returns.
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runBusSubscriber({
       url: "http://localhost:8080/events",
@@ -91,12 +94,12 @@ describe("runBusSubscriber", () => {
 
     const received: GatewayBusEvent<unknown>[] = [];
     let calls = 0;
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = (async () => {
       calls += 1;
       if (calls === 1) return response;
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runBusSubscriber({
       url: "http://localhost:8080/events",
@@ -118,14 +121,14 @@ describe("runBusSubscriber", () => {
   test("reconnects with exponential backoff when fetch fails", async () => {
     const sleepCalls: number[] = [];
     let fetchCalls = 0;
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = (async () => {
       fetchCalls += 1;
       if (fetchCalls <= 3) {
         throw new Error(`simulated network failure ${fetchCalls}`);
       }
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runBusSubscriber({
       url: "http://localhost:8080/events",
@@ -153,14 +156,14 @@ describe("runBusSubscriber", () => {
       buildGatewayBusEvent({ type: "gateway.example.event", payload: null }),
     ]);
 
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = (async () => {
       fetchCalls += 1;
       if (fetchCalls === 1) throw new Error("first attempt fails");
       if (fetchCalls === 2) return okResponse;
       if (fetchCalls === 3) throw new Error("third attempt fails");
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runBusSubscriber({
       url: "http://localhost:8080/events",
@@ -187,7 +190,8 @@ describe("runBusSubscriber", () => {
         // Stream never produces data; subscriber blocks on reader.read().
       },
     });
-    const mockFetch: typeof fetch = async () => new Response(slowStream, { status: 200 });
+    const mockFetch = (async () =>
+      new Response(slowStream, { status: 200 })) as unknown as typeof fetch;
 
     const subscribePromise = runBusSubscriber({
       url: "http://localhost:8080/events",
@@ -221,12 +225,12 @@ describe("runBusSubscriber", () => {
     const received: GatewayBusEvent<unknown>[] = [];
     let calls = 0;
     const warnings: unknown[] = [];
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = (async () => {
       calls += 1;
       if (calls === 1) return response;
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runBusSubscriber({
       url: "http://localhost:8080/events",

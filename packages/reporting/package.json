@@ -1,7 +1,6 @@
 {
   "name": "@agents-js/reporting",
   "version": "0.6.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Deterministic code-review reporting: orchestrates worker envelopes and emits merged findings as markdown and JSON Canvas output.",

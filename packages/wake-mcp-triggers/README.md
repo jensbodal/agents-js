@@ -25,7 +25,7 @@ bun add @agents-js/wake-mcp-triggers
 - **`InSessionPushDispatcherDeps`** — Deps for {createInSessionPushDispatcher}.
 - **`InSessionPushReceiver`** — Handle returned from {createInSessionPushReceiver}.
 - **`InSessionPushReceiverDeps`** — Deps for {createInSessionPushReceiver}.
-- **`McpNotification`** — MCP server-initiated notification frame (subset of JSON-RPC notification shape — `method` + `params` only, no `id`). Mirrors the shape used by `extras/mcp-bus-bridge/src/event-mapper.ts` so dispatc...
+- **`McpNotification`** — MCP server-initiated notification frame (subset of JSON-RPC notification shape — `method` + `params` only, no `id`). Mirrors the shape used by `packages/mcp-bus-bridge/src/event-mapper.ts` so dispa...
 
 ### Types
 

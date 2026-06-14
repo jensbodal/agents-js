@@ -1,5 +1,7 @@
 # @agents-js/mcp-bus-bridge
 
+<!-- This README is hand-maintained. -->
+
 MCP server that bridges an agents-js gateway's event bus to any
 MCP-speaking client (Claude Code, Claude Desktop, Cursor, etc.) as
 server-initiated notifications.
@@ -25,7 +27,7 @@ npm install -g @agents-js/mcp-bus-bridge
 Or run directly from a clone:
 
 ```sh
-bun /path/to/agents-js/extras/mcp-bus-bridge/src/bin.ts
+bun /path/to/agents-js/packages/mcp-bus-bridge/src/bin.ts
 ```
 
 ## Wire it into your MCP client

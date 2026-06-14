@@ -33,14 +33,14 @@ describe("mcp-bus-bridge integration with real GatewayBus + SSE subscribe handle
     // routing its `fetch` to invoke `subscribe` directly. This lets
     // the test exercise the production frame-serialization path
     // without spinning up `Bun.serve`.
-    const fetchImpl: typeof fetch = async (input) => {
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0]) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       const response = await subscribe(
         new Request(url, { method: "GET", signal: controller.signal }),
       );
       if (response === null) throw new Error("subscribe handler returned null");
       return response;
-    };
+    }) as unknown as typeof fetch;
 
     const dispatched: McpNotification[] = [];
     const server: McpBusBridgeServer = {
@@ -121,14 +121,14 @@ describe("mcp-bus-bridge integration with real GatewayBus + SSE subscribe handle
     const subscribe = createBusSubscribeHandler({ bus, heartbeatMs: 0 });
     const publish = createBusPublishHandler({ bus });
 
-    const fetchImpl: typeof fetch = async (input) => {
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0]) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       const response = await subscribe(
         new Request(url, { method: "GET", signal: controller.signal }),
       );
       if (response === null) throw new Error("subscribe handler returned null");
       return response;
-    };
+    }) as unknown as typeof fetch;
 
     const dispatched: McpNotification[] = [];
     const server: McpBusBridgeServer = {

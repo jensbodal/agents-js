@@ -15,7 +15,7 @@
  *   "mcpServers": {
  *     "gateway-bus": {
  *       "command": "bun",
- *       "args": ["/path/to/extras/mcp-bus-bridge/src/bin.ts"],
+ *       "args": ["/path/to/packages/mcp-bus-bridge/src/bin.ts"],
  *       "env": {
  *         "GATEWAY_BUS_URL": "http://localhost:8080",
  *         "GATEWAY_BUS_FILTER": "gateway.matrix.,gateway.audit."

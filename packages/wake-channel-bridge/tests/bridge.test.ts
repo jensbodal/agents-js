@@ -97,12 +97,22 @@ function makeStore(): WakeSignalStore {
   });
 }
 
+/**
+ * Read the `payload` map off an `in-session-push` adapter. The bridge's
+ * test fixtures only ever build that shape; for any other shape we return
+ * an empty record so the resolvers degrade to their default values.
+ */
+function adapterPayload(record: WakeSignalRecord): Record<string, unknown> {
+  const { adapter } = record;
+  return adapter.shape === "in-session-push" ? adapter.payload : {};
+}
+
 const RESOLVERS_BASIC = {
   sender: (record: WakeSignalRecord): string => {
-    const payload = record.adapter.payload as { sender?: string };
+    const payload = adapterPayload(record) as { sender?: string };
     return payload.sender ?? "unknown";
   },
-  content: (record: WakeSignalRecord): string => JSON.stringify(record.adapter.payload),
+  content: (record: WakeSignalRecord): string => JSON.stringify(adapterPayload(record)),
 };
 
 // ----------------------------------------------------------------------------
@@ -136,9 +146,9 @@ describe("drainPending — basic round-trip", () => {
 
     const result = await bridge.drainPending(TARGET_X);
     expect(result.attempts.length).toBe(1);
-    expect(result.attempts[0].outcome).toBe("emitted-and-marked");
+    expect(result.attempts[0]?.outcome).toBe("emitted-and-marked");
     expect(emits.length).toBe(1);
-    expect(emits[0].sender).toBe("matrix-bot");
+    expect(emits[0]?.sender).toBe("matrix-bot");
 
     // Store should now reflect the delivery.
     const fetched = await store.get(signal.signalId);
@@ -162,7 +172,7 @@ describe("drainPending — at-least-once dedup", () => {
     await store.put(makeSignal("sig-a"));
 
     const first = await bridge.drainPending(TARGET_X);
-    expect(first.attempts[0].outcome).toBe("emitted-and-marked");
+    expect(first.attempts[0]?.outcome).toBe("emitted-and-marked");
 
     const second = await bridge.drainPending(TARGET_X);
     expect(second.attempts.length).toBe(0); // store.pullPending excludes delivered
@@ -188,6 +198,7 @@ describe("drainPending — sender-gate rejection", () => {
     const result = await bridge.drainPending(TARGET_X);
     expect(result.attempts.length).toBe(1);
     const attempt = result.attempts[0];
+    if (attempt === undefined) throw new Error("expected one attempt");
     expect(attempt.outcome).toBe("rejected-by-sender-gate");
     if (attempt.outcome === "rejected-by-sender-gate") {
       expect(attempt.sender).toBe("untrusted-agent");
@@ -213,12 +224,12 @@ describe("drainPending — sender-gate rejection", () => {
     await store.put(makeSignal("sig-a", { sender: "untrusted-agent" }));
 
     const first = await bridge.drainPending(TARGET_X);
-    expect(first.attempts[0].outcome).toBe("rejected-by-sender-gate");
+    expect(first.attempts[0]?.outcome).toBe("rejected-by-sender-gate");
 
     const second = await bridge.drainPending(TARGET_X);
     // Still pending — still attempted, still rejected
     expect(second.attempts.length).toBe(1);
-    expect(second.attempts[0].outcome).toBe("rejected-by-sender-gate");
+    expect(second.attempts[0]?.outcome).toBe("rejected-by-sender-gate");
   });
 });
 
@@ -340,10 +351,10 @@ describe("drainPending — resolver exception containment", () => {
         if (record.signalId === ("sig-a" as WakeSignalId)) {
           throw new Error("resolver synthetic failure");
         }
-        const payload = record.adapter.payload as { sender?: string };
+        const payload = adapterPayload(record) as { sender?: string };
         return payload.sender ?? "unknown";
       },
-      content: (record: WakeSignalRecord): string => JSON.stringify(record.adapter.payload),
+      content: (record: WakeSignalRecord): string => JSON.stringify(adapterPayload(record)),
     };
     const bridge = createWakeChannelBridge({ store, server, resolvers: throwResolvers });
 
@@ -352,8 +363,8 @@ describe("drainPending — resolver exception containment", () => {
 
     const result = await bridge.drainPending(TARGET_X);
     expect(result.attempts.length).toBe(2);
-    expect(result.attempts[0].outcome).toBe("resolver-error");
-    expect(result.attempts[1].outcome).toBe("emitted-and-marked");
+    expect(result.attempts[0]?.outcome).toBe("resolver-error");
+    expect(result.attempts[1]?.outcome).toBe("emitted-and-marked");
 
     // resolver-error signal NOT marked delivered
     const a = await store.get("sig-a" as WakeSignalId);
@@ -393,8 +404,8 @@ describe("drainPending — markDelivered exception containment", () => {
 
     const result = await bridge.drainPending(TARGET_X);
     expect(result.attempts.length).toBe(2);
-    expect(result.attempts[0].outcome).toBe("emitted-but-mark-failed");
-    expect(result.attempts[1].outcome).toBe("emitted-and-marked");
+    expect(result.attempts[0]?.outcome).toBe("emitted-but-mark-failed");
+    expect(result.attempts[1]?.outcome).toBe("emitted-and-marked");
 
     // sig-a NOT marked delivered in the underlying store (the mark threw)
     const a = await realBackend.get("sig-a" as WakeSignalId);

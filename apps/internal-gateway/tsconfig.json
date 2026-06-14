@@ -15,7 +15,6 @@
       "@agents-js/gateway-runtime": ["../../packages/gateway-runtime/src/index.ts"],
       "@agents-js/host": ["../../packages/host/src/index.ts"],
       "@agents-js/policy": ["../../packages/policy/src/index.ts"],
-      "@agents-js/reporting": ["../../extras/reporting/src/index.ts"],
       "@agents-js/schema-utils": ["../../packages/schema-utils/src/index.ts"],
       "@agents-js/ui-components": ["../../packages/ui-components/src/index.ts"],
       "@agents-js/validation": ["../../packages/validation/src/index.ts"],

@@ -34,7 +34,7 @@
  * The runtime is intentionally framework-free — it takes function
  * dependencies (notification sink, audit hook, clock) and returns small
  * objects, so it composes with any MCP server impl (e.g.
- * `extras/mcp-bus-bridge`'s `createMcpBusBridgeServer`, or a future native
+ * `packages/mcp-bus-bridge`'s `createMcpBusBridgeServer`, or a future native
  * MCP server inside agents-js).
  *
  * Contract invariants (per the AJS-96 critique reduction):
@@ -63,7 +63,7 @@ import {
 /**
  * MCP server-initiated notification frame (subset of JSON-RPC notification
  * shape — `method` + `params` only, no `id`). Mirrors the shape used by
- * `extras/mcp-bus-bridge/src/event-mapper.ts` so dispatchers + bridges can
+ * `packages/mcp-bus-bridge/src/event-mapper.ts` so dispatchers + bridges can
  * share a sink without coupling to either side's package.
  */
 export interface McpNotification {

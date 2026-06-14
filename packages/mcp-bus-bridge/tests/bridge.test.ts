@@ -51,7 +51,7 @@ const baseConfig: BridgeConfig = {
 function buildSseFetch(eventsToEmit: ReturnType<typeof buildGatewayBusEvent>[]) {
   let calls = 0;
   return (controller: AbortController): typeof fetch =>
-    async () => {
+    (async () => {
       calls += 1;
       if (calls === 1) {
         const encoder = new TextEncoder();
@@ -67,7 +67,7 @@ function buildSseFetch(eventsToEmit: ReturnType<typeof buildGatewayBusEvent>[]) 
       }
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 }
 
 describe("runMcpBusBridge", () => {
@@ -180,7 +180,7 @@ describe("runMcpBusBridge", () => {
 
     let observedUrl: string | undefined;
     let calls = 0;
-    const fetchImpl: typeof fetch = async (input) => {
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0]) => {
       observedUrl = typeof input === "string" ? input : (input as Request).url;
       calls += 1;
       if (calls === 1) {
@@ -197,7 +197,7 @@ describe("runMcpBusBridge", () => {
       }
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runMcpBusBridge({
       config: {
@@ -224,7 +224,7 @@ describe("runMcpBusBridge", () => {
 
     let observedUrl: string | undefined;
     let calls = 0;
-    const fetchImpl: typeof fetch = async (input) => {
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0]) => {
       observedUrl = typeof input === "string" ? input : (input as Request).url;
       calls += 1;
       if (calls === 1) {
@@ -241,7 +241,7 @@ describe("runMcpBusBridge", () => {
       }
       controller.abort();
       return new Response(null, { status: 204 });
-    };
+    }) as unknown as typeof fetch;
 
     await runMcpBusBridge({
       config: {

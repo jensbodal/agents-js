@@ -4,7 +4,7 @@ import path from "node:path";
 const repoRoot = path.resolve(import.meta.dir, "..");
 
 describe("publish-all", () => {
-  test("resolves publishable extras packages from their real workspace path", async () => {
+  test("resolves publishable packages from their real workspace path", async () => {
     const env = {
       ...process.env,
       AGENTS_JS_PUBLISH_REGISTRY: "https://registry.invalid/",
@@ -30,9 +30,9 @@ describe("publish-all", () => {
 
     expect([0, 1]).toContain(exitCode);
     expect(output).toContain("@agents-js/wake-channel-bridge");
-    expect(output).toContain("extras/wake-channel-bridge");
+    expect(output).toContain("packages/wake-channel-bridge");
     expect(output).not.toContain("Package directory not found");
-    expect(output).not.toContain("packages/wake-channel-bridge");
+    expect(output).not.toContain("extras/wake-channel-bridge");
   });
 
   test("exits 1 with [FAILED] summary when a package publish fails (AJS-101 regression guard)", async () => {
@@ -71,6 +71,6 @@ describe("publish-all", () => {
     expect(exitCode).toBe(1);
     expect(stdout).toContain("[FAILED]");
     expect(stdout).toContain("0 published");
-    expect(stderr).toContain("FAILED in extras/wake-channel-bridge");
+    expect(stderr).toContain("FAILED in packages/wake-channel-bridge");
   }, 30_000);
 });

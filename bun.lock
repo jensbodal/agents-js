@@ -302,20 +302,6 @@
         "@types/bun": "catalog:",
       },
     },
-    "extras/mcp-bus-bridge": {
-      "name": "@agents-js/mcp-bus-bridge",
-      "version": "0.6.0",
-      "bin": {
-        "agents-js-mcp-bus-bridge": "./dist/bin.mjs",
-      },
-      "dependencies": {
-        "@agents-js/host": "0.5.1",
-        "@modelcontextprotocol/sdk": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-      },
-    },
     "extras/pi-acp": {
       "name": "@agents-js/pi-acp",
       "version": "0.6.0",
@@ -352,28 +338,6 @@
       "version": "0.6.0",
       "dependencies": {
         "@agents-js/gateway-runtime": "0.6.0",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-      },
-    },
-    "extras/reporting": {
-      "name": "@agents-js/reporting",
-      "version": "0.6.0",
-      "bin": {
-        "agents-report": "dist/cli.mjs",
-      },
-      "dependencies": {
-        "@agents-js/gateway-runtime": "0.5.1",
-      },
-    },
-    "extras/wake-channel-bridge": {
-      "name": "@agents-js/wake-channel-bridge",
-      "version": "0.6.0",
-      "dependencies": {
-        "@agents-js/claude-channel-adapter": "0.5.1",
-        "@agents-js/wake-signal-store": "0.5.1",
-        "@agents-js/wake-types": "0.5.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -600,6 +564,20 @@
         "zod": "catalog:",
       },
     },
+    "packages/mcp-bus-bridge": {
+      "name": "@agents-js/mcp-bus-bridge",
+      "version": "0.6.0",
+      "bin": {
+        "agents-js-mcp-bus-bridge": "./dist/bin.mjs",
+      },
+      "dependencies": {
+        "@agents-js/host": "0.6.0",
+        "@modelcontextprotocol/sdk": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/memory": {
       "name": "@agents-js/memory",
       "version": "0.6.0",
@@ -627,6 +605,16 @@
         "@agentclientprotocol/sdk": "catalog:",
         "@agents-js/schema-utils": "0.6.0",
         "@agents-js/shell-args": "0.6.0",
+      },
+    },
+    "packages/reporting": {
+      "name": "@agents-js/reporting",
+      "version": "0.6.0",
+      "bin": {
+        "agents-report": "dist/cli.mjs",
+      },
+      "dependencies": {
+        "@agents-js/gateway-runtime": "0.6.0",
       },
     },
     "packages/schema-utils": {
@@ -689,6 +677,18 @@
         "zod": "^3",
       },
     },
+    "packages/wake-channel-bridge": {
+      "name": "@agents-js/wake-channel-bridge",
+      "version": "0.6.0",
+      "dependencies": {
+        "@agents-js/claude-channel-adapter": "0.6.0",
+        "@agents-js/wake-signal-store": "0.6.0",
+        "@agents-js/wake-types": "0.6.0",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/wake-mcp-triggers": {
       "name": "@agents-js/wake-mcp-triggers",
       "version": "0.6.0",
@@ -703,7 +703,7 @@
       "name": "@agents-js/wake-signal-store",
       "version": "0.6.0",
       "dependencies": {
-        "@agents-js/wake-types": "0.5.1",
+        "@agents-js/wake-types": "0.6.0",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -860,7 +860,7 @@
 
     "@agents-js/mcp-bridge": ["@agents-js/mcp-bridge@workspace:packages/mcp-bridge"],
 
-    "@agents-js/mcp-bus-bridge": ["@agents-js/mcp-bus-bridge@workspace:extras/mcp-bus-bridge"],
+    "@agents-js/mcp-bus-bridge": ["@agents-js/mcp-bus-bridge@workspace:packages/mcp-bus-bridge"],
 
     "@agents-js/memory": ["@agents-js/memory@workspace:packages/memory"],
 
@@ -876,7 +876,7 @@
 
     "@agents-js/policy": ["@agents-js/policy@workspace:packages/policy"],
 
-    "@agents-js/reporting": ["@agents-js/reporting@workspace:extras/reporting"],
+    "@agents-js/reporting": ["@agents-js/reporting@workspace:packages/reporting"],
 
     "@agents-js/schema-utils": ["@agents-js/schema-utils@workspace:packages/schema-utils"],
 
@@ -892,7 +892,7 @@
 
     "@agents-js/validation": ["@agents-js/validation@workspace:packages/validation"],
 
-    "@agents-js/wake-channel-bridge": ["@agents-js/wake-channel-bridge@workspace:extras/wake-channel-bridge"],
+    "@agents-js/wake-channel-bridge": ["@agents-js/wake-channel-bridge@workspace:packages/wake-channel-bridge"],
 
     "@agents-js/wake-mcp-triggers": ["@agents-js/wake-mcp-triggers@workspace:packages/wake-mcp-triggers"],
 
