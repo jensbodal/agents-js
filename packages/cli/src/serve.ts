@@ -44,7 +44,7 @@ import {
   wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
 import { type ArgSpec, parseArgv } from "./argv-parser.ts";
-import { normalizeHost, parsePort } from "./cli-utils.ts";
+import { normalizeHost, parseNonNegativeInteger, parsePort } from "./cli-utils.ts";
 import { EXIT_OK } from "./exit-codes.ts";
 import { createTerminalPromptSession, type PromptSession } from "./prompts.ts";
 import { getCliRuntimeResolutionOptions } from "./runtime-resolution.ts";
@@ -737,7 +737,7 @@ export async function runServeCommand(
   const heartbeatOptions = resolveHeartbeatOptions(args, env);
   if (registrySyncEnabled) {
     const syncIntervalMs = env.AGENTS_JS_SYNC_INTERVAL_MS
-      ? Number(env.AGENTS_JS_SYNC_INTERVAL_MS)
+      ? parseNonNegativeInteger(env.AGENTS_JS_SYNC_INTERVAL_MS, "AGENTS_JS_SYNC_INTERVAL_MS")
       : undefined;
     registrySync = startRegistrySync({
       name: localName,

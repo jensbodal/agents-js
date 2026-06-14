@@ -54,6 +54,30 @@ export function normalizeHost(host: string | undefined): string {
   return host?.trim() ? host.trim() : "127.0.0.1";
 }
 
+/** Strictly digit-only: rejects signs, decimals, `1e9`, `0x10`, `Infinity`, blanks. */
+const DECIMAL_DIGITS_ONLY = /^\d+$/;
+
+/**
+ * Parse + validate a non-negative integer from an env or flag value.
+ *
+ * Rejects anything a bare `Number()` would silently turn into `NaN`/`Infinity`
+ * or a non-integer (`"abc"`, `"1e999"`, `"Infinity"`, `"-5"`, `"1.5"`) and
+ * unsafe-large integers. Mirrors the gateway's `AGENTS_JS_SYNC_INTERVAL_MS`
+ * validation (`apps/internal-gateway/discovery.ts`) so the standalone `serve`
+ * path and the internal-gateway agree on one contract for the same value.
+ */
+export function parseNonNegativeInteger(value: string, label: string): number {
+  const trimmed = value.trim();
+  if (!DECIMAL_DIGITS_ONLY.test(trimmed)) {
+    throw new Error(`[agents-js] Invalid ${label} "${value}". Expected a non-negative integer.`);
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`[agents-js] Invalid ${label} "${value}". Expected a non-negative integer.`);
+  }
+  return parsed;
+}
+
 /**
  * Terminal task-state values in the protocol-neutral vocabulary that
  * {@link import("@agents-js/a2a-client").A2ASessionState}.`taskState`

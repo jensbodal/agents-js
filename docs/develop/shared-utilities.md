@@ -98,8 +98,8 @@ shell-arg tokenizer and reuse of the surfaces above.
 
 | Severity | Site | Pattern |
 | --- | --- | --- |
-| high | `scripts/process-utils.ts` (pgrep output) | uncommented `split(/\s+/)` |
-| high | `apps/internal-gateway/main.ts` (`AGENTS_JS_SYNC_INTERVAL_MS`) | unvalidated `Number(env)` → NaN/Infinity |
+| resolved | `scripts/process-utils.ts` `parsePgrepPids` | hardened: positive-integer filter + documented safety contract |
+| resolved | `AGENTS_JS_SYNC_INTERVAL_MS` (`internal-gateway/main.ts` + `cli/serve.ts`) | validated via `parseNonNegativeInteger` in both paths (rejects `NaN`/`Infinity`/negative/decimal) |
 | med | `agent-launch/src/plan.ts` `splitFlags` | naive shell-arg `split(/\s+/)` |
 | med | `claude-channel-adapter/bin/launcher.ts` | MCP-args `split(/\s+/)` fallback |
 | med | `tools/src/primitives/sigil-registry.ts` `extractArgs` | naive shell-arg `split(/\s+/)` |
