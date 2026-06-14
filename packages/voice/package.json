@@ -1,7 +1,6 @@
 {
   "name": "@agents-js/voice",
   "version": "0.6.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Voice M2 seams for agents-js: a named A2A target plus the transcript-in / speakable response-out text normalizers that bridge a fixed-window STT transcript to a TTS-ready reply.",
@@ -46,5 +45,8 @@
     "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
     "prepack": "bun run build",
     "test": "bun test tests"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
