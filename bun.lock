@@ -75,6 +75,9 @@
         "@zed-industries/codex-acp": "0.14.0",
         "jose": "catalog:",
       },
+      "devDependencies": {
+        "@agents-js/gateway-inbox-runtime": "workspace:*",
+      },
     },
     "apps/web-ui": {
       "name": "@agents-js/web-ui",

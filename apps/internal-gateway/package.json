@@ -30,5 +30,8 @@
     "@agentclientprotocol/claude-agent-acp": "0.33.1",
     "@zed-industries/codex-acp": "0.14.0",
     "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@agents-js/gateway-inbox-runtime": "workspace:*"
   }
 }
