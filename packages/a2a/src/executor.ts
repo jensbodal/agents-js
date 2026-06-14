@@ -77,6 +77,74 @@ export function getMessageText(message: Message): string {
     .join("");
 }
 
+/**
+ * Derive a human-readable resource name from a (possibly presigned) URL:
+ * the last non-empty path segment, URL-decoded, with the query/fragment
+ * dropped. Falls back to "attachment" when the URL has no usable segment.
+ */
+function deriveResourceName(uri: string): string {
+  try {
+    const segment = new URL(uri).pathname.split("/").filter(Boolean).pop();
+    if (segment) return decodeURIComponent(segment);
+  } catch {
+    // Not a parseable absolute URL — fall through to the default.
+  }
+  return "attachment";
+}
+
+/**
+ * Build the ACP prompt content blocks for an A2A Message.
+ *
+ * Appends one ACP `resource_link` block per `{ $case: "url" }` part — the
+ * ratified files.q4m.dev contract: a file reference rides as a presigned
+ * GET URL the agent fetches itself, agents-js never proxies bytes. The ACP
+ * spec requires every agent to support Text + ResourceLink, so this mapping
+ * is baseline-safe for any runtime.
+ *
+ * The concatenated text leads the prompt and stays byte-identical to the
+ * historical text-only path. The one exception is the url-only message (no
+ * caption — the folder-inbox/upload case): the empty leading text block is
+ * omitted so the prompt is `[resource_link]`, not `["" , resource_link]`.
+ * A fully empty message still yields a single empty text block so the ACP
+ * prompt is never an empty array.
+ *
+ * `raw` / `data` parts stay out of scope (not forwarded); each is logged at
+ * debug level so producer misuse (sending inline bytes instead of a url
+ * reference) is observable rather than silent.
+ */
+export function getMessageContentBlocks(message: Message, logger?: A2ALogger): ContentBlock[] {
+  const resourceLinks: ContentBlock[] = [];
+  for (const part of message.parts) {
+    const content = part.content;
+    if (content?.$case === "url") {
+      const uri = content.value;
+      const name =
+        part.filename && part.filename.length > 0 ? part.filename : deriveResourceName(uri);
+      resourceLinks.push({
+        type: "resource_link",
+        uri,
+        name,
+        ...(part.mediaType && part.mediaType.length > 0 ? { mimeType: part.mediaType } : {}),
+      });
+    } else if (content?.$case === "raw" || content?.$case === "data") {
+      logger?.debug?.(
+        `Dropping unsupported A2A part ($case=${content.$case}); only text and url parts are forwarded to ACP`,
+      );
+    }
+  }
+
+  const text = getMessageText(message);
+  const blocks: ContentBlock[] = [];
+  // Lead with the text block when it carries content, OR when there is no
+  // resource_link to carry the prompt (keeps a non-empty prompt for empty /
+  // degenerate messages — the ACP prompt must never be an empty array).
+  if (text.length > 0 || resourceLinks.length === 0) {
+    blocks.push({ type: "text", text });
+  }
+  blocks.push(...resourceLinks);
+  return blocks;
+}
+
 type PendingResolver<T> = {
   promise: Promise<T>;
   reject(error: unknown): void;
@@ -332,7 +400,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     };
     this.activeTasks.set(context.taskId, task);
 
-    task.runPromise = this.runTask(context, task, userText);
+    task.runPromise = this.runTask(context, task);
     await task.runPromise;
   }
 
@@ -350,11 +418,7 @@ export class ACPtoA2AExecutor implements AgentExecutor {
     }
   }
 
-  private async runTask(
-    context: RequestContext,
-    task: ActiveTaskState,
-    userText: string,
-  ): Promise<void> {
+  private async runTask(context: RequestContext, task: ActiveTaskState): Promise<void> {
     const userMessage = context.userMessage;
 
     this.publishTask(task, {
@@ -376,7 +440,11 @@ export class ACPtoA2AExecutor implements AgentExecutor {
         state: TaskState.TASK_STATE_WORKING,
       });
 
-      const result = await this.runPromptWithRecovery(task, sessionId, userText);
+      const result = await this.runPromptWithRecovery(
+        task,
+        sessionId,
+        getMessageContentBlocks(userMessage, this.logger),
+      );
       const finalState = mapStopReasonToTaskState(result.stopReason);
       const finalText = task.textBuffer || "Prompt completed.";
       // A2A 1.0 forbids publishing a second Task into the task lifecycle stream
@@ -435,9 +503,9 @@ export class ACPtoA2AExecutor implements AgentExecutor {
   private async runPromptWithRecovery(
     task: ActiveTaskState,
     sessionId: string,
-    userText: string,
+    initialPrompt: ContentBlock[],
   ): Promise<PromptResponse> {
-    let promptContent: ContentBlock[] = [{ type: "text", text: userText }];
+    let promptContent: ContentBlock[] = initialPrompt;
 
     if (this.hooks.beforePrompt) {
       const transformed = await callExecutorHook(this.logger, "beforePrompt", () =>

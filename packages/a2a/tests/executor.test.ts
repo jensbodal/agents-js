@@ -46,6 +46,10 @@ function textPart(text: string): Part {
     mediaType: "text/plain",
   };
 }
+
+function urlPart(uri: string, filename = "", mediaType = ""): Part {
+  return { content: { $case: "url", value: uri }, metadata: undefined, filename, mediaType };
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type ProtoPart = { content?: { $case: string; value: unknown } };
 type RecordedMessage = { messageId?: string; role?: Role; parts?: ProtoPart[] };
@@ -989,6 +993,49 @@ describe("ACPtoA2AExecutor beforePrompt hook", () => {
 
     expect(receivedPrompts).toHaveLength(1);
     expect(receivedPrompts[0]).toEqual([{ type: "text", text: "should still work" }]);
+  });
+});
+
+describe("ACPtoA2AExecutor file-reference (url) parts", () => {
+  test("a url part reaches the ACP agent's prompt as a resource_link (not dropped)", async () => {
+    const receivedPrompts: Array<unknown[]> = [];
+    const harness = createAcpHarness();
+    const executor = new ACPtoA2AExecutor(harness.executorStream);
+    stubSessionIdStore(executor);
+    const { eventBus } = createEventBus();
+
+    const agentTask = runFakeAcpAgentCapturingPrompt(harness.agentStream, receivedPrompts);
+
+    await executor.execute(
+      {
+        taskId: "task-url",
+        contextId: "ctx-url",
+        userMessage: userMessage("user-url", [
+          textPart("see the attached report"),
+          urlPart(
+            "https://files.q4m.dev/bucket/report.pdf?sig=abc",
+            "report.pdf",
+            "application/pdf",
+          ),
+        ]),
+      } as never,
+      eventBus as never,
+    );
+
+    await agentTask;
+
+    // The file reference survives into the ACP prompt as a resource_link the
+    // agent fetches itself — not silently dropped by the old text-only flatten.
+    expect(receivedPrompts).toHaveLength(1);
+    expect(receivedPrompts[0]).toEqual([
+      { type: "text", text: "see the attached report" },
+      {
+        type: "resource_link",
+        uri: "https://files.q4m.dev/bucket/report.pdf?sig=abc",
+        name: "report.pdf",
+        mimeType: "application/pdf",
+      },
+    ]);
   });
 });
 

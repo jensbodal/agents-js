@@ -13,6 +13,7 @@ export {
   ACPtoA2AExecutor,
   DEFAULT_MAX_TEXT_BUFFER_SIZE,
   type ExecutorHooks,
+  getMessageContentBlocks,
   getMessageText,
 } from "./executor.ts";
 export { buildStatusUpdate, buildTerminalTask, nowIso } from "./executor-events.ts";

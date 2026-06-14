@@ -33,6 +33,7 @@ bun add @agents-js/a2a
 - **`formatBindAddress`**
 - **`formatErrorMessage`** — Extract a human-readable message from an unknown error value. Works with Error instances, plain objects with a `message` property, and raw strings.
 - **`formatHttpAuthorityHost`**
+- **`getMessageContentBlocks`** — Build the ACP prompt content blocks for an A2A Message. Appends one ACP `resource_link` block per `{ $case: "url" }` part — the ratified files.q4m.dev contract: a file reference rides as a presigne...
 - **`getMessageText`** — Extract text content from an A2A Message's parts array
 - **`isACPAuthRequiredError`**
 - **`isAgentEventMetadata`** — Type guard: does this `metadata` carry a known agent-event kind?
