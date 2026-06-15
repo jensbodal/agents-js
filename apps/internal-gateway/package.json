@@ -17,9 +17,11 @@
     "test": "bun test tests"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.33.1",
     "@agents-js/a2a": "workspace:*",
     "@agents-js/a2a-client": "workspace:*",
     "@agents-js/a2canvas": "workspace:*",
+    "@agents-js/a2canvas-producers": "workspace:*",
     "@agents-js/acp-host": "workspace:*",
     "@agents-js/droid-acp": "workspace:*",
     "@agents-js/gateway-runtime": "workspace:*",
@@ -28,7 +30,6 @@
     "@agents-js/matrix-bridge": "workspace:*",
     "@agents-js/pi-acp": "workspace:*",
     "@agents-js/plane": "workspace:*",
-    "@agentclientprotocol/claude-agent-acp": "0.33.1",
     "@zed-industries/codex-acp": "0.14.0",
     "jose": "catalog:"
   },

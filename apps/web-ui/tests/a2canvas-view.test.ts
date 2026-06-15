@@ -49,9 +49,7 @@ describe("toViewerLanes — identity grounding is visible", () => {
       { id: "agent:real", signed: true, via: "jwt", ts: 1 },
       { id: "agent:spoof", signed: false, via: "none", ts: 2 },
     );
-    const byLane = Object.fromEntries(
-      toViewerLanes(v).map((l) => [l.lane, l.cards[0]?.verified]),
-    );
+    const byLane = Object.fromEntries(toViewerLanes(v).map((l) => [l.lane, l.cards[0]?.verified]));
     expect(byLane["agent:real"]).toBe(true);
     expect(byLane["agent:spoof"]).toBe(false); // spoof is visibly untrusted
   });

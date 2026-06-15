@@ -37,6 +37,7 @@ import {
   wrapAuditEmitterAsBusPublisher,
 } from "@agents-js/host";
 import { createPlaneWebhookFetchHandler } from "@agents-js/plane/mount";
+import { setupA2Canvas } from "./a2canvas-setup.ts";
 import { setupAgentsMcpMount } from "./agents-mcp-mount.ts";
 import { type GatewayCliArgs, parseCliArgs } from "./cli-args.ts";
 import {
@@ -71,6 +72,9 @@ import { resolveGatewayRuntime } from "./runtimes.ts";
 type LoadedAgentsJsConfig = Awaited<ReturnType<typeof loadAgentsJsConfig>>;
 type HostSession = Awaited<ReturnType<typeof createHostSession>>;
 
+/** A2Canvas poll cadence — near-live room cards without hammering the homeserver. */
+const A2CANVAS_POLL_INTERVAL_MS = 5_000;
+
 interface ServerSetup {
   server: Awaited<ReturnType<UniversalA2AServer["start"]>>;
   executor: HostA2AExecutor;
@@ -78,6 +82,8 @@ interface ServerSetup {
   httpPort: number;
   /** Gitea bus consumer handle, when the bridge is enabled via env; else `null`. */
   giteaBusConsumer: GiteaBusConsumerHandle | null;
+  /** Stops the A2Canvas poll loop, when the board loop is enabled; else `null`. */
+  a2canvasStop: (() => void) | null;
 }
 
 interface SetupServerOptions {
@@ -158,6 +164,12 @@ export function composeAdditionalFetch(handlers: {
    */
   agentsMcpHandler?: ((req: Request) => Promise<Response | null>) | null;
   /**
+   * A2Canvas `/a2canvas/events` SSE surface. `null` (or absent) when the
+   * board loop is disabled (no `MATRIX_ACCESS_TOKEN`). Self-routes on its own
+   * path and returns `null` otherwise, so it composes like the other surfaces.
+   */
+  a2canvasEventsHandler?: ((req: Request) => Promise<Response | null>) | null;
+  /**
    * Gateway `/docs` landing view. Self-routes on `GET /docs`. `null`
    * (or absent) leaves the route unmounted — but `setupServer` always
    * supplies it, so the view is always-on in production. Optional here
@@ -176,6 +188,7 @@ export function composeAdditionalFetch(handlers: {
 }): (req: Request) => Promise<Response | null> {
   const giteaWebhookHandler = handlers.giteaWebhookHandler ?? null;
   const agentsMcpHandler = handlers.agentsMcpHandler ?? null;
+  const a2canvasEventsHandler = handlers.a2canvasEventsHandler ?? null;
   const docsViewHandler = handlers.docsViewHandler ?? null;
   const rootHandler = handlers.rootHandler ?? null;
   return async (req: Request): Promise<Response | null> => {
@@ -197,6 +210,10 @@ export function composeAdditionalFetch(handlers: {
     if (agentsMcpHandler !== null) {
       const agentsMcpResponse = await agentsMcpHandler(req);
       if (agentsMcpResponse !== null) return agentsMcpResponse;
+    }
+    if (a2canvasEventsHandler !== null) {
+      const a2canvasResponse = await a2canvasEventsHandler(req);
+      if (a2canvasResponse !== null) return a2canvasResponse;
     }
     if (docsViewHandler !== null) {
       const docsViewResponse = await docsViewHandler(req);
@@ -306,6 +323,15 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     console.log("[Gateway] agents-MCP tool surface enabled (POST /api/agents/send_message)");
   }
 
+  // A2Canvas board loop. Opts in via `MATRIX_ACCESS_TOKEN` (+ homeserver/room);
+  // when unset, the `/a2canvas/events` route is not mounted and no poller runs,
+  // so dev-mode startup is unchanged. Creds come from gateway env, never
+  // hardcoded. See `apps/internal-gateway/a2canvas-setup.ts`.
+  const a2canvas = setupA2Canvas({ env: process.env });
+  if (a2canvas !== null) {
+    console.log("[Gateway] A2Canvas board loop enabled (GET /a2canvas/events)");
+  }
+
   // Always-on gateway docs landing view (GET /docs). Carries no secret
   // and no external dependency, so — unlike the Gitea / agents-MCP
   // surfaces — it is not env-gated.
@@ -325,6 +351,7 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
       planeWebhookHandler,
       giteaWebhookHandler: giteaBridge?.fetchHandler ?? null,
       agentsMcpHandler: agentsMcp?.fetchHandler ?? null,
+      a2canvasEventsHandler: a2canvas?.eventsHandler ?? null,
       docsViewHandler,
       aguiHandler,
       busSubscribeHandler,
@@ -392,12 +419,18 @@ async function setupServer(opts: SetupServerOptions): Promise<ServerSetup> {
     );
   }
 
+  // Start the A2Canvas poll loop now that the server is accepting `/events`
+  // subscribers. 5s cadence keeps room cards near-live without hammering the
+  // homeserver; `null` when the board loop is disabled.
+  const a2canvasStop = a2canvas?.start(A2CANVAS_POLL_INTERVAL_MS) ?? null;
+
   return {
     server,
     executor,
     registrySync,
     httpPort,
     giteaBusConsumer: giteaBridge?.consumer ?? null,
+    a2canvasStop,
   };
 }
 
@@ -565,6 +598,8 @@ interface ShutdownTargets {
   matrixBusConsumer: MatrixBusConsumerHandle;
   /** Gitea bus consumer when the bridge is enabled via env; else `null`. */
   giteaBusConsumer: GiteaBusConsumerHandle | null;
+  /** Stops the A2Canvas poll loop when the board loop is enabled; else `null`. */
+  a2canvasStop: (() => void) | null;
 }
 
 function installSignalHandlers(targets: ShutdownTargets): void {
@@ -573,6 +608,7 @@ function installSignalHandlers(targets: ShutdownTargets): void {
     targets.registrySync.stop();
     targets.matrixBusConsumer.stop();
     targets.giteaBusConsumer?.stop();
+    targets.a2canvasStop?.();
     targets.server.stop(true);
     targets.wsBridge.stop();
     targets.executor.destroy();
@@ -761,17 +797,18 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
   // the second `POST /agent` would see.
   const aguiCoordinator = new AguiRunCoordinator();
 
-  const { server, executor, registrySync, httpPort, giteaBusConsumer } = await setupServer({
-    cliArgs,
-    resolvedPort,
-    runtimes: harnessFleet,
-    gatewayCard,
-    session,
-    controllerFactory,
-    audit,
-    bus,
-    aguiCoordinator,
-  });
+  const { server, executor, registrySync, httpPort, giteaBusConsumer, a2canvasStop } =
+    await setupServer({
+      cliArgs,
+      resolvedPort,
+      runtimes: harnessFleet,
+      gatewayCard,
+      session,
+      controllerFactory,
+      audit,
+      bus,
+      aguiCoordinator,
+    });
 
   // E4.0-b real-dispatch wiring (per ADR 0002 surfaces #2/#3/#4): start
   // the Matrix bus consumer with a dispatch handler that routes inbound
@@ -904,6 +941,7 @@ export async function main(argv: string[] = Bun.argv.slice(2)): Promise<number> 
     laneManager,
     matrixBusConsumer,
     giteaBusConsumer,
+    a2canvasStop,
   });
 
   await new Promise<void>(() => {});

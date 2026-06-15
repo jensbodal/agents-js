@@ -65,6 +65,7 @@
         "@agents-js/a2a": "workspace:*",
         "@agents-js/a2a-client": "workspace:*",
         "@agents-js/a2canvas": "workspace:*",
+        "@agents-js/a2canvas-producers": "workspace:*",
         "@agents-js/acp-host": "workspace:*",
         "@agents-js/droid-acp": "workspace:*",
         "@agents-js/gateway-runtime": "workspace:*",
