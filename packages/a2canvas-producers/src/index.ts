@@ -22,6 +22,13 @@
 import type { A2CanvasAgentUpdate } from "@agents-js/a2canvas";
 
 export {
+  createMatrixFetcher,
+  createPlaneFetcher,
+  type MatrixFetcherConfig,
+  type PlaneFetcherConfig,
+  type PlaneProjectRef,
+} from "./adapters.ts";
+export {
   createPoller,
   type PlaneIssueSnapshot,
   type Poller,
