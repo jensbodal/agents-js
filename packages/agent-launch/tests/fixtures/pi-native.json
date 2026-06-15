@@ -1,17 +1,17 @@
 {
   "version": "0.1.0",
-  "description": "Test fixture — native pi agents: dual-window (TUI :0 + runtime :1) and single-window",
+  "description": "Test fixture — native pi agents: cockpit (runtime :0, TUI :1, observe :2, logs :3) and single-window",
   "agents": {
-    "pi-dual": {
-      "tmux_session": "pi-dual",
+    "pi-cockpit": {
+      "tmux_session": "pi-cockpit",
       "harness": "pi",
       "binary": "pi",
       "workspace": "/tmp/pi-ws",
       "fresh_flags": "",
-      "env_setup": "export MATRIX_AGENT=pi-dual",
+      "env_setup": "export MATRIX_AGENT=pi-cockpit",
       "channel_env": "export CH_GATEWAY_KEY_CMD=secret-cmd",
       "pi_host": "lan",
-      "dual_window": true
+      "cockpit": true
     },
     "pi-solo": {
       "tmux_session": "pi-solo",

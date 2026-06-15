@@ -132,10 +132,9 @@ export interface AgentEntry {
    * landing window), the interactive TUI in `:1` (`agents-js client --agent
    * <name> --wait`), a read-only raw ACP stream in `:2`, and a log tail in `:3`.
    * pi-harness only in this increment; the plan build rejects it on other
-   * harnesses. When unset/false the launch stays single-window. (The field name
-   * `dual_window` is retained for back-compat; the layout grew past two windows.)
+   * harnesses. When unset/false the launch stays single-window.
    */
-  readonly dualWindow?: boolean;
+  readonly cockpit?: boolean;
   /** Unrecognized fields preserved as-is for later-phase promotion. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -217,7 +216,7 @@ const PROMOTED_AGENT_FIELDS = new Set<string>([
   "pi_port",
   "pi_host",
   "provider",
-  "dual_window",
+  "cockpit",
 ]);
 
 function requireString(
@@ -301,6 +300,12 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
       });
     }
   }
+  if ("dual_window" in obj) {
+    throw new LaunchConfigError(
+      `agent "${ctx.agent}" field "dual_window" is no longer supported; use "cockpit"`,
+      { path: ctx.path, agent: ctx.agent, field: "dual_window" },
+    );
+  }
   const extra: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (!PROMOTED_AGENT_FIELDS.has(k)) {
@@ -323,7 +328,7 @@ function normalizeAgentEntry(raw: unknown, ctx: { path: string; agent: string })
     piPort: optionalString(obj, "pi_port", ctx),
     piHost: optionalString(obj, "pi_host", ctx),
     provider: optionalString(obj, "provider", ctx),
-    dualWindow: optionalBoolean(obj, "dual_window", ctx),
+    cockpit: optionalBoolean(obj, "cockpit", ctx),
     extra,
   };
 }

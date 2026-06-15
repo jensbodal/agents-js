@@ -25,58 +25,114 @@ it applies to both modes.
 
 ## Quick start — onboard a native pi
 
-1. **Add a config entry** to an `agent-launch-config.json` (resolution order:
-   `--config <path>` → `$AGENTS_JS_LAUNCH_CONFIG` →
-   `~/.config/agents-js/agent-launch-config.json` → `./agent-launch-config.json`):
+For the common internal case, this should be enough:
 
-   ```json
-   {
-     "version": "0.1.0",
-     "agents": {
-       "malar-pi-0": {
-         "tmux_session": "malar-pi-0",
-         "harness": "pi",
-         "binary": "pi",
-         "workspace": "/path/to/workspace",
-         "fresh_flags": "",
-         "env_setup": "export MATRIX_AGENT=malar-pi-0",
-         "pi_extension": "./extras/pi-extension/src/index.ts",
-         "pi_port": "3197"
-       }
-     }
-   }
+```sh
+agents-js generate-config --name olthoi0-pi-jensbodal --harness pi
+agents-js onboard olthoi0-pi-jensbodal
+```
+
+For a strictly local validation run before cross-host dispatch/trust provisioning,
+pin the advertised host to loopback:
+
+```sh
+agents-js generate-config --name olthoi0-pi-jensbodal --harness pi --pi-host 127.0.0.1
+agents-js onboard olthoi0-pi-jensbodal
+```
+
+That creates a local native Pi identity workspace at
+`~/workspaces/agents/olthoi0-pi-jensbodal`, starts the runtime cockpit, and
+registers the peer in the local agents-js registry. Local-only means the peer is
+drivable from this host through the cockpit and local registry; it is not signed
+into a federated gateway, not Matrix-provisioned, and not a stable cross-host
+dispatch target unless you also configure a fixed `pi_port` plus gateway trust.
+
+1. **Generate the config entry** in the default launch-visible user config:
+
+   ```sh
+   agents-js generate-config --name olthoi0-pi-jensbodal --harness pi
    ```
 
-   - `harness: "pi"` selects the native-peer launch.
-   - `pi_extension` is what `pi -e <…>` loads (binds the A2A endpoint); defaults
-     to `@agents-js/pi-extension`.
-   - `pi_port` fixes the A2A port; omit it to let pi-extension pick an ephemeral
-     port and self-register its URL in `~/.agents-js/registry.json`.
-   - `MATRIX_AGENT` (via `env_setup`) becomes the agent's identity and its
-     `AGENTS_JS_PI_NAME`.
+   This updates the same user config path `agents-js onboard` will read:
+   `$AGENTS_JS_LAUNCH_CONFIG`, then `$XDG_CONFIG_HOME/agents-js/agent-launch-config.json`,
+   then `~/.config/agents-js/agent-launch-config.json`. For a Pi agent it infers:
+
+   - `workspace: ~/workspaces/agents/<name>`
+   - `env_setup: export MATRIX_AGENT=<name>`
+   - `fresh_flags: --approve`
+   - `cockpit: true`
+
+   Use `--workspace`, `--matrix-agent`, or `--fresh-flags` to override those
+   defaults. Use `--pi-host 127.0.0.1` when validating a loopback-only local
+   peer, and use `--stdout` when you want JSON only and no file writes.
 
 2. **Onboard it:**
 
    ```sh
-   agents-js onboard malar-pi-0 --bg
-   # (agents-js launch malar-pi-0 --bg is the equivalent lower-level verb)
+   agents-js onboard olthoi0-pi-jensbodal
    ```
 
-   This creates a detached tmux session running `pi -e <extension>` with the
-   `AGENTS_JS_PI_*` env, so the native pi joins the mesh as an A2A peer.
+   Onboard creates the missing workspace, initializes git if needed, and seeds
+   `README.md`, `HANDOFF.md`, and `.agents/<name>/identity.md` before launching.
+   This is an identity workspace for the native Pi agent; sandboxed source-repo
+   editing is a separate integration, not implied by onboarding.
 
-3. **Confirm it's on the bus** — the endpoint serves an A2A agent card:
+   The launch runs `pi -e <extension>` with the `AGENTS_JS_PI_*` env, so the
+   native pi joins the mesh as an A2A peer.
+
+3. **Drive the cockpit locally.** `onboard` launches the tmux cockpit for the
+   agent. If it is not already attached, attach to it:
+
+   ```sh
+   tmux attach -t olthoi0-pi-jensbodal
+   ```
+
+   Use window `:1` (`tui`) to talk to the agent through
+   `agents-js client --agent <name> --wait`. A connected card view means the A2A
+   peer is reachable; type a small prompt and press Enter to confirm the native
+   Pi runtime responds. Window `:0` is the Pi runtime, `:2` is the read-only ACP
+   event observer, and `:3` tails runtime logs.
+
+4. **Confirm it's on the bus** — the endpoint serves an A2A agent card. If you
+   configured `--pi-port 3197`, for example:
 
    ```sh
    curl -s http://127.0.0.1:3197/.well-known/agent-card.json
    ```
 
+   For an ephemeral local port, use the generated client probe instead:
+
+   ```sh
+   agents-js client --agent olthoi0-pi-jensbodal --probe
+   ```
+
+Local onboarding is complete when the cockpit is running, the `:1` client is
+connected, a test prompt gets a response, and `agents-js client --agent <name>
+--probe` returns successful A2A card/CORS checks. Gateway dispatch and signed
+cross-host identity are follow-up provisioning, not part of this local-only
+completion bar.
+
+### Cleaning up temporary pi agents
+
+If you tested with temporary names such as `olthoi0-pi-jensbodal-tmp-1`, clean up
+only the temporary artifacts after the real agent works:
+
+```sh
+tmux kill-session -t olthoi0-pi-jensbodal-tmp-1
+agents-js registry remove olthoi0-pi-jensbodal-tmp-1
+```
+
+Then remove the temporary entry from
+`~/.config/agents-js/agent-launch-config.json`. Remove the temporary workspace
+under `~/workspaces/agents/<tmp-name>` only after confirming it contains no
+handoff notes or local state you need. Do not remove the real
+`~/workspaces/agents/olthoi0-pi-jensbodal` workspace as part of temp cleanup.
+
 ## Cockpit launch (runtime + tui + acp + logs)
 
 A native pi can launch as an interactive agent *and* an A2A peer in one step.
-Set `dual_window: true` on the pi config entry (name kept for back-compat); plain
-`agents-js launch <name>` opens one tmux session with a four-window cockpit
-(ADR 0011, extends ADR 0010):
+Generated Pi entries set `cockpit: true`; plain `agents-js launch <name>` opens
+one tmux session with a four-window cockpit (ADR 0011, extends ADR 0010):
 
 - `:0` **runtime** — the native pi (its embedded A2A endpoint is the surface);
   the **default landing window** on attach.

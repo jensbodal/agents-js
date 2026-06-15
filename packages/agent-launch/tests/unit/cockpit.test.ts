@@ -1,14 +1,19 @@
 /**
- * Learning tests for the dual_window plan flag + pi env (the harness-pure half;
+ * Learning tests for the cockpit plan flag + pi env (the harness-pure half;
  * the CLI window orchestration is covered in packages/cli/tests/launch.test.ts).
  *
- * LT-3: buildLaunchPlan carries dualWindow for a pi entry; non-dual pi and other
- *       harnesses stay single-window; dual_window on a non-pi harness is rejected.
+ * LT-3: buildLaunchPlan carries cockpit for a pi entry; non-cockpit pi and other
+ *       harnesses stay single-window; cockpit on a non-pi harness is rejected.
  * LT-4: the pi plan's sessionEnv carries AGENTS_JS_PI_NATIVE/_NAME/_HOST.
  * LT-10: pi_host resolution — "lan"→resolver, explicit→literal, unresolved→absent.
  */
 import { describe, expect, test } from "bun:test";
-import { type AgentEntry, buildLaunchPlan, type LaunchEnv } from "../../src/index.ts";
+import {
+  type AgentEntry,
+  buildLaunchPlan,
+  type LaunchEnv,
+  resolvePiAdvertiseHost,
+} from "../../src/index.ts";
 
 const entry = (over: Partial<AgentEntry> = {}): AgentEntry => ({
   tmuxSession: "pi-x",
@@ -26,19 +31,19 @@ const plan = (
 ) => buildLaunchPlan(e, { baseEnv: opts.baseEnv ?? {}, resolveLanHost: opts.resolveLanHost });
 
 // LT-3 ----------------------------------------------------------------------
-describe("buildLaunchPlan — LT-3: dual_window flag", () => {
-  test("a pi entry with dual_window=true sets plan.dualWindow", () => {
-    expect(plan(entry({ dualWindow: true })).dualWindow).toBe(true);
+describe("buildLaunchPlan — LT-3: cockpit flag", () => {
+  test("a pi entry with cockpit=true sets plan.cockpit", () => {
+    expect(plan(entry({ cockpit: true })).cockpit).toBe(true);
   });
 
-  test("a pi entry without dual_window stays single-window", () => {
-    expect(plan(entry({})).dualWindow).toBe(false);
+  test("a pi entry without cockpit stays single-window", () => {
+    expect(plan(entry({})).cockpit).toBe(false);
   });
 
-  test("dual_window on a non-pi harness is rejected", () => {
-    expect(() =>
-      plan(entry({ harness: "claude-code", binary: "claude", dualWindow: true })),
-    ).toThrow(/dual_window is only supported for the "pi" harness/);
+  test("cockpit on a non-pi harness is rejected", () => {
+    expect(() => plan(entry({ harness: "claude-code", binary: "claude", cockpit: true }))).toThrow(
+      /cockpit is only supported for the "pi" harness/,
+    );
   });
 });
 
@@ -67,5 +72,15 @@ describe("buildLaunchPlan — LT-10: host-agnostic pi_host", () => {
   test("an unresolvable LAN leaves AGENTS_JS_PI_HOST unset", () => {
     const p = plan(entry({ piHost: undefined }), { resolveLanHost: () => undefined });
     expect(p.env.AGENTS_JS_PI_HOST).toBeUndefined();
+  });
+
+  test("the exported resolver matches launch semantics for onboard dispatch", () => {
+    let resolverCalls = 0;
+    const host = resolvePiAdvertiseHost("127.0.0.1", () => {
+      resolverCalls++;
+      return "box.lan";
+    });
+    expect(host).toBe("127.0.0.1");
+    expect(resolverCalls).toBe(0);
   });
 });

@@ -117,7 +117,7 @@ const CLIENT_ARG_SPEC: ArgSpec<ClientCommandArgs> = {
     },
   },
   // Resolve a running agent's base url by NAME from the shared registry
-  // (mutually exclusive with --url/--card). The dual-window launch passes the
+  // (mutually exclusive with --url/--card). The cockpit launch passes the
   // agent name; the runtime self-registers its (possibly ephemeral) url.
   "--agent": {
     kind: "value",

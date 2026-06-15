@@ -1,10 +1,10 @@
 /**
  * `agents-js onboard <agent>` — conformant onboarding entry point.
  *
- * Today this is a thin wrapper over `agents-js launch`: it resolves the agent's
- * config entry, builds the launch plan, and starts the harness. For the `pi`
- * harness that means a **native peer** that joins the agents-js A2A mesh
- * (the pi-extension binds a localhost A2A endpoint and self-registers).
+ * Onboard resolves the selected launch-config entry, prepares the agent's
+ * identity workspace, then delegates process startup to `agents-js launch`. For
+ * the `pi` harness that means a **native peer** that joins the agents-js A2A
+ * mesh (the pi-extension binds a localhost A2A endpoint and self-registers).
  *
  * On a successful launch it ALSO emits the agent's **mesh-join dispatch entry**
  * — the `{kind:"a2a", url}` record the gateway operator installs so
@@ -21,14 +21,27 @@
  * behind one command.
  */
 
+import { execFile } from "node:child_process";
+import { constants } from "node:fs";
+import { access, mkdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import {
   loadLaunchConfig,
+  parseEnvSetup,
   resolveAgentEntry,
   resolveLanAdvertiseHost,
+  resolvePiAdvertiseHost,
 } from "@agents-js/agent-launch";
-import { EXIT_OK } from "./exit-codes.ts";
+import { EXIT_ERROR, EXIT_OK } from "./exit-codes.ts";
 import { type LaunchCommandDependencies, resolveConfigPath, runLaunchCommand } from "./launch.ts";
+
+const execFileAsync = promisify(execFile);
+
+export interface OnboardCommandDependencies extends LaunchCommandDependencies {
+  initGit?: (workspace: string) => Promise<void>;
+}
 
 /**
  * Print `agents-js onboard` usage. Kept distinct from `launch`'s help: onboard
@@ -43,11 +56,10 @@ function printOnboardUsage(output: Pick<NodeJS.WriteStream, "write">): void {
       "Usage:",
       "  agents-js onboard <agent-name> [options]",
       "",
-      "Conformant onboarding: launch (or attach to) an agent, then emit the",
-      "agent's mesh-join dispatch entry so `@@dispatch <agent>` routes to it.",
-      "A thin wrapper over `agents-js launch` — accepts the same target and",
-      "options. Skills + registry provisioning layer in via `agents-js mcp setup`",
-      "(see ONBOARDING.md).",
+      "Conformant onboarding: prepare the identity workspace, launch (or attach",
+      "to) an agent, then emit the agent's mesh-join dispatch entry so",
+      "`@@dispatch <agent>` routes to it. Skills + registry provisioning layer in",
+      "via `agents-js mcp setup` (see ONBOARDING.md).",
       "",
       "Options:",
       "  --bg, --background, -d   Create the launch session detached (passed to launch)",
@@ -117,9 +129,137 @@ export function buildMeshJoinDispatchEntry(
   return { name: agentName, url: `http://${advertiseHost}:${piPort}` };
 }
 
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath, constants.F_OK);
+    return true;
+  } catch (error) {
+    if (isFileNotFoundError(error)) return false;
+    throw error;
+  }
+}
+
+function isFileNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "EEXIST"
+  );
+}
+
+async function writeSeedFileOnce(filePath: string, text: string): Promise<boolean> {
+  try {
+    await writeFile(filePath, text, { encoding: "utf8", flag: "wx" });
+    return true;
+  } catch (error) {
+    if (isAlreadyExistsError(error)) return false;
+    throw error;
+  }
+}
+
+async function defaultInitGit(workspace: string): Promise<void> {
+  await execFileAsync("git", ["init"], { cwd: workspace });
+}
+
+function resolveMatrixAgent(agentName: string, envSetup: string | undefined): string {
+  if (!envSetup) return agentName;
+  try {
+    return parseEnvSetup(envSetup, agentName).MATRIX_AGENT ?? agentName;
+  } catch {
+    return agentName;
+  }
+}
+
+function readmeSeed(agentName: string): string {
+  return `${[
+    `# ${agentName}`,
+    "",
+    "Native Pi identity workspace created by `agents-js onboard`.",
+    "",
+    "This workspace holds the agent identity, handoff notes, and local runtime state. Sandboxed source-repo editing is a separate future integration.",
+  ].join("\n")}\n`;
+}
+
+function handoffSeed(agentName: string): string {
+  return `${[
+    `# ${agentName} Handoff`,
+    "",
+    "## Current Status",
+    "",
+    "- Fresh identity workspace created.",
+    "",
+    "## Next Notes",
+    "",
+    "- Add operator handoff details here as the agent starts work.",
+  ].join("\n")}\n`;
+}
+
+function identitySeed(agentName: string, matrixAgent: string, workspace: string): string {
+  return `${[
+    `# ${agentName} Identity`,
+    "",
+    `- MATRIX_AGENT=${matrixAgent}`,
+    `- Workspace: ${workspace}`,
+    "- Harness: pi",
+    "",
+    "This file identifies the native Pi workspace. It does not imply source-repo sandbox isolation.",
+  ].join("\n")}\n`;
+}
+
+async function bootstrapIdentityWorkspace(
+  agentName: string,
+  workspace: string,
+  matrixAgent: string,
+  output: Pick<NodeJS.WriteStream, "write">,
+  dependencies: OnboardCommandDependencies,
+): Promise<void> {
+  let createdWorkspace = false;
+  try {
+    const existing = await stat(workspace);
+    if (!existing.isDirectory()) {
+      throw new Error(`[agents-js] onboard: workspace path is not a directory: ${workspace}`);
+    }
+  } catch (error) {
+    if (!isFileNotFoundError(error)) throw error;
+    await mkdir(workspace, { recursive: true });
+    createdWorkspace = true;
+  }
+
+  let initializedGit = false;
+  if (!(await pathExists(path.join(workspace, ".git")))) {
+    await (dependencies.initGit ?? defaultInitGit)(workspace);
+    initializedGit = true;
+  }
+
+  const identityDir = path.join(workspace, ".agents", agentName);
+  await mkdir(identityDir, { recursive: true });
+  const seeded = await Promise.all([
+    writeSeedFileOnce(path.join(workspace, "README.md"), readmeSeed(agentName)),
+    writeSeedFileOnce(path.join(workspace, "HANDOFF.md"), handoffSeed(agentName)),
+    writeSeedFileOnce(
+      path.join(identityDir, "identity.md"),
+      identitySeed(agentName, matrixAgent, workspace),
+    ),
+  ]);
+  const seededCount = seeded.filter(Boolean).length;
+  output.write(
+    `[agents-js] onboard: workspace ready (${createdWorkspace ? "created" : "existing"}, git ${initializedGit ? "initialized" : "existing"}, ${seededCount} seed file${seededCount === 1 ? "" : "s"} created)\n`,
+  );
+}
+
 export async function runOnboardCommand(
   argv: string[],
-  dependencies: LaunchCommandDependencies = {},
+  dependencies: OnboardCommandDependencies = {},
 ): Promise<number> {
   const output = dependencies.output ?? process.stdout;
   // biome-ignore lint/style/noProcessEnv: CLI entry-point default; tests inject via dependencies.env.
@@ -136,7 +276,30 @@ export async function runOnboardCommand(
     return EXIT_OK;
   }
 
-  output.write("[agents-js] onboard: launching agent onto the mesh…\n");
+  const { agentName, configPath } = parseOnboardTarget(argv);
+  if (agentName) {
+    try {
+      const resolvedConfigPath = resolveConfigPath({ configPath }, env, home, cwd);
+      const config = await loadLaunchConfig(resolvedConfigPath);
+      const entry = resolveAgentEntry(config, agentName);
+      if (entry.harness === "pi") {
+        await bootstrapIdentityWorkspace(
+          agentName,
+          entry.workspace,
+          resolveMatrixAgent(agentName, entry.envSetup),
+          output,
+          dependencies,
+        );
+      }
+    } catch (error) {
+      output.write(
+        `[agents-js] onboard: bootstrap failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return EXIT_ERROR;
+    }
+  }
+
+  output.write("[agents-js] onboard: launching agent onto the mesh...\n");
   const code = await runLaunchCommand(argv, dependencies);
   if (code !== 0) {
     return code;
@@ -150,14 +313,16 @@ export async function runOnboardCommand(
   // `registry add`. Best-effort — the launch already succeeded, so a
   // post-launch resolution hiccup must never flip the exit code.
   try {
-    const { agentName, configPath } = parseOnboardTarget(argv);
     if (agentName) {
       const resolvedConfigPath = resolveConfigPath({ configPath }, env, home, cwd);
       const config = await loadLaunchConfig(resolvedConfigPath);
       const entry = resolveAgentEntry(config, agentName);
-      const advertiseHost = resolveLanAdvertiseHost({
-        lanDomain: config.lanDomain ?? env.AGENTS_JS_LAN_DOMAIN,
-      });
+      if (entry.harness !== "pi") return code;
+      const advertiseHost = resolvePiAdvertiseHost(entry.piHost, () =>
+        resolveLanAdvertiseHost({
+          lanDomain: config.lanDomain ?? env.AGENTS_JS_LAN_DOMAIN,
+        }),
+      );
       const dispatchEntry = buildMeshJoinDispatchEntry(agentName, entry.piPort, advertiseHost);
       if (dispatchEntry) {
         const bundle = {

@@ -201,18 +201,18 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
 
     const receiverCmd = calls.sendKeys[1]?.[1] ?? "";
     expect(receiverCmd).toContain("agents-js codex-receiver");
-    expect(receiverCmd).toContain('export CODEX_GATEWAY_IDENTITY="olthoi0-codex-0"');
-    expect(receiverCmd).toContain('export CODEX_GATEWAY_URL="https://ajs-gateway.q4m.dev"');
+    expect(receiverCmd).toContain("export CODEX_GATEWAY_IDENTITY=olthoi0-codex-0");
+    expect(receiverCmd).toContain("export CODEX_GATEWAY_URL=https://ajs-gateway.q4m.dev");
     expect(receiverCmd).toContain(
-      'export CODEX_GATEWAY_KEY_CMD="gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key"',
+      "export CODEX_GATEWAY_KEY_CMD='gopass show --noparsing services/agents-js/identity/olthoi0-codex-0/key'",
     );
-    expect(receiverCmd).toContain('export CODEX_GATEWAY_FETCH="curl"');
-    expect(receiverCmd).toContain('export CODEX_GATEWAY_SKIP_GIT_REPO_CHECK="true"');
+    expect(receiverCmd).toContain("export CODEX_GATEWAY_FETCH=curl");
+    expect(receiverCmd).toContain("export CODEX_GATEWAY_SKIP_GIT_REPO_CHECK=true");
     expect(receiverCmd).toContain(
-      'export CODEX_GATEWAY_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"',
+      "export CODEX_GATEWAY_SENDER_ALLOWLIST='ajs-claude hostname-null-claude-0'",
     );
     expect(receiverCmd).toContain(
-      'export CODEX_GATEWAY_CURSOR_PATH="/Users/jensbodal/workspaces/agents/olthoi0-codex-0/.agents/olthoi0-codex-0/gateway-inbox-cursor.json"',
+      "export CODEX_GATEWAY_CURSOR_PATH=/Users/jensbodal/workspaces/agents/olthoi0-codex-0/.agents/olthoi0-codex-0/gateway-inbox-cursor.json",
     );
 
     const receiverSessionEnvKeys = calls.setEnvironment
@@ -263,17 +263,17 @@ describe("runLaunchCommand — happy path with fake tmux runner", () => {
 
     const receiverCmd = calls.sendKeys[1]?.[1] ?? "";
     expect(receiverCmd).toContain("agents-js claude-receiver");
-    expect(receiverCmd).toContain('export CW_IDENTITY="hostname-null-claude-0"');
-    expect(receiverCmd).toContain('export CH_GATEWAY_IDENTITY="hostname-null-claude-0"');
-    expect(receiverCmd).toContain('export CH_GATEWAY_URL="https://ajs-gateway.q4m.dev"');
+    expect(receiverCmd).toContain("export CW_IDENTITY=hostname-null-claude-0");
+    expect(receiverCmd).toContain("export CH_GATEWAY_IDENTITY=hostname-null-claude-0");
+    expect(receiverCmd).toContain("export CH_GATEWAY_URL=https://ajs-gateway.q4m.dev");
     expect(receiverCmd).toContain(
-      'export CH_GATEWAY_KEY_CMD="bash /Users/jensbodal/.config/agents-js/olthoi0-keycmd.sh"',
+      "export CH_GATEWAY_KEY_CMD='bash /Users/jensbodal/.config/agents-js/olthoi0-keycmd.sh'",
     );
-    expect(receiverCmd).toContain('export CH_GATEWAY_FETCH="curl"');
+    expect(receiverCmd).toContain("export CH_GATEWAY_FETCH=curl");
     expect(receiverCmd).toContain(
-      'export CW_CLAUDE_MCP_CONFIG="/Users/jensbodal/workspaces/agents/hostname-null-claude-0/.agents/hostname-null-claude-0/gateway-mcp.json"',
+      "export CW_CLAUDE_MCP_CONFIG=/Users/jensbodal/workspaces/agents/hostname-null-claude-0/.agents/hostname-null-claude-0/gateway-mcp.json",
     );
-    expect(receiverCmd).toContain('export CW_SENDER_ALLOWLIST="ajs-claude hostname-null-claude-0"');
+    expect(receiverCmd).toContain("export CW_SENDER_ALLOWLIST='ajs-claude hostname-null-claude-0'");
     expect(receiverCmd).not.toContain("bypassPermissions");
 
     const receiverSessionEnvKeys = calls.setEnvironment
@@ -496,26 +496,27 @@ function fakeWindowOps(): { windows: TmuxWindowOps; wcalls: WindowCalls } {
   return { windows, wcalls };
 }
 
-describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
+describe("runLaunchCommand — pi cockpit orchestration", () => {
   // Cockpit argv: :0 runtime (run-logged-wrapped) / :1 tui / :2 acp / :3 logs,
   // --bg (no attach). LT-5: the channel secret rides send-keys, not set-env.
-  test("--bg dual_window builds :0 runtime / :1 tui / :2 acp / :3 logs; channel secret rides send-keys, not set-env", async () => {
+  test("--bg cockpit builds :0 runtime / :1 tui / :2 acp / :3 logs; channel secret rides send-keys, not set-env", async () => {
     const { runner, calls } = fakeRunner();
     const { windows, wcalls } = fakeWindowOps();
     const out = captureOutput();
-    const code = await runLaunchCommand(["pi-dual", "--bg", "--config", PI_FIXTURE_PATH], {
+    const code = await runLaunchCommand(["pi-cockpit", "--bg", "--config", PI_FIXTURE_PATH], {
       output: out,
       env: { PATH: "/usr/bin" },
       home: "/home/test",
       cwd: "/tmp",
       createRunner: () => runner,
       createWindowOps: () => windows,
+      resolvePiExtension: () => undefined,
     });
     expect(code).toBe(0);
-    expect(calls.newSessionDetached).toEqual([["pi-dual", "/tmp/pi-ws"]]);
-    expect(wcalls.normalize).toEqual(["pi-dual"]);
+    expect(calls.newSessionDetached).toEqual([["pi-cockpit", "/tmp/pi-ws"]]);
+    expect(wcalls.normalize).toEqual(["pi-cockpit"]);
 
-    const logPath = "/home/test/.agents-js/logs/pi-dual.log";
+    const logPath = "/home/test/.agents-js/logs/pi-cockpit.log";
 
     // :0 = runtime. The startup is split across separate send-keys lines — one
     // `export` per env var, then a final `cd … && run-logged … -- <cmd>` line —
@@ -529,7 +530,7 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
     // is JUST the command — the env is NOT concatenated onto it.
     const cmdLine = win0.find((p) => p.includes("agents-js run-logged"));
     expect(cmdLine).toBeDefined();
-    expect(cmdLine).toContain(`agents-js run-logged --log "${logPath}" --`);
+    expect(cmdLine).toContain(`agents-js run-logged --log ${logPath} --`);
     expect(cmdLine).toContain("pi -e @agents-js/pi-extension");
     expect(cmdLine?.startsWith("cd ")).toBe(true);
     expect(cmdLine).not.toContain("export ");
@@ -543,13 +544,13 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
       expect(payload.length).toBeLessThan(1024);
     }
 
-    // :1 = interactive TUI auto-connecting by registered name (= pi-dual).
+    // :1 = interactive TUI auto-connecting by registered name (= pi-cockpit).
     const tui = wcalls.sendKeys.find(([, i]) => i === 1);
-    expect(tui?.[2]).toBe("agents-js client --agent pi-dual --wait");
+    expect(tui?.[2]).toBe("agents-js client --agent pi-cockpit --wait");
 
     // :2 = read-only raw ACP/A2A observer.
     const acp = wcalls.sendKeys.find(([, i]) => i === 2);
-    expect(acp?.[2]).toBe("agents-js client --agent pi-dual --wait --observe");
+    expect(acp?.[2]).toBe("agents-js client --agent pi-cockpit --wait --observe");
 
     // :3 = tail of the runtime logfile.
     const logs = wcalls.sendKeys.find(([, i]) => i === 3);
@@ -557,7 +558,7 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
 
     // Three satellite windows created; focus lands on :0 = runtime.
     expect(wcalls.newWindow.map(([, i]) => i)).toEqual([1, 2, 3]);
-    expect(wcalls.selectWindow).toEqual([["pi-dual", 0]]);
+    expect(wcalls.selectWindow).toEqual([["pi-cockpit", 0]]);
 
     // LT-5: channel_env secret must NOT be pushed via tmux set-environment.
     expect(calls.setEnvironment.some(([, k]) => k === "CH_GATEWAY_KEY_CMD")).toBe(false);
@@ -567,26 +568,27 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
   });
 
   // LT-9: foreground auto-attaches after building all cockpit windows.
-  test("foreground dual_window builds all four windows and auto-attaches (lands on :0 runtime)", async () => {
+  test("foreground cockpit builds all four windows and auto-attaches (lands on :0 runtime)", async () => {
     const { runner } = fakeRunner();
     const { windows, wcalls } = fakeWindowOps();
-    const code = await runLaunchCommand(["pi-dual", "--config", PI_FIXTURE_PATH], {
+    const code = await runLaunchCommand(["pi-cockpit", "--config", PI_FIXTURE_PATH], {
       output: captureOutput(),
       env: { PATH: "/usr/bin" },
       home: "/home/test",
       cwd: "/tmp",
       createRunner: () => runner,
       createWindowOps: () => windows,
+      resolvePiExtension: () => undefined,
     });
     expect(code).toBe(0);
     expect(wcalls.newWindow).toHaveLength(3);
-    expect(wcalls.attach).toEqual(["pi-dual"]);
+    expect(wcalls.attach).toEqual(["pi-cockpit"]);
   });
 
   // Hardening: the agent name interpolated into the :0 client send-keys is
   // validated; a malformed config name fails closed instead of reaching a shell.
   test("isSafeAgentName accepts slug-like fleet ids and rejects shell-significant input", () => {
-    for (const ok of ["hostname-null-ajs-pi-0", "pi-dual", "cognee_claude", "Agent.1", "p0"]) {
+    for (const ok of ["hostname-null-ajs-pi-0", "pi-cockpit", "cognee_claude", "Agent.1", "p0"]) {
       expect(isSafeAgentName(ok)).toBe(true);
     }
     for (const bad of ["pi dual", "pi;rm -rf /", "$(whoami)", "pi&&x", "-leading", "pi`x`", ""]) {
@@ -599,18 +601,38 @@ describe("runLaunchCommand — pi dual_window (cockpit) orchestration", () => {
     const { runner, calls } = fakeRunner(true);
     const { windows, wcalls } = fakeWindowOps();
     const out = captureOutput();
-    const code = await runLaunchCommand(["pi-dual", "--bg", "--config", PI_FIXTURE_PATH], {
+    const code = await runLaunchCommand(["pi-cockpit", "--bg", "--config", PI_FIXTURE_PATH], {
       output: out,
       env: { PATH: "/usr/bin" },
       home: "/home/test",
       cwd: "/tmp",
       createRunner: () => runner,
       createWindowOps: () => windows,
+      resolvePiExtension: () => undefined,
     });
     expect(code).toBe(0);
     expect(calls.newSessionDetached).toEqual([]);
     expect(wcalls.newWindow).toEqual([]);
     expect(wcalls.sendKeys).toEqual([]);
     expect(out.text).toContain("already exists");
+  });
+
+  test("cockpit shell-quotes a resolved source-tree pi extension path with spaces", async () => {
+    const { runner } = fakeRunner();
+    const { windows, wcalls } = fakeWindowOps();
+    const code = await runLaunchCommand(["pi-cockpit", "--bg", "--config", PI_FIXTURE_PATH], {
+      output: captureOutput(),
+      env: { PATH: "/usr/bin" },
+      home: "/home/test",
+      cwd: "/tmp",
+      createRunner: () => runner,
+      createWindowOps: () => windows,
+      resolvePiExtension: () => "/repo with spaces/extras/pi-extension/dist/extension.js",
+    });
+
+    expect(code).toBe(0);
+    const win0 = wcalls.sendKeys.filter(([, i]) => i === 0).map(([, , p]) => p);
+    const cmdLine = win0.find((p) => p.includes("agents-js run-logged"));
+    expect(cmdLine).toContain("pi -e '/repo with spaces/extras/pi-extension/dist/extension.js'");
   });
 });

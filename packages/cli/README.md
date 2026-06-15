@@ -280,11 +280,28 @@ agents-js launch my-agent --config ./scripts/agent-launch-config.json
 
 ---
 
+### `agents-js generate-config`
+
+Generate or update an agent-launch config entry. By default this updates the launch-visible user config (`AGENTS_JS_LAUNCH_CONFIG`, `XDG_CONFIG_HOME`, then `~/.config`); use `--stdout` or `--print` for JSON-only output.
+
+For native Pi agents, the minimal internal path is:
+
+```sh
+agents-js generate-config --name olthoi0-pi-jensbodal --harness pi
+agents-js onboard olthoi0-pi-jensbodal
+```
+
+Generated Pi entries infer `~/workspaces/agents/<name>`, `MATRIX_AGENT=<name>`, `fresh_flags: --approve`, and `cockpit: true`. Use `--config <path>` to update a specific config file.
+
+---
+
 ### `agents-js onboard`
 
-Conformant onboarding entry point — a thin wrapper over `launch` (accepts the same agent name and options, e.g. `--config`, `--bg`) that, on a successful launch, also emits the agent's **mesh-join dispatch entry**: the `{kind:"a2a", url}` registry record a gateway operator installs so `@@dispatch <agent>` routes to the launched peer (AJS #41). Skills + registry provisioning layer in via `agents-js mcp setup` — see [`ONBOARDING.md`](../../ONBOARDING.md).
+Conformant onboarding entry point. It prepares the configured identity workspace, launches the agent (accepts the same agent name and options as `launch`, e.g. `--config`, `--bg`), and on a successful launch emits the agent's **mesh-join dispatch entry**: the `{kind:"a2a", url}` registry record a gateway operator installs so `@@dispatch <agent>` routes to the launched peer (AJS #41). Skills + registry provisioning layer in via `agents-js mcp setup` — see [`ONBOARDING.md`](../../ONBOARDING.md).
 
 The dispatch entry is emitted only when the agent has a fixed A2A port (`pi_port`) and a resolvable advertise host; ephemeral-port agents self-register locally and are not stable cross-host dispatch targets.
+
+For missing workspaces, onboard creates the directory, initializes git, and seeds `README.md`, `HANDOFF.md`, and `.agents/<name>/identity.md` before launch. This creates a native-agent identity workspace; it is not a source-repo sandbox.
 
 **Examples:**
 

@@ -48,6 +48,7 @@ import {
   loadLaunchConfig,
   MatrixAgentCollisionError,
   resolveAgentEntry,
+  resolveDefaultPiExtensionSpec,
   resolveLanAdvertiseHost,
   type TmuxRunner,
   type TmuxWindowOps,
@@ -196,6 +197,11 @@ function filterEnv(env: NodeJS.ProcessEnv): LaunchEnv {
   return out;
 }
 
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value;
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
 function renderCommandLine(
   cwd: string,
   command: string,
@@ -203,9 +209,11 @@ function renderCommandLine(
   env: LaunchEnv,
 ): string {
   const envExports = Object.entries(env)
-    .map(([k, v]) => `export ${k}=${JSON.stringify(v)}`)
+    .map(([k, v]) => `export ${k}=${shellQuote(v)}`)
     .join(" && ");
-  return `${envExports ? `${envExports} && ` : ""}cd ${JSON.stringify(cwd)} && ${command} ${args.join(" ")}`;
+  return `${envExports ? `${envExports} && ` : ""}cd ${shellQuote(cwd)} && ${[command, ...args]
+    .map(shellQuote)
+    .join(" ")}`;
 }
 
 interface ReceiverLaunchPlan {
@@ -369,7 +377,7 @@ function startSession(
 }
 
 /**
- * Cockpit launch (pi `dual_window`): a multi-window tmux session that lands you
+ * Cockpit launch: a multi-window tmux session that lands you
  * on the runtime and surrounds it with the client TUI, a raw ACP stream, and a
  * log tail. Windows:
  *   :0 runtime — the pi process (its embedded A2A endpoint IS the ACP surface),
@@ -386,8 +394,7 @@ function startSession(
  * composable window-ops seam. The layout is forced regardless of the operator's
  * tmux `base-index`. Returns false when the session already exists.
  *
- * `dual_window` stays the config trigger (back-compat); the layout it opens grew
- * from two windows to this cockpit.
+ * The config trigger is `cockpit` for this native-Pi onboarding flow.
  */
 /**
  * Agent names that are safe to interpolate into the client send-keys commands
@@ -421,12 +428,22 @@ function sendRuntimeStartup(
   logPath: string,
 ): void {
   for (const [k, v] of Object.entries(env)) {
-    windows.sendKeysToWindow(session, 0, `export ${k}=${JSON.stringify(v)}`);
+    windows.sendKeysToWindow(session, 0, `export ${k}=${shellQuote(v)}`);
   }
   windows.sendKeysToWindow(
     session,
     0,
-    `cd ${JSON.stringify(plan.cwd)} && agents-js run-logged --log ${JSON.stringify(logPath)} -- ${plan.command} ${plan.args.join(" ")}`,
+    `cd ${shellQuote(plan.cwd)} && ${[
+      "agents-js",
+      "run-logged",
+      "--log",
+      logPath,
+      "--",
+      plan.command,
+      ...plan.args,
+    ]
+      .map(shellQuote)
+      .join(" ")}`,
   );
 }
 
@@ -485,8 +502,10 @@ export interface LaunchCommandDependencies {
   cwd?: string;
   /** Inject a custom tmux runner for tests (skips real binary probe). */
   createRunner?: () => TmuxRunner;
-  /** Inject a custom tmux window-ops seam for tests (dual-window launches). */
+  /** Inject a custom tmux window-ops seam for tests (cockpit launches). */
   createWindowOps?: () => TmuxWindowOps;
+  /** Inject a local default pi-extension resolver for tests. */
+  resolvePiExtension?: () => string | undefined;
 }
 
 /**
@@ -577,6 +596,7 @@ export async function runLaunchCommand(
   const plan = buildLaunchPlan(entry, {
     baseEnv: filterEnv(env),
     resolveLanHost: () => resolveLanAdvertiseHost({ lanDomain }),
+    resolvePiExtension: dependencies.resolvePiExtension ?? resolveDefaultPiExtensionSpec,
   });
   let receiverPlan: ReceiverLaunchPlan | undefined;
   if (parsed.withReceiver) {
@@ -590,11 +610,11 @@ export async function runLaunchCommand(
 
   const runner = dependencies.createRunner ? dependencies.createRunner() : createTmuxRunner();
 
-  // Cockpit (pi `dual_window`): :0 runtime / :1 tui / :2 acp / :3 logs, then
+  // Cockpit: :0 runtime / :1 tui / :2 acp / :3 logs, then
   // auto-attach (landing on :0) in the foreground. --with-receiver is a
-  // codex-only companion-session feature and does not combine with dual_window
+  // codex-only companion-session feature and does not combine with cockpit
   // (rejected at plan build for non-pi).
-  if (plan.dualWindow) {
+  if (plan.cockpit) {
     // The client windows connect by registered name; validate it before it
     // reaches the send-keys commands (fail closed on a malformed config name).
     const agentName = plan.sessionEnv.AGENTS_JS_PI_NAME ?? plan.tmuxSession;

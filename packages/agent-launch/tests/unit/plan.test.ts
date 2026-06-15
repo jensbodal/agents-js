@@ -332,6 +332,17 @@ describe("buildLaunchPlan — pi harness (Phase 2, native peer)", () => {
     expect(plan.args).toEqual(["-e", "@agents-js/pi-extension"]);
     expect(plan.env.AGENTS_JS_PI_PORT).toBeUndefined();
   });
+
+  test("uses injected default pi extension resolver when pi_extension is unset", () => {
+    const plan = buildLaunchPlan(
+      { ...piEntry, piExtension: undefined, piPort: undefined },
+      {
+        baseEnv: {},
+        resolvePiExtension: () => "/repo/extras/pi-extension/dist/extension.js",
+      },
+    );
+    expect(plan.args).toEqual(["-e", "/repo/extras/pi-extension/dist/extension.js"]);
+  });
 });
 
 describe("buildLaunchPlan — pi LAN-host advertisement (AGENTS_JS_PI_HOST)", () => {
@@ -383,12 +394,45 @@ describe("buildLaunchPlan — pi LAN-host advertisement (AGENTS_JS_PI_HOST)", ()
     expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
   });
 
-  test('pi_host "127.0.0.1" forces loopback even with a LAN resolver', () => {
+  test('pi_host "auto" is the same LAN-advertise sentinel as "lan"', () => {
     const plan = buildLaunchPlan(
-      { ...piEntry, piHost: "127.0.0.1" },
+      { ...piEntry, piHost: "auto" },
       { baseEnv: {}, resolveLanHost: lan },
     );
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+  });
+
+  test('pi_host "127.0.0.1" forces loopback even with a LAN resolver', () => {
+    let resolverCalls = 0;
+    const plan = buildLaunchPlan(
+      { ...piEntry, piHost: "127.0.0.1" },
+      {
+        baseEnv: {},
+        resolveLanHost: () => {
+          resolverCalls++;
+          return "10.0.0.223";
+        },
+      },
+    );
     expect(plan.env.AGENTS_JS_PI_HOST).toBe("127.0.0.1");
+    expect(resolverCalls).toBe(0);
+  });
+
+  test("launcher exports advertise host only; all-interface bind stays an explicit extension env", () => {
+    const plan = buildLaunchPlan(piEntry, { baseEnv: {}, resolveLanHost: lan });
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+    expect(plan.env.AGENTS_JS_PI_BIND_HOST).toBeUndefined();
+    expect(plan.sessionEnv.AGENTS_JS_PI_BIND_HOST).toBeUndefined();
+  });
+
+  test("an explicit AGENTS_JS_PI_BIND_HOST from the operator is passed through, never defaulted", () => {
+    const plan = buildLaunchPlan(piEntry, {
+      baseEnv: { AGENTS_JS_PI_BIND_HOST: "0.0.0.0" },
+      resolveLanHost: lan,
+    });
+    expect(plan.env.AGENTS_JS_PI_HOST).toBe("10.0.0.223");
+    expect(plan.env.AGENTS_JS_PI_BIND_HOST).toBe("0.0.0.0");
+    expect(plan.sessionEnv.AGENTS_JS_PI_BIND_HOST).toBeUndefined();
   });
 });
 

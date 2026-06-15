@@ -14,16 +14,20 @@
  *
  * Contract:
  *
- *   agents-js generate-config --name <name> --harness <claude-code|codex|pi> \
- *     --workspace <path> [options]            # emits a full config to stdout
- *   agents-js generate-config ... --merge <config-path>   # inserts + writes back
+ *   agents-js generate-config --name <name> --harness <claude-code|codex|pi>
+ *     # updates the launch-visible user config by default
+ *   agents-js generate-config ... --stdout    # prints JSON only, writes nothing
+ *   agents-js generate-config ... --config <path>   # updates that config path
  *
- * Two output modes:
- *   - default: a complete `{version, agents:{<name>:<entry>}}` config is printed
- *     to stdout (redirect to a file, then `agents-js onboard <name> --config
- *     <file>`). Hints go to stderr so stdout stays clean JSON.
- *   - `--merge <path>`: the entry is inserted into the existing config at
- *     `<path>` (preserving other agents + top-level fields) and written back.
+ * Output modes:
+ *   - default: insert/update the entry in the launch-visible user config
+ *     (`AGENTS_JS_LAUNCH_CONFIG`, `XDG_CONFIG_HOME`, then `~/.config`),
+ *     preserving existing agents + top-level fields when the file exists.
+ *   - `--config <path>`: same update semantics for an explicit config path.
+ *   - `--stdout` / `--print`: print a complete single-agent config to stdout
+ *     and do not read or write any config file. Hints go to stderr so stdout
+ *     stays clean JSON.
+ *   - `--merge <path>`: backward-compatible alias for `--config <path>`.
  *
  * Secret boundary: a declared `--provider` requires its credential env var at
  * LAUNCH time (fail-closed in `buildLaunchPlan`). Generation validates the entry
@@ -37,7 +41,9 @@
  *   64 — usage error (missing required flag, unknown flag)
  */
 
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
 import {
   assertSelectedMatrixAgentUnique,
   buildLaunchPlan,
@@ -86,18 +92,24 @@ export interface GenerateConfigArgs {
   piPort?: string;
   piHost?: string;
   piExtension?: string;
-  dualWindow: boolean;
+  cockpit?: boolean;
+  config?: string;
   merge?: string;
+  printOnly?: boolean;
   configVersion?: string;
 }
 
 export interface GenerateConfigDependencies {
   stdout?: Pick<NodeJS.WriteStream, "write">;
   stderr?: Pick<NodeJS.WriteStream, "write">;
+  /** Env for choosing the same default config path launch/onboard will read. */
+  env?: NodeJS.ProcessEnv;
   /** Load an existing config for `--merge`. Tests inject an in-memory config. */
   loadConfig?: (path: string) => Promise<LaunchConfig>;
   /** Persist a config file for `--merge`. Tests capture the written text. */
   writeConfig?: (path: string, text: string) => Promise<void>;
+  /** Home directory for inferred config/workspace paths. */
+  home?: string;
 }
 
 const setGenerateConfigHelp = (a: GenerateConfigArgs): void => {
@@ -129,7 +141,8 @@ export const GENERATE_CONFIG_ARG_SPEC: ArgSpec<GenerateConfigArgs> = {
     assign: (a, v) => {
       a.workspace = v;
     },
-    description: "Working directory the harness launches from. Required.",
+    description:
+      "Working directory the harness launches from. Defaults to ~/workspaces/agents/<name>.",
     valueExample: "<path>",
   },
   "--binary": {
@@ -153,7 +166,8 @@ export const GENERATE_CONFIG_ARG_SPEC: ArgSpec<GenerateConfigArgs> = {
     assign: (a, v) => {
       a.freshFlags = v;
     },
-    description: "Flags passed to a fresh harness launch (whitespace-split). Defaults to empty.",
+    description:
+      "Flags passed to a fresh harness launch (whitespace-split). Defaults to --approve for pi, empty otherwise.",
     valueExample: "<flags>",
   },
   "--provider": {
@@ -220,19 +234,42 @@ export const GENERATE_CONFIG_ARG_SPEC: ArgSpec<GenerateConfigArgs> = {
     description: "pi harness: `pi -e <spec>` extension. Defaults to @agents-js/pi-extension.",
     valueExample: "<spec>",
   },
-  "--dual-window": {
+  "--cockpit": {
     kind: "flag",
     assign: (a) => {
-      a.dualWindow = true;
+      a.cockpit = true;
     },
-    description: "pi harness only: TUI in window :0 + runtime in :1.",
+    description:
+      "pi harness only: open the cockpit tmux layout (default for generated pi entries).",
+  },
+  "--config": {
+    kind: "value",
+    assign: (a, v) => {
+      a.config = v;
+    },
+    description: "Insert/update the entry in this config path.",
+    valueExample: "<config-path>",
+  },
+  "--stdout": {
+    kind: "flag",
+    assign: (a) => {
+      a.printOnly = true;
+    },
+    description: "Print JSON to stdout and do not update a config file.",
+  },
+  "--print": {
+    kind: "flag",
+    assign: (a) => {
+      a.printOnly = true;
+    },
+    description: "Alias for --stdout.",
   },
   "--merge": {
     kind: "value",
     assign: (a, v) => {
       a.merge = v;
     },
-    description: "Insert the entry into the existing config at <path> and write it back.",
+    description: "Backward-compatible alias for --config <path>.",
     valueExample: "<config-path>",
   },
   "--config-version": {
@@ -248,7 +285,7 @@ export const GENERATE_CONFIG_ARG_SPEC: ArgSpec<GenerateConfigArgs> = {
 export function parseGenerateConfigArgs(argv: string[]): GenerateConfigArgs {
   return parseArgv<GenerateConfigArgs>(argv, GENERATE_CONFIG_ARG_SPEC, {
     subcommandName: "generate-config",
-    defaults: { dualWindow: false },
+    defaults: { cockpit: false, printOnly: false },
   });
 }
 
@@ -257,24 +294,24 @@ export function printGenerateConfigUsage(output: Pick<NodeJS.WriteStream, "write
     `${[
       `agents-js v${CLI_VERSION} — generate-config`,
       "",
-      "Author a launch-config agent entry from CLI flags, validated through the",
-      "same schema + validators the launch/onboard path uses, then emit it. The",
+      "Author/update a launch-config agent entry from CLI flags, validated through the",
+      "same schema + validators the launch/onboard path uses. The",
       "generator refuses to emit an entry that would not launch.",
       "",
       "Usage:",
-      "  agents-js generate-config --name <name> --harness <kind> --workspace <path> [options]",
+      "  agents-js generate-config --name <name> --harness <kind> [options]",
       "",
       "Required:",
       "  --name <name>          Agent name (config key + default tmux session).",
       "  --harness <kind>       claude-code | codex | pi.",
-      "  --workspace <path>     Working directory the harness launches from.",
       "",
       "Common options:",
+      "  --workspace <path>     Working directory; defaults to ~/workspaces/agents/<name>.",
       "  --binary <bin>         Binary; defaults to the harness's native binary.",
       "  --tmux-session <name>  tmux session name; defaults to --name.",
-      "  --fresh-flags <flags>  Fresh-launch flags (whitespace-split).",
+      "  --fresh-flags <flags>  Fresh-launch flags (pi default: --approve).",
       "  --provider <id>        LLM provider (cred env var required at launch).",
-      "  --matrix-agent <name>  Fleet MATRIX_AGENT identity (env_setup export).",
+      "  --matrix-agent <name>  Fleet MATRIX_AGENT identity; defaults to --name.",
       "  --matrix-mxid <mxid>   Matrix user id.",
       "  --git-author-name <n>  / --git-author-email <e>  Commit identity.",
       "",
@@ -282,20 +319,20 @@ export function printGenerateConfigUsage(output: Pick<NodeJS.WriteStream, "write
       "  --pi-port <port>       Fixed A2A port (AGENTS_JS_PI_PORT).",
       "  --pi-host <host>       Advertise host; explicit IP or `lan`/`auto`.",
       "  --pi-extension <spec>  `pi -e <spec>`; defaults to @agents-js/pi-extension.",
-      "  --dual-window          TUI in window :0 + runtime in :1 (pi only).",
+      "  --cockpit              Cockpit tmux layout (default for generated pi entries).",
       "",
       "Output:",
-      "  (default)              Print a full config to stdout (redirect to a file).",
-      "  --merge <config-path>  Insert into the existing config and write it back.",
+      "  (default)              Update the launch-visible user config.",
+      "  --config <path>        Insert/update this config path.",
+      "  --stdout, --print      Print a full config to stdout and write nothing.",
+      "  --merge <path>         Back-compat alias for --config <path>.",
       "  --config-version <v>   Schema version for a fresh config (default 0.1.0).",
       "",
       "Examples:",
-      "  agents-js generate-config --name demo --harness pi --workspace /work \\",
-      "    --provider zai --pi-port 3101 --dual-window > demo.json",
-      "  agents-js onboard demo --config demo.json",
+      "  agents-js generate-config --name demo --harness pi --provider zai --pi-port 3101",
+      "  agents-js onboard demo",
       "",
-      "  agents-js generate-config --name demo --harness codex --workspace /work \\",
-      "    --merge ~/.config/agents-js/agent-launch-config.json",
+      "  agents-js generate-config --name demo --harness codex --workspace /work --stdout",
       "",
       "Exit codes:",
       `  ${EXIT_OK}   Entry generated + emitted/written.`,
@@ -338,8 +375,50 @@ export function buildRawAgentEntry(args: GenerateConfigArgs): Record<string, unk
   if (args.piPort !== undefined) entry.pi_port = args.piPort;
   if (args.piHost !== undefined) entry.pi_host = args.piHost;
   if (args.piExtension !== undefined) entry.pi_extension = args.piExtension;
-  if (args.dualWindow) entry.dual_window = true;
+  if (args.cockpit) entry.cockpit = true;
   return entry;
+}
+
+function defaultUserConfigPath(home: string): string {
+  return path.join(home, ".config", "agents-js", "agent-launch-config.json");
+}
+
+function defaultUpdateConfigPath(home: string, env: NodeJS.ProcessEnv): string {
+  if (env.AGENTS_JS_LAUNCH_CONFIG?.trim()) return env.AGENTS_JS_LAUNCH_CONFIG;
+  if (env.XDG_CONFIG_HOME?.trim()) {
+    return path.join(env.XDG_CONFIG_HOME, "agents-js", "agent-launch-config.json");
+  }
+  return defaultUserConfigPath(home);
+}
+
+function inferWorkspace(home: string, name: string): string {
+  return path.join(home, "workspaces", "agents", name);
+}
+
+function withInferredDefaults(args: GenerateConfigArgs, home: string): GenerateConfigArgs {
+  const harness = args.harness;
+  const name = args.name;
+  return {
+    ...args,
+    workspace: args.workspace ?? (name ? inferWorkspace(home, name) : undefined),
+    matrixAgent: args.matrixAgent ?? name,
+    freshFlags: args.freshFlags ?? (harness === "pi" ? "--approve" : undefined),
+    cockpit: args.cockpit || harness === "pi",
+  };
+}
+
+function isFileNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+async function defaultWriteConfig(configPath: string, text: string): Promise<void> {
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(configPath, text, "utf8");
 }
 
 /**
@@ -366,6 +445,9 @@ export async function runGenerateConfigCommand(
 ): Promise<number> {
   const stdout = dependencies.stdout ?? process.stdout;
   const stderr = dependencies.stderr ?? process.stderr;
+  // biome-ignore lint/style/noProcessEnv: CLI entry-point default; tests inject via dependencies.env.
+  const env = dependencies.env ?? process.env;
+  const home = dependencies.home ?? homedir();
 
   const versionExit = handleVersionFlag(argv, stdout);
   if (versionExit !== undefined) return versionExit;
@@ -383,7 +465,7 @@ export async function runGenerateConfigCommand(
     return EXIT_OK;
   }
 
-  const missing = (["name", "harness", "workspace"] as const).filter((k) => !args[k]?.trim());
+  const missing = (["name", "harness"] as const).filter((k) => !args[k]?.trim());
   if (missing.length > 0) {
     stderr.write(
       `[agents-js] generate-config: missing required ${missing.map((m) => `--${m}`).join(", ")}. Run \`agents-js generate-config --help\`.\n`,
@@ -391,6 +473,7 @@ export async function runGenerateConfigCommand(
     return EXIT_USAGE;
   }
 
+  args = withInferredDefaults(args, home);
   const name = args.name as string;
   let rawEntry: Record<string, unknown>;
   try {
@@ -405,29 +488,40 @@ export async function runGenerateConfigCommand(
     return EXIT_ERROR;
   }
 
-  // Assemble the config to validate + emit. For --merge, layer the new entry
-  // onto the existing file's agents + top-level fields; otherwise emit a fresh
-  // single-agent config.
+  // Assemble the config to validate + emit. Print-only mode is a fresh
+  // single-agent config. Update mode layers the new entry onto an existing config
+  // when present; a missing file starts a fresh config at the selected path.
   let configObject: Record<string, unknown>;
   let existingConfig: LaunchConfig | undefined;
-  if (args.merge) {
+  const updatePath = args.config ?? args.merge ?? defaultUpdateConfigPath(home, env);
+  if (!args.printOnly) {
     const loadConfig = dependencies.loadConfig ?? loadLaunchConfig;
     try {
-      existingConfig = await loadConfig(args.merge);
+      existingConfig = await loadConfig(updatePath);
     } catch (error) {
-      stderr.write(
-        `[agents-js] generate-config: failed to read --merge config "${args.merge}": ${error instanceof Error ? error.message : String(error)}\n`,
-      );
-      return EXIT_ERROR;
+      if (!isFileNotFoundError(error)) {
+        stderr.write(
+          `[agents-js] generate-config: failed to read config "${updatePath}": ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+        return EXIT_ERROR;
+      }
     }
-    configObject = {
-      version: existingConfig.version,
-      ...(existingConfig.description !== undefined
-        ? { description: existingConfig.description }
-        : {}),
-      ...(existingConfig.lanDomain !== undefined ? { lan_domain: existingConfig.lanDomain } : {}),
-      agents: { ...existingConfig.agents, [name]: rawEntry },
-    };
+    configObject =
+      existingConfig !== undefined
+        ? {
+            version: existingConfig.version,
+            ...(existingConfig.description !== undefined
+              ? { description: existingConfig.description }
+              : {}),
+            ...(existingConfig.lanDomain !== undefined
+              ? { lan_domain: existingConfig.lanDomain }
+              : {}),
+            agents: { ...existingConfig.agents, [name]: rawEntry },
+          }
+        : {
+            version: args.configVersion ?? DEFAULT_CONFIG_VERSION,
+            agents: { [name]: rawEntry },
+          };
   } else {
     configObject = {
       version: args.configVersion ?? DEFAULT_CONFIG_VERSION,
@@ -446,27 +540,30 @@ export async function runGenerateConfigCommand(
 
   const serialized = `${JSON.stringify(configObject, null, 2)}\n`;
 
-  if (args.merge) {
-    const writeConfig =
-      dependencies.writeConfig ?? ((path: string, text: string) => writeFile(path, text, "utf8"));
+  if (!args.printOnly) {
+    const writeConfig = dependencies.writeConfig ?? defaultWriteConfig;
     try {
-      await writeConfig(args.merge, serialized);
+      await writeConfig(updatePath, serialized);
     } catch (error) {
       stderr.write(
-        `[agents-js] generate-config: failed to write "${args.merge}": ${error instanceof Error ? error.message : String(error)}\n`,
+        `[agents-js] generate-config: failed to write "${updatePath}": ${error instanceof Error ? error.message : String(error)}\n`,
       );
       return EXIT_ERROR;
     }
+    const launchHint =
+      args.config || args.merge
+        ? `agents-js onboard ${name} --config ${updatePath}`
+        : `agents-js onboard ${name}`;
     stderr.write(
-      `[agents-js] generate-config: wrote agent "${name}" into ${args.merge}. Launch it with:\n  agents-js onboard ${name} --config ${args.merge}\n`,
+      `[agents-js] generate-config: wrote agent "${name}" into ${updatePath}. Launch it with:\n  ${launchHint}\n`,
     );
     return EXIT_OK;
   }
 
-  // Default: clean JSON to stdout (redirectable); the how-to hint goes to stderr.
+  // Print-only: clean JSON to stdout (redirectable); the how-to hint goes to stderr.
   stdout.write(serialized);
   stderr.write(
-    `[agents-js] generate-config: validated config for "${name}". Redirect stdout to a file, then:\n  agents-js onboard ${name} --config <file>\n`,
+    `[agents-js] generate-config: validated config for "${name}" (print-only). Redirect stdout to a file, then:\n  agents-js onboard ${name} --config <file>\n`,
   );
   return EXIT_OK;
 }

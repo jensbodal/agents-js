@@ -2,12 +2,16 @@
 #
 # Pre-push hook: full local gate before any push.
 #
-# Two phases, in order:
+# Three phases, in order:
 #   1. `bun install` — refresh workspace symlinks in node_modules/@agents-js/*.
 #      Side-effectful; self-heals stale symlinks that drift when sibling
 #      packages are added/renamed between pushes. Idempotent (reports
 #      "(no changes)" on cache hit, ~10ms).
-#   2. `mise run ci` — the validation gate: generated-doc drift checks,
+#   2. `bun run lint:fix` — apply Biome formatting, import sorting, and safe
+#      lint fixes before the expensive validation gate. If this changes files,
+#      abort so the caller can commit or amend the fixed files instead of
+#      pushing the old commit while validating a newer worktree.
+#   3. `mise run ci` — the validation gate: generated-doc drift checks,
 #      typecheck, lint, and tests via the serialized task graph in mise.toml.
 #
 # Why phase 1 exists: adding or renaming workspace packages can leave
@@ -28,7 +32,7 @@ if [[ "${SKIP_PREPUSH:-0}" == "1" ]]; then
   exit 0
 fi
 
-echo "🔄 Pre-push phase 1/2: refreshing workspace symlinks (bun install)..."
+echo "🔄 Pre-push phase 1/3: refreshing workspace symlinks (bun install)..."
 if ! bun install; then
   echo ""
   echo "Pre-push gate FAILED: 'bun install' returned non-zero." >&2
@@ -36,7 +40,34 @@ if ! bun install; then
   exit 1
 fi
 
-echo "🔒 Pre-push phase 2/2: running validation gate (mise run ci)..."
+before_worktree_patch=$(mktemp)
+before_index_patch=$(mktemp)
+after_worktree_patch=$(mktemp)
+after_index_patch=$(mktemp)
+trap 'rm -f "$before_worktree_patch" "$before_index_patch" "$after_worktree_patch" "$after_index_patch"' EXIT
+
+git diff --binary > "$before_worktree_patch"
+git diff --cached --binary > "$before_index_patch"
+
+echo "🔧 Pre-push phase 2/3: applying Biome auto-fixes (bun run lint:fix)..."
+if ! bun run lint:fix; then
+  echo ""
+  echo "Pre-push gate FAILED: 'bun run lint:fix' returned non-zero." >&2
+  echo "Fix the reported lint/format problem before pushing." >&2
+  exit 1
+fi
+
+git diff --binary > "$after_worktree_patch"
+git diff --cached --binary > "$after_index_patch"
+
+if ! cmp -s "$before_worktree_patch" "$after_worktree_patch" || ! cmp -s "$before_index_patch" "$after_index_patch"; then
+  echo ""
+  echo "Pre-push gate applied Biome fixes. Commit or amend these changes, then push again:" >&2
+  git diff --name-only >&2
+  exit 1
+fi
+
+echo "🔒 Pre-push phase 3/3: running validation gate (mise run ci)..."
 if ! mise run ci; then
   echo ""
   echo "Pre-push gate FAILED: 'mise run ci' returned non-zero." >&2

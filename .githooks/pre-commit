@@ -31,15 +31,11 @@ if [ -n "$PKG_JSON_CHANGED" ]; then
   STAGED_FILES="$STAGED_FILES"$'\n'"bun.lock"
 fi
 
-echo "🔧 Pre-commit auto-fix: bun run format..."
-bun run format >/dev/null
-
-# biome check --write applies the subset of lint rules that biome knows how to
-# fix safely (unused imports, simple organization, etc.). Unfixable lint is
-# passed through to the final `bun run check` gate below, which will fail
-# commits with real issues.
-echo "🔧 Pre-commit auto-fix: biome check --write (safe lint fixes)..."
-bunx biome check --write . >/dev/null || true
+# `lint:fix` runs `biome check --write`, which applies formatting, import
+# sorting, and safe lint fixes in one pass. Unfixable lint is passed through to
+# the final `bun run check` gate below, which will fail commits with real issues.
+echo "🔧 Pre-commit auto-fix: bun run lint:fix..."
+bun run lint:fix >/dev/null || true
 
 # Re-stage any originally-staged files that the auto-fix touched so the
 # commit carries the fixed version. Files outside this list that biome

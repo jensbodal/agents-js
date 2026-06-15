@@ -317,6 +317,28 @@ describe("resolveAgentEntry — per-agent validation (lazy)", () => {
       /field "git_author_name" must be a string when present/,
     );
   });
+
+  test("legacy dual_window fails clearly instead of being silently ignored", () => {
+    const config = parseLaunchConfig(
+      JSON.stringify({
+        version: "0.1.0",
+        agents: {
+          foo: {
+            tmux_session: "foo",
+            harness: "pi",
+            binary: "pi",
+            workspace: "/tmp",
+            fresh_flags: "--approve",
+            dual_window: true,
+          },
+        },
+      }),
+      "x.json",
+    );
+    expect(() => resolveAgentEntry(config, "foo")).toThrow(
+      /field "dual_window" is no longer supported; use "cockpit"/,
+    );
+  });
 });
 
 describe("loadLaunchConfig — file IO", () => {

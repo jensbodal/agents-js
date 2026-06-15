@@ -2,10 +2,10 @@
  * Public-surface contract for `@agents-js/agent-launch` — the tmux **window-ops**
  * seam.
  *
- * The dual-window primitive (`createTmuxWindowOps` + its option/return types)
+ * The cockpit primitive (`createTmuxWindowOps` + its option/return types)
  * MUST be importable from the package's public entry (`.`), so the consuming
- * parts of the pi dual-window work — the CLI plan/launch path (parts 2/3) and
- * any external orchestrator — can compose a layout (`:0`=TUI / `:1`=runtime)
+ * parts of the pi cockpit work — the CLI plan/launch path (parts 2/3) and
+ * any external orchestrator — can compose a layout (`:0`=runtime / `:1`=TUI)
  * without reaching a deep `src/tmux-windows.ts` import. The module's internal
  * correctness is pinned by `tests/unit/tmux-windows.test.ts`; this test pins the
  * *seam*: that it crosses the index boundary and is consumable as a unit.
@@ -27,7 +27,7 @@ describe("public surface — tmux window-ops seam", () => {
     expect(typeof createTmuxWindowOps).toBe("function");
   });
 
-  test("the dual-window layout composes from the public surface — argv flows to an injected spawner", () => {
+  test("the cockpit layout composes from the public surface — argv flows to an injected spawner", () => {
     // A recorder injected through the public option types, exactly as parts 2/3
     // (the CLI launch path) wire it — proving the seam is consumable, not just
     // exported. Attach has its own recorder: it must NOT route through the

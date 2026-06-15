@@ -1,6 +1,6 @@
 /**
  * Learning tests for the tmux window-ops seam (composable multi-window layer for
- * the pi dual-window launch). Mirrors tmux.test.ts: a mock spawner records argv
+ * the pi cockpit launch). Mirrors tmux.test.ts: a mock spawner records argv
  * so no real tmux binary is needed. The interactive attach has its own recorder
  * (it must not go through the capturing spawner).
  *

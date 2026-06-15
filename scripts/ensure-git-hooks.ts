@@ -11,8 +11,8 @@
  * minimum (hooks enabled) happens even when developers skip `bun run setup`.
  *
  * If `core.hooksPath` is already set to `.githooks`, no-op + quiet exit.
- * If it's set to a different value, log a warning but don't overwrite —
- * the developer may have intentionally customized.
+ * Otherwise set it to `.githooks`; the repository default should not be
+ * silently bypassed by stale local hook configuration.
  */
 
 import { spawnSync } from "node:child_process";
@@ -41,16 +41,9 @@ function main(): void {
     return;
   }
 
-  if (current !== null && current !== TARGET) {
-    console.warn(
-      `[postinstall] git core.hooksPath is set to '${current}', expected '${TARGET}'. Skipping auto-config — set manually via 'git config --local core.hooksPath ${TARGET}' if you want the in-tree hooks.`,
-    );
-    return;
-  }
-
-  // Unset — enable our in-tree hooks.
   if (gitConfigSet("core.hooksPath", TARGET)) {
-    console.log(`[postinstall] git core.hooksPath enabled at ${TARGET}`);
+    const previous = current === null ? "unset" : `'${current}'`;
+    console.log(`[postinstall] git core.hooksPath set to ${TARGET} (was ${previous})`);
   }
 }
 

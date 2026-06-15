@@ -87,11 +87,16 @@ export {
   MatrixAgentCollisionError,
 } from "./matrix-agent-uniqueness.ts";
 export {
+  type ResolveDefaultPiExtensionSpecOptions,
+  resolveDefaultPiExtensionSpec,
+} from "./pi-extension-resolution.ts";
+export {
   type BuildLaunchPlanOptions,
   buildLaunchPlan,
   type LaunchMode,
   type LaunchPlan,
   LaunchPlanError,
+  resolvePiAdvertiseHost,
   type SupportedHarness,
 } from "./plan.ts";
 export {

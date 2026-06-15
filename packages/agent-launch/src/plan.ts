@@ -98,7 +98,7 @@ export interface LaunchPlan {
    * the `agents-js client`/`run-logged` commands; the plan only carries the
    * intent. pi-harness only (validated in {@link buildLaunchPlan}).
    */
-  readonly dualWindow: boolean;
+  readonly cockpit: boolean;
 }
 
 /** Typed error raised when the plan cannot be built. */
@@ -185,6 +185,14 @@ export interface BuildLaunchPlanOptions {
    * pi-extension falls back to `127.0.0.1`.
    */
   readonly resolveLanHost?: () => string | undefined;
+  /**
+   * Optional impure resolver for a locally available default pi extension. The
+   * CLI injects this so source/worktree launches can use the built
+   * `extras/pi-extension` bundle without forcing config authors to spell an
+   * absolute path. When omitted or unresolved, the public package spec remains
+   * the default.
+   */
+  readonly resolvePiExtension?: () => string | undefined;
 }
 
 /**
@@ -205,12 +213,13 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
       { agentName: entry.tmuxSession, harness: entry.harness },
     );
   }
-  // dual_window is a native-pi affordance (TUI window + embedded A2A/ACP
-  // window). Other harnesses don't expose a self-registered A2A endpoint the
-  // TUI could auto-connect to, so reject it here rather than silently ignore.
-  if (entry.dualWindow && entry.harness !== "pi") {
+  // Cockpit is a native-pi affordance (runtime + client + observer + logs).
+  // Other harnesses don't expose the same self-registered A2A endpoint the TUI
+  // can auto-connect to, so reject it here rather than silently ignore.
+  const cockpit = entry.cockpit === true;
+  if (cockpit && entry.harness !== "pi") {
     throw new LaunchPlanError(
-      `dual_window is only supported for the "pi" harness (got "${entry.harness}")`,
+      `cockpit is only supported for the "pi" harness (got "${entry.harness}")`,
       { agentName: entry.tmuxSession, harness: entry.harness },
     );
   }
@@ -231,6 +240,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     entry,
     baseEnv,
     resolveLanHost: options.resolveLanHost,
+    resolvePiExtension: options.resolvePiExtension,
   });
 
   // Identity-derived env — not harness-intrinsic, not operator-configurable.
@@ -278,7 +288,7 @@ export function buildLaunchPlan(entry: AgentEntry, options: BuildLaunchPlanOptio
     allowedTools: built.allowedTools,
     harness,
     mode,
-    dualWindow: entry.dualWindow === true,
+    cockpit,
   };
 }
 
@@ -297,6 +307,8 @@ interface HarnessBuildContext {
   readonly baseEnv: LaunchEnv;
   /** LAN-host resolver injected at the CLI boundary (see {@link BuildLaunchPlanOptions}). */
   readonly resolveLanHost?: () => string | undefined;
+  /** Default pi-extension resolver injected at the CLI boundary. */
+  readonly resolvePiExtension?: () => string | undefined;
 }
 
 /** A harness's registry entry: how to build its invocation + which env it owns session-wide. */
@@ -404,12 +416,13 @@ function buildPiInvocation({
   entry,
   baseEnv,
   resolveLanHost,
+  resolvePiExtension,
 }: HarnessBuildContext): HarnessInvocation {
-  const extension = entry.piExtension ?? DEFAULT_PI_EXTENSION;
+  const extension = entry.piExtension ?? resolvePiExtension?.() ?? DEFAULT_PI_EXTENSION;
   const flagArgs = splitFlags(entry.freshFlags);
   const args: readonly string[] = ["-e", extension, ...flagArgs];
   const piName = baseEnv.MATRIX_AGENT ?? entry.tmuxSession;
-  const host = resolvePiHost(entry.piHost, resolveLanHost);
+  const host = resolvePiAdvertiseHost(entry.piHost, resolveLanHost);
   // Harness defaults (AGENT_HARNESS) layered under baseEnv, then agents-js
   // A2A mesh keys on top. Operator baseEnv wins over defaults.
   const defaults = loadHarnessDefaults("pi");
@@ -434,7 +447,7 @@ function buildPiInvocation({
  * unset, so the pi-extension keeps its `127.0.0.1` default — never advertise an
  * address we could not resolve.
  */
-function resolvePiHost(
+export function resolvePiAdvertiseHost(
   piHost: string | undefined,
   resolveLanHost?: () => string | undefined,
 ): string | undefined {

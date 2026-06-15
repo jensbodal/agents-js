@@ -4,7 +4,7 @@
  *
  * This backs `agents-js client --agent <name> [--wait]`. It mirrors the
  * registry-lookup precedent in `send.ts` (which matches by `--harness`) but
- * matches by the agent's `name`, because the dual-window launch hands the TUI an
+ * matches by the agent's `name`, because the cockpit launch hands the TUI an
  * agent NAME and the runtime self-registers its (possibly ephemeral) url — so
  * the url is only knowable from the registry at connect time, never guessed.
  *
