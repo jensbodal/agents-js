@@ -160,3 +160,12 @@ export function toA2CanvasView(board: A2CanvasBoard): A2CanvasView {
  *
  *   boardToCanvasSurface(board: A2CanvasBoard): A2uiSurfaceInput
  */
+
+// Stateful board-host (the transport-free bridge mounted behind /events). Kept
+// in a sibling module so this entry stays a pure model; re-exported for the
+// single published surface.
+export {
+  type A2CanvasBoardHost,
+  type A2CanvasViewListener,
+  createA2CanvasBoardHost,
+} from "./board-host.ts";
