@@ -85,6 +85,7 @@
       "version": "0.1.0-alpha.1",
       "dependencies": {
         "@agents-js/a2a-client": "workspace:*",
+        "@agents-js/a2canvas": "workspace:*",
         "@agents-js/a2ui-host": "workspace:*",
         "@agents-js/a2ui-renderer": "workspace:*",
         "@agents-js/a2ui-types": "workspace:*",
