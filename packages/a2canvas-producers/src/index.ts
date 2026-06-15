@@ -21,6 +21,13 @@
 
 import type { A2CanvasAgentUpdate } from "@agents-js/a2canvas";
 
+export {
+  createPoller,
+  type PlaneIssueSnapshot,
+  type Poller,
+  type PollerDeps,
+} from "./poller.ts";
+
 /** Injected, authoritative principal-id -> host map. Missing => "unknown". */
 export type HostRoster = Readonly<Record<string, string>>;
 
