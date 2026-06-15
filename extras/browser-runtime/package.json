@@ -17,6 +17,11 @@
       "import": "./src/webllm-worker.ts"
     }
   },
+  "scripts": {
+    "build": "bunx tsdown src/index.ts src/webllm-worker.ts --format esm --dts --out-dir dist --clean",
+    "typecheck": "bunx tsgo --noEmit -p tsconfig.json",
+    "test": "bun test src"
+  },
   "dependencies": {
     "@agents-js/agui-types": "0.6.0",
     "@agents-js/validation": "0.6.0",
