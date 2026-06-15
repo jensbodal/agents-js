@@ -1,0 +1,40 @@
+{
+  "name": "@agents-js/a2canvas-producers",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "A2Canvas producers (M0): pure mappers from real agent activity (Matrix room, Plane work-items) to normalized A2CanvasAgentUpdate events. No reducer, no transport — the gateway board loop mounts these and owns merge/order.",
+  "author": "Jens Bodal",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "bun": ">=1.3.11"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bunx tsdown src/index.ts --format esm --dts --out-dir dist --clean",
+    "typecheck": "bunx tsgo --noEmit -p tsconfig.json",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@agents-js/a2canvas": "0.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

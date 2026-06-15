@@ -371,6 +371,13 @@
       "name": "@agents-js/a2canvas",
       "version": "0.6.0",
     },
+    "packages/a2canvas-producers": {
+      "name": "@agents-js/a2canvas-producers",
+      "version": "0.6.0",
+      "dependencies": {
+        "@agents-js/a2canvas": "0.6.0",
+      },
+    },
     "packages/a2ui-host": {
       "name": "@agents-js/a2ui-host",
       "version": "0.6.0",
@@ -802,6 +809,8 @@
     "@agents-js/a2a-client": ["@agents-js/a2a-client@workspace:packages/a2a-client"],
 
     "@agents-js/a2canvas": ["@agents-js/a2canvas@workspace:packages/a2canvas"],
+
+    "@agents-js/a2canvas-producers": ["@agents-js/a2canvas-producers@workspace:packages/a2canvas-producers"],
 
     "@agents-js/a2ui-host": ["@agents-js/a2ui-host@workspace:packages/a2ui-host"],
 
