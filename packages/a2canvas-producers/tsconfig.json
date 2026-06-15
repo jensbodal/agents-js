@@ -1,6 +1,7 @@
 {
   "extends": ["../../tsconfig.workspace.json", "../../tsconfig.dev-paths.json"],
   "compilerOptions": {
+    "types": ["bun"],
     "rootDir": "src"
   },
   "include": ["src"]
