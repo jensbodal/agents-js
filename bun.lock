@@ -64,6 +64,7 @@
         "@agentclientprotocol/claude-agent-acp": "0.33.1",
         "@agents-js/a2a": "workspace:*",
         "@agents-js/a2a-client": "workspace:*",
+        "@agents-js/a2canvas": "workspace:*",
         "@agents-js/acp-host": "workspace:*",
         "@agents-js/droid-acp": "workspace:*",
         "@agents-js/gateway-runtime": "workspace:*",
